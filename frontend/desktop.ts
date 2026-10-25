@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { backend } from "./backend";
 import { element } from "./dom";
 import { t } from "./i18n.js";
+import { flushGenerationFormPreferences } from "./form-preferences";
 
 let closing = false;
 export async function requestClose(): Promise<void> {
@@ -13,7 +14,12 @@ export async function requestClose(): Promise<void> {
   try {
     const queue = await backend.queue().catch(() => null);
     if ((queue?.running.length || queue?.queued || queue?.active || document.body.dataset.settingUp === "true" || document.body.dataset.modelDownload === "true") && !await confirm(t("desktop_close_busy"), { title: "Music Generator", kind: "warning" })) return;
-    await backend.exit();
+    const form = document.querySelector<HTMLFormElement>("#genForm");
+    if (form) form.inert = true;
+    try {
+      await flushGenerationFormPreferences();
+      await backend.exit();
+    } finally { if (form) form.inert = false; }
   } finally { closing = false; }
 }
 

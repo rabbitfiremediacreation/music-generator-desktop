@@ -33,6 +33,7 @@ Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind 
 
 - Oberfläche in zwölf Sprachen, Bibliothek, Suche, Favoriten, Ordner und 1–10 Varianten pro Auftrag.
 - Echtzeit-Fortschritt mit Modellladephasen, Sprachmodell, gemessenen DiT-Schritten und VAE-Decodierung.
+- Länge, BPM, IT, VAR und Versionen bleiben beim nächsten Start erhalten, auch nach Songübernahme oder Audioanalyse. **Grundeinstellungen zurücksetzen** stellt 90 Sekunden, BPM Auto, IT 80, VAR 1,2 und 2 Versionen wieder her. Titel, Prompt, Stil und Lyrics werden dafür nicht gespeichert.
 - **IT und VAR (ACE-Step):** IT sind die Iterationen der Klangerzeugung (Standard 80), VAR die Varianz des Sprachmodells (Standard 1,2). Mehr Schritte brauchen mehr Zeit; höhere Varianz erzeugt freiere Ergebnisse, niedrigere hält sich enger an Stil und Prompt. Für andere Modellfamilien zeigt der ModelPicker eine ausdrückliche Schritte-Empfehlung. Gespeicherte Songwerte bleiben erhalten.
 - Mikrofonideen und Audioanalyse, Waveform-Player und native WAV-/TXT-/ZIP-Exporte.
 - Wahlweise MP3-Export mit 192 kbit/s für Einzeldateien und ZIPs; die Bibliothek behält das Original-WAV.

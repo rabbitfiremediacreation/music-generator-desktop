@@ -12,6 +12,21 @@ use tauri::{AppHandle, Emitter, Manager, State};
 type Desktop<'a> = State<'a, Arc<AppState>>;
 
 #[tauri::command]
+pub fn get_generation_form_preferences(
+    state: Desktop<'_>,
+) -> Result<crate::form_preferences::GenerationFormPreferences> {
+    state.db.generation_form_preferences()
+}
+
+#[tauri::command]
+pub fn save_generation_form_preferences(
+    state: Desktop<'_>,
+    values: crate::form_preferences::GenerationFormPreferences,
+) -> Result<()> {
+    state.db.save_generation_form_preferences(&values)
+}
+
+#[tauri::command]
 pub fn remember_folder(path: String) -> Result<()> {
     crate::sandbox::remember(std::path::Path::new(&path))
 }

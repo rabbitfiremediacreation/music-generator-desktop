@@ -7,6 +7,7 @@ import { generationModels, restoreSongModels, generationModelAllowed } from "./m
 import { t, LANG, setLang } from "./i18n.js";
 import { exportSong, exportFolder } from "./exports";
 import { samplingForSong } from "./song-sampling";
+import { initializeGenerationFormPreferences, captureGenerationFormPreferences } from "./form-preferences";
 import { songErrorKey } from "./song-errors";
 import { generationSeconds } from "./song-timing";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -93,6 +94,7 @@ function updateSlider(box) {
   if (inp.name === "variants") $("#genBtn").textContent = v > 1 ? t("generate_n", v) : t("generate");
 }
 const showDur = () => document.querySelectorAll(".slider").forEach(updateSlider);
+export function initializeStudioFormPreferences() { return initializeGenerationFormPreferences(form, showDur); }
 document.querySelectorAll(".slider").forEach((b) => { b.querySelector("input").addEventListener("input", () => updateSlider(b)); updateSlider(b); });
 // Lyrics: eingeklappt; bei Instrumental steht "[Instrumental]" im Feld, Klick ins Feld schaltet Instrumental aus
 const LYRICS_PLACEHOLDER = "[verse]\n…\n\n[chorus]\n…";
@@ -192,6 +194,7 @@ function fillForm(s) {
   form.vocal_language.value = p.vocal_language || "en";
   form.seed.value = p.seed;
   form.variants.value = 1; showDur();
+  captureGenerationFormPreferences();
   $("#advBox").open = true;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -238,6 +241,7 @@ async function analyzeFile(file, idea = null) {   // idea = Messwerte einer Mikr
     showDur();
     setSelect(form.keyscale, r.keyscale, true);
     setSelect(form.timesignature, String(r.timesignature || ""));
+    captureGenerationFormPreferences();
     dzState("ok", idea ? t("idea_ready") : t("analyzed", file.name));
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {

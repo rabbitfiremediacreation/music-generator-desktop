@@ -5,6 +5,14 @@ import { backend } from "./backend";
 
 describe("desktop contracts", () => {
   beforeEach(() => { invoke.mockReset(); });
+  it("reads and writes generation form preferences through their dedicated commands", async () => {
+    const values = { duration: 90, bpm: 0, inference_steps: 80, lm_temperature: 1.2, variants: 2 };
+    invoke.mockResolvedValue(values);
+    expect(await backend.generationFormPreferences()).toEqual(values);
+    expect(invoke).toHaveBeenLastCalledWith("get_generation_form_preferences", undefined);
+    await backend.saveGenerationFormPreferences(values);
+    expect(invoke).toHaveBeenLastCalledWith("save_generation_form_preferences", { values });
+  });
   it("uses commands and converts song paths to local asset URLs", async () => {
     invoke.mockResolvedValue([{ id: "one", path: "/songs/one.wav" }]);
     const songs = await backend.songs({ q: "piano", favorites: true });
