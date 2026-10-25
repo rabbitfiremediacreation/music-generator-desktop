@@ -61,12 +61,18 @@ actionable `database is locked` failure. Releasing the lock and selecting retry
 opened the wizard successfully, with no native frame on the splash and native
 macOS window controls on the main window. `loading.png` and `error.png` are
 native captures of this controlled failure scenario; no mock backend was used
-for those images. The failure screenshot deliberately includes the diagnostic
-message in addition to the localized heading.
+for those images. The default failure view uses a localized explanation and
+retry/quit controls. Raw backend diagnostics are retained only in the collapsed,
+localized technical-details disclosure.
 
 Automated coverage checks delayed wizard/studio readiness, initial library
 failure, stale startup snapshots, retry presentation, language fallback, and
-successful/failed/timed-out subprocesses. Existing frontend, Rust and packaging
+successful/failed/timed-out subprocesses. Splash and studio share one twelve-language
+registry and locale resolver (saved language, then supported system language,
+then English). Startup translations are checked against that registry and have
+compile-time message-count validation; error-state presentation is tested for
+every language. Regional language tags and blocked local storage are covered.
+Existing frontend, Rust and packaging
 regressions remain part of validation.
 
 ## Remaining release acceptance

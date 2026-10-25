@@ -1,3 +1,5 @@
+import { LANGS, preferredLanguage } from "./locales";
+
 // Oberflächensprache (LANGS). Fehlt ein Schlüssel, gilt Englisch, dann Deutsch. Statische Texte tragen data-i18n (Text), data-i18n-title,
 // data-i18n-ph (Platzhalter) oder data-i18n-aria; dynamische Texte kommen über t("schlüssel").
 const I18N = {
@@ -800,14 +802,7 @@ const I18N = {
   },
 };
 
-const LANGS = { de: "Deutsch", en: "English", es: "Español", fr: "Français", it: "Italiano", pt: "Português", tr: "Türkçe", pl: "Polski",
-  ru: "Русский", uk: "Українська", ja: "日本語", zh: "中文" };
-let LANG = "en";
-try {
-  const saved = localStorage.getItem("ui_lang");
-  const sys = (navigator.language || "en").toLowerCase().slice(0, 2);
-  LANG = saved in LANGS ? saved : sys in LANGS ? sys : "en";
-} catch {}
+let LANG = preferredLanguage();
 
 const t = (k, ...a) => {
   const v = I18N[LANG][k] ?? I18N.en[k] ?? I18N.de[k] ?? k;
@@ -827,7 +822,7 @@ function applyI18n() {
 }
 
 function setLang(l) {
-  if (!(l in LANGS)) return;
+  if (!Object.hasOwn(LANGS, l)) return;
   LANG = l;
   try { localStorage.setItem("ui_lang", l); } catch {}
   applyI18n();

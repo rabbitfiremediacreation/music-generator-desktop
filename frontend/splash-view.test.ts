@@ -30,10 +30,14 @@ it("stops the loading presentation on failure and restores it for retry", () => 
   expect(document.body.dataset.failed).toBe("true");
   expect(document.querySelector<HTMLElement>("#splashProgress")!.hidden).toBe(true);
   expect(document.querySelector<HTMLElement>("#splashRetry")!.hidden).toBe(false);
-  expect(document.querySelector("#splashError")!.textContent).toBe("database is locked");
+  expect(document.querySelector("#splashError")!.textContent).toBe("Der Start konnte nicht abgeschlossen werden. Bitte versuche es erneut.");
+  expect(document.querySelector("#splashDetailsLabel")!.textContent).toBe("Technische Details");
+  expect(document.querySelector<HTMLDetailsElement>("#splashDetails")!.open).toBe(false);
+  expect(document.querySelector("#splashDiagnostic")!.textContent).toBe("database is locked");
   render({ sequence: 5, phase: "starting", error: null });
   expect(document.body.dataset.failed).toBe("false");
   expect(document.querySelector<HTMLElement>("#splashRetry")!.hidden).toBe(true);
+  expect(document.querySelector<HTMLElement>("#splashDetails")!.hidden).toBe(true);
   expect(document.querySelector<HTMLElement>("#splashProgress")!.hidden).toBe(false);
 });
 

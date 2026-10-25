@@ -9,7 +9,7 @@ const render = splashView(text);
 render({ sequence: 0, phase: "starting", error: null });
 let sequence = 0;
 function update(status: StartupStatus) { sequence = Math.max(sequence, status.sequence); render(status); }
-function failed(error: unknown) { update({ sequence: ++sequence, phase: "error", error: String(error) }); }
+function failed(error: unknown) { update({ sequence: ++sequence, phase: "error", error: error instanceof Error ? error.message : String(error) }); }
 
 async function connect() {
   await listen<StartupStatus>("startup-status", ({ payload }) => update(payload));

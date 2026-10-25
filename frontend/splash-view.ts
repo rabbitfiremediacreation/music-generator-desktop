@@ -10,6 +10,7 @@ export function splashView(text: Record<StartupLabel, string>) {
   element("#splashClose").setAttribute("aria-label", text.quit);
   element("#splashFooter").textContent = text.footer;
   element("#splashSlow").textContent = text.slow;
+  element("#splashDetailsLabel").textContent = text.details;
   return (status: StartupStatus) => {
     if (status.sequence < sequence) return;
     sequence = status.sequence;
@@ -18,7 +19,11 @@ export function splashView(text: Record<StartupLabel, string>) {
     element("#splashStatus").textContent = text[status.phase] || text.starting;
     element("#splashProgress").setAttribute("aria-label", text[status.phase] || text.starting);
     element("#splashProgress").hidden = failed;
-    element("#splashError").textContent = status.error;
+    element("#splashError").textContent = failed ? text.failure : "";
+    element("#splashDiagnostic").textContent = status.error;
+    const details = element<HTMLDetailsElement>("#splashDetails");
+    details.hidden = !failed;
+    details.open = false;
     element("#splashError").hidden = !failed;
     element<HTMLButtonElement>("#splashRetry").disabled = false;
     element("#splashRetry").hidden = !failed;
