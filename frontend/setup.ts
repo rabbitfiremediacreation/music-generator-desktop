@@ -2,6 +2,7 @@ import { modelErrorText, modelLabel } from "./expert-mode";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { backend } from "./backend";
+import { openLibraryAssistant } from "./import-wizard";
 import { bytes, element } from "./dom";
 import { LANG, LANGS, applyI18n, setLang, t } from "./i18n.js";
 import type { Bootstrap, DownloadProgress, SetupRequest } from "./types";
@@ -51,16 +52,12 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
       if (typeof path === "string") { await backend.rememberFolder(path); field.value = path; await updateEstimate(); }
     };
     element("#importLibrary").onclick = async () => {
-      const root = await open({ directory: true }); if (typeof root !== "string") return;
-      setBusy(true); element("#setupError").textContent = "";
-      try {
-        await backend.rememberFolder(root);
-        const result = await backend.importLibrary(root);
-        element("#importStatus").textContent = `${t("desktop_import_done")}: ${result.songs}`;
-        element<HTMLInputElement>("#setupModels").value = result.models_dir;
+      await openLibraryAssistant("import", element<HTMLInputElement>("#setupSongs").value.trim(), (songsDir) => {
+        element<HTMLInputElement>("#setupSongs").value = songsDir;
+        configuration.settings.songs_dir = songsDir;
+        element("#importStatus").textContent = t("desktop_import_done");
         element<HTMLButtonElement>("#importLibrary").hidden = true;
-      } catch (error) { showError(error); }
-      finally { setBusy(false); await updateEstimate(); }
+      });
     };
     await listen<DownloadProgress>("setup-progress", ({ payload }) => {
       const progress = element<HTMLProgressElement>("#setupProgress");

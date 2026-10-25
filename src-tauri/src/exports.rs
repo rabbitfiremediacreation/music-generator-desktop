@@ -41,7 +41,7 @@ impl Database {
     pub(crate) fn export_song_ids(&self, folder: &str) -> Result<Vec<String>> {
         // Export all matching rows, including songs outside the UI's display limit.
         let con = self.lock();
-        let mut stmt = con.prepare("SELECT id FROM songs WHERE status='done' AND (?1='' OR folder_id=?1 OR (?1='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders)))) ORDER BY created_at,rowid")?;
+        let mut stmt = con.prepare("SELECT id FROM songs WHERE status='done' AND audio_missing=0 AND file IS NOT NULL AND (?1='' OR folder_id=?1 OR (?1='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders)))) ORDER BY created_at,rowid")?;
         let ids = stmt
             .query_map([folder], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;

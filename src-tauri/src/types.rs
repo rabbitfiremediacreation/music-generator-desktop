@@ -118,6 +118,7 @@ pub struct Song {
     pub result_meta: Option<Value>,
     pub engine: Option<String>,
     pub file: Option<String>,
+    pub audio_missing: bool,
     pub favorite: bool,
     pub folder_id: Option<String>,
     pub letter: String,

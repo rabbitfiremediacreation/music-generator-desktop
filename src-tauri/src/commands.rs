@@ -98,15 +98,54 @@ pub fn cancel_setup(state: Desktop<'_>) {
 }
 
 #[tauri::command]
-pub async fn import_library(state: Desktop<'_>, app: AppHandle, root: String) -> Result<Value> {
+pub async fn preview_import(
+    state: Desktop<'_>,
+    request: crate::import::ImportRequest,
+) -> Result<crate::import::ImportPreview> {
     let operation = state.runtime.try_begin(OperationKind::Import)?;
     let db = state.db.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         let _operation = operation;
-        crate::import::import_legacy(&db, &PathBuf::from(root))
+        crate::import::preview(&db, &request)
+    })
+    .await
+    .map_err(|e| message(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn preview_library_move(
+    state: Desktop<'_>,
+    songs_dir: String,
+) -> Result<crate::import::ImportPreview> {
+    let operation = state.runtime.try_begin(OperationKind::Settings)?;
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _operation = operation;
+        crate::import::preview_move(&db, &songs_dir)
+    })
+    .await
+    .map_err(|e| message(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn import_library(
+    state: Desktop<'_>,
+    app: AppHandle,
+    request: crate::import::ImportRequest,
+) -> Result<crate::import::ImportResult> {
+    let operation = state.runtime.try_begin(OperationKind::Import)?;
+    // Authorize playback and persist the target grant before any durable database change.
+    authorize_songs(&app, std::path::Path::new(&request.songs_dir))?;
+    let db = state.db.clone();
+    let events = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        crate::import::import_library(&db, &request, &operation.cancellation(), |progress| {
+            let _ = events.emit("import-progress", progress);
+        })
     })
     .await
     .map_err(|e| message(e.to_string()))??;
+    let _ = app.emit("settings-changed", ());
     state.changed(&app);
     Ok(result)
 }
@@ -206,9 +245,15 @@ pub async fn save_settings(
     app: AppHandle,
     values: SettingsPatch,
 ) -> Result<Settings> {
-    let settings = crate::configuration::save(state.inner().clone(), values, |songs| {
-        authorize_songs(&app, songs)
-    })
+    let events = app.clone();
+    let settings = crate::configuration::save_with_progress(
+        state.inner().clone(),
+        values,
+        |songs| authorize_songs(&app, songs),
+        move |progress| {
+            let _ = events.emit("import-progress", progress);
+        },
+    )
     .await?;
     let _ = app.emit("settings-changed", ());
     state.changed(&app);

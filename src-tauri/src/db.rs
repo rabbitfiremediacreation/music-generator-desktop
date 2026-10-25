@@ -35,6 +35,12 @@ impl Database {
             if !columns.iter().any(|c| c == "started_at") {
                 con.execute("ALTER TABLE songs ADD COLUMN started_at TEXT", [])?;
             }
+            if !columns.iter().any(|c| c == "audio_missing") {
+                con.execute(
+                    "ALTER TABLE songs ADD COLUMN audio_missing INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
             con.execute(
                 "UPDATE songs SET status='queued', message=NULL WHERE status='running'",
                 [],
@@ -104,6 +110,7 @@ impl Database {
             ],
             |row| {
                 let file: Option<String> = row.get("file")?;
+                let audio_missing: bool = row.get("audio_missing")?;
                 let meta: Option<String> = row.get("result_meta")?;
                 let index: u32 = row.get("variant_index")?;
                 let count: u32 = row.get("variant_count")?;
@@ -124,8 +131,10 @@ impl Database {
                     engine: row.get("engine")?,
                     path: file
                         .as_ref()
+                        .filter(|_| !audio_missing)
                         .and_then(|f| safe_song_path(Path::new(&songs_dir), f).ok())
                         .map(|p| p.to_string_lossy().into()),
+                    audio_missing,
                     file,
                     favorite: row.get::<_, bool>("favorite")?,
                     folder_id: row.get("folder_id")?,
@@ -255,7 +264,7 @@ impl Database {
 
     pub fn finish(&self, sid: &str, file: &str, meta: &Value) -> Result<bool> {
         let engine = "acestep_cpp";
-        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,file=?1,result_meta=?2,engine=?5,finished_at=?3,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty)])? == 1)
+        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty)])? == 1)
     }
 
     pub fn fail(&self, sid: &str, error: &str) -> Result<()> {

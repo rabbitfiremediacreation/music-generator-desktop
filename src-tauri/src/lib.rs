@@ -80,6 +80,8 @@ pub fn run() {
             commands::setup_estimate,
             commands::cancel_setup,
             commands::import_library,
+            commands::preview_import,
+            commands::preview_library_move,
             commands::list_songs,
             commands::get_song,
             commands::generate,

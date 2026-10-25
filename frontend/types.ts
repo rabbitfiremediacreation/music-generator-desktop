@@ -22,6 +22,7 @@ export interface Song {
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
   params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
+  audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
 export interface Folder { id: string; name: string; count: number }
@@ -64,3 +65,13 @@ export interface ModelCatalog {
 }
 
 export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode">>;
+
+export interface ImportRequest { root: string; songs_source: string | null; songs_dir: string; allow_partial: boolean }
+export interface MissingAudio { id: string; title: string; file: string | null }
+export interface ImportIssue { code: string; path: string }
+export interface ImportPreview {
+  songs: number; folders: number; files: number; bytes: number; free_bytes: number | null;
+  songs_source: string; missing: MissingAudio[]; issues: ImportIssue[]; can_import: boolean;
+}
+export interface ImportResult { songs: number; files: number; songs_dir: string; missing: MissingAudio[] }
+export interface ImportProgress { phase: "checking" | "copying" | "committing"; copied_bytes: number; total_bytes: number; files: number; total_files: number }

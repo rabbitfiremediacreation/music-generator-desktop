@@ -49,7 +49,7 @@ impl Database {
             .map(|m| m.len())
             .sum();
         let count: u64 = con.query_row(
-            "SELECT COUNT(*) FROM songs WHERE file IS NOT NULL",
+            "SELECT COUNT(*) FROM songs WHERE file IS NOT NULL AND audio_missing=0",
             [],
             |r| r.get(0),
         )?;
@@ -60,7 +60,9 @@ impl Database {
 
     pub(crate) fn audio_files(&self) -> Result<Vec<String>> {
         let con = self.lock();
-        let mut stmt = con.prepare("SELECT file FROM songs WHERE file IS NOT NULL")?;
+        let mut stmt = con.prepare(
+            "SELECT DISTINCT file FROM songs WHERE file IS NOT NULL AND audio_missing=0 ORDER BY file",
+        )?;
         let files = stmt
             .query_map([], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;

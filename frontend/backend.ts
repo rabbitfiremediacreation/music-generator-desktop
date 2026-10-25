@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { Bootstrap, Filter, Folder, Generation, Health, Queue, Settings, SettingsPatch, SetupRequest, Song, Update, ModelCatalog, ModelSelection } from "./types";
+import type { Bootstrap, Filter, Folder, Generation, Health, Queue, Settings, SettingsPatch, SetupRequest, Song, Update, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(name, args); }
@@ -18,7 +18,9 @@ export const backend = {
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),
   cancelModelDownload: () => command<void>("cancel_model_download"),
-  importLibrary: (root: string) => command<{ songs: number; models_dir: string }>("import_library", { root }),
+  previewImport: (request: ImportRequest) => command<ImportPreview>("preview_import", { request }),
+  previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),
+  importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
   songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(audioUrl),
   song: async (id: string) => audioUrl(await command<Song>("get_song", { id })),
   generate: (request: Generation) => command<{ ids: string[] }>("generate", { request }),

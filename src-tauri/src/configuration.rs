@@ -17,6 +17,15 @@ pub async fn save(
     values: SettingsPatch,
     authorize: impl FnOnce(&Path) -> Result<()>,
 ) -> Result<Settings> {
+    save_with_progress(state, values, authorize, |_| {}).await
+}
+
+pub async fn save_with_progress(
+    state: Arc<AppState>,
+    values: SettingsPatch,
+    authorize: impl FnOnce(&Path) -> Result<()>,
+    progress: impl Fn(crate::import::ImportProgress) + Send + 'static,
+) -> Result<Settings> {
     if values.expert_only() {
         return state.runtime.update_preferences(|| {
             state.db.set_expert_mode(values.expert_mode.unwrap())?;
@@ -25,7 +34,9 @@ pub async fn save(
     }
     let change = Change::begin(state.clone(), OperationKind::Settings)?;
     let settings = values.apply(state.db.settings()?, &state.db.root, &state.resources)?;
-    change.commit(async { Ok(settings) }, authorize).await
+    change
+        .commit_with_progress(async { Ok(settings) }, authorize, progress)
+        .await
 }
 
 pub(crate) struct Change {
@@ -56,9 +67,18 @@ impl Change {
     }
 
     pub(crate) async fn commit(
+        self,
+        tested: impl std::future::Future<Output = Result<Settings>>,
+        authorize: impl FnOnce(&Path) -> Result<()>,
+    ) -> Result<Settings> {
+        self.commit_with_progress(tested, authorize, |_| {}).await
+    }
+
+    async fn commit_with_progress(
         mut self,
         tested: impl std::future::Future<Output = Result<Settings>>,
         authorize: impl FnOnce(&Path) -> Result<()>,
+        progress: impl Fn(crate::import::ImportProgress) + Send + 'static,
     ) -> Result<Settings> {
         let settings = tested.await?;
         validate_settings(&settings)?;
@@ -79,7 +99,7 @@ impl Change {
         // Move the permit into the blocking commit so dropping the caller cannot unlock
         // configuration while filesystem work is still running.
         tokio::task::spawn_blocking(move || {
-            library_move::commit(&self.state.db, &settings, &cancel)?;
+            library_move::commit(&self.state.db, &settings, &cancel, progress)?;
             if self.operation.kind() == OperationKind::Settings {
                 self.state.apply_engine_settings(&before, &settings);
             }

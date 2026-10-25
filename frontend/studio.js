@@ -412,7 +412,8 @@ function render() {
     ].filter(Boolean).join(" · ");
     const playing = s.id === currentId && ws?.isPlaying();
     let left, state = "";
-    if (s.status === "done") left = `<button class="aktion round" data-a="play" aria-label="${t("play")}">${playing ? "❚❚" : "▶"}</button>`;
+    if (s.audio_missing) left = `<div class="slot err" title="${esc(t("import_audio_missing"))}">!</div>`;
+    else if (s.status === "done") left = `<button class="aktion round" data-a="play" aria-label="${t("play")}">${playing ? "❚❚" : "▶"}</button>`;
     else if (s.status === "error") left = `<div class="slot err" title="${esc(s.message)}">!</div>`;
     else if (s.status === "running") left = `<div class="slot run">♪</div>`;
     else left = `<div class="slot">${s.status === "cancelled" ? "✕" : "…"}</div>`;
@@ -423,10 +424,11 @@ function render() {
     if (s.status === "done" && !played.has(s.id)) { const tm = genTime(s); if (tm) state = `<div class="s took">${t("created_in")} ${tm}</div>`; }
     // Vom Modell geschriebener Text (nur bei Songs mit Gesang)
     if (s.status === "done" && m.title_generation_error) state += `<div class="s err" title="${esc(m.title_generation_error)}">${t("title_failed")}</div>`;
+    if (s.audio_missing) state = `<div class="s err">${esc(t("import_audio_missing"))}</div>`;
     const lyr = s.status === "done" && s.lyrics !== "[Instrumental]" && /[^\s\[\]]/.test((m.lyrics || "").replace(/\[[^\]]*\]/g, "")) ? m.lyrics.trim() : "";
     const actions = [
       s.status === "done" && `<button class="sek icon ${s.favorite ? "on" : ""}" data-a="fav" title="${t("fav")}">${s.favorite ? "★" : "☆"}</button>`,
-      s.status === "done" && `<button type="button" class="download icon fmt" data-a="export" title="${t("download")}">${exportFmt === "mp3" || s.file.endsWith(".mp3") ? "MP3" : "WAV"}</button>`,
+      !s.audio_missing && s.status === "done" && `<button type="button" class="download icon fmt" data-a="export" title="${t("download")}">${exportFmt === "mp3" || s.file?.endsWith(".mp3") ? "MP3" : "WAV"}</button>`,
       lyr && `<button class="sek icon txt ${openLyrics.has(s.id) ? "on" : ""}" data-a="lyrics" title="${t("show_lyrics")}">TXT</button>`,
       folders.folders.length > 0 && `<button class="sek icon" data-a="move" title="${t("move")}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>`,
       `<button class="sek icon" data-a="more" title="${t("more")}">＋</button>`,
@@ -708,6 +710,10 @@ const saveSettings = async () => {
   catch (err) { alert(err.message === "mp3_failed" ? t("mp3_failed") : modelErrorText(err, t)); $("#btnSettings").click(); }
 };
 document.addEventListener("open-settings", () => { $("#btnSettings").click(); });
+$("#settingsMoveLibrary").onclick = () => {
+  dlg.addEventListener("close", () => requestAnimationFrame(() => document.dispatchEvent(new Event("move-library"))), { once: true });
+  dlg.close("cancel");
+};
 $("#settingsModelPicker").onclick = () => { dlg.close("cancel"); document.dispatchEvent(new Event("open-model-picker")); };
 // Anordnung: untereinander oder Generator links / Bibliothek rechts
 function setLayout(l) {

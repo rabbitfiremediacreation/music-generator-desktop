@@ -1,47 +1,196 @@
 use crate::{
     db::{safe_song_path, Database},
-    error::{message, Result},
-    types::id,
+    error::{message, Error, Result},
 };
-use rusqlite::{Connection, OpenFlags};
-use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
+use tokio_util::sync::CancellationToken;
 
-// Import from a SQLite backup, so WAL data is included without editing the old installation.
-pub fn import_legacy(db: &Database, root: &Path) -> Result<Value> {
-    if db
-        .lock()
-        .query_row("SELECT COUNT(*) FROM songs", [], |r| r.get::<_, u32>(0))?
-        > 0
-        || db
-            .lock()
-            .query_row("SELECT COUNT(*) FROM folders", [], |r| r.get::<_, u32>(0))?
-            > 0
-    {
-        return Err(message("Import requires an empty library"));
+mod destination;
+mod move_preview;
+mod preview;
+mod source;
+mod types;
+pub use move_preview::preview_move;
+pub use preview::preview;
+pub use types::*;
+
+#[derive(Default)]
+struct Copies {
+    paths: Vec<PathBuf>,
+    committed: bool,
+}
+impl Drop for Copies {
+    fn drop(&mut self) {
+        if !self.committed {
+            for path in &self.paths {
+                let _ = std::fs::remove_file(path);
+            }
+        }
     }
-    let desktop = root.join("music.db").is_file();
-    let data = if desktop {
-        root.to_path_buf()
-    } else {
-        root.join("data")
+}
+
+/// Recheck the source snapshot and target, copy exclusively, then commit metadata and target together.
+pub fn import_library(
+    db: &Database,
+    request: &ImportRequest,
+    cancel: &CancellationToken,
+    progress: impl Fn(ImportProgress),
+) -> Result<ImportResult> {
+    if !preview::empty(db)? {
+        return Err(message("import_library_not_empty"));
+    }
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    if !Path::new(&request.root).is_absolute() {
+        return Err(message("import_invalid_path"));
+    }
+    progress(ImportProgress {
+        phase: "checking",
+        copied_bytes: 0,
+        total_bytes: 0,
+        files: 0,
+        total_files: 0,
+    });
+    let path = source::database_path(Path::new(&request.root))?;
+    let source = source::Source::open(db, &path, request.songs_source.as_deref(), cancel)?;
+    let checked = preview::inspect(&source, request)?;
+    if !checked.can_import {
+        return Err(message(format!(
+            "import_{}",
+            checked
+                .issues
+                .first()
+                .map(|i| i.code.as_str())
+                .unwrap_or("partial_required")
+        )));
+    }
+    let missing: HashSet<_> = checked.missing.iter().map(|m| m.id.as_str()).collect();
+    {
+        let con = source.db.lock();
+        for id in &missing {
+            con.execute("UPDATE songs SET audio_missing=1,status=CASE WHEN status IN ('queued','running') THEN 'cancelled' ELSE status END WHERE id=?1", [id])?;
+        }
+    }
+    let names = source.db.audio_files()?;
+    let dest = Path::new(&request.songs_dir);
+    std::fs::create_dir_all(dest)?;
+    let mut copies = Copies::default();
+    let mut update = ImportProgress {
+        phase: "copying",
+        copied_bytes: 0,
+        total_bytes: checked.bytes,
+        files: 0,
+        total_files: names.len(),
     };
-    let source = data.join("music.db");
-    let old = Connection::open_with_flags(&source, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-    let custom: Option<String> = old
-        .query_row(
-            "SELECT value FROM settings WHERE key='songs_dir'",
+    progress(update.clone());
+    let mut buffer = vec![0u8; 1024 * 1024];
+    for name in &names {
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let to = safe_song_path(dest, name)?;
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&to)?;
+        copies.paths.push(to);
+        let mut input = std::fs::File::open(safe_song_path(&source.songs, name)?)?;
+        loop {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let read = input.read(&mut buffer)?;
+            if read == 0 {
+                break;
+            }
+            output.write_all(&buffer[..read])?;
+            update.copied_bytes += read as u64;
+            progress(update.clone());
+        }
+        output.sync_all()?;
+        update.files += 1;
+        progress(update.clone());
+    }
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    update.phase = "committing";
+    progress(update.clone());
+    let mut con = db.lock();
+    con.execute(
+        "ATTACH DATABASE ?1 AS legacy",
+        [source
+            ._staging
+            .0
+            .join("music.db")
+            .to_string_lossy()
+            .as_ref()],
+    )?;
+    let imported = (|| -> Result<usize> {
+        let tx = con.transaction()?;
+        // The runtime gate excludes app writers; check again for non-app database writers.
+        if tx.query_row(
+            "SELECT (SELECT COUNT(*) FROM songs)+(SELECT COUNT(*) FROM folders)",
             [],
-            |r| r.get::<_, String>(0),
-        )
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok());
-    let songs_source = custom
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| data.join("songs"));
-    let models_source = if desktop {
-        old.query_row(
+            |r| r.get::<_, u64>(0),
+        )? != 0
+        {
+            return Err(message("import_library_not_empty"));
+        }
+        let count = tx.execute("INSERT INTO songs(id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing) SELECT id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing FROM legacy.songs ORDER BY rowid", [])?;
+        tx.execute(
+            "INSERT INTO folders SELECT id,name,created_at FROM legacy.folders",
+            [],
+        )?;
+        tx.execute("INSERT INTO settings(key,value) VALUES('songs_dir',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [serde_json::to_string(&request.songs_dir)?])?;
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        tx.commit()?;
+        Ok(count)
+    })();
+    // Once committed, a detach error must never delete successfully imported audio.
+    if imported.is_ok() {
+        copies.committed = true;
+    }
+    let detached = con.execute_batch("DETACH DATABASE legacy");
+    let count = imported?;
+    if let Err(error) = detached {
+        tracing::warn!(%error, "Could not detach committed import snapshot");
+    }
+    Ok(ImportResult {
+        songs: count,
+        files: update.files,
+        songs_dir: request.songs_dir.clone(),
+        missing: checked.missing,
+    })
+}
+
+/// Compatibility entry point for existing callers; new UI always supplies an explicit target.
+pub fn import_legacy(db: &Database, root: &Path) -> Result<serde_json::Value> {
+    let result = import_library(
+        db,
+        &ImportRequest {
+            root: root.to_string_lossy().into(),
+            songs_source: None,
+            songs_dir: db.settings()?.songs_dir,
+            allow_partial: false,
+        },
+        &CancellationToken::new(),
+        |_| {},
+    )?;
+    let direct = root.join("music.db").is_file();
+    let models = if direct {
+        let con = rusqlite::Connection::open_with_flags(
+            root.join("music.db"),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        con.query_row(
             "SELECT value FROM settings WHERE key='models_dir'",
             [],
             |r| r.get::<_, String>(0),
@@ -54,84 +203,5 @@ pub fn import_legacy(db: &Database, root: &Path) -> Result<Value> {
     } else {
         root.join("engine/acestep.cpp/models")
     };
-    if !songs_source.is_absolute() {
-        return Err(message("Legacy song folder must be absolute"));
-    }
-    let staging = db.root.join(format!("import-{}", id()));
-    std::fs::create_dir_all(&staging)?;
-    let mut copied = Vec::new();
-    let result = (|| -> Result<Value> {
-        let mut backup = Connection::open(staging.join("music.db"))?;
-        rusqlite::backup::Backup::new(&old, &mut backup)?.run_to_completion(
-            100,
-            std::time::Duration::from_millis(10),
-            None,
-        )?;
-        drop(backup);
-        let staged = Database::open(&staging)?;
-        let con = staged.lock();
-        for table in ["songs", "folders"] {
-            let mut ids = con.prepare(&format!("SELECT id FROM {table}"))?;
-            for id in ids.query_map([], |r| r.get::<_, String>(0))? {
-                let id = id?;
-                if id.is_empty()
-                    || !id
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-                {
-                    return Err(message("Legacy library contains invalid identifiers"));
-                }
-            }
-        }
-        let mut stmt = con.prepare("SELECT file FROM songs WHERE file IS NOT NULL")?;
-        let files = stmt
-            .query_map([], |r| r.get::<_, String>(0))?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        drop(stmt);
-        drop(con);
-        let dest = PathBuf::from(db.settings()?.songs_dir);
-        std::fs::create_dir_all(&dest)?;
-        let bytes = files
-            .iter()
-            .map(|f| safe_song_path(&songs_source, f).and_then(|p| Ok(p.metadata()?.len())))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .sum::<u64>();
-        crate::download::ensure_space(&dest, bytes + 64 * 1024 * 1024)?;
-        for name in &files {
-            let to = safe_song_path(&dest, name)?;
-            if to.exists() {
-                return Err(message(format!("Song destination already contains {name}")));
-            }
-            let from = safe_song_path(&songs_source, name)?;
-            copied.push(to.clone());
-            std::fs::copy(from, to)?;
-        }
-        drop(staged);
-        let mut con = db.lock();
-        con.execute(
-            "ATTACH DATABASE ?1 AS legacy",
-            [staging.join("music.db").to_string_lossy().as_ref()],
-        )?;
-        let imported = (|| -> Result<usize> {
-            let tx = con.transaction()?;
-            let count = tx.execute("INSERT INTO songs(id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at) SELECT id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at FROM legacy.songs ORDER BY rowid", [])?;
-            tx.execute(
-                "INSERT INTO folders SELECT id,name,created_at FROM legacy.folders",
-                [],
-            )?;
-            tx.commit()?;
-            Ok(count)
-        })();
-        con.execute_batch("DETACH DATABASE legacy")?;
-        let count = imported?;
-        Ok(json!({"songs":count,"models_dir":models_source.to_string_lossy()}))
-    })();
-    if result.is_err() {
-        for path in copied {
-            let _ = std::fs::remove_file(path);
-        }
-    }
-    let _ = std::fs::remove_dir_all(staging);
-    result
+    Ok(serde_json::json!({"songs": result.songs,"models_dir": models}))
 }

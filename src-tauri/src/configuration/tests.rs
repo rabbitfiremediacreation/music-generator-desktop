@@ -507,3 +507,76 @@ async fn legacy_dit_patch_cannot_activate_an_advanced_profile_without_expert_mod
         before
     );
 }
+
+#[tokio::test]
+async fn move_preserves_partial_import_metadata_and_moves_only_available_audio() {
+    let library = Library::new();
+    let missing = library
+        .db
+        .enqueue(&GenerateRequest {
+            prompt: "Missing audio".into(),
+            ..Default::default()
+        })
+        .unwrap()[0]
+        .clone();
+    library.db.claim_next().unwrap();
+    library
+        .db
+        .finish(&missing, "missing.wav", &json!({"lyrics":"Keep lyrics"}))
+        .unwrap();
+    library
+        .db
+        .lock()
+        .execute("UPDATE songs SET audio_missing=1 WHERE id=?1", [&missing])
+        .unwrap();
+    let saved = save(
+        library.state.clone(),
+        SettingsPatch {
+            songs_dir: Some(library.proposed.songs_dir.clone()),
+            ..Default::default()
+        },
+        |_| Ok(()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(saved.songs_dir, library.proposed.songs_dir);
+    assert!(!library.original.exists());
+    assert_eq!(
+        std::fs::read(Path::new(&saved.songs_dir).join("saved.wav")).unwrap(),
+        b"original audio"
+    );
+    assert!(!Path::new(&saved.songs_dir).join("missing.wav").exists());
+    let song = library.db.song(&missing).unwrap();
+    assert!(song.audio_missing);
+    assert_eq!(song.result_meta.unwrap()["lyrics"], "Keep lyrics");
+    assert!(song.path.is_none());
+}
+
+#[tokio::test]
+async fn move_reports_byte_progress_and_can_cancel_inside_a_file() {
+    let library = Library::new();
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let recorded = events.clone();
+    let runtime = library.state.runtime.clone();
+    let result = save_with_progress(
+        library.state.clone(),
+        SettingsPatch {
+            songs_dir: Some(library.proposed.songs_dir.clone()),
+            ..Default::default()
+        },
+        |_| Ok(()),
+        move |progress| {
+            if progress.copied_bytes > 0 {
+                runtime.cancel_configuration();
+            }
+            recorded.lock().unwrap().push(progress);
+        },
+    )
+    .await;
+    assert!(matches!(result, Err(Error::Cancelled)));
+    library.assert_unchanged();
+    let events = events.lock().unwrap();
+    assert_eq!(events[0].phase, "copying");
+    assert_eq!(events[0].total_bytes, 14);
+    assert!(events.iter().any(|p| p.copied_bytes > 0));
+}

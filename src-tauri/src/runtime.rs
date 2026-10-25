@@ -164,7 +164,13 @@ impl Runtime {
     }
     pub fn cancel_configuration(&self) {
         if let Some(active) = &self.status.lock().unwrap().active {
-            if matches!(active.kind, OperationKind::Setup | OperationKind::Models) {
+            if matches!(
+                active.kind,
+                OperationKind::Setup
+                    | OperationKind::Models
+                    | OperationKind::Import
+                    | OperationKind::Settings
+            ) {
                 active.cancel.cancel();
             }
         }
