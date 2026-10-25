@@ -746,6 +746,7 @@ checkHealth();
 setInterval(checkHealth, 15000);
 loadExportFmt().then(() => render());
 const librarySync = startLibrarySync(loadLibrary, applyProgress);
+export const studioReady = librarySync.ready;
 window.addEventListener("focus", refresh);
 window.addEventListener("pagehide", () => librarySync.stop(), { once: true });
 

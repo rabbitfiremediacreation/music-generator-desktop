@@ -15,9 +15,11 @@ pub mod library;
 pub mod manifest;
 mod model_commands;
 pub mod power;
+mod process_output;
 pub mod runtime;
 pub mod sandbox;
 pub mod setup;
+mod startup;
 pub mod state;
 pub mod titles;
 pub mod types;
@@ -29,11 +31,15 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 
 pub fn run() {
+    let started = std::time::Instant::now();
     #[cfg(windows)]
     windows::configure_runtime();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app
+                .get_webview_window("splash")
+                .or_else(|| app.get_webview_window("main"))
+            {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -43,39 +49,38 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["splash"])
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::all()
-                        - tauri_plugin_window_state::StateFlags::DECORATIONS,
+                        - tauri_plugin_window_state::StateFlags::DECORATIONS
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
                 )
                 .build(),
         )
-        .setup(|app| {
+        .setup(move |app| {
             #[cfg(target_os = "macos")]
             let root = sandbox::data_root();
             #[cfg(not(target_os = "macos"))]
             let root = app.path().app_local_data_dir()?;
-            std::fs::create_dir_all(root.join("logs"))?;
-            let log = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(root.join("logs/desktop.log"))?;
-            let _ = tracing_subscriber::fmt()
-                .with_ansi(false)
-                .with_writer(std::sync::Mutex::new(log))
-                .try_init();
-            sandbox::initialize(&root)?;
+            #[cfg(debug_assertions)]
+            let root = std::env::var_os("MUSIC_GENERATOR_DEV_DATA_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or(root);
             let resources = if cfg!(debug_assertions) {
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
             } else {
                 app.path().resource_dir()?
             };
-            let state = Arc::new(state::AppState::new(db::Database::open(&root)?, resources));
-            app.manage(state.clone());
-            tauri::async_runtime::spawn(jobs::worker(state, app.handle().clone()));
+            app.manage(startup::Startup::new(root, resources, started));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            startup::startup_status,
+            startup::splash_ready,
+            startup::startup_error,
+            startup::retry_startup,
+            startup::startup_complete,
             commands::setup_models,
             commands::setup_estimate,
             commands::cancel_setup,
@@ -112,12 +117,17 @@ pub fn run() {
         } = &event
         {
             api.prevent_exit();
-            let _ = app.emit("request-exit", ());
+            if app.get_webview_window("splash").is_some() {
+                app.exit(0);
+            } else {
+                let _ = app.emit("request-exit", ());
+            }
         }
         if let tauri::RunEvent::Exit = event {
-            let state = app.state::<Arc<state::AppState>>();
-            state.begin_shutdown();
-            state.stop_engine();
+            if let Some(state) = app.try_state::<Arc<state::AppState>>() {
+                state.begin_shutdown();
+                state.stop_engine();
+            }
             #[cfg(target_os = "macos")]
             sandbox::shutdown();
         }

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Music Generator</title>
+<link rel="stylesheet" href="/splash.css">
+</head>
+<body>
+<div class="drag-area" data-tauri-drag-region aria-hidden="true"></div>
+<button id="splashClose" class="close" type="button" aria-label="Quit">×</button>
+<main class="splash" aria-labelledby="appName">
+<svg class="app-icon" viewBox="0 0 84 84" width="88" height="88" aria-hidden="true">
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#434445"/><stop offset="1" stop-color="#2b2c2c"/></linearGradient></defs>
+  <rect x="1" y="1" width="82" height="82" rx="14" fill="url(#lg)" stroke="#2a2e38"/>
+  <g class="waveform" fill="#ddc8aa">
+    <rect x="16" y="36" width="5" height="12" rx="2.5"/><rect x="25" y="28" width="5" height="28" rx="2.5"/>
+    <rect x="34" y="20" width="5" height="44" rx="2.5"/><rect x="43" y="30" width="5" height="24" rx="2.5"/>
+    <rect x="52" y="24" width="5" height="36" rx="2.5"/><rect x="61" y="34" width="5" height="16" rx="2.5"/>
+  </g>
+</svg>
+  <h1 id="appName">MUSIC <span>GENERATOR</span></h1>
+  <p id="splashStatus" role="status" aria-live="polite">Starting Music Generator…</p>
+  <div id="splashProgress" class="progress" role="progressbar" aria-label="Starting Music Generator"><span></span></div>
+  <p id="splashSlow" class="hint" hidden></p>
+  <p id="splashError" class="error" role="alert" hidden></p>
+  <button id="splashRetry" class="retry" type="button" hidden>Try again</button>
+</main>
+<footer><img class="brand" src="/alphatester.png" width="180" height="30" alt="Alphatester"><p id="splashFooter">Your music. On your computer.</p></footer>
+<script type="module" src="/splash.ts"></script>
+</body>
+</html>

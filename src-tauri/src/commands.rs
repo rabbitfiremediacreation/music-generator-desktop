@@ -17,14 +17,22 @@ pub fn remember_folder(path: String) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn bootstrap(state: Desktop<'_>, app: AppHandle) -> Result<Value> {
+pub async fn bootstrap(
+    startup: State<'_, crate::startup::Startup>,
+    app: AppHandle,
+) -> Result<Value> {
+    let state = startup.prepare(&app).await?;
     let _operation = state.runtime.begin(OperationKind::Startup).await?;
     let started = std::time::Instant::now();
-    let hardware = crate::hardware::inspect();
+    startup.report(&app, "hardware", None);
+    let hardware = tauri::async_runtime::spawn_blocking(crate::hardware::inspect)
+        .await
+        .map_err(|e| message(e.to_string()))?;
     tracing::info!(
         elapsed_ms = started.elapsed().as_millis(),
         "Startup hardware check finished"
     );
+    startup.report(&app, "settings", None);
     let settings = state.db.settings()?;
     let needs_setup = !settings.setup_complete;
     if !needs_setup {
@@ -38,6 +46,7 @@ pub async fn bootstrap(state: Desktop<'_>, app: AppHandle) -> Result<Value> {
         needs_setup,
         "Startup setup check finished"
     );
+    startup.report(&app, "interface", None);
     Ok(
         json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommended_profiles(hardware),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
     )
@@ -289,7 +298,9 @@ pub async fn check_update() -> Result<Value> {
 }
 
 #[tauri::command]
-pub fn exit_app(state: Desktop<'_>, app: AppHandle) {
-    state.begin_shutdown();
+pub fn exit_app(app: AppHandle) {
+    if let Some(state) = app.try_state::<Arc<AppState>>() {
+        state.begin_shutdown();
+    }
     app.exit(0);
 }

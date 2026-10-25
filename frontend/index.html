@@ -11,7 +11,7 @@
 </head>
 <body>
 <header class="titlebar"><span data-tauri-drag-region class="titlebar-name">♫ &nbsp; Music Generator</span><nav aria-label="Window"><button id="windowMinimize" data-i18n-aria="desktop_minimize">−</button><button id="windowMaximize" data-i18n-aria="desktop_maximize">□</button><button id="windowClose" data-i18n-aria="desktop_close">×</button></nav></header>
-<section id="setupScreen" class="setup-screen" aria-labelledby="setupHeading"><h1 id="setupHeading" data-i18n="desktop_welcome"></h1><p id="bootStatus" role="status"></p><div id="setupContent" hidden></div><button id="bootRetry" class="sek" hidden data-i18n="retry"></button></section>
+<section id="setupScreen" class="setup-screen" aria-labelledby="setupHeading"><h1 id="setupHeading" data-i18n="desktop_welcome">Music Generator</h1><p id="bootStatus" role="status">Starting…</p><div id="setupContent" hidden></div></section>
 <div class="glow" aria-hidden="true"></div>
 <!-- Ansagen für Screenreader (unsichtbar): was gerade passiert, z. B. "Fertig: Lunar Signal" -->
 <div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
@@ -282,6 +282,6 @@
 
 </main>
 <script src="/vendor/wavesurfer.min.js"></script>
-<script type="module" src="/main.ts"></script>
+<script type="module" src="/launch.ts"></script>
 </body>
 </html>

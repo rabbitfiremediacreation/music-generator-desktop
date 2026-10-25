@@ -8,6 +8,12 @@ export function startLibrarySync(load: () => Promise<void>, progress: (value: Jo
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let changed: ReturnType<typeof setTimeout> | undefined;
   let listeners: UnlistenFn[] = [];
+  let firstSnapshot = true;
+  let resolveReady: () => void;
+  let rejectReady: (error: unknown) => void;
+  const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+  // Existing callers can use background synchronization without awaiting initial readiness.
+  void ready.catch(() => {});
 
   function scheduleFallback() {
     clearTimeout(fallback);
@@ -19,8 +25,9 @@ export function startLibrarySync(load: () => Promise<void>, progress: (value: Jo
     loading = true;
     while (pending && !stopped) {
       pending = false;
-      try { await load(); failed = false; }
-      catch { failed = true; }
+      try { await load(); failed = false; if (firstSnapshot) resolveReady(); }
+      catch (error) { failed = true; if (firstSnapshot) rejectReady(error); }
+      firstSnapshot = false;
     }
     loading = false;
     scheduleFallback();
@@ -51,6 +58,7 @@ export function startLibrarySync(load: () => Promise<void>, progress: (value: Jo
 
   void connect();
   return {
+    ready,
     refresh,
     stop() {
       stopped = true;

@@ -70,3 +70,19 @@ describe("live library synchronization", () => {
     await vi.advanceTimersByTimeAsync(10_000); expect(listen).toHaveBeenCalledTimes(calls);
   });
 });
+
+it("exposes readiness only after the initial library snapshot", async () => {
+  let finish = () => {};
+  const sync = startLibrarySync(() => new Promise<void>((resolve) => { finish = resolve; }), vi.fn());
+  const ready = vi.fn();
+  void sync.ready.then(ready);
+  await settle(); expect(ready).not.toHaveBeenCalled();
+  finish(); await settle(); expect(ready).toHaveBeenCalledTimes(1);
+  sync.stop();
+});
+
+it("reports the initial snapshot failure to startup while background retries remain available", async () => {
+  const sync = startLibrarySync(vi.fn().mockRejectedValue(new Error("database busy")), vi.fn());
+  const result = expect(sync.ready).rejects.toThrow("database busy");
+  await settle(); await result; sync.stop();
+});

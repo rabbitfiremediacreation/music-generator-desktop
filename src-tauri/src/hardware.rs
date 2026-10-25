@@ -91,18 +91,10 @@ fn detect() -> Hardware {
 }
 
 fn output(program: &str, args: &[&str]) -> Option<String> {
-    let mut cmd = Command::new(program);
-    cmd.args(args);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
-    }
-    let output = cmd.output().ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    crate::process_output::output(
+        Command::new(program).args(args),
+        std::time::Duration::from_secs(3),
+    )
 }
 
 fn adapter() -> (String, Option<u64>) {
