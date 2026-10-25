@@ -10,6 +10,9 @@ permissions:
   actions: read
 jobs:
   build:
+    permissions:
+      contents: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -121,3 +124,10 @@ jobs:
           name: Music-Generator-${{ matrix.name }}
           path: release/*
           if-no-files-found: error
+      - name: Publish verified platform assets
+        if: github.event_name == 'release' && github.event.action == 'published'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/desktop/publish-release.mjs --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --target "${{ matrix.name }}" --directory release

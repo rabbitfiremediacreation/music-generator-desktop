@@ -6,7 +6,7 @@ Lokale Musikgenerierung als rahmenlose **Tauri-Desktop-App** für macOS, Windows
 
 ## Projektstatus
 
-**Stand: 25. Oktober 2026 · Entwicklungsstand: 0.1.0** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt inzwischen Tauri, Rust und eine TypeScript-/JavaScript-Oberfläche. Der frühere Python-Webserver mit Installations- und ON/OFF-Skripten ist abgelöst.
+**Stand: 25. Oktober 2026 · Entwicklungsstand: 0.1.0** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt inzwischen Tauri, Rust und eine TypeScript-/JavaScript-Oberfläche. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
 
 ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält eine Modellauswahl direkt im Studio, automatische lokale Songtitel, Echtzeit-Fortschritt und native Audio-/Text-/ZIP-Exporte. Die Versionsangabe beschreibt den Quellcode; verfügbare Downloads können einen anderen Stand haben.
 
@@ -27,7 +27,7 @@ ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält e
 
 Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerzeugung rechnen auf der CPU; ein Song kann viele Minuten dauern. Mit 10 Sekunden, dem 0.6B-Sprachmodell und dem Standard-Klangmodell beginnen. Der Assistent prüft den Engine-Start und überspringt den GPU-Test. Native Builds werden auf macOS 15 geprüft; echte Generierung auf weiteren Intel-Macs und der Mindestversion bleibt manuell abzunehmen.
 
-Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind möglich. Downloads werden unter [Releases](https://github.com/frankhildebrandt/music-generator/releases) veröffentlicht; lokal gebaute Pakete liegen in `release/`.
+Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind möglich. Downloads werden unter [Releases](https://github.com/rabbitfiremediacreation/music-generator-desktop/releases) veröffentlicht; lokal gebaute Pakete liegen in `release/`.
 
 ## Funktionen
 
@@ -118,7 +118,7 @@ Die plattformspezifischen Pipelines stehen in `.github/workflows/desktop.yml`. B
 | `assets/music-generator-overview.png` | Beispiel-Screenshot für diese README |
 | `docs/legacy/` | Archivierter Ubuntu-Installer mit historischem Kontext, gilt nicht für Desktop |
 
-Der Python-Webserver und die Installations-/ON/OFF-Skripte wurden durch den Desktopbetrieb abgelöst. Die alten Installationsanleitungen und PDF-Dokumentwerkzeuge wurden entfernt.
+In diesem Repository ersetzt der Desktopbetrieb den Python-Webserver und die Installations-/ON/OFF-Skripte. Die Web-App und ihre weitere Pflege bleiben im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) erhalten. Die alten Installationsanleitungen und PDF-Dokumentwerkzeuge wurden aus diesem Desktop-Repository entfernt.
 
 ## Lizenz
 
