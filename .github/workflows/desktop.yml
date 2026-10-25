@@ -1,6 +1,7 @@
 name: Desktop bundles
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches: ['main', 'codex/desktop-bundles']
   release:
@@ -23,17 +24,22 @@ jobs:
             {"os":"windows-2022","name":"windows-x64","arch":"x64"},
             {"os":"ubuntu-22.04","name":"linux-x64","arch":"x64","linux_backend":"vulkan"},
             {"os":"ubuntu-22.04","name":"linux-x64-cuda","arch":"x64","linux_backend":"cuda"}
+          ]' || github.event_name == 'pull_request' && '[
+            {"os":"macos-15","name":"macos-arm64","arch":"arm64","macos_min":"14.0"},
+            {"os":"macos-15-intel","name":"macos-x64","arch":"x64","macos_min":"13.3"},
+            {"os":"windows-2022","name":"windows-x64","arch":"x64"},
+            {"os":"ubuntu-22.04","name":"linux-x64","arch":"x64","linux_backend":"vulkan"}
           ]' || '[{"os":"macos-15","name":"macos-arm64","arch":"arm64","macos_min":"14.0"}]') }}
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_min }}
       MUSIC_GENERATOR_LINUX_BACKEND: ${{ matrix.linux_backend || 'vulkan' }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_SIGNING_IDENTITY: ${{ github.event_name != 'pull_request' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+      APPLE_CERTIFICATE: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE || '' }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+      APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
+      APPLE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_PASSWORD || '' }}
+      APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
