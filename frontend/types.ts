@@ -9,6 +9,9 @@ export interface Settings {
   vae_chunk: number | null; tested_fingerprint: string; setup_complete: boolean;
   songs_dir_default?: string; dit_xl_available?: boolean;
 }
+export interface GenerationFormPreferences {
+  duration: number; bpm: number; inference_steps: number; lm_temperature: number; variants: number;
+}
 export interface Generation {
   model_selection?: ModelSelection;
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;

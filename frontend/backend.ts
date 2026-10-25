@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { Bootstrap, Filter, Folder, Generation, Health, Queue, Settings, SettingsPatch, SetupRequest, Song, Update, ModelCatalog, ModelSelection } from "./types";
+import type { Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, Song, Update, ModelCatalog, ModelSelection } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(name, args); }
@@ -31,6 +31,8 @@ export const backend = {
   queue: () => command<Queue>("queue"),
   settings: () => command<Settings>("get_settings"),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
+  generationFormPreferences: () => command<GenerationFormPreferences>("get_generation_form_preferences"),
+  saveGenerationFormPreferences: (values: GenerationFormPreferences) => command<void>("save_generation_form_preferences", { values }),
   health: () => command<Health>("health"),
   analyze: async (file: File, selection?: ModelSelection) => {
     if (file.size > 60 * 1024 * 1024) throw new Error("Audio files must be smaller than 60 MB");

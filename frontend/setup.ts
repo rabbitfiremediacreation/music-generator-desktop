@@ -18,7 +18,7 @@ function request(): SetupRequest {
 export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolean) => Promise<void>): Promise<void> {
   configuration = data; onReady = ready;
   element("#studio").hidden = true; element("#setupScreen").hidden = false;
-  element("#bootStatus").textContent = data.error || t("desktop_setup_hint");
+  element("#bootStatus").textContent = data.error || t(data.needs_setup ? "desktop_setup_hint" : "desktop_manage_hint");
   element("#setupContent").hidden = false;
   if (!initialized) {
     element("#setupContent").innerHTML = `

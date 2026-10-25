@@ -285,6 +285,8 @@ dialog .col-title { margin-bottom: 16px; }
 .genbar .aktion.big { border-color: var(--accent2); color: #f0dcba; font-size: 14px; min-width: 190px; }
 @media (max-width: 620px) { .genbar .aktion.big { min-width: 0; padding: 0 1rem; font-size: 13px; } .genrow { gap: 10px; } }
 .genbar .aktion.big:hover { background: linear-gradient(180deg, #4d4e4f, #333435); border-color: var(--accent2); }
+.form-preferences-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+#genPreferencesError { color: var(--error); font-size: 12px; }
 
 .field.lang { flex-direction: row; align-items: center; gap: 12px; margin: 4px 0 10px; }
 .field.lang .lbl { margin: 0; }

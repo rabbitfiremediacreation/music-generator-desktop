@@ -26,7 +26,7 @@ and offer retry and quit. Retrying reloads the main frontend and reuses any
 successfully initialized backend state.
 
 The main window stays hidden until the wizard or studio (including the first
-library snapshot and model picker) is ready. Saved window visibility cannot
+library snapshot, restored generation form values and model picker) is ready. Saved window visibility cannot
 bypass this gate. Splash geometry is excluded from saved window state, and
 second launches focus the splash while startup is pending. The macOS main
 window retains its native traffic-light controls.
@@ -65,7 +65,7 @@ for those images. The default failure view uses a localized explanation and
 retry/quit controls. Raw backend diagnostics are retained only in the collapsed,
 localized technical-details disclosure.
 
-Automated coverage checks delayed wizard/studio readiness, initial library
+Automated coverage checks delayed wizard/studio and saved-form readiness, initial library
 failure, stale startup snapshots, retry presentation, language fallback, and
 successful/failed/timed-out subprocesses. Splash and studio share one twelve-language
 registry and locale resolver (saved language, then supported system language,

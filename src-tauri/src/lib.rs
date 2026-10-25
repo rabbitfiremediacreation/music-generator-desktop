@@ -8,6 +8,7 @@ pub mod download;
 pub mod engine;
 pub mod error;
 pub mod exports;
+pub mod form_preferences;
 pub mod hardware;
 pub mod import;
 mod jobs;
@@ -97,6 +98,8 @@ pub fn run() {
             commands::queue,
             commands::get_settings,
             commands::save_settings,
+            commands::get_generation_form_preferences,
+            commands::save_generation_form_preferences,
             commands::analyze,
             commands::health,
             commands::export_file,

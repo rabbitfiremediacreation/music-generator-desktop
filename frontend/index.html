@@ -174,6 +174,10 @@
             <button type="submit" id="genBtn" class="aktion big">2× GENERIEREN</button>
           </div>
         </div>
+        <div class="form-preferences-actions">
+          <button type="button" id="resetGenPreferences" class="sek" data-i18n="form_preferences_reset">Grundeinstellungen zurücksetzen</button>
+          <span id="genPreferencesError" class="small" role="status" hidden></span>
+        </div>
       </div>
     </form>
   </section>
@@ -240,7 +244,7 @@
       <ul id="updList" class="upd-list" hidden></ul>
       <button type="button" id="updApply" class="aktion" hidden data-i18n="desktop_download_release">JETZT AKTUALISIEREN</button>
     </div>
-    <div class="field"><button type="button" class="sek" id="manageModels" data-i18n="desktop_manage"></button></div>
+    <div class="field"><button type="button" class="sek" id="manageModels" data-i18n="desktop_manage" aria-describedby="setupWizardHint"></button><p id="setupWizardHint" class="small" data-i18n="desktop_manage_hint"></p></div>
     <div class="field"><span class="lbl">GitHub</span>
       <div class="upd-row"><a href="https://github.com/frankhildebrandt/music-generator" target="_blank" rel="noopener" class="sek" data-i18n="github">GitHub</a><span class="small" data-i18n="github_info">Quellcode und Anleitung</span></div>
     </div>
@@ -277,7 +281,8 @@
   <p data-model-expert class="small" data-i18n="picker_sampling_hint">Modellwechsel ändern keine Sampling-Werte. Empfehlungen gelten nur per Klick für das Formular.</p>
   <div id="modelProgressArea" hidden><progress id="modelProgress" aria-label="Download" data-i18n-aria="picker_download"></progress><p id="modelProgressText" class="small" role="status" aria-live="polite"></p></div>
   <p id="modelError" class="setup-error" role="alert"></p>
-  <div class="model-picker-actions"><button type="button" id="modelHardwareTest" class="sek" data-i18n="desktop_manage">Modelle und Hardwaretest</button><button type="button" id="modelCancel" class="sek" data-i18n="cancel" hidden>Abbrechen</button><button type="button" id="modelApply" class="aktion" data-i18n="picker_use">Auswahl verwenden</button></div>
+  <p id="modelSetupWizardHint" class="small" data-i18n="desktop_manage_hint"></p>
+  <div class="model-picker-actions"><button type="button" id="modelHardwareTest" class="sek" data-i18n="desktop_manage" aria-describedby="modelSetupWizardHint">Einrichtungsassistent erneut öffnen …</button><button type="button" id="modelCancel" class="sek" data-i18n="cancel" hidden>Abbrechen</button><button type="button" id="modelApply" class="aktion" data-i18n="picker_use">Auswahl verwenden</button></div>
 </dialog>
 
 </main>

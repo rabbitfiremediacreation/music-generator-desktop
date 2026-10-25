@@ -2,6 +2,8 @@
 
 The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. Extended selection, verification and downloads are available through **Settings → Manage and download models**. The initial picker shipped in [0.2.8](https://github.com/frankhildebrandt/music-generator/releases/tag/v0.2.8-test.1). ACE-Step is the supported music provider.
 
+The separate **Settings → Reopen setup wizard…** entry opens the full setup flow for storage locations, model downloads and a function test. The same entry is available inside the model manager. Completing the wizard activates a recommended Standard or XL starter profile; use the model manager for regular model changes.
+
 ## Simple selection and Expert Mode
 
 By default, the Creator drop-down offers **Standard** and, only when its complete profile fits the detected RAM budget, **XL**. These use SFT Q8_0. Each profile has exactly one automatically recommended Q8_0 language model; there is no manual size selector. Recommendations use the existing RAM/VRAM language-size guidance (0.6B, 1.7B or 4B), lowering the size if needed to fit synthesis, language weights, fixed dependencies and runtime headroom together. If no starter profile fits, the drop-down explains that no recommendation is available. The first-run assistant follows the same rules.
