@@ -1,7 +1,6 @@
 import { LANGS, preferredLanguage } from "./locales";
 
-// Oberflächensprache (LANGS). Fehlt ein Schlüssel, gilt Englisch, dann Deutsch. Statische Texte tragen data-i18n (Text), data-i18n-title,
-// data-i18n-ph (Platzhalter) oder data-i18n-aria; dynamische Texte kommen über t("schlüssel").
+// Shared message catalogs. React and native adapters use the same language and fallback chain.
 const I18N = {
   de: {
     drop_aria: "Song hochladen und analysieren",
@@ -815,31 +814,21 @@ const I18N = {
 };
 
 let LANG = preferredLanguage();
+const languageListeners = new Set();
+const subscribeLanguage = (listener) => { languageListeners.add(listener); return () => languageListeners.delete(listener); };
+const getLanguage = () => LANG;
 
 const t = (k, ...a) => {
   const v = I18N[LANG][k] ?? I18N.en[k] ?? I18N.de[k] ?? k;
   return typeof v === "function" ? v(...a) : v;
 };
 
-function applyI18n() {
-  document.documentElement.lang = LANG;
-  document.querySelectorAll("[data-i18n]").forEach((e) => { e.textContent = t(e.dataset.i18n); });
-  for (const [data, attr] of [["i18nTitle", "title"], ["i18nPh", "placeholder"], ["i18nAria", "aria-label"]])
-    document.querySelectorAll(`[data-i18n-${data.slice(4).toLowerCase()}]`).forEach((e) => e.setAttribute(attr, t(e.dataset[data])));
-  const sel = document.querySelector("#uiLang");
-  if (sel) {
-    if (!sel.options.length) for (const [k, n] of Object.entries(LANGS)) sel.add(new Option(n, k));
-    sel.value = LANG;
-  }
-}
-
 function setLang(l) {
   if (!Object.hasOwn(LANGS, l)) return;
   LANG = l;
   try { localStorage.setItem("ui_lang", l); } catch {}
-  applyI18n();
-  document.dispatchEvent(new Event("langchange"));
+  document.documentElement.lang = l;
+  languageListeners.forEach(listener => listener());
 }
-applyI18n();
 
-export { I18N, LANGS, LANG, t, setLang, applyI18n };
+export { I18N, LANGS, LANG, t, setLang, subscribeLanguage, getLanguage };

@@ -9,6 +9,5 @@ async function launch(): Promise<void> {
 
 void launch().catch(async (error) => {
   const message = error instanceof Error ? error.message : String(error);
-  document.querySelector("#bootStatus")!.textContent = message;
   await invoke("startup_error", { error: message });
 });

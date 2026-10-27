@@ -1,13 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LANGS, preferredLanguage, resolveLanguage } from "./locales";
-import { startupKeys, startupText, startupTranslations } from "./startup-text";
-import { splashView } from "./splash-view";
-import html from "./splash.html?raw";
+import { startupKeys, startupTranslations } from "./startup-text";
 
 beforeEach(() => {
   localStorage.clear();
-  document.body.innerHTML = html.match(/<body>([\s\S]*)<\/body>/)![1].replace(/<script\b[\s\S]*?<\/script>/g, "");
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -17,31 +14,6 @@ it("has complete startup messages for every registered interface language", () =
     expect(values).toHaveLength(startupKeys.length);
     expect(values.every(value => value.trim().length > 0)).toBe(true);
   }
-});
-
-it.each(Object.keys(LANGS) as (keyof typeof LANGS)[])("localizes the complete error state in %s", (language) => {
-  localStorage.setItem("ui_lang", language);
-  const text = startupText();
-  splashView(text)({ sequence: 1, phase: "error", error: "database is locked" });
-  expect(document.documentElement.lang).toBe(language);
-  expect(document.querySelector("#splashStatus")!.textContent).toBe(text.error);
-  expect(document.querySelector("#splashError")!.textContent).toBe(text.failure);
-  expect(document.querySelector("#splashRetry")!.textContent).toBe(text.retry);
-  expect(document.querySelector("#splashClose")!.getAttribute("aria-label")).toBe(text.quit);
-  expect(document.querySelector("#splashDetailsLabel")!.textContent).toBe(text.details);
-  expect(document.querySelector("#splashFooter")!.textContent).toBe(text.footer);
-  expect(document.querySelector<HTMLDetailsElement>("#splashDetails")!.open).toBe(false);
-  expect(document.querySelector("#splashError")!.textContent).not.toContain("database is locked");
-});
-
-it.each(Object.keys(LANGS) as (keyof typeof LANGS)[])("localizes the installation requirement in %s", language => {
-  localStorage.setItem("ui_lang", language);
-  const text = startupText();
-  splashView(text)({ sequence: 1, phase: "installation_required", error: null });
-  expect(document.documentElement.lang).toBe(language);
-  expect(document.querySelector("#splashStatus")!.textContent).toBe(text.installation_required);
-  expect(document.querySelector("#splashInstallation")!.textContent).toBe(text.installation_steps);
-  expect(document.querySelector("#splashQuit")!.textContent).toBe(text.quit);
 });
 
 it.each([

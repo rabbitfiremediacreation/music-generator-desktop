@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>Music Generator</title>
-<link rel="stylesheet" href="/splash.css">
 </head>
 <body>
+<div id="root">
 <div class="drag-area" data-tauri-drag-region aria-hidden="true"></div>
 <button id="splashClose" class="close" type="button" aria-label="Quit">×</button>
 <main class="splash" aria-labelledby="appName">
@@ -31,6 +31,7 @@
   <button id="splashRetry" class="retry" type="button" hidden>Try again</button>
 </main>
 <footer><img class="brand" src="/alphatester.png" width="180" height="30" alt="Alphatester"><p id="splashFooter">Your music. On your computer.</p></footer>
+</div>
 <script type="module" src="/splash.ts"></script>
 </body>
 </html>
