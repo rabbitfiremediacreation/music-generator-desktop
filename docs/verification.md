@@ -6,6 +6,8 @@ Der Einrichtungsassistent zeigt den macOS-Ordnerfreigabehinweis nur unter macOS.
 
 Ein automatischer Sprung von 80 auf 91 Iterationen ist im aktuellen Code nicht reproduzierbar. Gültige gespeicherte Werte werden unverändert geladen; auch „Song wiederverwenden“ kann einen Wert übernehmen und speichern. Ohne die betroffene Windows-Datenbank lässt sich die konkrete Herkunft nicht belegen. Neue Regressionen sichern 80 und 91 über Neuöffnung und andere Feldänderungen ab; erst ein ausdrücklicher Reset übernimmt wieder die aktuelle Modell-/Geräteempfehlung (GPU/SFT: 80). Es gibt keine Sondermigration für 91. Der gemeldete Tippfehler ist im Ausgangsstand bereits korrigiert; Backend-Anzeige und bedingter Soll/Ist-Dauerhinweis bleiben unverändert.
 
+Abschließende Prüfungen: TypeScript/Vite-Build, ESLint, alle **362 Frontendtests**, **32 Desktop-Skripttests** und **204 Rusttests**, Rustfmt sowie Clippy mit Warnungen als Fehler bestanden. Eine vorhandene Rust-Subprozess-Fixture bleibt absichtlich ignoriert. Die vollständige Rust-Suite lief mit Zugriff auf lokale Loopback-Testserver. Der getrennte Standards-/Spec-Review fand eine zu korrigierende Testgrenze: Der Formular-Persistenztest verwendet jetzt den echten Backendadapter und ersetzt nur die native Tauri-Schnittstelle; der Reset wird nach erneutem Öffnen der Oberfläche geprüft. Nachprüfung: keine offenen Standards- oder Spec-Befunde.
+
 Diese Prüfung ist keine native Windows-/GTX-1060-Abnahme und umfasst keine neue Modellinferenz.
 
 # Überarbeiteter 0.1.2-Build: tatsächlich 200 Schritte — 2026-10-27
