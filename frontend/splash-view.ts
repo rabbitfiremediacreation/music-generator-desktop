@@ -1,10 +1,12 @@
 import type { StartupLabel } from "./startup-text";
 import { element } from "./dom";
+import { startupErrorDetails, startupErrorText } from "./startup-errors";
 
-export interface StartupStatus { sequence: number; phase: StartupLabel; error: string | null }
+export interface StartupStatus { attempt: number; sequence: number; phase: StartupLabel; error: string | null }
 
 /** Keep events newer than the initial snapshot and expose actionable errors without animation. */
 export function splashView(text: Record<StartupLabel, string>) {
+  let attempt = 0;
   let sequence = -1;
   let installationRequired = false;
   element("#splashRetry").textContent = text.retry;
@@ -15,7 +17,8 @@ export function splashView(text: Record<StartupLabel, string>) {
   element("#splashInstallation").textContent = text.installation_steps;
   element("#splashQuit").textContent = text.quit;
   return (status: StartupStatus) => {
-    if (installationRequired || status.sequence < sequence) return;
+    if (installationRequired || status.attempt < attempt || (status.attempt === attempt && status.sequence < sequence)) return;
+    attempt = status.attempt;
     sequence = status.sequence;
     installationRequired = status.phase === "installation_required";
     document.body.dataset.installationRequired = String(installationRequired);
@@ -26,8 +29,8 @@ export function splashView(text: Record<StartupLabel, string>) {
     element("#splashStatus").textContent = text[status.phase] || text.starting;
     element("#splashProgress").setAttribute("aria-label", text[status.phase] || text.starting);
     element("#splashProgress").hidden = failed || installationRequired;
-    element("#splashError").textContent = failed ? text.failure : "";
-    element("#splashDiagnostic").textContent = status.error;
+    element("#splashError").textContent = failed ? startupErrorText(status.error) : "";
+    element("#splashDiagnostic").textContent = failed ? startupErrorDetails(status.error) : "";
     const details = element<HTMLDetailsElement>("#splashDetails");
     details.hidden = !failed;
     details.open = false;

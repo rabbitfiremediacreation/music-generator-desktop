@@ -26,6 +26,7 @@ pub mod runtime;
 pub mod sandbox;
 pub mod setup;
 mod startup;
+mod startup_windows;
 pub mod state;
 pub mod synthesis_policy;
 pub mod titles;
@@ -54,6 +55,19 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|window, event| {
+            if window.label() == "splash"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                )
+                && window
+                    .try_state::<startup::Startup>()
+                    .is_none_or(|startup| startup.should_exit_on_splash_close())
+            {
+                window.app_handle().exit(0);
+            }
+        })
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_denylist(&["splash"])
@@ -78,7 +92,7 @@ pub fn run() {
             } else {
                 app.path().resource_dir()?
             };
-            app.manage(startup::Startup::new(root, resources, started));
+            startup_windows::initialize(app, root, resources, started)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -88,6 +102,7 @@ pub fn run() {
             startup::splash_ready,
             startup::startup_error,
             startup::retry_startup,
+            startup::startup_show_main,
             startup::startup_complete,
             commands::setup_models,
             commands::setup_estimate,

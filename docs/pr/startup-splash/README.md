@@ -1,5 +1,9 @@
 # Cross-platform startup splash (issue #12)
 
+The follow-up [issue #45 verification](../issue-45-startup/README.md) documents the
+corrected window creation order, both-window manual retries, one automatic splash
+retry, early error logging and the main-window frame handshake.
+
 ## Startup findings
 
 The reported Windows 10 first launch (5–20 seconds of an empty window) has not

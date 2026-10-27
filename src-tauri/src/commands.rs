@@ -73,11 +73,13 @@ pub fn remember_folder(path: String) -> Result<()> {
 pub async fn bootstrap(
     startup: State<'_, crate::startup::Startup>,
     app: AppHandle,
+    attempt: u64,
 ) -> Result<Value> {
-    let state = startup.prepare(&app).await?;
+    let state = startup.prepare(&app, attempt).await?;
     let _operation = state.runtime.begin(OperationKind::Startup).await?;
+    startup.ensure_active(attempt)?;
     let started = std::time::Instant::now();
-    startup.report(&app, "hardware", None);
+    startup.report(&app, attempt, "hardware", None);
     let hardware = tauri::async_runtime::spawn_blocking(crate::hardware::inspect)
         .await
         .map_err(|e| message(e.to_string()))?;
@@ -85,7 +87,8 @@ pub async fn bootstrap(
         elapsed_ms = started.elapsed().as_millis(),
         "Startup hardware check finished"
     );
-    startup.report(&app, "settings", None);
+    startup.ensure_active(attempt)?;
+    startup.report(&app, attempt, "settings", None);
     let settings = state.db.settings()?;
     let needs_setup = !settings.setup_complete;
     if !needs_setup {
@@ -99,7 +102,8 @@ pub async fn bootstrap(
         needs_setup,
         "Startup setup check finished"
     );
-    startup.report(&app, "interface", None);
+    startup.ensure_active(attempt)?;
+    startup.report(&app, attempt, "interface", None);
     Ok(
         json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommended_profiles(hardware),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
     )

@@ -4,6 +4,7 @@
     "windows": [
       {
         "label": "splash",
+        "create": false,
         "title": "Music Generator",
         "url": "splash.html",
         "width": 480,
@@ -19,6 +20,7 @@
       },
       {
         "label": "main",
+        "create": false,
         "acceptFirstMouse": true,
         "title": "Music Generator",
         "width": 1280,

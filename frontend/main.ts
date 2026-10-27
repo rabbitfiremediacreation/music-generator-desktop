@@ -15,6 +15,7 @@ import { showSetup } from "./setup";
 import type { Bootstrap } from "./types";
 import { openLibraryAssistant } from "./import-wizard";
 import { initializeModelPicker } from "./model-picker";
+import { waitForPaint } from "./startup-paint";
 
 let bootstrap: Bootstrap;
 async function showStudio(resetSelection = false): Promise<void> {
@@ -26,12 +27,14 @@ async function showStudio(resetSelection = false): Promise<void> {
   requestAnimationFrame(() => element<HTMLInputElement>('#genForm input[name="title"]').focus({preventScroll:true}));
 }
 
-export async function startApp(): Promise<void> {
+export async function startApp(attempt: number): Promise<void> {
   applyI18n();
   await initializeDesktop();
-  bootstrap = await backend.bootstrap();
+  bootstrap = await backend.bootstrap(attempt);
   if (bootstrap.needs_setup) await showSetup(bootstrap, showStudio); else await showStudio();
-  await invoke("startup_complete");
+  await invoke("startup_show_main", { attempt });
+  await waitForPaint();
+  await invoke("startup_complete", { attempt });
 }
 
 document.addEventListener("manage-models", () => {

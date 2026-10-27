@@ -1,0 +1,25 @@
+2026-10-27T18:08:54.993251Z  INFO music_generator::startup: Startup phase elapsed_ms=518 attempt=1 phase="data"
+2026-10-27T18:08:54.996620Z  INFO music_generator::startup::preparation: Startup data initialization finished elapsed_ms=522 splash_ms=516
+2026-10-27T18:08:54.996695Z  INFO music_generator::startup: Startup phase elapsed_ms=522 attempt=1 phase="hardware"
+2026-10-27T18:08:55.008501Z  INFO music_generator::commands: Startup hardware check finished elapsed_ms=11
+2026-10-27T18:08:55.008547Z  INFO music_generator::startup: Startup phase elapsed_ms=534 attempt=1 phase="settings"
+2026-10-27T18:08:55.008741Z  INFO music_generator::commands: Startup setup check finished elapsed_ms=12 needs_setup=true
+2026-10-27T18:08:55.008756Z  INFO music_generator::startup: Startup phase elapsed_ms=534 attempt=1 phase="interface"
+2026-10-27T18:08:55.122646Z  INFO music_generator::startup: Startup phase elapsed_ms=648 attempt=1 phase="ready"
+2026-10-27T18:09:51.382111Z  INFO music_generator::startup: Startup phase elapsed_ms=485 attempt=1 phase="data"
+2026-10-27T18:09:56.604235+00:00 ERROR Startup failure attempt=1 phase="error" elapsed_ms=5707 error="database is locked"
+2026-10-27T18:09:56.604824Z  INFO music_generator::startup: Startup phase elapsed_ms=5708 attempt=1 phase="error"
+2026-10-27T18:10:02.820315Z  INFO music_generator::startup: Startup phase elapsed_ms=11923 attempt=2 phase="data"
+2026-10-27T18:10:08.038900+00:00 ERROR Startup failure attempt=2 phase="error" elapsed_ms=17142 error="database is locked"
+2026-10-27T18:10:08.039159Z  INFO music_generator::startup: Startup phase elapsed_ms=17142 attempt=2 phase="error"
+2026-10-27T18:10:42.194961Z  INFO music_generator::startup: Startup phase elapsed_ms=51298 attempt=3 phase="data"
+2026-10-27T18:10:42.198285Z  INFO music_generator::startup::preparation: Startup data initialization finished elapsed_ms=51301 splash_ms=51298
+2026-10-27T18:10:42.198356Z  INFO music_generator::startup: Startup phase elapsed_ms=51301 attempt=3 phase="hardware"
+2026-10-27T18:10:42.211410Z  INFO music_generator::commands: Startup hardware check finished elapsed_ms=13
+2026-10-27T18:10:42.211456Z  INFO music_generator::startup: Startup phase elapsed_ms=51315 attempt=3 phase="settings"
+2026-10-27T18:10:42.211701Z  INFO music_generator::commands: Startup setup check finished elapsed_ms=13 needs_setup=true
+2026-10-27T18:10:42.211712Z  INFO music_generator::startup: Startup phase elapsed_ms=51315 attempt=3 phase="interface"
+2026-10-27T18:10:42.307021Z  INFO music_generator::startup: Startup phase elapsed_ms=51410 attempt=3 phase="ready"
+2026-10-27T18:11:19.874554Z  INFO music_generator::startup: Startup phase elapsed_ms=493 attempt=1 phase="data"
+2026-10-27T18:11:25.080298+00:00 ERROR Startup failure attempt=1 phase="error" elapsed_ms=5698 error="database is locked"
+2026-10-27T18:11:25.080513Z  INFO music_generator::startup: Startup phase elapsed_ms=5698 attempt=1 phase="error"

@@ -11,7 +11,7 @@ beforeEach(() => {
 
 it("requires installation with only a quit action and keeps that state after later events", () => {
   const render = splashView(startupText());
-  render({ sequence: 2, phase: "installation_required", error: null });
+  render({ attempt: 1, sequence: 2, phase: "installation_required", error: null });
   expect(document.querySelector("#splashStatus")!.textContent).toBe("Bitte installiere Music Generator.");
   expect(document.querySelector("#splashInstallation")!.textContent).toContain("wirf das DMG aus");
   expect(document.querySelector<HTMLElement>("#splashQuit")!.hidden).toBe(false);
@@ -19,8 +19,8 @@ it("requires installation with only a quit action and keeps that state after lat
   for (const id of ["#splashProgress", "#splashRetry", "#splashError", "#splashDetails", "#splashSlow"]) {
     expect(document.querySelector<HTMLElement>(id)!.hidden).toBe(true);
   }
-  render({ sequence: 3, phase: "error", error: "late failure" });
-  render({ sequence: 4, phase: "ready", error: null });
+  render({ attempt: 1, sequence: 3, phase: "error", error: "late failure" });
+  render({ attempt: 1, sequence: 4, phase: "ready", error: null });
   expect(document.querySelector("#splashStatus")!.textContent).toBe("Bitte installiere Music Generator.");
   expect(document.body.dataset.installationRequired).toBe("true");
 });
@@ -35,14 +35,24 @@ it("shows the static icon and load message even before JavaScript runs", () => {
 
 it("ignores an older startup snapshot after a newer event", () => {
   const render = splashView(startupText());
-  render({ sequence: 3, phase: "hardware", error: null });
-  render({ sequence: 1, phase: "data", error: null });
+  render({ attempt: 1, sequence: 3, phase: "hardware", error: null });
+  render({ attempt: 1, sequence: 1, phase: "data", error: null });
   expect(document.querySelector("#splashStatus")!.textContent).toBe("Hardware wird erkannt…");
+});
+
+it("accepts a fresh attempt and ignores late events from the previous attempt", () => {
+  const render = splashView(startupText());
+  render({ attempt: 1, sequence: 8, phase: "error", error: "old failure" });
+  render({ attempt: 2, sequence: 1, phase: "starting", error: null });
+  expect(document.body.dataset.failed).toBe("false");
+  render({ attempt: 1, sequence: 9, phase: "error", error: "late old failure" });
+  expect(document.querySelector("#splashStatus")!.textContent).toBe("Music Generator wird gestartet…");
+  expect(document.querySelector<HTMLElement>("#splashRetry")!.hidden).toBe(true);
 });
 
 it("stops the loading presentation on failure and restores it for retry", () => {
   const render = splashView(startupText());
-  render({ sequence: 4, phase: "error", error: "database is locked" });
+  render({ attempt: 1, sequence: 4, phase: "error", error: "database is locked" });
   expect(document.body.dataset.failed).toBe("true");
   expect(document.querySelector<HTMLElement>("#splashProgress")!.hidden).toBe(true);
   expect(document.querySelector<HTMLElement>("#splashRetry")!.hidden).toBe(false);
@@ -50,7 +60,7 @@ it("stops the loading presentation on failure and restores it for retry", () => 
   expect(document.querySelector("#splashDetailsLabel")!.textContent).toBe("Technische Details");
   expect(document.querySelector<HTMLDetailsElement>("#splashDetails")!.open).toBe(false);
   expect(document.querySelector("#splashDiagnostic")!.textContent).toBe("database is locked");
-  render({ sequence: 5, phase: "starting", error: null });
+  render({ attempt: 1, sequence: 5, phase: "starting", error: null });
   expect(document.body.dataset.failed).toBe("false");
   expect(document.querySelector<HTMLElement>("#splashRetry")!.hidden).toBe(true);
   expect(document.querySelector<HTMLElement>("#splashDetails")!.hidden).toBe(true);

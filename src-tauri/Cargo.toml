@@ -58,6 +58,7 @@ base64 = "0.22"
 tauri = { version = "2", features = ["test"] }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 tempfile = "3"
 axum = "0.8"
 
