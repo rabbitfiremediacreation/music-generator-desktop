@@ -127,22 +127,42 @@ pub fn request(params: &Value, meta: &Value) -> Value {
     }
     json!({"lyrics":bound(lyrics,8000),"prompt":bound(prompt,1200)})
 }
+/// Removes model labels and surrounding punctuation without altering title contents.
 pub fn clean(output: &str) -> Result<String> {
     let line = output
         .lines()
         .map(str::trim)
         .find(|s| !s.is_empty())
         .ok_or_else(|| message("Title model returned no title"))?;
+    let line = ["The song title is", "Title:", "Titel:"]
+        .into_iter()
+        .find_map(|prefix| {
+            let label = line.get(..prefix.len())?;
+            let title = line.get(prefix.len()..)?;
+            if !label.eq_ignore_ascii_case(prefix)
+                || (!prefix.ends_with(':')
+                    && title
+                        .chars()
+                        .next()
+                        .is_some_and(|ch| ch.is_alphanumeric() || ch == '_'))
+            {
+                return None;
+            }
+            Some(title.trim().trim_start_matches(':').trim())
+        })
+        .unwrap_or(line);
+    let wrapper = |ch: char| {
+        ch.is_whitespace()
+            || matches!(
+                ch,
+                '"' | '\'' | '“' | '”' | '„' | '‘' | '’' | '«' | '»' | '`'
+            )
+    };
     let line = line
-        .strip_prefix("Title:")
-        .or_else(|| line.strip_prefix("Titel:"))
-        .unwrap_or(line)
-        .trim();
-    let line = line
-        .trim_matches(['"', '\'', '“', '”', '„', '«', '»', '`'])
-        .trim()
-        .trim_end_matches('.');
+        .trim_start_matches(wrapper)
+        .trim_end_matches(|ch| wrapper(ch) || ch == '.');
     if line.is_empty()
+        || !line.chars().any(char::is_alphanumeric)
         || line.contains(['<', '>'])
         || line.chars().any(char::is_control)
         || line.chars().count() > 120

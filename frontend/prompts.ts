@@ -1,3 +1,5 @@
+import TITLE from "../assets/random-titles.json";
+
 const STYLE_GROUPS = {
   genre: ["trip hop", "downtempo", "dub", "deep house", "techno", "drum and bass", "post-rock", "neo-soul", "dark ambient", "boom bap", "orchestral",
     "pop", "rock", "hip hop", "electronic", "lo-fi", "jazz", "ambient", "synthwave", "acoustic", "cinematic",
@@ -66,10 +68,6 @@ const randomPrompt = (instrumental: boolean) => {
   return cap(vox ? `${text}, ${vox}` : text);
 };
 
-const TITLE = {
-  adj: ["Midnight", "Velvet", "Neon", "Silent", "Golden", "Hollow", "Electric", "Faded", "Distant", "Crimson", "Slow", "Lunar", "Paper", "Glass", "Amber"],
-  noun: ["Static", "Horizon", "Rain", "Echoes", "Signal", "Drift", "Skyline", "Mirror", "Ember", "Tide", "Orbit", "Harbor", "Afterglow", "Motel", "Garden"],
-};
 // Ein Genre, dazu null bis zwei weitere Begriffe (zweites Genre, Instrument, Stimmung, bei Gesang auch Stimme):
 // höchstens drei Begriffe, gern auch nur einer
 const randomStyle = (instrumental: boolean) => {

@@ -10,6 +10,8 @@ it("provides all folder, audio and sandbox messages in every interface language"
     expect(pathTranslations[language]).toHaveLength(pathKeys.length);
     const messages = I18N[language] as unknown as Record<string, string>;
     for (const key of pathKeys) expect(messages[key]).toEqual(expect.stringMatching(/\S/));
+    expect(messages.path_hint_plain).not.toContain("macOS");
+    expect(messages.path_hint).toContain("macOS");
   }
   expect((I18N.de as unknown as Record<string, string>).path_absolute).toContain("absoluten");
   expect((I18N.de as unknown as Record<string, string>).path_access).toContain("Auswählen");

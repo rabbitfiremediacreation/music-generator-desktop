@@ -108,7 +108,7 @@ it("uses current model and device defaults on explicit reset without replacing s
   expect(mocks.saveGenerationFormPreferences).toHaveBeenLastCalledWith({ ...DEFAULT_FORM_PREFERENCES, inference_steps: 8 });
 });
 
-it.each([100, 120, 200])("preserves an existing %s-step preference without increasing it or rewriting storage on load", async steps => {
+it.each([80, 91, 100, 120, 200])("preserves an existing %s-step preference without increasing it or rewriting storage on load", async steps => {
   const stored = Object.freeze({ ...custom, inference_steps: steps });
   mocks.generationFormPreferences.mockResolvedValue(stored);
   const controller = createFormPreferences(form(), vi.fn()); await controller.ready;
@@ -117,4 +117,23 @@ it.each([100, 120, 200])("preserves an existing %s-step preference without incre
   await controller.flush(); expect(mocks.saveGenerationFormPreferences).not.toHaveBeenCalled();
   field("duration").value = "300"; controller.capture(); await controller.flush();
   expect(mocks.saveGenerationFormPreferences).toHaveBeenLastCalledWith({ ...stored, duration: 300 });
+});
+
+it.each([80, 91])("restores %s steps after reopening and uses 80 only on explicit GPU SFT reset", async steps => {
+  let stored = { ...custom, inference_steps: steps };
+  mocks.generationFormPreferences.mockImplementation(async () => ({ ...stored }));
+  mocks.saveGenerationFormPreferences.mockImplementation(async (values: GenerationFormPreferences) => { stored = { ...values }; });
+  const defaults = async () => ({ ...DEFAULT_FORM_PREFERENCES, inference_steps: 80 });
+  const first = createFormPreferences(form(), vi.fn(), defaults); await first.ready;
+  field("duration").value = "300"; field("duration").dispatchEvent(new Event("input", { bubbles: true }));
+  await first.flush();
+
+  mountStudio();
+  const reopened = createFormPreferences(form(), vi.fn(), defaults); await reopened.ready;
+  expect(field("inference_steps").value).toBe(String(steps));
+  expect(field("duration").value).toBe("300");
+  document.querySelector<HTMLButtonElement>("#resetGenPreferences")!.click();
+  await settle(); await reopened.flush();
+  expect(field("inference_steps").value).toBe("80");
+  expect(stored).toEqual({ ...DEFAULT_FORM_PREFERENCES, inference_steps: 80 });
 });

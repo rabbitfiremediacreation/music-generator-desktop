@@ -22,6 +22,7 @@ mod model_commands;
 pub mod paths;
 pub mod power;
 mod process_output;
+mod random_titles;
 pub mod runtime;
 pub mod sandbox;
 pub mod setup;

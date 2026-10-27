@@ -107,6 +107,7 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
   element<HTMLSelectElement>("#setupLanguage").value = LANG;
   element<HTMLInputElement>("#setupModels").value = data.settings.models_dir;
   element<HTMLInputElement>("#setupSongs").value = data.settings.songs_dir;
+  element("#setupPathHint").dataset.i18n = data.hardware.platform === "macos" ? "path_hint" : "path_hint_plain";
   const canUseXl = data.settings.expert_mode || data.recommended_profiles.some(p => p.synthesis.includes("-xl-"));
   element("#setupXlField").hidden = !canUseXl;
   element<HTMLInputElement>("#setupXl").checked = canUseXl && (data.settings.dit === "xl" || Boolean(data.settings.dit_xl_available));

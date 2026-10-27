@@ -312,6 +312,15 @@ impl Database {
 
     pub fn finish(&self, sid: &str, file: &str, meta: &Value) -> Result<bool> {
         let engine = "acestep_cpp";
+        let mut meta = meta.clone();
+        if meta["generated_title"]
+            .as_str()
+            .and_then(nonempty)
+            .is_none()
+            && meta["title_generation_error"].as_str().is_some()
+        {
+            meta["generated_title"] = crate::random_titles::random_title().into();
+        }
         Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty)])? == 1)
     }
 
