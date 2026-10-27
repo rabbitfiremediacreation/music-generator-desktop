@@ -54,6 +54,7 @@ und echten Tauri-WebViews, ohne Modelle zu laden oder Songs zu erzeugen.
 
 Die [native deutsche Fehleransicht](error-de.png) und das
 [Protokoll der isolierten Teststarts](native-desktop.log) gehören zu dieser Prüfung.
+Die Fehleransicht wurde für den PR am finalen Implementierungsstand `bcb231d` erneut aufgenommen.
 Animation-Frames bestätigen einen reagierenden Frontendablauf, nicht korrekte GPU-Pixel.
 
 ## Bezug zu Issue #32 und Review
