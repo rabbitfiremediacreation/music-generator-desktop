@@ -115,7 +115,10 @@ try {
     assert.equal(minimum, target.minimumSystemVersion);
     const identifier = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(identifier, "de.alphatester.music-generator", "Unexpected package identifier");
-    if (target.cpuOnly) assert(!extracted.some(file => /ggml-metal/i.test(path.basename(file))), "Intel bundle must not include a Metal backend");
+    if (target.cpuOnly) {
+      assert(!extracted.some(file => /ggml-metal/i.test(path.basename(file))), "Intel bundle must not include a Metal backend");
+      assert(!extracted.some(file => /ggml-blas/i.test(path.basename(file))), "Monterey Intel bundle must not include the macOS 13.3+ BLAS backend");
+    }
     await verifyMacSandbox(app, engine);
   } else {
   const listener = createServer();

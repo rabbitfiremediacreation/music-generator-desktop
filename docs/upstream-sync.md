@@ -53,3 +53,9 @@ MP3 conversion uses the existing process supervisor, so closing/crashing the app
 Local checks: TypeScript/Vite, ESLint, six frontend tests, 35 Rust integration tests, Rustfmt and Clippy with warnings as errors. Windows omits the three Unix process/CLI tests (32 Rust tests). Native bundle verification now includes a real PCM-WAV-to-MP3 conversion; on macOS the packaged Rust export command, MP3 ZIP content, original WAV preservation, CPU split process and cache deletion are exercised inside App Sandbox for both ZIP and DMG. A timed-out device probe reports an error instead of silently treating a newer engine as an older one that honors only the backend environment variable.
 
 Full GUI/inference on clean Windows/Linux machines, physical microphone and screenreader checks remain manual acceptance items as listed in `desktop.md`. The removed Python installation guides do not establish desktop behavior.
+
+## Experimental macOS 12.7 Intel follow-up
+
+The Intel desktop target is extended from macOS 13.3 to macOS 12.7 for the app and all bundled native helpers. ACE-Step and the title generator disable `GGML_BLAS` on Intel to avoid Accelerate's macOS 13.3-only BLAS/LAPACK interface; older vDSP acceleration remains enabled. The portable CPU variants, sandbox inheritance and CPU-only generation policy remain in place. This may reduce Intel inference performance, which still needs measurement. Apple Silicon continues targeting macOS 14.0 with Metal.
+
+The candidate is intended for testing through the pull request before merging. CI still runs on macOS 15; its package checks do not replace an actual macOS 12.7 test. GUI/audio, folder-grant persistence and full music/title generation on Monterey remain manual acceptance items in the [focused test guide](pr/macos-12-7/README.md). Published release files are not replaced by this change.
