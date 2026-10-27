@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Library } from "./library/Library";
 import { I18nProvider } from "./i18n";
@@ -104,4 +104,23 @@ it("resets delete confirmation after a keyboard or screenreader click on another
   expect(screen.getByRole("button",{name:"Delete song?"})).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Favorite"}));
   expect(screen.getByRole("button",{name:"Delete"})).toBeTruthy();
+});
+
+it("translates the existing admission message for unverified models",async()=>{
+  setLang("de");const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>{
+    if(name==="generation_policy")return Promise.resolve({backend:"gpu",recommended_steps:80,cpu_iteration_behavior:"ask",defaults:{duration:90,bpm:0,inference_steps:80,lm_temperature:1.2,variants:2}});
+    if(name==="generate")return Promise.reject(new Error("Open the ModelPicker and download or verify the selected models first"));
+    return original(name,args);
+  });
+  mount();fireEvent.click(await screen.findByRole("button",{name:"Weitere Variante (neuer Seed)"}));
+  expect((await screen.findByRole("alert")).textContent).toContain("Dieses Modell ist noch nicht einsatzbereit.");
+});
+
+it("translates the completion announcement when the interface language changes",async()=>{
+  songs[0].status="running";const client=mount();await screen.findByText("A song A");
+  songs[0]={...songs[0],status:"done"};await client.invalidateQueries({queryKey:["songs"]});
+  await waitFor(()=>expect(screen.getByRole("status").textContent).toBe("Done: A song A"));
+  act(()=>setLang("de"));
+  expect(screen.getByRole("status").textContent).toBe("Fertig: A song A");
 });
