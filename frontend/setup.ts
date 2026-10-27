@@ -1,3 +1,4 @@
+import "./setup-i18n";
 import { loadGenerationPolicy } from "./generation-policy";
 import { modelErrorText, modelLabel } from "./expert-mode";
 import { renderBackendStatus } from "./backend-status";
@@ -45,6 +46,7 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
       </fieldset></form>
       <div id="setupProgressArea" hidden><progress id="setupProgress" max="1" aria-label="Download"></progress><p id="setupProgressText" role="status" aria-live="polite"></p><button class="sek" id="cancelSetup" data-i18n="cancel"></button></div>
       <section id="setupResult" class="hardware-card" hidden aria-labelledby="setupResultHeading"><h2 id="setupResultHeading" data-i18n="backend_setup_result"></h2><div id="setupBackendResult" role="status" aria-live="polite"></div><button type="button" id="setupEnterStudio" class="aktion big" data-i18n="backend_enter_studio"></button></section>
+      <p id="setupStatus" role="status" aria-live="polite"></p>
       <p id="setupError" role="alert" class="setup-error"></p>
       <button class="sek" id="setupBack" data-i18n="desktop_back"></button>`;
     const language = element<HTMLSelectElement>("#setupLanguage");
@@ -68,7 +70,7 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
       try { await onReady(true); } catch (error) { showError(error); }
       finally { button.disabled = false; }
     };
-    element("#cancelSetup").onclick = () => { void backend.cancelSetup(); };
+    element("#cancelSetup").onclick = () => { void backend.cancelSetup().catch(showError); };
     for (const button of document.querySelectorAll<HTMLButtonElement>("[data-setup-pick]")) button.onclick = async () => {
       const field = element<HTMLInputElement>(`#${button.dataset.setupPick}`);
       try {
@@ -113,7 +115,7 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
   element("#setupBack").hidden = data.needs_setup;
   renderHardware();
   element("#intelCpuHint").hidden = !data.hardware.cpu_only;
-  element("#setupError").textContent = "";
+  clearFeedback();
   const policy = await loadGenerationPolicy();
   const hint = element("#cpuSetupHint");
   hint.hidden = policy.backend === "gpu";
@@ -182,11 +184,21 @@ function setBusy(busy: boolean): void {
   document.body.dataset.settingUp = String(busy);
 }
 
-function showError(error: unknown): void { element("#setupError").textContent = pathErrorText(modelErrorText(error, t)); }
+function clearFeedback(): void {
+  const status = element("#setupStatus");
+  status.textContent = "";
+  delete status.dataset.i18n;
+  element("#setupError").textContent = "";
+}
+
+function showError(error: unknown): void {
+  clearFeedback();
+  element("#setupError").textContent = pathErrorText(modelErrorText(error, t));
+}
 
 async function configure(): Promise<void> {
   cancelEstimate();
-  setBusy(true); element("#setupError").textContent = "";
+  setBusy(true); clearFeedback();
   element<HTMLProgressElement>("#setupProgress").removeAttribute("value"); element("#setupProgressText").textContent = t("desktop_checking");
   try {
     const result = await backend.setup(request());
@@ -199,6 +211,12 @@ async function configure(): Promise<void> {
     element("#setupResultHeading").textContent = t("backend_setup_result");
     element("#setupEnterStudio").textContent = t("backend_enter_studio");
     element("#setupEnterStudio").focus();
-  } catch (error) { showError(error); }
+  } catch (error) {
+    if (error instanceof Error && error.message === "Operation cancelled") {
+      const status = element("#setupStatus");
+      status.dataset.i18n = "setup_cancelled";
+      status.textContent = t("setup_cancelled");
+    } else { showError(error); }
+  }
   finally { setBusy(false); if (!hasResult) await updateEstimate(); }
 }

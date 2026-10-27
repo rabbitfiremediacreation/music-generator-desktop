@@ -93,3 +93,82 @@ it("does not present a successful result or enter the studio when setup fails", 
   expect(document.querySelector<HTMLElement>("#setupForm")!.hidden).toBe(false);
   expect(ready).not.toHaveBeenCalled();
 });
+
+it("announces a cancelled setup as a translated status and allows another attempt with the same selections", async () => {
+  const { setLang } = await import("./i18n.js"); setLang("de");
+  const invoke = mocks.invoke.getMockImplementation()!;
+  let cancel!: () => void;
+  let attempts = 0;
+  mocks.invoke.mockImplementation((command: string, args?: unknown) => {
+    if (command === "setup_models" && attempts++ === 0) {
+      return new Promise((_, reject) => { cancel = () => reject("Operation cancelled"); });
+    }
+    if (command === "cancel_setup") { cancel(); return Promise.resolve(); }
+    return invoke(command, args);
+  });
+  const ready = vi.fn();
+  const { showSetup } = await import("./setup");
+  await showSetup(data, ready);
+  const form = document.querySelector<HTMLFormElement>("#setupForm")!;
+  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  expect(document.body.dataset.settingUp).toBe("true");
+  document.querySelector<HTMLButtonElement>("#cancelSetup")!.click();
+  await vi.waitFor(() => expect(document.body.dataset.settingUp).toBe("false"));
+  expect(mocks.invoke).toHaveBeenCalledWith("cancel_setup", undefined);
+  const status = document.querySelector<HTMLElement>("#setupStatus")!;
+  expect(status?.textContent).toBe("Einrichtung abgebrochen. Deine Auswahl bleibt erhalten. Du kannst sie anpassen und erneut starten.");
+  expect(status.getAttribute("role")).toBe("status");
+  expect(status.classList.contains("setup-error")).toBe(false);
+  expect(document.querySelector("#setupError")!.textContent).toBe("");
+  expect(document.querySelector<HTMLElement>("#setupResult")!.hidden).toBe(true);
+  expect(form.hidden).toBe(false);
+  expect(document.querySelector<HTMLFieldSetElement>("#setupFields")!.disabled).toBe(false);
+  expect(document.querySelector<HTMLButtonElement>("#setupStart")!.disabled).toBe(false);
+  expect(document.querySelector<HTMLSelectElement>("#setupLanguage")!.disabled).toBe(false);
+  expect(document.querySelector<HTMLElement>("#setupProgressArea")!.hidden).toBe(true);
+  expect(ready).not.toHaveBeenCalled();
+  setLang("en");
+  expect(status.textContent).toBe("Setup cancelled. Your selections are kept. You can adjust them and start again.");
+  setLang("de");
+  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  expect(status.textContent).toBe("");
+  setLang("en");
+  expect(status.textContent).toBe("");
+  await vi.waitFor(() => expect(document.querySelector<HTMLElement>("#setupResult")!.hidden).toBe(false));
+  const requests = mocks.invoke.mock.calls.filter(([command]) => command === "setup_models");
+  expect(requests).toHaveLength(2);
+  expect(requests[1][1]).toEqual(requests[0][1]);
+  expect(ready).not.toHaveBeenCalled();
+  document.querySelector<HTMLButtonElement>("#setupEnterStudio")!.click();
+  await vi.waitFor(() => expect(ready).toHaveBeenCalledWith(true));
+});
+
+it("keeps a failed cancellation request visible as an error until the running setup finishes", async () => {
+  await import("./path-i18n");
+  const { setLang } = await import("./i18n.js"); setLang("de");
+  const invoke = mocks.invoke.getMockImplementation()!;
+  let fail!: () => void;
+  mocks.invoke.mockImplementation((command: string, args?: unknown) => {
+    if (command === "setup_models") return new Promise((_, reject) => { fail = () => reject("path_access"); });
+    if (command === "cancel_setup") return Promise.reject("path_access");
+    return invoke(command, args);
+  });
+  const ready = vi.fn();
+  const { showSetup } = await import("./setup");
+  await showSetup(data, ready);
+  document.querySelector("#setupForm")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  document.querySelector<HTMLButtonElement>("#cancelSetup")!.click();
+  const error = document.querySelector<HTMLElement>("#setupError")!;
+  await vi.waitFor(() => expect(error.textContent).toBe("Kein Ordnerzugriff. Bitte über „Auswählen…“ freigeben oder die Dateirechte prüfen."));
+  expect(error.getAttribute("role")).toBe("alert");
+  expect(error.classList.contains("setup-error")).toBe(true);
+  expect(document.querySelector("#setupStatus")!.textContent).toBe("");
+  expect(document.body.dataset.settingUp).toBe("true");
+  fail();
+  await vi.waitFor(() => expect(document.body.dataset.settingUp).toBe("false"));
+  expect(error.textContent).toBe("Kein Ordnerzugriff. Bitte über „Auswählen…“ freigeben oder die Dateirechte prüfen.");
+  expect(document.querySelector("#setupStatus")!.textContent).toBe("");
+  expect(document.querySelector<HTMLButtonElement>("#setupStart")!.disabled).toBe(false);
+  expect(document.querySelector<HTMLElement>("#setupResult")!.hidden).toBe(true);
+  expect(ready).not.toHaveBeenCalled();
+});
