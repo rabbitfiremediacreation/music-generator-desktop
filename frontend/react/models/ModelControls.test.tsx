@@ -24,6 +24,19 @@ it("preserves a later historical song choice when an earlier activation complete
   await ready(); expect(modelSelect().value).toBe(profileKey(turbo));
 });
 
+it.each([true, false])("preserves a newer original-profile intent during activation, with round trip=%s", async roundTrip => {
+  let finish!: (selection: ModelSelection) => void;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => name === "select_models" ? new Promise<ModelSelection>(resolve => { finish = resolve; }) : invoke(name, args));
+  mountControls(); await ready();
+  fireEvent.change(modelSelect(), { target: { value: profileKey(xl) } });
+  await waitFor(() => expect(typeof finish).toBe("function"));
+  if (roundTrip) fireEvent.click(screen.getByRole("button", { name: "Restore song" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restore original song" }));
+  finish(xl);
+  await ready(); expect(modelSelect().value).toBe(profileKey(standard));
+});
+
 it("explains missing XL support in simple and Expert Mode", async () => {
   let current: Settings = { ...saved(), expert_mode: false, recommended_profiles: [standard] };
   const invoke = ipc.invoke.getMockImplementation()!;

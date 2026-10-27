@@ -20,7 +20,10 @@ const PlayerContext = createContext<{
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [song, setSong] = useState<Song | null>(null), [playing, setPlaying] = useState(false), [error, setError] = useState("");
-  const [played, setPlayed] = useState(() => new Set<string>(saved("played", [])));
+  const [played, setPlayed] = useState(() => {
+    const value=saved<unknown>("played",[]);
+    return new Set<string>(Array.isArray(value)?value.filter((id):id is string=>typeof id==="string"):[]);
+  });
   const engine = useRef<Waveform | null>(null);
   const current = useRef<Song | null>(null);
   const play = useCallback((next: Song) => {
@@ -42,7 +45,10 @@ export function Player() {
   const { song, playing, engine, setPlaying, error, setError } = usePlayer();
   const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null), sequence = useRef(0);
   const [time, setTime] = useState("0:00 / 0:00");
-  const [volume, setVolume] = useState(() => Math.max(0, Math.min(1, Number(saved("volume", 1)))));
+  const [volume, setVolume] = useState(() => {
+    const value=saved<unknown>("volume",1);
+    return typeof value==="number"&&Number.isFinite(value)?Math.max(0,Math.min(1,value)):1;
+  });
   const [muted, setMuted] = useState(() => saved<number>("muted", 0) === 1);
   const active = song !== null;
   useEffect(() => {

@@ -18,6 +18,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
 }) {
   const { t } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
   const [editing,setEditing] = useState(false), [title,setTitle] = useState(""), [lyricsOpen,setLyricsOpen] = useState(false), [moving,setMoving] = useState(false);
+  const [dragAllowed,setDragAllowed] = useState(true);
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
   const progress = useQuery<Record<string,JobProgress>>({queryKey:queryKeys.progress,queryFn:async()=>({}),enabled:false}).data?.[song.id];
   const change = useMutation({mutationFn:async (action:()=>Promise<unknown>)=>action(),onSuccess:()=>invalidateLibrary(client),onError});
@@ -41,7 +42,8 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
   const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${song.params.lm_temperature.toFixed(1)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
-    aria-label={label} draggable={folders.length>0&&!editing} onDragStart={event=>{if((event.target as Element).closest("button,input,.lyr")){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>
+    aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
+    onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>
     {song.status==="done"&&!song.audio_missing ? action(t("play"),player.song?.id===song.id&&player.playing?"❚❚":"▶",()=>player.play(song),"round") : <div className={`slot ${song.status==="running"?"run":song.status==="error"||song.audio_missing?"err":""}`} title={song.message??undefined}>{song.audio_missing||song.status==="error"?"!":song.status==="running"?"♪":song.status==="cancelled"?"✕":"…"}</div>}
     <div className="min-w-0">
       {editing ? <input ref={edit} className="t-edit" aria-label={t("rename")} value={title} onChange={event=>setTitle(event.target.value)} onBlur={commit}

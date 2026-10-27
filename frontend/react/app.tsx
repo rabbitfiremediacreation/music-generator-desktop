@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { QueryClient, QueryClientProvider, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createHashHistory, createRootRouteWithContext, createRoute, createRouter, Outlet, redirect, RouterProvider, useNavigate, useRouterState, type RouterHistory } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
-import { backend } from "../backend";
+import { selectionFromSettings } from "../creator-models";
 import { modelAllowed } from "../expert-mode";
 import type { Bootstrap, ModelSelection, Song } from "../types";
 import { I18nProvider, useI18n } from "./i18n";
@@ -56,6 +56,7 @@ function DesktopShell(){
   const [importState,setImportState]=useState<{mode:"import"|"move";target:string;done?:(songsDir:string)=>void}|null>(null);
   const [setupReady,setSetupReady]=useState(false),[libraryReady,setLibraryReady]=useState(false),[formReady,setFormReady]=useState(false),[modelsReady,setModelsReady]=useState(false);
   const reported=useRef(false),flush=useRef<()=>Promise<void>>(async()=>{});
+  const intentRevision=useRef(0);
   const operations=useIsMutating({predicate:mutation=>["setup","models","import"].includes(String(mutation.options.mutationKey?.[0]))}),studio=path==="/studio",blocked=settingsOpen||settingsBusy||!studio||importState!==null||pickerOpen;
   const {requestClose:close,closingAccepted}=useDesktop(operations>0,flush);
   const setFolderChoice=useCallback((value:string)=>{setFolder(value);remember("folder",value);},[]);
@@ -64,11 +65,12 @@ function DesktopShell(){
   const libraryInitialized=useCallback(()=>setLibraryReady(true),[]),formInitialized=useCallback(()=>setFormReady(true),[]),modelsInitialized=useCallback(()=>setModelsReady(true),[]),setupInitialized=useCallback(()=>setSetupReady(true),[]);
   const libraryFailed=useCallback((error:unknown)=>{if(!reported.current)reportStartup(error);},[]);
   const back=useCallback(()=>{void navigate({to:"/studio"});},[navigate]);
-  const manage=useCallback(()=>{setSettingsOpen(false);void navigate({to:"/setup"});},[navigate]);
+  const manage=useCallback(()=>{setSettingsOpen(false);setPickerOpen(false);void navigate({to:"/setup"});},[navigate]);
   const importLibrary=useCallback((target:string,done:(songsDir:string)=>void)=>setImportState({mode:"import",target,done}),[]);
   const complete=useCallback(()=>{void(async()=>{
     const saved=await client.fetchQuery({...settingsQuery(),staleTime:0});
-    setSelection({provider:saved.model_provider||"ace-step",synthesis:saved.synthesis_model||(saved.dit==="xl"?"acestep-v15-xl-sft-Q8_0.gguf":"acestep-v15-sft-Q8_0.gguf"),language:saved.lm_model});
+    setReuse(undefined);
+    setSelection(selectionFromSettings(saved));
     client.setQueryData<Bootstrap>(queryKeys.bootstrap,old=>old?{...old,needs_setup:false,settings:saved}:old);
     await navigate({to:"/studio"});
   })().catch(reportStartup);},[client,navigate]);
@@ -76,6 +78,11 @@ function DesktopShell(){
     if(reported.current||!(studio?libraryReady&&formReady&&modelsReady:setupReady))return;
     reported.current=true;void invoke("startup_complete").catch(reportStartup);
   },[studio,libraryReady,formReady,modelsReady,setupReady]);
+  useEffect(()=>{
+    if(!studio||!libraryReady||!formReady||!modelsReady)return;
+    const frame=requestAnimationFrame(()=>document.querySelector<HTMLInputElement>('#genForm input[name="title"]')?.focus({preventScroll:true}));
+    return()=>cancelAnimationFrame(frame);
+  },[studio,libraryReady,formReady,modelsReady]);
   useEffect(()=>{
     if(!studio)return;
     const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const selector=event.code==="KeyB"?"#libHeading":event.code==="KeyN"?'#genForm [name="prompt"]':null;if(selector){event.preventDefault();document.querySelector<HTMLElement>(selector)?.focus();}};
@@ -87,13 +94,13 @@ function DesktopShell(){
     <SceneContext.Provider value={{bootstrap:{...bootstrap,settings:settings.data??bootstrap.settings},complete,back,ready:setupInitialized,importLibrary}}><Outlet/></SceneContext.Provider>
     {!bootstrap.needs_setup&&<main id="studio" hidden={!studio} inert={closingAccepted}>
       <div className={`wrap ${layout!=="stack"?"side":""}`}>
-        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:Date.now()})} onSettings={()=>setSettingsOpen(true)}/>}
+        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})} onSettings={()=>setSettingsOpen(true)}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
-          <ModelControls selection={selection} onSelectionChange={setSelection} onManage={manage} onOpenSettings={()=>setSettingsOpen(true)} onReady={modelsInitialized} onRecommendedSteps={steps=>setRecommendedSteps({steps,revision:Date.now()})} open={pickerOpen} onOpenChange={setPickerOpen}/>
+          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={setSelection} onManage={manage} onOpenSettings={()=>setSettingsOpen(true)} onReady={modelsInitialized} onRecommendedSteps={steps=>setRecommendedSteps({steps,revision:++intentRevision.current})} open={pickerOpen} onOpenChange={setPickerOpen}/>
           <GenerationForm selection={selection} onSelectionChange={setSelection} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
         </section>
-        <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:Date.now()})} onReady={libraryInitialized} onError={libraryFailed}/>
+        <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>
       </div><Player/>
     </main>}
     <SettingsDialog open={settingsOpen} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} onManageModels={manage} onOpenModelPicker={()=>setPickerOpen(true)} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>

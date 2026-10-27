@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import { setLang } from "../../i18n.js";
 import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
+import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
@@ -61,6 +62,36 @@ it("only applies recommended iterations after an explicit click for the active m
   fireEvent.click(button);
   expect(await within(dialog).findByText("Bitte diese Auswahl zuerst verwenden.")).toBeTruthy();
   expect(recommended).toHaveBeenCalledOnce();
+});
+
+it("preserves a later original-profile intent after a closed dialog installs another profile", async () => {
+  let finish!: (value: unknown) => void;
+  let settings = saved();
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "use_models" ? new Promise(resolve => { finish = resolve; }) : name === "get_settings" ? Promise.resolve(settings) : invoke(name, args));
+  mountControls(); const dialog = await open();
+  fireEvent.change(await within(dialog).findByRole("combobox", { name: "Klangmodell" }), { target: { value: xl.synthesis } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Auswahl verwenden" }));
+  await waitFor(() => expect(typeof finish).toBe("function"));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restore song" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restore original song" }));
+  settings = saved(xl); finish(xl);
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Modelle" }) as HTMLSelectElement).disabled).toBe(false));
+  expect((screen.getByRole("combobox", { name: "Modelle" }) as HTMLSelectElement).value).toBe(profileKey(standard));
+});
+
+it.each(["draft","song","close"] as const)("ignores a delayed recommendation after changing %s",async change=>{
+  let finish!:(value:unknown)=>void;const recommended=vi.fn(),invoke=ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name,args)=>name==="generation_policy"?new Promise(resolve=>{finish=resolve;}):invoke(name,args));
+  const view=mountControls(recommended);const dialog=await open();
+  fireEvent.click(await within(dialog).findByRole("button",{name:"Empfohlene Iterationen übernehmen"}));
+  await waitFor(()=>expect(finish).toBeTypeOf("function"));
+  if(change==="draft")fireEvent.change(within(dialog).getByRole("combobox",{name:"Klangmodell"}),{target:{value:xl.synthesis}});
+  else if(change==="song")fireEvent.click(screen.getByRole("button",{name:"Restore song"}));
+  else fireEvent.click(within(dialog).getByRole("button",{name:"Schließen"}));
+  await act(async()=>finish({recommended_steps:80}));
+  expect(recommended).not.toHaveBeenCalled();view.unmount();
 });
 
 it("shows download progress and allows cancellation without changing the durable profile", async () => {

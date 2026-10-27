@@ -40,10 +40,13 @@ export function mountControls(onRecommendedSteps?: (steps: number) => void) {
   const client = createAppQueryClient();
   function Harness() {
     const [selection, setSelection] = useState<ModelSelection | null>(standard), [visible, setVisible] = useState(true);
+    const [selectionRevision, setSelectionRevision] = useState<number>();
+    const restore = (next: ModelSelection) => { setSelection(next); setSelectionRevision(value => (value ?? 0) + 1); };
     return <>
-      {visible && <ModelControls selection={selection} onSelectionChange={setSelection} onManage={() => {}} onRecommendedSteps={onRecommendedSteps} />}
-      <button onClick={() => setSelection(turbo)}>Restore song</button>
-      <button onClick={() => setSelection(xl)}>Complete setup</button>
+      {visible && <ModelControls selection={selection} selectionRevision={selectionRevision} onSelectionChange={setSelection} onManage={() => {}} onRecommendedSteps={onRecommendedSteps} />}
+      <button onClick={() => restore(turbo)}>Restore song</button>
+      <button onClick={() => restore(standard)}>Restore original song</button>
+      <button onClick={() => { setSelection(xl); setSelectionRevision(undefined); }}>Complete setup</button>
       <button onClick={() => setVisible(value => !value)}>Switch screen</button>
       <output aria-label="selection">{selection?.synthesis}</output>
     </>;

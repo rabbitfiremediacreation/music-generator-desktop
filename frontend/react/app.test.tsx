@@ -28,7 +28,7 @@ beforeEach(()=>{
     if(name==="health")return {ok:true};
   });
 });
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.restoreAllMocks();});
 function mount(path="/"){
   const client=createAppQueryClient(),router=createAppRouter(client,createMemoryHistory({initialEntries:[path]}));
   render(<DesktopApp client={client} router={router}/>);return router;
@@ -45,6 +45,7 @@ it("keeps startup pending until the first library and saved form values are read
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
   finishPreferences({duration:60,bpm:0,inference_steps:30,lm_temperature:1.2,variants:1});
   await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_complete"));
+  await waitFor(()=>expect(document.activeElement).toBe(document.querySelector('#genForm input[name="title"]')));
 });
 it("reports a failed initial library snapshot without completing startup",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
@@ -70,4 +71,19 @@ it("keeps a studio draft when visiting setup and returning",async()=>{
   fireEvent.click(screen.getByRole("button",{name:"Back to studio"}));
   await waitFor(()=>expect((screen.getByRole("textbox",{name:"Prompt"}) as HTMLTextAreaElement).value).toBe("keep this idea"));
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="bootstrap")).toHaveLength(1);
+});
+
+it("can reapply the same song twice even when the system clock has not advanced",async()=>{
+  firstRun=false;
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.resolve([{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}]):original(name,args));
+  mount();
+  const reuse=await screen.findByRole("button",{name:"Copy settings to the form"});
+  vi.spyOn(Date,"now").mockReturnValue(Date.now());
+  const prompt=screen.getByRole("textbox",{name:"Prompt"});
+  fireEvent.click(reuse);
+  await waitFor(()=>expect((prompt as HTMLTextAreaElement).value).toBe("old prompt"));
+  fireEvent.change(prompt,{target:{value:"an edit"}});
+  fireEvent.click(reuse);
+  await waitFor(()=>expect((prompt as HTMLTextAreaElement).value).toBe("old prompt"));
 });

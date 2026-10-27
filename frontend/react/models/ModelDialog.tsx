@@ -10,19 +10,30 @@ import { useModelDialog } from "./useModelDialog";
 
 interface ModelDialogProps {
   selection: ModelSelection | null; currentSelection: ModelSelection | null;
-  onUse: (selection: ModelSelection, before: string | null) => void;
+  selectionRevision: number; onUse: (selection: ModelSelection, before: number) => void;
   onClose: () => void; onManage: () => void; onOpenSettings: () => void; onRecommendedSteps?: (steps: number) => void;
 }
 
-export function ModelDialog({ selection, currentSelection, onUse, onClose, onManage, onOpenSettings, onRecommendedSteps }: ModelDialogProps) {
+export function ModelDialog({ selection, currentSelection, selectionRevision, onUse, onClose, onManage, onOpenSettings, onRecommendedSteps }: ModelDialogProps) {
   const { t, language } = useI18n();
-  const state = useModelDialog(selection, currentSelection, onUse);
+  const state = useModelDialog(selection, selectionRevision, onUse);
   const { draft, busy } = state;
   const snapshot = state.catalog.data;
   const catalog = snapshot && state.settings.data ? { ...snapshot, expert_mode: state.settings.data.expert_mode, recommended_profiles: state.settings.data.recommended_profiles ?? snapshot.recommended_profiles } : snapshot;
   const [compatible, setCompatible] = useState(true), [error, setError] = useState<unknown>(null), [loadingSteps, setLoadingSteps] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { if (dialog.current && !dialog.current.open) dialog.current.showModal(); }, []);
+  const mounted = useRef(false), recommendation = useRef(0);
+  const intent = useRef({ draft, currentSelection, selectionRevision });
+  if (intent.current.draft !== draft || intent.current.currentSelection !== currentSelection || intent.current.selectionRevision !== selectionRevision) {
+    recommendation.current++;
+    intent.current = { draft, currentSelection, selectionRevision };
+  }
+  useEffect(() => {
+    const requests = recommendation;
+    mounted.current = true;
+    if (dialog.current && !dialog.current.open) dialog.current.showModal();
+    return () => { mounted.current = false; requests.current++; };
+  }, []);
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
   const selected = catalog && draft ? profile(catalog, draft) : null;
   const planned = catalog && draft && !catalog.providers.some(provider => provider.id === draft.provider && provider.status === "available");
@@ -30,12 +41,14 @@ export function ModelDialog({ selection, currentSelection, onUse, onClose, onMan
   const blocked = !selected || busy || !selected.allowed || !selected.valid || (!selected.compatible && !existing) || (catalog?.free_bytes !== null && catalog?.free_bytes !== undefined && selected.download > 0 && selected.download + 512 * 1024 ** 2 > catalog.free_bytes);
   async function recommendedSteps() {
     if (!draft || !currentSelection || currentSelection.synthesis !== draft.synthesis || currentSelection.provider !== draft.provider) { setError(new Error(t("picker_select_first"))); return; }
+    const request = ++recommendation.current;
     setLoadingSteps(true); setError(null);
     try {
       const policy = await backend.generationPolicy(draft);
+      if (!mounted.current || request !== recommendation.current) return;
       if (policy.recommended_steps) { onRecommendedSteps?.(policy.recommended_steps); state.setMessage(`${t("iterations")}: ${policy.recommended_steps}`); }
-    } catch (failure) { setError(failure); }
-    finally { setLoadingSteps(false); }
+    } catch (failure) { if (mounted.current && request === recommendation.current) setError(failure); }
+    finally { if (mounted.current) setLoadingSteps(false); }
   }
   const failure = error || state.install.error || state.title.error || state.cancel.error;
   return <dialog ref={dialog} id="modelPicker" aria-labelledby="modelPickerHeading" onClose={onClose} onCancel={onClose}>

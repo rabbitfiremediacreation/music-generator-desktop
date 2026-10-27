@@ -75,3 +75,33 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   await screen.findByText("0:29");
   expect(screen.queryByRole("note")).toBeNull();
 });
+
+it("allows selecting lyrics without starting a song drag",async()=>{
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>name==="list_folders"?Promise.resolve({folders:[{id:"ideas",name:"Ideas",count:1}],all:1,none:0}):original(name,args));
+  songs[0].lyrics="[Verse] lyrics";songs[0].result_meta={lyrics:"Select this lyric text"};
+  mount();fireEvent.click(await screen.findByRole("button",{name:"Show the lyrics the model wrote"}));
+  const lyric=screen.getByText("Select this lyric text");
+  fireEvent.mouseDown(lyric);
+  expect(lyric.closest("article")!.getAttribute("draggable")).toBe("false");
+});
+
+it("localizes a rejected library variant instead of exposing a backend message key",async()=>{
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>{
+    if(name==="generation_policy")return Promise.resolve({backend:"gpu",recommended_steps:80,cpu_iteration_behavior:"ask",defaults:{duration:90,bpm:0,inference_steps:80,lm_temperature:1.2,variants:2}});
+    if(name==="generate")return Promise.reject(new Error("expert_mode_required"));
+    return original(name,args);
+  });
+  mount();fireEvent.click(await screen.findByRole("button",{name:"Another variant (new seed)"}));
+  const alert=await screen.findByRole("alert");
+  expect(alert.textContent).toContain("Expert Mode");
+  expect(alert.textContent).not.toContain("expert_mode_required");
+});
+
+it("resets delete confirmation after a keyboard or screenreader click on another action",async()=>{
+  mount();fireEvent.click(await screen.findByRole("button",{name:"Delete"}));
+  expect(screen.getByRole("button",{name:"Delete song?"})).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Favorite"}));
+  expect(screen.getByRole("button",{name:"Delete"})).toBeTruthy();
+});

@@ -26,7 +26,14 @@ it.each([[5.6,"0:05"],[29.8,"0:29"]])("uses the whole-second audio clock for %s 
   act(()=>{handlers.get("timeupdate")?.();handlers.get("finish")?.();});
   expect(screen.getByText(`${clock} / ${clock}`)).toBeTruthy();
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup();localStorage.clear(); vi.unstubAllGlobals(); });
+it.each(["{}","42",'"bad"'])("tolerates corrupted saved player preferences %s",async(value)=>{
+  localStorage.setItem("played",value);localStorage.setItem("volume",value);
+  render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
+  fireEvent.click(screen.getByText("first"));
+  await waitFor(()=>expect(engine.load).toHaveBeenCalled());
+  expect((document.getElementById("volRange") as HTMLInputElement).value).toBe("100");
+});
 it("only plays the latest requested song and releases audio resources", async () => {
   let finish!: () => void;
   engine.load.mockImplementationOnce(() => new Promise<void>(resolve => {finish = resolve;}));

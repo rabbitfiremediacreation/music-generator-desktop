@@ -27,9 +27,9 @@ export function Library({folder,onFolderChange,onReuse,selection,onReady,onError
   useEffect(()=>{
     if(!armed)return;
     const timer=setTimeout(()=>setArmed(""),3000);
-    const cancel=(event:PointerEvent)=>{if(!(event.target instanceof Element)||!event.target.closest("[data-arm]"))setArmed("");};
-    document.addEventListener("pointerdown",cancel,true);
-    return()=>{clearTimeout(timer);document.removeEventListener("pointerdown",cancel,true);};
+    const cancel=(event:MouseEvent)=>{if(!(event.target instanceof Element)||!event.target.closest("[data-arm]"))setArmed("");};
+    document.addEventListener("click",cancel,true);
+    return()=>{clearTimeout(timer);document.removeEventListener("click",cancel,true);};
   },[armed]);
   const arm=(key:string)=>{if(armed===key){setArmed("");return true;}setArmed(key);setAnnouncement(t("an_armed"));return false;};
   const current=folders.data?.folders.find(value=>value.id===folder),library=queue.data?.library;
