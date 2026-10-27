@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mountStudio } from "./dom-fixture";
 import type { GenerationFormPreferences } from "./types";
-const mocks = vi.hoisted(() => ({ generationFormPreferences: vi.fn(), saveGenerationFormPreferences: vi.fn() }));
-vi.mock("./backend", () => ({ backend: mocks }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), generationFormPreferences: vi.fn(), saveGenerationFormPreferences: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc: (path: string) => path }));
 import { createFormPreferences, createPreferenceWriter, DEFAULT_FORM_PREFERENCES } from "./form-preferences";
 import { I18N, LANGS } from "./i18n.js";
 import { formPreferenceTranslations } from "./form-preferences-i18n";
@@ -17,6 +17,11 @@ beforeEach(() => {
   vi.resetAllMocks(); mountStudio();
   mocks.generationFormPreferences.mockResolvedValue({ ...custom });
   mocks.saveGenerationFormPreferences.mockResolvedValue(undefined);
+  mocks.invoke.mockImplementation(async (command: string, args?: { values: GenerationFormPreferences }) => {
+    if (command === "get_generation_form_preferences") return mocks.generationFormPreferences();
+    if (command === "save_generation_form_preferences") return mocks.saveGenerationFormPreferences(args!.values);
+    throw new Error(`Unexpected command: ${command}`);
+  });
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -135,5 +140,8 @@ it.each([80, 91])("restores %s steps after reopening and uses 80 only on explici
   document.querySelector<HTMLButtonElement>("#resetGenPreferences")!.click();
   await settle(); await reopened.flush();
   expect(field("inference_steps").value).toBe("80");
-  expect(stored).toEqual({ ...DEFAULT_FORM_PREFERENCES, inference_steps: 80 });
+  mountStudio();
+  const reset = createFormPreferences(form(), vi.fn(), defaults); await reset.ready;
+  expect(field("inference_steps").value).toBe("80");
+  expect(field("duration").value).toBe("90");
 });
