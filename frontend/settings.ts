@@ -73,6 +73,9 @@ export function initializeSettings(onSaved: () => void | Promise<void> = () => {
     void load();
   };
   retry.onclick = () => { void load(); };
+  element<HTMLButtonElement>("#settingsOpenSongs").onclick = async () => {
+    try { await backend.openSongsFolder(); setStatus(""); } catch { setStatus("settings_open_folder_failed"); }
+  };
   field<HTMLSelectElement>("lm_device").onchange = async () => {
     if (!before || pendingSave || fields.disabled || !dialog.open) return;
     const request = revision;

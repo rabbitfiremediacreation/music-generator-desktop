@@ -122,6 +122,7 @@ pub fn run() {
             commands::delete_folder,
             commands::queue,
             commands::get_settings,
+            commands::open_songs_folder,
             commands::save_settings,
             commands::export_default_path,
             commands::get_generation_form_preferences,

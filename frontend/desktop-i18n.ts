@@ -21,6 +21,26 @@ for (const [language, values] of Object.entries(settingsTranslations)) {
   Object.assign(I18N[language as Language], Object.fromEntries(settingsKeys.map((key, index) => [key, values[index]])));
 }
 
+const openFolderKeys = ["settings_open_folder", "settings_open_folder_failed"] as const;
+export const openFolderTranslations: Record<Language, readonly string[]> = {
+  de: ["Ordner öffnen", "Der Ordner konnte nicht geöffnet werden."],
+  en: ["Open folder", "Could not open the folder."],
+  es: ["Abrir carpeta", "No se pudo abrir la carpeta."],
+  fr: ["Ouvrir le dossier", "Impossible d’ouvrir le dossier."],
+  it: ["Apri cartella", "Impossibile aprire la cartella."],
+  pt: ["Abrir pasta", "Não foi possível abrir a pasta."],
+  tr: ["Klasörü aç", "Klasör açılamadı."],
+  pl: ["Otwórz folder", "Nie udało się otworzyć folderu."],
+  ru: ["Открыть папку", "Не удалось открыть папку."],
+  uk: ["Відкрити теку", "Не вдалося відкрити теку."],
+  ja: ["フォルダを開く", "フォルダを開けませんでした。"],
+  zh: ["打开文件夹", "无法打开文件夹。"],
+};
+for (const [language, values] of Object.entries(openFolderTranslations)) {
+  if (values.length !== openFolderKeys.length) throw new Error(`Incomplete open-folder translation: ${language}`);
+  Object.assign(I18N[language as Language], Object.fromEntries(openFolderKeys.map((key, index) => [key, values[index]])));
+}
+
 const keys = ["welcome", "checking", "hardware", "import", "import_done", "models_folder", "browse", "language_model", "recommended", "xl", "space", "start", "ready", "testing", "cpu_fallback", "verifying", "downloading", "manage", "back", "close_busy", "minimize", "maximize", "close", "download_release", "songs_tip", "xl_missing", "setup_hint", "import_hint", "starting", "manage_hint"] as const;
 const translations: Record<string, readonly string[]> = {
   en: ["Welcome to Music Generator", "Checking your setup…", "Your computer", "Import existing library", "Library imported", "Model folder", "Browse…", "Language model", "Recommended", "Also download XL sound model", "Download / free space", "Download models and test", "Ready — start making music", "Testing language model…", "Testing CPU fallback…", "Verifying checksum…", "Downloading…", "Reopen setup wizard…", "Back to studio", "There are active tasks or downloads. Quit? Unfinished songs resume on the next launch.", "Minimize", "Maximize / restore", "Close", "Download new bundle", "Songs are stored outside the app. Changing this folder moves existing songs.", "Download XL using Manage and download models in Settings.", "Choose your folders and models. Everything runs locally after setup.", "Select the old project folder. Songs and metadata are copied; existing models can be reused.", "Starting music engine…", "Storage locations, model downloads and a function test. Completing setup activates a recommended Standard or XL profile."],
