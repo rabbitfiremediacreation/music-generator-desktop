@@ -14,12 +14,29 @@ fn fixture() -> (tempfile::TempDir, MusicServer<tauri::test::MockRuntime>) {
 
 #[test]
 fn complete_catalog_has_valid_unique_strict_schemas() {
-    let tools = library::tools()
-        .into_iter()
-        .chain(operations::tools())
-        .collect::<Vec<_>>();
+    let tools = surface::tools();
     assert_eq!(definitions().len(), tools.len(), "duplicate tool names");
-    assert!(tools.len() >= 25);
+    assert_eq!(tools.len(), 20);
+    for obsolete in [
+        "get_status",
+        "get_settings",
+        "get_generation_policy",
+        "get_queue",
+        "list_folders",
+        "wait_song",
+        "create_variants",
+        "get_operation",
+        "list_operations",
+        "select_models",
+        "install_models",
+        "cancel_song",
+        "cancel_operation",
+    ] {
+        assert!(
+            !definitions().contains_key(obsolete),
+            "obsolete public tool: {obsolete}"
+        );
+    }
     for tool in tools {
         assert_eq!(tool["inputSchema"]["additionalProperties"], false, "{tool}");
         assert!(tool["annotations"]["readOnlyHint"].is_boolean());
@@ -42,6 +59,9 @@ async fn validation_rejects_unknown_fields_ranges_and_missing_confirmation() {
         ("delete_song", json!({"id":"anything"})),
         ("delete_song", json!({"id":"anything", "confirm":false})),
         ("list_songs", json!({"limit":101})),
+        ("get_context", json!({"sections":["unknown"]})),
+        ("get_song", json!({"id":"anything","wait_seconds":31})),
+        ("cancel_job", json!({"id":"anything","target":"all"})),
     ] {
         assert_eq!(
             server.invoke(name, args).await.unwrap().is_error,
@@ -112,8 +132,12 @@ async fn sdk_roundtrip_controls_the_shared_library() {
     assert!(state.db.song(&ids[0]).unwrap().favorite);
     let cancel = client
         .call_tool(
-            CallToolRequestParams::new("cancel_song")
-                .with_arguments(json!({"id":ids[0]}).as_object().unwrap().clone()),
+            CallToolRequestParams::new("cancel_job").with_arguments(
+                json!({"target":"song","id":ids[0]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
         )
         .await
         .unwrap();
@@ -133,7 +157,7 @@ async fn sdk_roundtrip_controls_the_shared_library() {
         "description":"Actual SDK roundtrip against an isolated SQLite fixture; mock Tauri window runtime, no audio engine or model download.",
         "server": client.peer_info(), "tool_count":tools.len(),
         "tools": tools.iter().map(|tool| tool.name.to_string()).collect::<Vec<_>>(),
-        "save_folder":folder, "update_song":update, "cancel_song":cancel, "read_resource":resource,
+        "save_folder":folder, "update_song":update, "cancel_job":cancel, "read_resource":resource,
         "verified":"Changes visible in the same AppState database; cancellation preserved the song."
     });
     if let Some(path) = std::env::var_os("MUSIC_GENERATOR_MCP_TEST_TRANSCRIPT") {
@@ -162,4 +186,90 @@ fn resource_paths_are_explicit_and_never_arbitrary_files() {
     ] {
         assert!(resources::resolve(uri).is_err());
     }
+}
+
+#[tokio::test]
+async fn context_sections_and_operations_avoid_unrequested_work() {
+    let (_root, server) = fixture();
+    let result = server
+        .invoke("get_context", json!({"sections":["queue"]}))
+        .await
+        .unwrap();
+    assert_ne!(result.is_error, Some(true));
+    let value = result.structured_content.unwrap()["result"].clone();
+    assert_eq!(value.as_object().unwrap().len(), 1);
+    assert_eq!(value["queue"]["ready"], false);
+    assert!(!server.state.runtime.is_busy());
+    let result = server.invoke("get_operations", json!({})).await.unwrap();
+    assert_eq!(
+        result.structured_content.unwrap()["result"]["operations"],
+        json!([])
+    );
+    for old in [
+        "get_status",
+        "get_queue",
+        "get_operation",
+        "cancel_song",
+        "create_variants",
+    ] {
+        assert!(server.invoke(old, json!({})).await.is_err());
+    }
+}
+
+#[tokio::test]
+async fn unified_song_read_keeps_shape_and_cancel_never_deletes() {
+    let (_root, server) = fixture();
+    let id = server
+        .state
+        .db
+        .enqueue(&GenerateRequest {
+            prompt: "Song status fixture".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    let immediate = server.invoke("get_song", json!({"id":id})).await.unwrap();
+    let initial = immediate.structured_content.unwrap()["result"].clone();
+    assert_eq!(initial["id"], id);
+    assert_eq!(initial["status"], "queued");
+    assert_eq!(initial["completed"], false);
+    assert_eq!(initial["timed_out"], false);
+    let cancelled = server
+        .invoke("cancel_job", json!({"target":"song","id":id}))
+        .await
+        .unwrap();
+    assert_ne!(cancelled.is_error, Some(true));
+    let waited = server
+        .invoke("get_song", json!({"id":id,"wait_seconds":30}))
+        .await
+        .unwrap();
+    let terminal = waited.structured_content.unwrap()["result"].clone();
+    assert_eq!(terminal["status"], "cancelled");
+    assert_eq!(terminal["completed"], true);
+    assert_eq!(
+        terminal.as_object().unwrap().keys().collect::<Vec<_>>(),
+        initial.as_object().unwrap().keys().collect::<Vec<_>>()
+    );
+    server
+        .invoke("cancel_job", json!({"target":"song","id":id}))
+        .await
+        .unwrap();
+    assert_eq!(server.state.db.song(&id).unwrap().status, "cancelled");
+}
+
+#[tokio::test]
+async fn model_selection_does_not_implicitly_start_a_download() {
+    let (_root, server) = fixture();
+    let selection = crate::catalog::Selection::from_settings(&server.state.db.settings().unwrap());
+    let result = server
+        .invoke("set_models", json!({"selection":selection}))
+        .await
+        .unwrap();
+    assert_eq!(result.is_error, Some(true));
+    let operations = server.invoke("get_operations", json!({})).await.unwrap();
+    assert_eq!(
+        operations.structured_content.unwrap()["result"]["operations"],
+        json!([])
+    );
+    assert!(!server.state.runtime.is_busy());
 }

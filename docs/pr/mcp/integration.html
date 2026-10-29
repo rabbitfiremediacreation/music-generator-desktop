@@ -1,48 +1,40 @@
-<!doctype html><html><meta charset="utf-8"><title>Music Generator — MCP integration evidence</title><style>body{margin:0;background:#10151d;color:#eef3fa;font:16px system-ui,sans-serif;padding:38px;max-width:1260px}h1{font-size:34px;margin:10px 0}h2{font-size:17px;color:#a7bcdb;margin:0 0 16px}.kicker{color:#76deb6;letter-spacing:2px;font:13px monospace}.sub{color:#abb9cb;max-width:1100px;line-height:1.6}main{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:26px}section{background:#192230;border:1px solid #2c3a4f;border-radius:12px;padding:22px}pre{font:14px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#d8e5f8}.badge{display:inline-block;background:#204238;color:#90e7bd;padding:7px 12px;border-radius:20px;margin:10px 10px 8px 0;font-weight:600}.foot{color:#a2b2c9;font-size:13px;margin-top:22px}</style><body><div class="kicker">ACTUAL TEST OUTPUT · 29 OCT 2026</div><h1>Music Generator · MCP</h1><p class="sub">Official MCP SDK client ↔ Music Generator server. Recorded by <code>sdk_roundtrip_controls_the_shared_library</code> against an isolated SQLite library and a mock Tauri window runtime. No audio engine or model downloads.</p><span class="badge">29 tools discovered</span><span class="badge">Shared database verified</span><span class="badge">Protocol 2025-11-25</span><main><section><h2>1 · Create a folder</h2><pre>{
+<!doctype html><html><meta charset="utf-8"><title>Music Generator — MCP integration evidence</title><style>body{margin:0;background:#10151d;color:#eef3fa;font:16px system-ui,sans-serif;padding:38px;max-width:1260px}h1{font-size:34px;margin:10px 0}h2{font-size:17px;color:#a7bcdb;margin:0 0 16px}.kicker{color:#76deb6;letter-spacing:2px;font:13px monospace}.sub{color:#abb9cb;max-width:1100px;line-height:1.6}main{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:26px}section{background:#192230;border:1px solid #2c3a4f;border-radius:12px;padding:22px}pre{font:14px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#d8e5f8}.badge{display:inline-block;background:#204238;color:#90e7bd;padding:7px 12px;border-radius:20px;margin:10px 10px 8px 0;font-weight:600}.foot{color:#a2b2c9;font-size:13px;margin-top:22px}</style><body><div class="kicker">ACTUAL TEST OUTPUT · 29 OCT 2026</div><h1>Music Generator · MCP</h1><p class="sub">Official MCP SDK client ↔ Music Generator server. Recorded by <code>sdk_roundtrip_controls_the_shared_library</code> against an isolated SQLite library and a mock Tauri window runtime. No audio engine or model downloads.</p><span class="badge">20 tools discovered</span><span class="badge">Shared database verified</span><span class="badge">Protocol 2025-11-25</span><main><section><h2>1 · Create a folder</h2><pre>{
   &quot;tool&quot;: &quot;save_folder&quot;,
   &quot;result&quot;: {
-    &quot;id&quot;: &quot;234ff7d2c7f04ae989c531b9d7b051f3&quot;,
+    &quot;id&quot;: &quot;3ce6bb77a5c04082be4862dd8335afeb&quot;,
     &quot;name&quot;: &quot;MCP integration&quot;
   }
 }</pre></section><section><h2>2 · Update the existing song</h2><pre>{
   &quot;tool&quot;: &quot;update_song&quot;,
-  &quot;id&quot;: &quot;a6cb994ca8f644549ef4ed4f94e7ee0b&quot;,
+  &quot;id&quot;: &quot;4b20b706d62b41fdbd16c45c6e4d42d9&quot;,
   &quot;title&quot;: &quot;Protocol test&quot;,
   &quot;favorite&quot;: true,
-  &quot;folder_id&quot;: &quot;234ff7d2c7f04ae989c531b9d7b051f3&quot;
+  &quot;folder_id&quot;: &quot;3ce6bb77a5c04082be4862dd8335afeb&quot;
 }</pre></section><section><h2>3 · Cancel without deleting</h2><pre>{
-  &quot;tool&quot;: &quot;cancel_song&quot;,
+  &quot;tool&quot;: &quot;cancel_job&quot;,
+  &quot;target&quot;: &quot;song&quot;,
   &quot;cancelled&quot;: true,
   &quot;song_status&quot;: &quot;cancelled&quot;,
-  &quot;song_id&quot;: &quot;a6cb994ca8f644549ef4ed4f94e7ee0b&quot;
+  &quot;song_id&quot;: &quot;4b20b706d62b41fdbd16c45c6e4d42d9&quot;
 }</pre></section><section><h2>4 · Discover available controls</h2><pre>[
   &quot;analyze_audio&quot;,
-  &quot;cancel_operation&quot;,
-  &quot;cancel_song&quot;,
-  &quot;create_variants&quot;,
+  &quot;cancel_job&quot;,
   &quot;delete_folder&quot;,
   &quot;delete_song&quot;,
   &quot;download_title_model&quot;,
   &quot;export_file&quot;,
   &quot;generate_music&quot;,
-  &quot;get_generation_policy&quot;,
-  &quot;get_operation&quot;,
-  &quot;get_queue&quot;,
-  &quot;get_settings&quot;,
+  &quot;get_context&quot;,
+  &quot;get_operations&quot;,
   &quot;get_song&quot;,
-  &quot;get_status&quot;,
   &quot;import_library&quot;,
-  &quot;install_models&quot;,
-  &quot;list_folders&quot;,
   &quot;list_models&quot;,
-  &quot;list_operations&quot;,
   &quot;list_songs&quot;,
   &quot;preview_import&quot;,
   &quot;preview_library_move&quot;,
   &quot;retry_song&quot;,
   &quot;save_folder&quot;,
-  &quot;select_models&quot;,
+  &quot;set_models&quot;,
   &quot;update_settings&quot;,
-  &quot;update_song&quot;,
-  &quot;wait_song&quot;
+  &quot;update_song&quot;
 ]</pre></section></main><p class="foot">Evidence comes from serialized protocol responses. Window behavior is simulated; library changes and the MCP exchange are real. The source test asserts the same database state and reads the song through a resource.</p></body></html>

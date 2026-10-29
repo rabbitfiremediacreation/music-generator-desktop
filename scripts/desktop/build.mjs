@@ -22,6 +22,8 @@ if (platform === "macos") {
   const config = JSON.stringify({ bundle: { macOS: { minimumSystemVersion: desktop.minimumSystemVersion } } });
   await run(process.execPath, [cli,"build","--bundles","app","--config",config]);
   const app = path.join(target,"bundle/macos/Music Generator.app");
+  // Tauri includes every Cargo binary; macOS uses the main executable for MCP stdio.
+  await rm(path.join(app,"Contents/MacOS/music-generator-mcp"),{force:true});
   const identity = process.env.APPLE_SIGNING_IDENTITY || "-";
   const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
   await cp(path.join(target,"music-engine-supervisor"),helper);

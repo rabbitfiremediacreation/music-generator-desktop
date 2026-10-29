@@ -80,34 +80,36 @@ Es ist keine Node-/Python-Installation nötig. stdout enthält ausschließlich M
 
 ## Werkzeuge
 
-`tools/list` ist die verbindliche Beschreibung aller Argumente, Grenzen und Auswirkungen. Unbekannte Felder, falsche Typen und Werte außerhalb der erlaubten Bereiche werden vor der Ausführung zurückgewiesen. Erfolgreiche Ergebnisse stehen in `structuredContent.result` und zusätzlich als Text für ältere Clients. Fachliche Fehler verwenden MCP `isError: true`.
+Die 20 öffentlichen Werkzeuge sind nach Aufgaben gebündelt. `tools/list` ist die verbindliche Beschreibung aller Argumente, Grenzen und Auswirkungen. Unbekannte Felder, falsche Typen und Werte außerhalb der erlaubten Bereiche werden vor der Ausführung zurückgewiesen. Erfolgreiche Ergebnisse stehen in `structuredContent.result` und zusätzlich als Text für ältere Clients. Fachliche Fehler verwenden MCP `isError: true`.
 
 | Bereich | Werkzeuge | Verhalten |
 | --- | --- | --- |
-| Zustand | `get_status`, `get_settings`, `get_generation_policy` | Bereitschaft, Hardware, Engine, Einstellungen und Iterationsregeln lesen |
-| Musik | `generate_music`, `create_variants`, `retry_song` | Neue Aufträge mit Modell-Snapshot in die bestehende Queue stellen |
-| Fortschritt | `get_queue`, `get_song`, `wait_song` | Aufträge, Berechnungsphase, Ergebnis und lokalen Audiopfad lesen |
-| Abbruch/Löschen | `cancel_song`, `delete_song` | Abbruch ohne Löschen fertiger Ergebnisse; Löschen nur für abgeschlossene Aufträge mit `confirm: true` |
+| Kontext | `get_context` | Bereitschaft, Hardware, Einstellungen, Iterationsregeln, Queue und Ordner; über `sections` gezielt auswählbar |
+| Musik | `generate_music`, `retry_song` | Neue Songs, Varianten mit `source_song_id` und Wiederholungen in die bestehende Queue stellen |
+| Songstatus | `get_song` | Metadaten und Ergebnis lesen; mit `wait_seconds` optional auf Abschluss warten |
+| Abbruch/Löschen | `cancel_job`, `delete_song` | Einen Song-/Hintergrundauftrag abbrechen; fertige Songs nur mit `confirm: true` löschen |
 | Bibliothek | `list_songs`, `update_song` | Suche, Favoriten, Status-/Gruppen-/Ordnerfilter, Titel und Ordnerzuordnung |
-| Ordner | `list_folders`, `save_folder`, `delete_folder` | Anlegen, umbenennen, entfernen; beim Entfernen bleiben Songs erhalten |
-| Modelle | `list_models`, `select_models`, `install_models`, `download_title_model` | Katalog, Hardwareempfehlungen, geprüfte Auswahl und Downloads |
+| Ordner | `save_folder`, `delete_folder` | Anlegen, umbenennen, entfernen; Liste über `get_context`, Songs bleiben beim Entfernen erhalten |
+| Modelle | `list_models`, `set_models`, `download_title_model` | Katalog und Auswahl; `set_models` erlaubt Downloads nur mit `download_missing: true` |
 | Einstellungen | `update_settings`, `preview_library_move` | Expert Mode, CPU-Verhalten, Sprachmodellgerät, Exportformat, Timeout und vorab prüfbarer Bibliotheksort |
 | Audio | `analyze_audio`, `export_file` | Analyse lokaler Dateien; Audio, Lyrics und ZIP exportieren |
 | Übernahme | `preview_import`, `import_library` | Bestehende Installation prüfen und in eine leere Bibliothek importieren |
-| Hintergrundaufträge | `get_operation`, `list_operations`, `cancel_operation` | Fortschritt, Ergebnis, Fehler, Wiederfinden nach Verbindungsabbruch und gezielten Abbruch längerer Aktionen |
+| Hintergrundaufträge | `get_operations` | Alle aktiven/letzten Aufträge oder einen Auftrag per `operation_id` lesen; Abbruch über `cancel_job` |
 
 Generierung unterstützt Prompt, Stil, Caption, Lyrics, Instrumentalmodus, Titel, Dauer von 10–600 Sekunden, BPM, Tonart, Takt, Sprache, Seed, 1–10 Varianten, 1–200 Iterationen, Varianz, Gruppen, Ordner und konkrete Modellkombinationen. Nicht angegebene Samplingwerte übernehmen die gespeicherten Studio-Werte beziehungsweise die Hardware-/Modellempfehlung. Ein leerer Titel nutzt die automatische lokale Titelvergabe und kann den Download des gemeinsamen Titelmodells auslösen.
 
-`create_variants` übernimmt die gespeicherte Anfrage und erlaubt gezielte `overrides`. Modelle und Expert-Mode-Regeln werden wie in der Oberfläche geprüft. Bei CPU oder unbekanntem Backend gilt das gespeicherte Verhalten für mehr als 30 Iterationen. Bei `ask` muss der Agent `cpu_iteration_decision: "limit_30"` oder `"continue"` übergeben; eine gespeicherte Begrenzung bleibt maßgeblich. Eine begrenzte Wiederholung erzeugt einen neuen Song und erhält die ursprüngliche Anfrage.
+`generate_music` mit `source_song_id` übernimmt die gespeicherte Anfrage und erzeugt standardmäßig eine Variante. Direkt mitgegebene Generierungsparameter überschreiben gezielt die geerbten Werte; ohne Quellsong gelten die Studio-Vorgaben. Modelle und Expert-Mode-Regeln werden wie in der Oberfläche geprüft. Bei CPU oder unbekanntem Backend gilt das gespeicherte Verhalten für mehr als 30 Iterationen. Bei `ask` muss der Agent `cpu_iteration_decision: "limit_30"` oder `"continue"` übergeben; eine gespeicherte Begrenzung bleibt maßgeblich. Eine begrenzte Wiederholung erzeugt einen neuen Song und erhält die ursprüngliche Anfrage.
 
-`list_songs` bietet `limit` (1–100, Standard 25), `offset`, `total` und `next_offset`; auch Bibliotheken mit mehr als 500 Einträgen sind vollständig erreichbar. `folder: "none"` wählt unzugeordnete Songs. `wait_song` wartet höchstens 30 Sekunden. Ein Timeout beendet keinen Song.
+`get_context` liefert standardmäßig den gesamten Arbeitskontext. Für Fortschritt reicht `{"sections":["queue"]}`, für Ordner `{"sections":["folders"]}`. Weitere Bereiche sind `status`, `settings` und `policy`. Eine optionale `selection` erlaubt die Iterationsprüfung für eine andere Modellkombination, `refresh` aktualisiert den Hardwarebeleg.
 
-Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern sofort eine `operation_id`. `get_operation` liefert `running`, `cancelling`, `completed`, `cancelled` oder `failed`, Fortschritt und Ergebnis. Die letzten 100 Operationsdatensätze werden bis zum App-Neustart aufbewahrt; Songaufträge sind unabhängig davon dauerhaft in der Bibliothek gespeichert. Abbruch betrifft nur den gewählten MCP-Auftrag. Bereits veröffentlichte Ergebnisse werden durch eine spätere Abbruchanfrage nicht entfernt.
+`list_songs` bietet `limit` (1–100, Standard 25), `offset`, `total` und `next_offset`; auch Bibliotheken mit mehr als 500 Einträgen sind vollständig erreichbar. `folder: "none"` wählt unzugeordnete Songs. `get_song` liest standardmäßig sofort und wartet mit `wait_seconds` höchstens 30 Sekunden. Die Ergebnisstruktur bleibt gleich; `completed`, `timed_out` und `progress` ergänzen die Songdaten. Ein Timeout beendet keinen Song.
+
+Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern sofort eine `operation_id`. `get_operations` liefert immer eine `operations`-Liste mit `running`, `cancelling`, `completed`, `cancelled` oder `failed`, Fortschritt und Ergebnis. Mit `operation_id` enthält sie nur diesen Auftrag, ohne Filter alle verfügbaren Aufträge. Die letzten 100 Operationsdatensätze werden bis zum App-Neustart aufbewahrt; Songaufträge sind unabhängig davon dauerhaft in der Bibliothek gespeichert. `cancel_job` erwartet `target: "song"` oder `"operation"` und die passende `id`. Abbruch betrifft nur diesen Auftrag; fertige Songs werden dabei niemals gelöscht.
 
 ## Typischer Ablauf
 
-1. `get_status`, `list_models` und `get_generation_policy` lesen.
-2. Bei Bedarf eine vorhandene Modellkombination mit `select_models` aktivieren. Downloads über `install_models` ausdrücklich starten und den Auftrag verfolgen.
+1. `get_context` und `list_models` lesen.
+2. Bei Bedarf eine vorhandene Modellkombination mit `set_models` aktivieren. Downloads nur ausdrücklich mit `download_missing: true` erlauben und den zurückgegebenen Auftrag verfolgen.
 3. `generate_music` aufrufen, beispielsweise:
 
    ```json
@@ -122,8 +124,8 @@ Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern
    }
    ```
 
-4. Für die zurückgegebenen IDs `wait_song` oder `get_song` abfragen. Erst `status: "done"` bestätigt ein fertiges Ergebnis. `result_meta` enthält tatsächliche Dauer und mögliche Warnungen.
-5. Optional `update_song` für Favorit/Ordner aufrufen und `export_file` mit `kind: "audio"`, Song-`id` und absolutem `destination` starten. Anschließend `get_operation` bis zum Abschluss abfragen.
+4. Für die zurückgegebenen IDs `get_song`, optional mit `wait_seconds: 30`, abfragen. Erst `status: "done"` bestätigt ein fertiges Ergebnis. `result_meta` enthält tatsächliche Dauer und mögliche Warnungen.
+5. Optional `update_song` für Favorit/Ordner aufrufen und `export_file` mit `kind: "audio"`, Song-`id` und absolutem `destination` starten. Anschließend `get_operations` mit der `operation_id` bis zum Abschluss abfragen.
 
 ## Ressourcen und Prompt
 

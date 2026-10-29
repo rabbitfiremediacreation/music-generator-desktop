@@ -4,6 +4,7 @@ mod library;
 mod operations;
 mod resources;
 pub mod server;
+mod surface;
 pub mod transport;
 
 use serde_json::{json, Value};

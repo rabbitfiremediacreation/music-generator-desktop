@@ -1,4 +1,4 @@
-use super::{library, operations, resources};
+use super::{library, operations, resources, surface};
 use crate::{error, state::AppState};
 use rmcp::{model::*, service::RequestContext, ErrorData, RoleServer, ServerHandler};
 use serde_json::{json, Value};
@@ -21,9 +21,8 @@ struct Definition {
 fn definitions() -> &'static BTreeMap<String, Definition> {
     static TOOLS: OnceLock<BTreeMap<String, Definition>> = OnceLock::new();
     TOOLS.get_or_init(|| {
-        library::tools()
+        surface::tools()
             .into_iter()
-            .chain(operations::tools())
             .map(|value| {
                 let validator = jsonschema::validator_for(&value["inputSchema"])
                     .expect("MCP tool schemas must be valid");
@@ -40,6 +39,10 @@ impl<R: Runtime> MusicServer<R> {
     }
 
     pub(super) async fn dispatch(&self, name: &str, args: Value) -> error::Result<Value> {
+        surface::call(self, name, args).await
+    }
+
+    pub(super) async fn dispatch_internal(&self, name: &str, args: Value) -> error::Result<Value> {
         if self.state.runtime.is_shutdown() {
             return Err(error::message("Music Generator is shutting down"));
         }
@@ -144,7 +147,7 @@ impl<R: Runtime> ServerHandler for MusicServer<R> {
     ) -> Result<ReadResourceResponse, ErrorData> {
         let (tool, args) = resources::resolve(&request.uri)?;
         let value = self
-            .dispatch(tool, args)
+            .dispatch_internal(tool, args)
             .await
             .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?;
         Ok(
