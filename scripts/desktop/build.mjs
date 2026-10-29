@@ -63,6 +63,7 @@ if (platform === "macos") {
   await run(process.execPath,[cli,"build","--no-bundle"]);
   const portable = path.join(output,`${name}-windows-x64`); await rm(portable,{recursive:true,force:true}); await mkdir(portable,{recursive:true});
   await cp(path.join(target,"music-generator.exe"),path.join(portable,"Music Generator.exe"));
+  await cp(path.join(target,"music-generator-mcp.exe"),path.join(portable,"music-generator-mcp.exe"));
   await cp(engineFolder,path.join(portable,"engine"),{recursive:true});
   await cp(runtimeDir,path.join(portable,"WebView2"),{recursive:true});
   await cp(path.join(root,"LICENSE"),path.join(portable,"LICENSE"));

@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    if let Some(code) = music_generator::mcp::bridge::cli() {
+        std::process::exit(code);
+    }
     if let Some(code) = music_generator::synthesis_policy::cli() {
         std::process::exit(code);
     }

@@ -66,6 +66,9 @@ impl Startup {
         );
         app.manage(state.clone());
         tauri::async_runtime::spawn(jobs::worker(state.clone(), app.clone()));
+        if let Err(error) = crate::mcp::transport::start(state.clone(), app.clone()) {
+            tracing::error!(%error, "MCP server could not start");
+        }
         self.ensure_active(attempt)?;
         Ok(state)
     }
