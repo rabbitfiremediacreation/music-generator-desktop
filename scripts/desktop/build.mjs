@@ -62,7 +62,9 @@ if (platform === "macos") {
   if (!await exists(path.join(runtimeDir,"msedgewebview2.exe"))) throw new Error("WebView2 runtime is incomplete");
   const wix = path.join(target,"bundle/msi");
   await rm(wix,{recursive:true,force:true});
-  await run(process.execPath,[cli,"build","--bundles","msi"]);
+  // Load runtime resources only after preparation; plain cargo tests need no downloaded WebView2.
+  const config = path.join(root,"src-tauri/tauri.windows-bundle.conf.json");
+  await run(process.execPath,[cli,"build","--bundles","msi","--config",config]);
   const installers = (await readdir(wix)).filter(file=>file.endsWith(".msi"));
   if (installers.length !== 1) throw new Error("Expected exactly one Windows MSI installer");
   const installer = path.join(output,`${name}-windows-x64.msi`);
