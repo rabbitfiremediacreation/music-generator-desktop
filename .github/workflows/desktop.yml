@@ -109,7 +109,15 @@ jobs:
         run: node scripts/desktop/verify-bundle.mjs
       - name: Verify Windows MSI installation and removal
         if: runner.os == 'Windows'
+        timeout-minutes: 25
         run: node scripts/desktop/verify-bundle.mjs --msi
+      - name: Upload Windows Installer diagnostics
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-MSI-diagnostics
+          path: test-results/windows-msi/
+          if-no-files-found: ignore
       - name: Record NVIDIA hardware acceptance requirement
         if: matrix.linux_backend == 'cuda'
         run: echo 'CPU startup and dependency checks passed on a runner without an NVIDIA GPU. Real CUDA generation still requires NVIDIA hardware acceptance.' >> "$GITHUB_STEP_SUMMARY"

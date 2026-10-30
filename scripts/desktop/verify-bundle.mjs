@@ -10,6 +10,7 @@ import { architecture, exists, files, hash, platform, root, run, target, verifyE
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
+import { msiArguments } from "./windows-msi.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -32,17 +33,28 @@ const mount = path.join(work, "mounted");
 let mounted = false;
 let installed = false;
 const installDir = path.join(work, "installed app");
-async function msiexec(args, logName) {
-  const log = path.join(work, logName);
-  try { await run("msiexec.exe", [...args, "/qn", "/norestart", "/L*v", log]); }
-  catch (error) {
-    if (await exists(log)) console.error(await readFile(log, "utf8"));
+const installerLogs = path.join(root, "test-results/windows-msi");
+if (installer) await mkdir(installerLogs, { recursive: true });
+async function msiexec(operation, logName, directory) {
+  const log = path.join(installerLogs, logName);
+  console.log(`Windows Installer ${operation}: ${artifact}; log: ${log}`);
+  try {
+    await run("msiexec.exe", msiArguments(operation, artifact, log, directory), {
+      windowsVerbatimArguments: true, timeout: 10 * 60 * 1000,
+    });
+    console.log(`Windows Installer ${operation} completed.`);
+  } catch (error) {
+    if (await exists(log)) {
+      const bytes = await readFile(log);
+      const text = bytes[0] === 0xff && bytes[1] === 0xfe ? bytes.toString("utf16le") : bytes.toString("utf8");
+      console.error(text.slice(-24000));
+    }
     throw error;
   }
 }
 try {
   if (installer) {
-    await msiexec(["/i", artifact, `INSTALLDIR=${installDir}`], "install.log");
+    await msiexec("/i", "install.log", installDir);
     installed = true;
   } else if (diskImage) {
     await run("hdiutil", ["verify", artifact]);
@@ -158,7 +170,7 @@ try {
 } finally {
   try {
     if (installed) {
-      await msiexec(["/x", artifact], "uninstall.log");
+      await msiexec("/x", "uninstall.log");
       assert(!await exists(path.join(installDir, "music-generator.exe")), "MSI uninstall left the application behind");
       assert(!await exists(path.join(installDir, "engine/ace-server.exe")), "MSI uninstall left the engine behind");
       assert(!await exists(path.join(installDir, "WebView2/msedgewebview2.exe")), "MSI uninstall left WebView2 behind");
