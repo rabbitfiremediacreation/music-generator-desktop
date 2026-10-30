@@ -107,6 +107,9 @@ jobs:
       - run: npm run bundle
       - name: Verify relocated portable bundle
         run: node scripts/desktop/verify-bundle.mjs
+      - name: Verify Windows MSI installation and removal
+        if: runner.os == 'Windows'
+        run: node scripts/desktop/verify-bundle.mjs --msi
       - name: Record NVIDIA hardware acceptance requirement
         if: matrix.linux_backend == 'cuda'
         run: echo 'CPU startup and dependency checks passed on a runner without an NVIDIA GPU. Real CUDA generation still requires NVIDIA hardware acceptance.' >> "$GITHUB_STEP_SUMMARY"
