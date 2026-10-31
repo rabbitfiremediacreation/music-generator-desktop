@@ -60,7 +60,15 @@ if (platform === "macos") {
     await cp(path.join(unpack,extracted),runtimeDir,{recursive:true});
   }
   if (!await exists(path.join(runtimeDir,"msedgewebview2.exe"))) throw new Error("WebView2 runtime is incomplete");
-  await run(process.execPath,[cli,"build","--no-bundle"]);
+  const wix = path.join(target,"bundle/msi");
+  await rm(wix,{recursive:true,force:true});
+  // Load runtime resources only after preparation; plain cargo tests need no downloaded WebView2.
+  const config = path.join(root,"src-tauri/tauri.windows-bundle.conf.json");
+  await run(process.execPath,[cli,"build","--bundles","msi","--config",config]);
+  const installers = (await readdir(wix)).filter(file=>file.endsWith(".msi"));
+  if (installers.length !== 1) throw new Error("Expected exactly one Windows MSI installer");
+  const installer = path.join(output,`${name}-windows-x64.msi`);
+  await cp(path.join(wix,installers[0]),installer); artifacts.push(installer);
   const portable = path.join(output,`${name}-windows-x64`); await rm(portable,{recursive:true,force:true}); await mkdir(portable,{recursive:true});
   await cp(path.join(target,"music-generator.exe"),path.join(portable,"Music Generator.exe"));
   await cp(engineFolder,path.join(portable,"engine"),{recursive:true});
@@ -69,7 +77,7 @@ if (platform === "macos") {
   await cp(path.join(root,"THIRD_PARTY_NOTICES.md"),path.join(portable,"THIRD_PARTY_NOTICES.md"));
   await cp(path.join(root,"docs/desktop.md"),path.join(portable,"README.md"));
   artifact = `${portable}.zip`;
-  // ZIP is produced without an MSI, NSIS executable, or runtime installer.
+  // Keep the portable ZIP alongside the installer.
   await run("tar.exe",["-a","-cf",artifact,"-C",output,path.basename(portable)]);
   await rm(portable,{recursive:true,force:true});
 } else {

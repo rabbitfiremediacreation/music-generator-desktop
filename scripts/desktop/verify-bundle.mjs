@@ -10,6 +10,7 @@ import { architecture, exists, files, hash, platform, root, run, target, verifyE
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
+import { msiArguments } from "./windows-msi.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -18,8 +19,10 @@ function startupLocation(app) {
 // Exercise the distributed files from a relocated directory, without loading any models.
 const output = path.join(root, "release");
 const diskImage = process.argv.includes("--dmg");
+const installer = process.argv.includes("--msi");
+assert(!installer || platform === "windows", "MSI verification requires Windows");
 assert(!diskImage || platform === "macos", "DMG verification requires macOS");
-const suffix = diskImage ? `-macos-${architecture}.dmg` : platform === "linux" ? `-${target.artifactSuffix}` : `-${platform}-${architecture}.zip`;
+const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}.dmg` : platform === "linux" ? `-${target.artifactSuffix}` : `-${platform}-${architecture}.zip`;
 const { version } = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const filename = `Music-Generator-${version}${suffix}`;
 const artifact = path.join(output, filename);
@@ -28,8 +31,32 @@ assert.equal(await hash(artifact), (await readFile(`${artifact}.sha256`, "utf8")
 const work = await mkdtemp(path.join(tmpdir(), "Music Generator portable test "));
 const mount = path.join(work, "mounted");
 let mounted = false;
+let installed = false;
+const installDir = path.join(work, "installed app");
+const installerLogs = path.join(root, "test-results/windows-msi");
+if (installer) await mkdir(installerLogs, { recursive: true });
+async function msiexec(operation, logName, directory) {
+  const log = path.join(installerLogs, logName);
+  console.log(`Windows Installer ${operation}: ${artifact}; log: ${log}`);
+  try {
+    await run("msiexec.exe", msiArguments(operation, artifact, log, directory), {
+      windowsVerbatimArguments: true, timeout: 10 * 60 * 1000,
+    });
+    console.log(`Windows Installer ${operation} completed.`);
+  } catch (error) {
+    if (await exists(log)) {
+      const bytes = await readFile(log);
+      const text = bytes[0] === 0xff && bytes[1] === 0xfe ? bytes.toString("utf16le") : bytes.toString("utf8");
+      console.error(text.slice(-24000));
+    }
+    throw error;
+  }
+}
 try {
-  if (diskImage) {
+  if (installer) {
+    await msiexec("/i", "install.log", installDir);
+    installed = true;
+  } else if (diskImage) {
     await run("hdiutil", ["verify", artifact]);
     await mkdir(mount);
     await run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, artifact]);
@@ -47,7 +74,7 @@ try {
   } else {
     await run("ditto", ["-x", "-k", artifact, work]);
   }
-  const extracted = await files(work);
+  const extracted = await files(installer ? installDir : work);
   const record = extracted.find(file => path.basename(file) === "VERSION.desktop.json");
   assert(record, "Bundled engine manifest is missing");
   const engine = path.dirname(record);
@@ -55,7 +82,7 @@ try {
   await verifyTitle(path.join(engine,"title"),false);
   if(platform!=="macos") { const text=execFileSync(path.join(engine,"title",platform==="windows"?"music-title.exe":"music-title"),["--self-test"],{encoding:"utf8",timeout:30000});assert(text.includes("music-title=ready"),"Title runtime did not start"); }
   if(platform==="linux")await verifyLinuxRuntime(engine,target.backend,path.join(work,"squashfs-root"));
-  const app = extracted.find(file => path.basename(file) === (platform === "windows" ? "Music Generator.exe" : "music-generator"));
+  const app = extracted.find(file => path.basename(file) === (platform === "windows" ? (installer ? "music-generator.exe" : "Music Generator.exe") : "music-generator"));
   assert(app, "Application executable is missing");
   await verifyIterationContract(path.join(engine,platform === "windows" ? "ace-server.exe" : "ace-server"),app);
   const probe = JSON.parse(execFileSync(app, ["--synthesis-backend-probe", engine, "--cpu"], { cwd: engine, encoding: "utf8", timeout: 15000 }).trim().split(/\r?\n/).at(-1));
@@ -141,6 +168,15 @@ try {
   console.log("Bundled MP3 conversion at 192 kbit/s passed; original WAV preserved.");
   }
 } finally {
-  if (mounted) await run("hdiutil", ["detach", mount]);
-  await rm(work, { recursive: true, force: true });
+  try {
+    if (installed) {
+      await msiexec("/x", "uninstall.log");
+      assert(!await exists(path.join(installDir, "music-generator.exe")), "MSI uninstall left the application behind");
+      assert(!await exists(path.join(installDir, "engine/ace-server.exe")), "MSI uninstall left the engine behind");
+      assert(!await exists(path.join(installDir, "WebView2/msedgewebview2.exe")), "MSI uninstall left WebView2 behind");
+    }
+    if (mounted) await run("hdiutil", ["detach", mount]);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
 }

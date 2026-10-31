@@ -41,13 +41,22 @@ for (const target of targets) {
   });
 }
 
-test("platform asset sets contain seven distinct bundles and seven checksums", () => {
+test("platform asset sets contain eight distinct bundles and eight checksums", () => {
   const names = targets.flatMap(target => expectedAssets(tag, target));
-  assert.equal(names.length, 14);
-  assert.equal(new Set(names).size, 14);
-  assert.equal(names.filter(name => name.endsWith(".sha256")).length, 7);
+  assert.equal(names.length, 16);
+  assert.equal(new Set(names).size, 16);
+  assert.equal(names.filter(name => name.endsWith(".sha256")).length, 8);
   assert.throws(() => expectedAssets(tag, "linux-arm64"), /Unknown release platform/);
   assert.throws(() => expectedAssets("main", "windows-x64"), /Invalid release tag/);
+});
+
+test("requires both the portable ZIP and MSI before publishing Windows", async t => {
+  const options = await fixture(t);
+  const installer = `Music-Generator-${tag.slice(1)}-windows-x64.msi`;
+  await rm(path.join(options.directory, installer));
+  await assert.rejects(publishRelease(options, {
+    release: () => assert.fail("Incomplete Windows assets must not reach GitHub"),
+  }), /missing or unexpected/);
 });
 
 test("requires matching npm, Cargo and Tauri versions and an exact v-prefixed tag", async () => {
@@ -95,7 +104,7 @@ test("skips identical assets and preserves unrelated platforms", async t => {
   await publishRelease(options, client);
   assert.deepEqual(client.uploaded, []);
   assert.deepEqual(client.downloaded, []);
-  assert.equal(existing.length, 3);
+  assert.equal(existing.length, assets.length + 1);
 });
 
 test("hashes existing assets when GitHub has no digest", async t => {
