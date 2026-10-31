@@ -118,9 +118,12 @@ pub fn recommended_steps(backend: Backend, steps: u32) -> u32 {
 }
 
 #[derive(Default)]
-pub struct Probe(Mutex<Option<Detection>>);
+pub struct Probe(Mutex<Option<Detection>>, Option<std::path::PathBuf>);
 
 impl Probe {
+    pub fn with_data_root(root: std::path::PathBuf) -> Self {
+        Self(Mutex::new(None), Some(root))
+    }
     pub fn session_policy(
         &self,
         resources: &Path,
@@ -183,19 +186,34 @@ impl Probe {
             }
         };
         let engine = resources.join("engine");
-        let output = crate::process_output::output(
-            Command::new(executable)
-                .arg("--synthesis-backend-probe")
-                .arg(&engine)
-                .arg("--details")
-                .current_dir(&engine),
-            Duration::from_secs(5),
-        )?;
+        let mut command = Command::new(executable);
+        command
+            .arg("--synthesis-backend-probe")
+            .arg(&engine)
+            .arg("--details")
+            .current_dir(&engine);
+        if let Some(root) = &self.1 {
+            crate::cuda_runtime::configure_command(&mut command, root);
+        }
+        let output = crate::process_output::output(&mut command, Duration::from_secs(5))?;
         output
             .lines()
             .rev()
             .find_map(|line| serde_json::from_str(line).ok())
     }
+}
+
+#[cfg(any(windows, test))]
+pub(crate) unsafe fn check_cuda(folder: &Path) -> std::result::Result<(), String> {
+    ggml::detect_device(folder, false, true)
+        .map_err(|e| e.to_string())
+        .and_then(|d| {
+            if d.kind == BackendKind::Cuda {
+                Ok(())
+            } else {
+                Err("CUDA device could not be initialized".into())
+            }
+        })
 }
 
 /// Run before Tauri/single-instance initialization, also in the sandboxed supervisor.

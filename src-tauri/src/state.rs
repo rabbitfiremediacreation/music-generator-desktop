@@ -18,12 +18,13 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(db: Database, resources: PathBuf) -> Self {
+        let synthesis_probe = crate::synthesis_policy::Probe::with_data_root(db.root.clone());
         Self {
             db: Arc::new(db),
             resources,
             runtime: Arc::new(Runtime::default()),
             engine: EngineManager::default(),
-            synthesis_probe: Default::default(),
+            synthesis_probe,
         }
     }
 

@@ -5,6 +5,7 @@ pub mod audio_import;
 pub mod catalog;
 mod commands;
 pub mod configuration;
+pub mod cuda_runtime;
 pub mod db;
 pub mod download;
 pub mod engine;
@@ -108,6 +109,8 @@ pub fn run() {
             commands::setup_models,
             commands::setup_estimate,
             commands::cancel_setup,
+            commands::cuda_status,
+            commands::install_cuda_runtime,
             commands::import_library,
             commands::preview_import,
             commands::preview_library_move,
