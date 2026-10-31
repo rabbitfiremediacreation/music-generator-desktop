@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mountStudio } from "./dom-fixture";
 import type { Settings } from "./types";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), openSongsFolder: vi.fn() }));
 vi.mock("./backend", () => ({ backend: mocks }));
 vi.mock("./i18n.js", async importOriginal => ({ ...await importOriginal<typeof import("./i18n.js")>(), t: (key: string) => key }));
 const initial = { expert_mode: false, cpu_iteration_behavior: "ask", timeout_minutes: 30, songs_dir: "/songs", lm_device: "auto", export_format: "wav", mp3_available: false } as Settings;
@@ -149,4 +149,16 @@ it("keeps failed form edits visible and supports keyboard-style submit and escap
   // The native dialog's Escape default closes it; no form submit is involved.
   dialog().dispatchEvent(new Event("cancel")); dialog().close(); await settle();
   expect(mocks.saveSettings).toHaveBeenCalledOnce();
+});
+
+it("opens the song folder from the settings dialog and reports a failure without closing it", async () => {
+  mocks.openSongsFolder.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("missing"));
+  const { initializeSettings } = await import("./settings"); initializeSettings();
+  node<HTMLButtonElement>("btnSettings").click(); await settle();
+  node<HTMLButtonElement>("settingsOpenSongs").click(); await settle();
+  expect(mocks.openSongsFolder).toHaveBeenCalledOnce();
+  expect(node("settingsStatus").textContent).toBe("");
+  node<HTMLButtonElement>("settingsOpenSongs").click(); await settle();
+  expect(node("settingsStatus").textContent).toBe("settings_open_folder_failed");
+  expect(dialog().open).toBe(true);
 });
