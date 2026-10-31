@@ -285,6 +285,19 @@ pub fn queue(state: Desktop<'_>) -> Result<Value> {
     Ok(queue)
 }
 
+/// Opens the configured song folder in the system file manager.
+#[tauri::command]
+pub fn open_songs_folder(state: Desktop<'_>, app: AppHandle) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = PathBuf::from(state.db.settings()?.songs_dir);
+    if !dir.is_dir() {
+        return Err(message(format!("Song folder not found: {}", dir.display())));
+    }
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|error| message(error.to_string()))
+}
+
 #[tauri::command]
 pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     let settings = state.db.settings()?;

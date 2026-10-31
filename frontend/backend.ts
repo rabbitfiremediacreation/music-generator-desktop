@@ -35,6 +35,7 @@ export const backend = {
   queue: () => command<Queue>("queue"),
   settings: () => command<Settings>("get_settings"),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
+  openSongsFolder: () => command<void>("open_songs_folder"),
   generationPolicy: (selection?: ModelSelection, refresh = false) => command<GenerationPolicy>("generation_policy", { selection: selection ?? null, refresh }),
   generationFormPreferences: () => command<GenerationFormPreferences>("get_generation_form_preferences"),
   saveGenerationFormPreferences: (values: GenerationFormPreferences) => command<void>("save_generation_form_preferences", { values }),

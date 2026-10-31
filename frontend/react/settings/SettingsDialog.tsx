@@ -20,6 +20,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const state = useSettingsDraft(props.open, props.onClose, props.onBusyChange);
   const dialog = useRef<HTMLDialogElement>(null);
   const [pathError, setPathError] = useState<unknown>();
+  const openFolder = useMutation({ mutationFn: backend.openSongsFolder, retry: false, networkMode: "always" });
   const update = useMutation({ mutationFn: backend.checkUpdate, retry: false, networkMode: "always" });
   const { draft, loading, saving, pending, status, failure, change } = state;
   useEffect(() => {
@@ -56,6 +57,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <label className="field"><span className="lbl" title={t("desktop_songs_tip")}>{t("songs_dir")}</span><span className="path-picker"><input name="songs_dir" value={draft.songs_dir} placeholder={draft.songs_dir_default || ""} onChange={event => change({ songs_dir: event.target.value })} />
             <button type="button" className="sek" aria-label={t("desktop_browse")} onClick={() => void state.selectDirectory()}>{t("desktop_browse")}</button>
           </span></label>
+          <button type="button" className="sek" disabled={openFolder.isPending} onClick={() => openFolder.mutate()}>{t("settings_open_folder")}</button>
+          {openFolder.error && <p role="alert" className="small err">{t("settings_open_folder_failed")}</p>}
         </>}
         <div className="field"><span className="lbl">{t("layout")}</span><div className="seg" role="group" aria-label={t("layout")}>{(["auto", "stack", "side"] as const).map(value => <button key={value} type="button" className="sek" aria-pressed={props.layout === value} title={value === "side" ? t("side_tip") : undefined} onClick={() => props.onLayoutChange(value)}>{t(value === "auto" ? "vt_auto" : value === "stack" ? "stacked" : "side")}</button>)}</div></div>
         <div className="field"><span className="lbl">{t("version")}</span><div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>

@@ -7,7 +7,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import type { Settings } from "../../types";
 import { setLang, t } from "../../i18n.js";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), pickFolder: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../path-dialogs", () => ({ pickFolder: mocks.pickFolder, pathErrorText: (error: unknown) => String(error) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
@@ -134,4 +134,16 @@ it("saves the device immediately while leaving other edits for explicit save", a
   fireEvent.submit(screen.getByRole("button", { name: /^Speichern$|^Save$/i }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenLastCalledWith({ timeout_minutes: 75 }));
   await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledTimes(1));
+});
+
+it("opens the configured song folder and reports failure without closing the dialog", async () => {
+  mocks.openSongsFolder.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("missing"));
+  render(view());
+  const button=await screen.findByRole("button",{name:"Open folder"});
+  fireEvent.click(button);
+  await waitFor(()=>expect(mocks.openSongsFolder).toHaveBeenCalledOnce());
+  await waitFor(()=>expect((button as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(button);
+  expect((await screen.findByRole("alert")).textContent).toBe("Could not open the folder.");
+  expect(screen.getByRole("dialog")).toBeTruthy();expect(callbacks.onClose).not.toHaveBeenCalled();
 });
