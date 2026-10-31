@@ -160,6 +160,61 @@ pub fn cancel_setup(state: Desktop<'_>) {
 }
 
 #[tauri::command]
+pub async fn cuda_status(state: Desktop<'_>) -> Result<crate::cuda_runtime::Status> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::cuda_runtime::inspect(&state.db.root, &state.resources)
+    })
+    .await
+    .map_err(|e| message(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn install_cuda_runtime(
+    state: Desktop<'_>,
+    app: AppHandle,
+) -> Result<crate::cuda_runtime::Status> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let state = state.inner().clone();
+    // This task retains admission even if the frontend drops its invocation.
+    tokio::spawn(async move {
+        let checking = state.clone();
+        let status = tauri::async_runtime::spawn_blocking(move || {
+            crate::cuda_runtime::inspect(&checking.db.root, &checking.resources)
+        })
+        .await
+        .map_err(|e| message(e.to_string()))?;
+        if status.state != "runtime_missing" {
+            return Ok(status);
+        }
+        state.stop_engine();
+        crate::cuda_runtime::install(
+            state.db.root.clone(),
+            operation.cancellation(),
+            |progress| {
+                let _ = app.emit("cuda-progress", progress);
+            },
+            |stage| {
+                let _ = app.emit("cuda-stage", stage);
+            },
+        )
+        .await?;
+        let _ = app.emit("cuda-stage", "checking");
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let status = crate::cuda_runtime::inspect(&state.db.root, &state.resources);
+            state.synthesis_probe.inspect(&state.resources, true);
+            status
+        })
+        .await
+        .map_err(|e| message(e.to_string()))?;
+        drop(operation);
+        Ok(result)
+    })
+    .await
+    .map_err(|e| message(e.to_string()))?
+}
+
+#[tauri::command]
 pub async fn preview_import(
     state: Desktop<'_>,
     request: crate::import::ImportRequest,

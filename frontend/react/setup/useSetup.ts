@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCudaSetup } from "./useCudaSetup";
 import { backend } from "../../backend";
 import { modelLabel } from "../../expert-mode";
 import type { Bootstrap, DownloadProgress, SetupRequest } from "../../types";
@@ -37,9 +38,10 @@ export function useSetup(bootstrap: Bootstrap, onReady?: () => void) {
     onSettled: () => client.invalidateQueries({ queryKey: ["setup-estimate"] }),
   });
   const cancel = useMutation({ mutationFn: backend.cancelSetup, networkMode: "always" });
+  const cuda = useCudaSetup(bootstrap.hardware, () => { cancel.reset(); setup.reset(); });
   const initialized = useRef(false);
   useEffect(() => {
-    if (!initialized.current && (!estimate.isPending || unsupported) && !policy.isPending) { initialized.current = true; onReady?.(); }
-  }, [estimate.isPending, policy.isPending, unsupported, onReady]);
-  return { draft, setDraft, request, canUseXl, unsupported, debouncing, estimate, policy, progress, stage, setup, cancel };
+    if (!initialized.current && (!estimate.isPending || unsupported) && !policy.isPending && (!cuda.enabled || !cuda.status.isPending)) { initialized.current = true; onReady?.(); }
+  }, [estimate.isPending, policy.isPending, unsupported, onReady, cuda.enabled, cuda.status.isPending]);
+  return { draft, setDraft, request, canUseXl, unsupported, debouncing, estimate, policy, progress, stage, setup, cancel, cuda };
 }

@@ -6,6 +6,7 @@ import type { Bootstrap } from "../../types";
 import { useI18n } from "../i18n";
 import { BackendDetails } from "./BackendDetails";
 import { HardwareCard } from "./HardwareCard";
+import { CudaSetup } from "./CudaSetup";
 import { useSetup } from "./useSetup";
 
 export interface SetupScreenProps {
@@ -21,7 +22,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
   const enter = useRef<HTMLButtonElement>(null);
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
   const errorText = (value: unknown) => pathErrorText(modelErrorText(value, t));
-  const result = setup.data, busy = setup.isPending;
+  const result = setup.data, busy = setup.isPending || state.cuda.operation.isPending;
   const cancelled = setup.error !== null && (setup.error instanceof Error ? setup.error.message : String(setup.error)) === "Operation cancelled";
   useEffect(() => { if (result) enter.current?.focus(); }, [result]);
   async function browse(field: "models_dir" | "songs_dir") {
@@ -31,7 +32,9 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
     } catch (failure) { setError(failure); }
   }
   const models = [...bootstrap.manifest.models.filter(model => model.kind === "required" || model.kind === request.lm || (model.kind === "xl" && request.xl)), bootstrap.title_model];
-  const progressText = stage ? t(stage === "starting" ? "desktop_starting" : stage === "testing" ? "desktop_testing" : "desktop_cpu_fallback") : progress
+  const activeProgress = state.cuda.operation.isPending ? state.cuda.progress : progress;
+  const activeStage = state.cuda.operation.isPending ? state.cuda.stage : stage;
+  const progressText = state.cuda.operation.isPending ? activeStage ? t(activeStage === "installing" ? "cuda_installing" : "cuda_checking") : activeProgress ? `${t("cuda_downloading")} ${activeProgress.file} · ${bytes(activeProgress.downloaded)} / ${bytes(activeProgress.total)}` : t(state.cuda.operation.variables ? "cuda_downloading" : "cuda_checking") : stage ? t(stage === "starting" ? "desktop_starting" : stage === "testing" ? "desktop_testing" : "desktop_cpu_fallback") : progress
     ? `${t(`desktop_${progress.phase}`)} ${progress.file} · ${bytes(progress.downloaded)} / ${bytes(progress.total)}${progress.bytes_per_second ? ` · ${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(progress.bytes_per_second / 1024 ** 2)} MiB/s` : ""}` : t("desktop_checking");
   return <section id="setupScreen" className="setup-screen" aria-labelledby="setupHeading">
     <h1 id="setupHeading">{t("desktop_welcome")}</h1>
@@ -41,6 +44,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
       {!result && <form id="setupForm" onSubmit={event => { event.preventDefault(); if (!busy) { setError(null); setup.mutate(request); } }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLSelectElement) event.preventDefault(); }}>
         <fieldset id="setupFields" disabled={busy}>
           <HardwareCard hardware={bootstrap.hardware} backend={state.policy.data?.backend || "unknown"} />
+          <CudaSetup state={state.cuda} disabled={busy} />
           <section className="import-card"><button type="button" className="sek" hidden={imported} onClick={() => onImport?.(request.songs_dir, songsDir => { setDraft(current => ({ ...current, songs_dir: songsDir })); setImported(true); })}>{t("desktop_import")}</button><p className="small">{t("desktop_import_hint")}</p>{imported && <p role="status">{t("desktop_import_done")}</p>}</section>
           {(["models_dir", "songs_dir"] as const).map(field => <label className="field" key={field}>
             <span className="lbl">{t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}</span>
@@ -51,10 +55,10 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
           {state.canUseXl && <label className="check-row"><input type="checkbox" checked={draft.xl} onChange={event => setDraft(current => ({ ...current, xl: event.target.checked }))} /><span>{t("desktop_xl")}</span></label>}
           <div className="model-list">{models.map(model => <div key={model.file}>{model.file} · ~{bytes(model.estimated_bytes)}</div>)}</div>
           <p id="spaceEstimate" className="small" aria-live="polite">{state.unsupported ? t("expert_no_recommendation") : state.debouncing ? t("desktop_checking") : state.estimate.error ? errorText(state.estimate.error) : state.estimate.data ? `${t("desktop_space")}: ~${bytes(state.estimate.data.missing_bytes)} / ${bytes(state.estimate.data.free_bytes)}` : t("desktop_checking")}</p>
-          <button className="aktion big" type="submit" disabled={state.unsupported || state.debouncing || state.estimate.isFetching || !state.estimate.data || state.estimate.isError}>{t("desktop_start")}</button>
+          <button className="aktion big" type="submit" disabled={busy || (state.cuda.enabled && state.cuda.status.isFetching) || state.unsupported || state.debouncing || state.estimate.isFetching || !state.estimate.data || state.estimate.isError}>{t("desktop_start")}</button>
         </fieldset>
       </form>}
-      {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!stage && progress ? progress.downloaded / Math.max(progress.total, 1) : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p><button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button></div>}
+      {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!activeStage && activeProgress ? activeProgress.downloaded / Math.max(activeProgress.total, 1) : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p><button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button></div>}
       {result && <section className="hardware-card" aria-labelledby="setupResultHeading"><h2 id="setupResultHeading">{t("backend_setup_result")}</h2><div role="status" aria-live="polite"><BackendDetails status={result.backend_status} /></div><button type="button" ref={enter} className="aktion big" onClick={onComplete}>{t("backend_enter_studio")}</button></section>}
       {cancelled && !state.cancel.error && <p role="status" aria-live="polite">{t("setup_cancelled")}</p>}
       {(error || (!cancelled && setup.error) || state.cancel.error) && <p role="alert" className="setup-error">{errorText(error || state.cancel.error || setup.error)}</p>}

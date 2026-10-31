@@ -65,6 +65,8 @@ export function EventBridge({ children }: { children: ReactNode }) {
         ["settings-changed", () => invalidate(["settings", "generation-policy", "health", "models"])],
         ["models-changed", () => invalidate(["settings", "models", "generation-policy", "health"])],
         ["setup-progress", payload => { client.setQueryData(["setup", "progress"], payload); }],
+        ["cuda-progress", payload => { client.setQueryData(["cuda", "progress"], payload); }],
+        ["cuda-stage", payload => { client.setQueryData(["cuda", "stage"], payload); }],
         ["setup-stage", payload => { client.setQueryData(["setup", "stage"], payload); }],
         ["model-download-progress", payload => { client.setQueryData(["models", "progress"], payload); }],
         ["import-progress", payload => { client.setQueryData(["import", "progress"], payload); }],

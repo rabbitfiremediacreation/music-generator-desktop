@@ -1,0 +1,46 @@
+import { I18N } from "./i18n.js";
+
+const translations = {
+  de: {
+    cuda_checking: "CUDA-Unterstützung wird geprüft …",
+    cuda_downloading: "CUDA-Komponenten werden heruntergeladen und installiert …",
+    cuda_installing: "CUDA-Komponenten werden entpackt und installiert …",
+    cuda_runtime_missing: "Deine NVIDIA-Grafikkarte wurde erkannt. Benötigte CUDA-Komponenten fehlen oder lassen sich nicht laden.",
+    cuda_ready: "CUDA ist verfügbar. Die tatsächliche Nutzung wird bei der Generierung bestätigt.",
+    cuda_driver_error: "Der NVIDIA-Treiber fehlt oder konnte CUDA nicht initialisieren. Prüfe den Treiber und starte die App nach einer Treiberinstallation neu.",
+    cuda_cuda_failed: "Die CUDA-Komponenten sind ladbar, aber das CUDA-Backend konnte nicht initialisiert werden. Prüfe die Diagnose und den NVIDIA-Treiber.",
+    cuda_check_failed: "Die CUDA-Prüfung konnte nicht abgeschlossen werden. Du kannst sie erneut starten und die Diagnose prüfen.",
+    cuda_unsupported_build: "Für diese Engine-Version steht kein passender CUDA-Download bereit.",
+    cuda_unsupported_gpu: "Die GPU-Architektur wird von diesem CUDA-Build nicht unterstützt.",
+    cuda_not_applicable: "Für diese Hardware ist kein CUDA-Download erforderlich.",
+    cuda_download_failed: "Der CUDA-Download oder die Installation ist fehlgeschlagen. Du kannst es erneut versuchen. Details stehen in der Diagnose.",
+    cuda_cancelled: "CUDA-Download abgebrochen. Du kannst ihn erneut starten.",
+    cuda_download: "CUDA-Unterstützung herunterladen",
+    cuda_recheck: "Erneut prüfen",
+    cuda_driver: "NVIDIA-Treiber herunterladen",
+    cuda_download_info: "Download direkt von NVIDIA, Installation nur für diese App, ohne Administratorrechte. Downloadgröße:",
+    cuda_details: "Technische Diagnose",
+  },
+  en: {
+    cuda_checking: "Checking CUDA support …",
+    cuda_downloading: "Downloading and installing CUDA components …",
+    cuda_installing: "Extracting and installing CUDA components …",
+    cuda_runtime_missing: "Your NVIDIA graphics card was detected. Required CUDA components are missing or could not be loaded.",
+    cuda_ready: "CUDA is available. Actual use will be confirmed during generation.",
+    cuda_driver_error: "The NVIDIA driver is missing or could not initialize CUDA. Check the driver and restart the app after installing a driver.",
+    cuda_cuda_failed: "CUDA components can be loaded, but the CUDA backend could not be initialized. Check the diagnostics and NVIDIA driver.",
+    cuda_check_failed: "The CUDA check could not finish. Try again and check the diagnostics.",
+    cuda_unsupported_build: "No matching CUDA download is available for this engine version.",
+    cuda_unsupported_gpu: "This CUDA build does not support the GPU architecture.",
+    cuda_not_applicable: "This hardware does not require a CUDA download.",
+    cuda_download_failed: "CUDA download or installation failed. You can try again. See diagnostics for details.",
+    cuda_cancelled: "CUDA download cancelled. You can start it again.",
+    cuda_download: "Download CUDA support",
+    cuda_recheck: "Check again",
+    cuda_driver: "Download NVIDIA driver",
+    cuda_download_info: "Download directly from NVIDIA, installed for this app only, without administrator permissions. Download size:",
+    cuda_details: "Technical diagnostics",
+  },
+};
+Object.assign(I18N.de, translations.de);
+Object.assign(I18N.en, translations.en);
