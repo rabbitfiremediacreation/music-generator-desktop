@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
     time::Instant,
@@ -16,8 +16,17 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
 use tokio::sync::{watch, Mutex as AsyncMutex, OnceCell};
 
+mod commands;
+mod logging;
+mod preparation;
+pub use commands::*;
+
+#[cfg(all(test, unix))]
+mod tests;
+
 #[derive(Clone, Default, Serialize)]
 pub struct Status {
+    attempt: u64,
     sequence: u64,
     phase: &'static str,
     error: Option<String>,
@@ -27,11 +36,16 @@ pub struct Startup {
     root: PathBuf,
     resources: PathBuf,
     started: Instant,
-    painted: watch::Sender<bool>,
+    painted: watch::Sender<u64>,
     painted_ms: AtomicU64,
     initialization: AsyncMutex<()>,
+    transition: AsyncMutex<()>,
+    automatic_retry: AtomicBool,
+    main_shown: AtomicU64,
+    main_deadline: Mutex<Option<tokio::time::Instant>>,
     status: Mutex<Status>,
     launch_allowed: OnceCell<bool>,
+    log: Mutex<Option<std::fs::File>>,
 }
 
 impl Startup {
@@ -41,10 +55,16 @@ impl Startup {
             resources,
             started,
             painted_ms: AtomicU64::new(0),
-            painted: watch::channel(false).0,
+            painted: watch::channel(0).0,
             initialization: AsyncMutex::new(()),
+            transition: AsyncMutex::new(()),
+            automatic_retry: AtomicBool::new(false),
+            main_shown: AtomicU64::new(0),
+            main_deadline: Mutex::new(None),
             launch_allowed: OnceCell::new(),
+            log: Mutex::new(None),
             status: Mutex::new(Status {
+                attempt: 1,
                 phase: "starting",
                 ..Status::default()
             }),
@@ -55,290 +75,61 @@ impl Startup {
         self.status.lock().expect("startup status poisoned").clone()
     }
 
-    fn record(&self, phase: &'static str, error: Option<String>) -> Status {
+    pub fn ensure_active(&self, attempt: u64) -> Result<()> {
+        let status = self.snapshot();
+        if status.attempt != attempt || status.error.is_some() || status.phase == "ready" {
+            return Err(message("startup_attempt_expired"));
+        }
+        Ok(())
+    }
+
+    pub fn should_exit_on_splash_close(&self) -> bool {
+        self.snapshot().phase != "ready"
+    }
+
+    fn record(&self, attempt: u64, phase: &'static str, error: Option<String>) -> Option<Status> {
         let mut status = self.status.lock().expect("startup status poisoned");
-        if status.phase == "installation_required" {
-            return status.clone();
+        if status.attempt != attempt
+            || status.phase == "installation_required"
+            || status.phase == "ready"
+            || status.error.is_some()
+        {
+            return None;
         }
         status.sequence += 1;
         status.phase = phase;
         status.error = error;
-        status.clone()
+        Some(status.clone())
     }
 
     pub fn report<R: Runtime>(
         &self,
         app: &AppHandle<R>,
+        attempt: u64,
         phase: &'static str,
         error: Option<String>,
     ) {
-        let status = self.record(phase, error);
+        let Some(status) = self.record(attempt, phase, error) else {
+            return;
+        };
+        if let Some(error) = &status.error {
+            if let Err(logging_error) = self.log_error(attempt, phase, error) {
+                eprintln!("Unable to log startup failure: {logging_error}; {error}");
+            }
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.hide();
+            }
+            if let Some(splash) = app.get_webview_window("splash") {
+                let _ = splash.show();
+                let _ = splash.set_focus();
+            }
+        }
         tracing::info!(
             elapsed_ms = self.started.elapsed().as_millis(),
+            attempt,
             phase,
             "Startup phase"
         );
         let _ = app.emit_to("splash", "startup-status", status);
-    }
-
-    async fn allowed(&self) -> bool {
-        let allowed = *self
-            .launch_allowed
-            .get_or_init(|| async {
-                match tauri::async_runtime::spawn_blocking(
-                    crate::launch_location::installation_required,
-                )
-                .await
-                {
-                    Ok(required) => !required,
-                    Err(error) => {
-                        eprintln!("Startup location check failed; allowing startup: {error}");
-                        true
-                    }
-                }
-            })
-            .await;
-        if !allowed {
-            self.record("installation_required", None);
-        }
-        allowed
-    }
-
-    async fn require_allowed<R: Runtime>(&self, app: &AppHandle<R>) -> Result<()> {
-        if self.allowed().await {
-            return Ok(());
-        }
-        self.report(app, "installation_required", None);
-        Err(message("Installation required"))
-    }
-
-    /// Defer disk access until the splash has painted; serialize retries and reuse successful state.
-    pub async fn prepare<R: Runtime>(&self, app: &AppHandle<R>) -> Result<Arc<AppState>> {
-        self.require_allowed(app).await?;
-        let mut painted = self.painted.subscribe();
-        tokio::time::timeout(
-            std::time::Duration::from_secs(15),
-            painted.wait_for(|ready| *ready),
-        )
-        .await
-        .map_err(|_| message("The startup window did not become ready. Please restart the app."))?
-        .map_err(|e| message(e.to_string()))?;
-        let _guard = self.initialization.lock().await;
-        if let Some(state) = app.try_state::<Arc<AppState>>() {
-            return Ok(state.inner().clone());
-        }
-        self.report(app, "data", None);
-        let root = self.root.clone();
-        let resources = self.resources.clone();
-        let state = tauri::async_runtime::spawn_blocking(move || -> Result<Arc<AppState>> {
-            std::fs::create_dir_all(root.join("logs"))?;
-            let log = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(root.join("logs/desktop.log"))?;
-            let _ = tracing_subscriber::fmt()
-                .with_ansi(false)
-                .with_writer(Mutex::new(log))
-                .try_init();
-            let db = db::Database::open(&root)?;
-            sandbox::initialize(&root)?;
-            Ok(Arc::new(AppState::new(db, resources)))
-        })
-        .await
-        .map_err(|e| message(e.to_string()))??;
-        tracing::info!(
-            elapsed_ms = self.started.elapsed().as_millis(),
-            splash_ms = self.painted_ms.load(Ordering::Relaxed),
-            "Startup data initialization finished"
-        );
-        app.manage(state.clone());
-        tauri::async_runtime::spawn(jobs::worker(state.clone(), app.clone()));
-        Ok(state)
-    }
-}
-
-#[tauri::command]
-pub fn startup_status(startup: State<'_, Startup>) -> Status {
-    startup.snapshot()
-}
-
-#[tauri::command]
-pub async fn startup_allowed<R: Runtime>(
-    startup: State<'_, Startup>,
-    app: AppHandle<R>,
-) -> Result<bool> {
-    Ok(startup.require_allowed(&app).await.is_ok())
-}
-
-#[tauri::command]
-pub fn splash_ready<R: Runtime>(
-    window: WebviewWindow<R>,
-    startup: State<'_, Startup>,
-) -> Result<()> {
-    require_window(&window, "splash")?;
-    startup.painted_ms.store(
-        startup.started.elapsed().as_millis() as u64,
-        Ordering::Relaxed,
-    );
-    startup.painted.send_replace(true);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn startup_error<R: Runtime>(
-    window: WebviewWindow<R>,
-    startup: State<'_, Startup>,
-    app: AppHandle<R>,
-    error: String,
-) -> Result<()> {
-    require_window(&window, "main")?;
-    startup.report(&app, "error", Some(error));
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn retry_startup<R: Runtime>(
-    window: WebviewWindow<R>,
-    startup: State<'_, Startup>,
-    app: AppHandle<R>,
-) -> Result<()> {
-    require_window(&window, "splash")?;
-    startup.require_allowed(&app).await?;
-    if startup
-        .status
-        .lock()
-        .expect("startup status poisoned")
-        .error
-        .is_none()
-    {
-        return Err(message("Startup is still running"));
-    }
-    let main = app
-        .get_webview_window("main")
-        .ok_or_else(|| message("Main window is unavailable"))?;
-    startup.report(&app, "starting", None);
-    if let Err(error) = main.reload() {
-        startup.report(&app, "error", Some(error.to_string()));
-        return Err(message(error.to_string()));
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn startup_complete<R: Runtime>(
-    window: WebviewWindow<R>,
-    startup: State<'_, Startup>,
-    app: AppHandle<R>,
-) -> Result<()> {
-    require_window(&window, "main")?;
-    startup.require_allowed(&app).await?;
-    window.show().map_err(|e| message(e.to_string()))?;
-    let _ = window.set_focus();
-    startup.report(&app, "ready", None);
-    if let Some(splash) = app.get_webview_window("splash") {
-        splash.destroy().map_err(|e| message(e.to_string()))?;
-    }
-    Ok(())
-}
-
-fn require_window<R: Runtime>(window: &WebviewWindow<R>, label: &str) -> Result<()> {
-    if window.label() == label {
-        Ok(())
-    } else {
-        Err(message("Unavailable in this window"))
-    }
-}
-
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use tauri::{
-        test::{mock_app, MockRuntime},
-        WebviewWindowBuilder,
-    };
-
-    fn fixture(allowed: bool) -> (tempfile::TempDir, tauri::App<MockRuntime>) {
-        let temporary = tempfile::tempdir().unwrap();
-        let app = mock_app();
-        let startup = Startup::new(
-            temporary.path().join("data"),
-            temporary.path().into(),
-            Instant::now(),
-        );
-        startup.launch_allowed.set(allowed).unwrap();
-        app.manage(startup);
-        for label in ["main", "splash"] {
-            WebviewWindowBuilder::new(&app, label, Default::default())
-                .visible(label == "splash")
-                .build()
-                .unwrap();
-        }
-        (temporary, app)
-    }
-
-    #[tokio::test]
-    async fn blocked_prepare_returns_before_opening_data_or_creating_application_state() {
-        let (temporary, app) = fixture(false);
-        let splash = app.get_webview_window("splash").unwrap();
-        splash_ready(splash, app.state()).unwrap();
-        let result = app.state::<Startup>().prepare(app.handle()).await;
-        assert_eq!(result.err().unwrap().to_string(), "Installation required");
-        assert!(!temporary.path().join("data").exists());
-        assert!(app.try_state::<Arc<AppState>>().is_none());
-        assert_eq!(startup_status(app.state()).phase, "installation_required");
-    }
-
-    #[tokio::test]
-    async fn blocked_retry_cannot_reload_main_or_clear_the_installation_requirement() {
-        let (_temporary, app) = fixture(false);
-        let main = app.get_webview_window("main").unwrap();
-        let splash = app.get_webview_window("splash").unwrap();
-        startup_error(
-            main.clone(),
-            app.state(),
-            app.handle().clone(),
-            "early failure".into(),
-        )
-        .unwrap();
-        let error = retry_startup(splash, app.state(), app.handle().clone())
-            .await
-            .unwrap_err();
-        assert_eq!(error.to_string(), "Installation required");
-        startup_error(
-            main,
-            app.state(),
-            app.handle().clone(),
-            "late failure".into(),
-        )
-        .unwrap();
-        let status = startup_status(app.state());
-        assert_eq!(status.phase, "installation_required");
-        assert!(status.error.is_none());
-    }
-
-    #[tokio::test]
-    async fn blocked_completion_cannot_reveal_main_or_destroy_the_splash() {
-        let (temporary, app) = fixture(false);
-        let main = app.get_webview_window("main").unwrap();
-        let error = startup_complete(main, app.state(), app.handle().clone())
-            .await
-            .unwrap_err();
-        assert_eq!(error.to_string(), "Installation required");
-        assert!(app.get_webview_window("splash").is_some());
-        assert!(!temporary.path().join("data").exists());
-        assert_eq!(startup_status(app.state()).phase, "installation_required");
-    }
-
-    #[tokio::test]
-    async fn installed_start_can_complete_normally() {
-        let (_temporary, app) = fixture(true);
-        assert!(startup_allowed(app.state(), app.handle().clone())
-            .await
-            .unwrap());
-        let main = app.get_webview_window("main").unwrap();
-        startup_complete(main, app.state(), app.handle().clone())
-            .await
-            .unwrap();
-        assert_eq!(startup_status(app.state()).phase, "ready");
     }
 }

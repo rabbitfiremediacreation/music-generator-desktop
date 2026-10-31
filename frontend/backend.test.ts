@@ -5,6 +5,10 @@ import { backend } from "./backend";
 
 describe("desktop contracts", () => {
   beforeEach(() => { invoke.mockReset(); });
+  it("binds bootstrap to the current startup attempt", async () => {
+    await backend.bootstrap(3);
+    expect(invoke).toHaveBeenLastCalledWith("bootstrap", { attempt: 3 });
+  });
   it("reads and writes generation form preferences through their dedicated commands", async () => {
     const values = { duration: 90, bpm: 0, inference_steps: 80, lm_temperature: 1.2, variants: 2 };
     invoke.mockResolvedValue(values);

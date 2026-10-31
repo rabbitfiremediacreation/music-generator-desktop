@@ -1,3 +1,15 @@
+# Issue #46 — automatische Titel und Setup-Hinweise (2026-10-27)
+
+Die automatische Titelbereinigung entfernt den gemeldeten Vorsatz „The song title is“, Titel-Labels und äußere Anführungszeichen beziehungsweise Punkte. Unbrauchbare Modellausgaben führen nach erfolgreicher Audiogenerierung zu einem gespeicherten Zufallstitel aus demselben Wortschatz wie der Titelwürfel. Der übersetzte Fehlerhinweis bleibt erhalten. Manuelle Titel, während der Generierung umbenannte Songs, abgeschlossene Songs und Abbrüche werden nicht überschrieben.
+
+Der Einrichtungsassistent zeigt den macOS-Ordnerfreigabehinweis nur unter macOS. Der allgemeine Hinweis ist in allen zwölf Oberflächensprachen vorhanden; automatisierte DOM-Tests prüfen Windows, Linux und macOS auf Deutsch und Englisch einschließlich Sprachwechsel und erneutem Öffnen.
+
+Ein automatischer Sprung von 80 auf 91 Iterationen ist im aktuellen Code nicht reproduzierbar. Gültige gespeicherte Werte werden unverändert geladen; auch „Song wiederverwenden“ kann einen Wert übernehmen und speichern. Ohne die betroffene Windows-Datenbank lässt sich die konkrete Herkunft nicht belegen. Neue Regressionen sichern 80 und 91 über Neuöffnung und andere Feldänderungen ab; erst ein ausdrücklicher Reset übernimmt wieder die aktuelle Modell-/Geräteempfehlung (GPU/SFT: 80). Es gibt keine Sondermigration für 91. Der gemeldete Tippfehler ist im Ausgangsstand bereits korrigiert; Backend-Anzeige und bedingter Soll/Ist-Dauerhinweis bleiben unverändert.
+
+Abschließende Prüfungen: TypeScript/Vite-Build, ESLint, alle **362 Frontendtests**, **32 Desktop-Skripttests** und **204 Rusttests**, Rustfmt sowie Clippy mit Warnungen als Fehler bestanden. Eine vorhandene Rust-Subprozess-Fixture bleibt absichtlich ignoriert. Die vollständige Rust-Suite lief mit Zugriff auf lokale Loopback-Testserver. Der getrennte Standards-/Spec-Review fand eine zu korrigierende Testgrenze: Der Formular-Persistenztest verwendet jetzt den echten Backendadapter und ersetzt nur die native Tauri-Schnittstelle; der Reset wird nach erneutem Öffnen der Oberfläche geprüft. Nachprüfung: keine offenen Standards- oder Spec-Befunde.
+
+Diese Prüfung ist keine native Windows-/GTX-1060-Abnahme und umfasst keine neue Modellinferenz.
+
 # Überarbeiteter 0.1.2-Build: tatsächlich 200 Schritte — 2026-10-27
 
 Die [neue Abnahme](qa/iterations-200-0.1.2/README.md) erweitert den Enginekern auf tatsächlich 200 Schritte. Für Windows bleiben die gepinnten GGML-/GPU-DLLs unverändert, während ACE-Core und CLI-Werkzeuge neu gebaut werden. Frühere Aussagen in diesem historischen Prüfprotokoll, dass keine Enginebinärdatei verändert wurde, beziehen sich ausschließlich auf den dort dokumentierten damaligen Stand.

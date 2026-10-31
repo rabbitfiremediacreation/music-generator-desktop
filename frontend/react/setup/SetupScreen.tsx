@@ -22,6 +22,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
   const errorText = (value: unknown) => pathErrorText(modelErrorText(value, t));
   const result = setup.data, busy = setup.isPending;
+  const cancelled = setup.error !== null && (setup.error instanceof Error ? setup.error.message : String(setup.error)) === "Operation cancelled";
   useEffect(() => { if (result) enter.current?.focus(); }, [result]);
   async function browse(field: "models_dir" | "songs_dir") {
     try {
@@ -45,7 +46,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
             <span className="lbl">{t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}</span>
             <div className="path-picker"><input required value={draft[field]} aria-describedby="setupPathHint" onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} /><button type="button" className="sek" aria-label={`${t("desktop_browse")} ${t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}`} onClick={() => void browse(field)}>{t("desktop_browse")}</button></div>
           </label>)}
-          <p className="small" id="setupPathHint">{t("path_hint")}</p>
+          <p className="small" id="setupPathHint">{t(bootstrap.hardware.platform === "macos" ? "path_hint" : "path_hint_plain")}</p>
           <label className="field"><span className="lbl">{t("desktop_language_model")}</span><select value={request.lm} disabled={!bootstrap.settings.expert_mode} onChange={event => setDraft(current => ({ ...current, lm: event.target.value }))}>{(bootstrap.settings.expert_mode ? ["0.6B", "1.7B", "4B"] : [request.lm]).map(size => <option key={size}>{size}</option>)}</select><span className="small">{t("desktop_recommended")}: {bootstrap.hardware.recommended_lm}</span></label>
           {state.canUseXl && <label className="check-row"><input type="checkbox" checked={draft.xl} onChange={event => setDraft(current => ({ ...current, xl: event.target.checked }))} /><span>{t("desktop_xl")}</span></label>}
           <div className="model-list">{models.map(model => <div key={model.file}>{model.file} · ~{bytes(model.estimated_bytes)}</div>)}</div>
@@ -55,7 +56,8 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
       </form>}
       {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!stage && progress ? progress.downloaded / Math.max(progress.total, 1) : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p><button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button></div>}
       {result && <section className="hardware-card" aria-labelledby="setupResultHeading"><h2 id="setupResultHeading">{t("backend_setup_result")}</h2><div role="status" aria-live="polite"><BackendDetails status={result.backend_status} /></div><button type="button" ref={enter} className="aktion big" onClick={onComplete}>{t("backend_enter_studio")}</button></section>}
-      {(error || setup.error || state.cancel.error) && <p role="alert" className="setup-error">{errorText(error || setup.error || state.cancel.error)}</p>}
+      {cancelled && !state.cancel.error && <p role="status" aria-live="polite">{t("setup_cancelled")}</p>}
+      {(error || (!cancelled && setup.error) || state.cancel.error) && <p role="alert" className="setup-error">{errorText(error || state.cancel.error || setup.error)}</p>}
       {!result && !bootstrap.needs_setup && onBack && <button id="setupBack" className="sek" type="button" disabled={busy} onClick={onBack}>{t("desktop_back")}</button>}
     </div>
   </section>;

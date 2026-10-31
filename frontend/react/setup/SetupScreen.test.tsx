@@ -132,3 +132,29 @@ it("translates the measured result while keeping the explicit studio transition"
   expect(screen.getByText("Sound generation: Not confirmed yet")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Go to studio" })).toBeTruthy();
 });
+
+it("announces cancellation, preserves selections and allows a translated retry", async () => {
+  const original=ipc.invoke.getMockImplementation()!;
+  let rejectSetup!:(error:unknown)=>void;
+  let attempts=0;
+  ipc.invoke.mockImplementation(async(name,args)=>{
+    if(name==="setup_models"&&attempts++===0)return new Promise((_,reject)=>{rejectSetup=reject;});
+    if(name==="cancel_setup"){rejectSetup("Operation cancelled");return;}
+    return original(name,args);
+  });
+  const ready=vi.fn();mount(setupFixture,ready);
+  await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
+  const models=screen.getByRole("textbox",{name:/Modellordner/}) as HTMLInputElement;
+  fireEvent.click(screen.getByRole("button",{name:"Modelle laden und testen"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Abbrechen"}));
+  const message=await screen.findByText(/Einrichtung abgebrochen/);
+  expect(message.getAttribute("role")).toBe("status");expect(screen.queryByRole("alert")).toBeNull();
+  expect(models.value).toBe(setupFixture.settings.models_dir);
+  fireEvent.change(screen.getByRole("combobox",{name:"Sprache"}),{target:{value:"en"}});
+  expect(screen.getByText(/Setup cancelled/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Download models and test"}));
+  await screen.findByRole("button",{name:"Go to studio"});
+  expect(screen.queryByText(/Setup cancelled/)).toBeNull();
+  const requests=ipc.invoke.mock.calls.filter(([name])=>name==="setup_models");
+  expect(requests[1][1]).toEqual(requests[0][1]);
+});

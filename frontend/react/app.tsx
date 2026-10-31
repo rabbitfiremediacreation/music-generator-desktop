@@ -2,11 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { QueryClient, QueryClientProvider, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createHashHistory, createRootRouteWithContext, createRoute, createRouter, Outlet, redirect, RouterProvider, useNavigate, useRouterState, type RouterHistory } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
+import { waitForPaint } from "../startup-paint";
+import { startupErrorMessage } from "../startup-errors";
 import { selectionFromSettings } from "../creator-models";
 import { modelAllowed } from "../expert-mode";
 import type { Bootstrap, ModelSelection, Song } from "../types";
 import { I18nProvider, useI18n } from "./i18n";
-import { bootstrapQuery, queryKeys, settingsQuery } from "./data";
+import { bootstrapQuery, startupAttempt, queryKeys, settingsQuery } from "./data";
 import { EventBridge } from "./events";
 import { useDesktop, WindowBar } from "./desktop";
 import { Header } from "./Header";
@@ -23,11 +25,11 @@ import { ErrorState, LoadingState } from "./ui";
 type Layout="auto"|"stack"|"side";
 function stored(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value);}catch{/* Session choices remain usable. */}}
-function reportStartup(error:unknown){void invoke("startup_error",{error:error instanceof Error?error.message:String(error)});}
-function StartupError({error}:{error:unknown}){useEffect(()=>reportStartup(error),[error]);return <ErrorState error={error}/>;}
+function reportStartup(error:unknown,attempt:number){const message=startupErrorMessage(error);if(message!=="startup_attempt_expired")void invoke("startup_error",{attempt,error:message}).catch(()=>{});}
+function StartupError({error}:{error:unknown}){const client=useQueryClient();useEffect(()=>reportStartup(error,startupAttempt(client)),[error,client]);return <ErrorState error={error}/>;}
 const SceneContext=createContext<{bootstrap:Bootstrap;complete:()=>void;back:()=>void;ready:()=>void;importLibrary:(target:string,done:(songsDir:string)=>void)=>void}|null>(null);
 const rootRoute=createRootRouteWithContext<{client:QueryClient}>()({
-  beforeLoad:async({context})=>({bootstrap:await context.client.ensureQueryData(bootstrapQuery())}),
+  beforeLoad:async({context})=>({bootstrap:await context.client.ensureQueryData(bootstrapQuery(startupAttempt(context.client)))}),
   component:DesktopShell,errorComponent:StartupError,pendingComponent:LoadingState,
 });
 const indexRoute=createRoute({getParentRoute:()=>rootRoute,path:"/",beforeLoad:({context})=>{throw redirect({to:context.bootstrap.needs_setup?"/setup":"/studio",replace:true});}});
@@ -48,7 +50,8 @@ function SetupScene(){const scene=useContext(SceneContext)!;return <SetupScreen 
 function DesktopShell(){
   const {t}=useI18n();
   const client=useQueryClient(),navigate=useNavigate(),path=useRouterState({select:state=>state.location.pathname});
-  const bootstrap=useQuery(bootstrapQuery()).data!;
+  const report=useCallback((error:unknown)=>reportStartup(error,startupAttempt(client)),[client]);
+  const bootstrap=useQuery(bootstrapQuery(startupAttempt(client))).data!;
   const settings=useQuery(settingsQuery());
   const [selection,setSelection]=useState<ModelSelection|null>(null),[layout,setLayout]=useState<Layout>(()=>{const value=stored("desktop_layout","auto");return value==="stack"||value==="side"?value:"auto";});
   const [folder,setFolder]=useState(()=>stored("folder","")),[settingsOpen,setSettingsOpen]=useState(false),[settingsBusy,setSettingsBusy]=useState(false),[pickerOpen,setPickerOpen]=useState(false);
@@ -63,7 +66,7 @@ function DesktopShell(){
   const setLayoutChoice=useCallback((value:Layout)=>{setLayout(value);remember("desktop_layout",value);},[]);
   const registerFlush=useCallback((value:()=>Promise<void>)=>{flush.current=value;},[]);
   const libraryInitialized=useCallback(()=>setLibraryReady(true),[]),formInitialized=useCallback(()=>setFormReady(true),[]),modelsInitialized=useCallback(()=>setModelsReady(true),[]),setupInitialized=useCallback(()=>setSetupReady(true),[]);
-  const libraryFailed=useCallback((error:unknown)=>{if(!reported.current)reportStartup(error);},[]);
+  const libraryFailed=useCallback((error:unknown)=>{if(!reported.current)report(error);},[report]);
   const back=useCallback(()=>{void navigate({to:"/studio"});},[navigate]);
   const manage=useCallback(()=>{setSettingsOpen(false);setPickerOpen(false);void navigate({to:"/setup"});},[navigate]);
   const importLibrary=useCallback((target:string,done:(songsDir:string)=>void)=>setImportState({mode:"import",target,done}),[]);
@@ -73,11 +76,11 @@ function DesktopShell(){
     setSelection(selectionFromSettings(saved));
     client.setQueryData<Bootstrap>(queryKeys.bootstrap,old=>old?{...old,needs_setup:false,settings:saved}:old);
     await navigate({to:"/studio"});
-  })().catch(reportStartup);},[client,navigate]);
+  })().catch(report);},[client,navigate,report]);
   useEffect(()=>{
     if(reported.current||!(studio?libraryReady&&formReady&&modelsReady:setupReady))return;
-    reported.current=true;void invoke("startup_complete").catch(reportStartup);
-  },[studio,libraryReady,formReady,modelsReady,setupReady]);
+    reported.current=true;void(async()=>{const attempt=startupAttempt(client);await invoke("startup_show_main",{attempt});await waitForPaint();await invoke("startup_complete",{attempt});})().catch(report);
+  },[studio,libraryReady,formReady,modelsReady,setupReady,client,report]);
   useEffect(()=>{
     if(!studio||!libraryReady||!formReady||!modelsReady)return;
     const frame=requestAnimationFrame(()=>document.querySelector<HTMLInputElement>('#genForm input[name="title"]')?.focus({preventScroll:true}));

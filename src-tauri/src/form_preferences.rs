@@ -173,6 +173,53 @@ mod tests {
     }
 
     #[test]
+    fn eighty_and_ninety_one_steps_survive_reopening_until_explicit_reset() {
+        for steps in [80, 91] {
+            let root = tempfile::tempdir().unwrap();
+            let defaults = GenerationFormPreferences {
+                inference_steps: 80,
+                ..Default::default()
+            };
+            let saved = GenerationFormPreferences {
+                inference_steps: steps,
+                ..defaults.clone()
+            };
+            {
+                let db = Database::open(root.path()).unwrap();
+                db.save_generation_form_preferences(&saved).unwrap();
+            }
+            let changed = GenerationFormPreferences {
+                duration: 300.0,
+                ..saved.clone()
+            };
+            {
+                let db = Database::open(root.path()).unwrap();
+                assert_eq!(
+                    db.generation_form_preferences_with_defaults(&defaults)
+                        .unwrap(),
+                    saved
+                );
+                db.save_generation_form_preferences(&changed).unwrap();
+            }
+            {
+                let db = Database::open(root.path()).unwrap();
+                assert_eq!(
+                    db.generation_form_preferences_with_defaults(&defaults)
+                        .unwrap(),
+                    changed
+                );
+                db.save_generation_form_preferences(&defaults).unwrap();
+            }
+            let db = Database::open(root.path()).unwrap();
+            assert_eq!(
+                db.generation_form_preferences_with_defaults(&defaults)
+                    .unwrap(),
+                defaults
+            );
+        }
+    }
+
+    #[test]
     fn saved_iteration_values_within_two_hundred_remain_unchanged() {
         let root = tempfile::tempdir().unwrap();
         let db = Database::open(root.path()).unwrap();

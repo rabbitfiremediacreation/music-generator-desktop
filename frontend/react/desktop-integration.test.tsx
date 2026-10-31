@@ -49,7 +49,7 @@ beforeEach(() => {
     if (name === "retry_song") return songs[1];
     if (name === "model_catalog") return { ...source, expert_mode: false, selection: standard, recommended_profiles: [standard], hardware: setupFixture.hardware, free_bytes: null, models_dir: "/models", busy: false, title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 }, models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })) };
     if (name === "select_models" || name === "use_models") return args.selection;
-    if (name === "startup_complete" || name === "exit_app") return undefined;
+    if (name === "startup_show_main" || name === "startup_complete" || name === "exit_app") return undefined;
     throw new Error(`Unexpected command ${name}`);
   });
 });

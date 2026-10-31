@@ -123,7 +123,7 @@ fn failed_titling_keeps_the_finished_audio_and_survives_restart() {
         })
         .unwrap()[0]
         .clone();
-    db.claim_next().unwrap();
+    let (_, original) = db.claim_next().unwrap().unwrap();
     db.finish(
         &id,
         "song.wav",
@@ -135,11 +135,86 @@ fn failed_titling_keeps_the_finished_audio_and_survives_restart() {
     let song = db.song(&id).unwrap();
     assert_eq!(song.status, "done");
     assert_eq!(song.file.as_deref(), Some("song.wav"));
-    assert!(song.title.is_none());
+    let title = song.title.as_deref().expect("a random replacement title");
+    assert_eq!(title.split_whitespace().count(), 2);
+    assert_eq!(titles::clean(title).unwrap(), title);
+    assert_eq!(song.params, original);
+    let meta = song.result_meta.as_ref().unwrap();
+    assert_eq!(meta["title_generation_error"], "Timed out");
+    assert_eq!(meta["generated_title"], title);
+    drop(db);
     assert_eq!(
-        song.result_meta.unwrap()["title_generation_error"],
-        "Timed out"
+        Database::open(root.path())
+            .unwrap()
+            .song(&id)
+            .unwrap()
+            .title
+            .as_deref(),
+        Some(title)
     );
+}
+
+#[test]
+fn title_failure_never_replaces_manual_titles_or_later_edits() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    for initial in ["Mein Titel", ""] {
+        let id = db
+            .enqueue(&GenerateRequest {
+                title: initial.into(),
+                prompt: "night".into(),
+                variants: 1,
+                ..Default::default()
+            })
+            .unwrap()[0]
+            .clone();
+        let (_, original) = db.claim_next().unwrap().unwrap();
+        if initial.is_empty() {
+            db.patch(&id, &json!({"title":"Mein Titel"})).unwrap();
+        }
+        assert!(db
+            .finish(
+                &id,
+                "song.wav",
+                &json!({"title_generation_error":"Invalid title"})
+            )
+            .unwrap());
+        let song = db.song(&id).unwrap();
+        assert_eq!(song.title.as_deref(), Some("Mein Titel"));
+        assert_eq!(song.params, original);
+    }
+}
+
+#[test]
+fn title_failure_does_not_backfill_completed_or_cancelled_songs() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    for cancelled in [false, true] {
+        let id = db
+            .enqueue(&GenerateRequest {
+                prompt: "night".into(),
+                variants: 1,
+                ..Default::default()
+            })
+            .unwrap()[0]
+            .clone();
+        db.claim_next().unwrap();
+        if cancelled {
+            db.cancel_or_delete(&id).unwrap();
+        } else {
+            db.finish(&id, "song.wav", &json!({})).unwrap();
+        }
+        assert!(!db
+            .finish(
+                &id,
+                "late.wav",
+                &json!({"title_generation_error":"Too late"})
+            )
+            .unwrap());
+        let song = db.song(&id).unwrap();
+        assert!(song.title.is_none());
+        assert_eq!(song.status, if cancelled { "cancelled" } else { "done" });
+    }
 }
 
 #[test]

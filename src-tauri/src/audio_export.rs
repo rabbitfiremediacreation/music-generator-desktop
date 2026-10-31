@@ -1,7 +1,6 @@
 use crate::{
     engine::process::OwnedProcess,
     error::{message, Error, Result},
-    types::id,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -9,6 +8,10 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 use tokio_util::sync::CancellationToken;
+
+mod staging;
+pub(crate) use staging::cleanup_stale;
+use staging::Staging;
 
 pub fn codec_path(resources: &Path) -> PathBuf {
     resources.join("engine").join(if cfg!(windows) {
@@ -30,13 +33,6 @@ pub fn remove_cached(root: &Path, sid: &str) {
                 let _ = std::fs::remove_file(file.path());
             }
         }
-    }
-}
-
-struct Staging(PathBuf);
-impl Drop for Staging {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
     }
 }
 
@@ -78,11 +74,13 @@ pub async fn mp3(
     if target.metadata().is_ok_and(|m| m.len() >= 1000) {
         return Ok(target);
     }
-    let staging = Staging(cache.join(format!("temporary-{}", id())));
-    std::fs::create_dir(&staging.0)?;
-    let input = staging.0.join("source.wav");
-    let output = staging.0.join("encoded.mp3");
-    tokio::fs::copy(source, &input).await?;
+    let staging = Staging::new(&cache)?;
+    let input = staging.path().join("source.wav");
+    let output = staging.path().join("encoded.mp3");
+    staging.copy_source(source).await?;
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
     let args = vec![
         "-i".into(),
         input.to_string_lossy().into_owned(),

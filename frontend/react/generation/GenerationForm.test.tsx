@@ -142,7 +142,7 @@ it("does not overwrite durable preferences after a failed read, including when t
   await act(async () => { await flush(); });
   expect(reads).toBe(2); expect(writes).toBe(0);
 });
-it.each([100,120,200])("preserves a stored %s-step preference until an explicit reset uses current model defaults", async steps => {
+it.each([80,91,100,120,200])("preserves a stored %s-step preference until an explicit reset uses current model defaults", async steps => {
   const production = ipc.invoke.getMockImplementation()!;
   const saved: unknown[] = [];
   ipc.invoke.mockImplementation(async (command: string, args: { values?: unknown }) => {

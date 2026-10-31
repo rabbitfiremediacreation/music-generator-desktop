@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import "../desktop-i18n";
+import "../setup-i18n";
 import "../model-i18n";
 import "../expert-i18n";
 import "../title-i18n";

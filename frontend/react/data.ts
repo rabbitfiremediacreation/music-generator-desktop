@@ -16,16 +16,20 @@ export const queryKeys = {
   progress: ["generation-progress"] as const,
 };
 
-export function createAppQueryClient() {
+const startupAttempts = new WeakMap<QueryClient, number>();
+export const startupAttempt = (client: QueryClient) => startupAttempts.get(client) ?? 1;
+
+export function createAppQueryClient(attempt = 1) {
   const client = new QueryClient({ defaultOptions: {
     queries: { networkMode: "always", retry: false, staleTime: Infinity, refetchOnWindowFocus: false },
     mutations: { networkMode: "always", retry: false },
   } });
+  startupAttempts.set(client, attempt);
   backendEvidence(client);
   return client;
 }
 
-export const bootstrapQuery = () => queryOptions({ queryKey: queryKeys.bootstrap, queryFn: backend.bootstrap, gcTime: Infinity });
+export const bootstrapQuery = (attempt = 1) => queryOptions({ queryKey: queryKeys.bootstrap, queryFn: () => backend.bootstrap(attempt), gcTime: Infinity });
 export const settingsQuery = () => queryOptions({ queryKey: queryKeys.settings, queryFn: backend.settings });
 export const songsQuery = (filter: Filter) => queryOptions({ queryKey: queryKeys.songs(filter), queryFn: () => backend.songs(filter) });
 export const foldersQuery = () => queryOptions({ queryKey: queryKeys.folders, queryFn: backend.folders });

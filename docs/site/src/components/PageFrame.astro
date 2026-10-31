@@ -1,0 +1,12 @@
+---
+import DefaultPageFrame from "@astrojs/starlight/components/PageFrame.astro";
+import ProductLanding from "./ProductLanding.astro";
+const homePath = `${import.meta.env.BASE_URL}${Astro.locals.starlightRoute.locale}/`;
+const isLanding = Astro.url.pathname === homePath;
+---
+
+{isLanding ? <ProductLanding /> : <DefaultPageFrame>
+  <slot name="header" slot="header" />
+  <slot name="sidebar" slot="sidebar" />
+  <slot />
+</DefaultPageFrame>}
