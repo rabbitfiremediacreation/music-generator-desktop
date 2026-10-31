@@ -21,11 +21,11 @@ ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält e
 | Plattform | Bundle |
 | --- | --- |
 | macOS 14+, Apple Silicon | DMG und ZIP mit `Music Generator.app` |
-| macOS 13.3+, Intel x64 (experimentell) | Eigenes DMG und ZIP, ausschließlich CPU |
+| macOS 12.7+, Intel x64 (experimentell) | Eigenes DMG und ZIP, ausschließlich CPU |
 | Windows 10/11, x64 | MSI-Installer oder portables ZIP mit EXE, Engine und WebView2 |
 | Linux, x64 | AppImage mit Vulkan/CPU-Engine; separate CUDA-Ausgabe für NVIDIA |
 
-Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerzeugung rechnen auf der CPU; ein Song kann viele Minuten dauern. Mit 10 Sekunden, dem 0.6B-Sprachmodell und dem Standard-Klangmodell beginnen. Der Assistent prüft den Engine-Start und überspringt den GPU-Test. Native Builds werden auf macOS 15 geprüft; echte Generierung auf weiteren Intel-Macs und der Mindestversion bleibt manuell abzunehmen.
+Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerzeugung rechnen auf der CPU; ein Song kann viele Minuten dauern. Mit 10 Sekunden, dem 0.6B-Sprachmodell und dem Standard-Klangmodell beginnen. Der Assistent prüft den Engine-Start und überspringt den GPU-Test. Für macOS 12.7 wird das neuere BLAS-Backend in Musik- und Titel-Engine deaktiviert; dadurch kann die Berechnung auch auf neueren Intel-Macs langsamer werden. Native Builds werden auf macOS 15 geprüft; echte Generierung und GUI-/Audio-Tests auf macOS 12.7 stehen noch aus. Die Unterstützung ist experimentell. Die [Testanleitung für macOS 12.7](docs/pr/macos-12-7/README.md) beschreibt die Abnahme mit dem PR-Testpaket. Bereits veröffentlichte Downloads erhalten diese Kompatibilität erst durch einen Neubau.
 
 Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind möglich. Downloads werden unter [Releases](https://github.com/rabbitfiremediacreation/music-generator-desktop/releases) veröffentlicht; lokal gebaute Pakete liegen in `release/`.
 
@@ -83,7 +83,7 @@ Updates erfolgen durch Austausch des Bundles oder bei einer MSI-Installation dur
 
 Automatisierte Frontend-, Rust- und Pakettests sowie native CI-Prüfungen sind im Projekt vorhanden. Die [Verifikationsdokumentation](docs/verification.md) hält die jeweiligen Teststände und tatsächliche Generierungsversuche auf Apple Silicon fest. Paket- und Engine-Starttests ersetzen keine vollständige Prüfung auf jeder Zielhardware.
 
-- Intel-Macs sind experimentell und rechnen ausschließlich auf der CPU.
+- Intel-Macs ab macOS 12.7 sind experimentell und rechnen ausschließlich auf der CPU; die Laufzeitabnahme unter macOS 12.7 steht noch aus.
 - Echte Generierung mit allen Modellfamilien und Quantisierungen sowie mit der Linux-CUDA-Ausgabe auf unterstützter NVIDIA-Hardware bleibt gesondert zu prüfen.
 - Zehn-Minuten-Songs auf Intel-Macs und Rechnern mit 8 GB sowie vollständige GUI-/Audio-Tests auf den Mindestversionen der Betriebssysteme stehen noch aus.
 - Physische Mikrofonaufnahme und tatsächliche VoiceOver-/NVDA-/JAWS-Bedienung sind in der dokumentierten Abnahme noch offen.
