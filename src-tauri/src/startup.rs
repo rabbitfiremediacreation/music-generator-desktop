@@ -19,6 +19,7 @@ use tokio::sync::{watch, Mutex as AsyncMutex, OnceCell};
 mod commands;
 mod logging;
 mod preparation;
+mod presentation;
 pub use commands::*;
 
 #[cfg(all(test, unix))]
@@ -125,6 +126,7 @@ impl Startup {
             }
         }
         tracing::info!(
+            pid = std::process::id(),
             elapsed_ms = self.started.elapsed().as_millis(),
             attempt,
             phase,

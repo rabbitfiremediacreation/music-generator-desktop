@@ -34,7 +34,7 @@ fn splash_diagnostics_cannot_initialize_data_or_acknowledge_readiness() {
     assert_eq!(*app.state::<Startup>().painted.borrow(), 0);
 }
 
-fn fixture(allowed: bool) -> (tempfile::TempDir, tauri::App<MockRuntime>) {
+pub(super) fn fixture(allowed: bool) -> (tempfile::TempDir, tauri::App<MockRuntime>) {
     let temporary = tempfile::tempdir().unwrap();
     let app = mock_app();
     let startup = Startup::new(

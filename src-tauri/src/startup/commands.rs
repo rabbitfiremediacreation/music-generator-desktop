@@ -147,14 +147,20 @@ pub async fn startup_show_main<R: Runtime>(
     if startup.main_shown.load(Ordering::Relaxed) == attempt {
         return Ok(());
     }
-    window.show().map_err(|e| message(e.to_string()))?;
-    let _ = window.set_focus();
-    startup.main_shown.store(attempt, Ordering::Relaxed);
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
     *startup
         .main_deadline
         .lock()
         .expect("startup deadline poisoned") = Some(deadline);
+    startup
+        .present_main(
+            &app,
+            attempt,
+            deadline,
+            presentation::show(&window, attempt),
+        )
+        .await?;
+    let _ = window.set_focus();
     tokio::spawn(async move {
         tokio::time::sleep_until(deadline).await;
         let startup = app.state::<Startup>();
