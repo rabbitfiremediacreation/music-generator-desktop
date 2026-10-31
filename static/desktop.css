@@ -126,3 +126,6 @@ body { height: 100dvh; display: flex; flex-direction: column; padding: 0; }
 .slider.cpu-risk { border-color: #c94b50; }
 .cpu-dialog .check-row { margin: 16px 0; }
 .song .duration-warning { color: #e2b45d; line-height: 1.5; overflow-wrap: anywhere; }
+
+#cudaSetup pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+#cudaSetup button { margin: 4px 4px 4px 0; }

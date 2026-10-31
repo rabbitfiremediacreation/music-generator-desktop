@@ -1,4 +1,5 @@
 import "./setup-i18n";
+import { setupCuda } from "./cuda-setup";
 import { loadGenerationPolicy } from "./generation-policy";
 import { modelErrorText, modelLabel } from "./expert-mode";
 import { renderBackendStatus } from "./backend-status";
@@ -34,6 +35,7 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
       <label class="field"><span class="lbl" data-i18n="language"></span><select id="setupLanguage"></select></label>
       <form id="setupForm"><fieldset id="setupFields">
         <section class="hardware-card"><h2 data-i18n="desktop_hardware"></h2><p id="hardwareInfo"></p><div id="cudaCompatibility" class="small" hidden></div><p id="cpuSetupHint" class="cpu-warning" hidden></p><p id="intelCpuHint" class="small" data-i18n="desktop_intel_cpu_hint" hidden></p></section>
+        <section class="hardware-card" id="cudaSetup" hidden></section>
         <section class="import-card"><button type="button" class="sek" id="importLibrary" data-i18n="desktop_import"></button><p class="small" data-i18n="desktop_import_hint"></p><p id="importStatus" role="status"></p></section>
         <label class="field"><span class="lbl" data-i18n="desktop_models_folder"></span><div class="path-picker"><input id="setupModels" required><button type="button" class="sek" data-setup-pick="setupModels" data-i18n="desktop_browse"></button></div></label>
         <label class="field"><span class="lbl" data-i18n="songs_dir"></span><div class="path-picker"><input id="setupSongs" required><button type="button" class="sek" data-setup-pick="setupSongs" data-i18n="desktop_browse"></button></div></label>
@@ -94,6 +96,14 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
       element("#setupProgressText").textContent = `${t(`desktop_${payload.phase}`)} ${payload.file} · ${bytes(payload.downloaded)} / ${bytes(payload.total)}${payload.bytes_per_second ? ` · ${(payload.bytes_per_second / 1024 ** 2).toFixed(1)} MiB/s` : ""}`;
     });
     await listen<string>("setup-stage", ({ payload }) => { element<HTMLProgressElement>("#setupProgress").removeAttribute("value"); element("#setupProgressText").textContent = t(payload === "starting" ? "desktop_starting" : payload === "testing" ? "desktop_testing" : "desktop_cpu_fallback"); });
+    await listen<DownloadProgress>("cuda-progress", ({ payload }) => {
+      element<HTMLProgressElement>("#setupProgress").value = payload.downloaded / Math.max(payload.total, 1);
+      element("#setupProgressText").textContent = `${t(`desktop_${payload.phase}`)} ${payload.file} · ${bytes(payload.downloaded)} / ${bytes(payload.total)}`;
+    });
+    await listen<string>("cuda-stage", ({ payload }) => {
+      element<HTMLProgressElement>("#setupProgress").removeAttribute("value");
+      element("#setupProgressText").textContent = t(payload === "installing" ? "cuda_installing" : "cuda_checking");
+    });
     const content = element("#setupContent");
     document.addEventListener("langchange", () => {
       if (!content.isConnected || element("#setupScreen").hidden) return;
@@ -123,6 +133,18 @@ export async function showSetup(data: Bootstrap, ready: (resetSelection?: boolea
   hint.dataset.i18n = policy.backend === "cpu" ? "cpu_setup" : "cpu_unknown_setup";
   applyI18n();
   await updateEstimate(languageSizes.find(size => data.settings.lm_model.includes(`-${size}-`)) || data.hardware.recommended_lm);
+  await setupCuda(element("#cudaSetup"), data.hardware, () => {
+    cancelEstimate(); setBusy(true); clearFeedback();
+    element<HTMLProgressElement>("#setupProgress").removeAttribute("value");
+    element("#setupProgressText").textContent = t("cuda_checking");
+  }, async () => {
+    setBusy(false);
+    const policy = await loadGenerationPolicy(undefined, true);
+    hint.hidden = policy.backend === "gpu";
+    hint.dataset.i18n = policy.backend === "cpu" ? "cpu_setup" : "cpu_unknown_setup";
+    applyI18n();
+    await updateEstimate();
+  });
 }
 
 function renderHardware(): void {

@@ -8,6 +8,8 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 const audioUrl = (song: Song): Song => ({ ...song, url: song.path ? convertFileSrc(song.path) : null });
 
 export const backend = {
+  cudaStatus: () => command<import("./types").CudaStatus>("cuda_status"),
+  installCuda: () => command<import("./types").CudaStatus>("install_cuda_runtime"),
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
   pickAudioFile: (directory: string, title: string, filterName: string) => command<{ name: string; directory: string; data: number[] } | null>("pick_audio_file", { directory, title, filterName }),
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),

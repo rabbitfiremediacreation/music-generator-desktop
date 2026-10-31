@@ -5,11 +5,21 @@ pub(super) unsafe fn detect(
     folder: &Path,
     force_cpu: bool,
 ) -> std::result::Result<Detection, Box<dyn std::error::Error>> {
+    detect_device(folder, force_cpu, false)
+}
+
+pub(super) unsafe fn detect_device(
+    folder: &Path,
+    force_cpu: bool,
+    force_cuda: bool,
+) -> std::result::Result<Detection, Box<dyn std::error::Error>> {
     use std::ffi::{c_char, c_void, CStr, CString};
     type Handle = *mut c_void;
     let force_cpu = force_cpu || crate::hardware::cpu_only();
     let forced = if force_cpu {
         Some("CPU".to_owned())
+    } else if force_cuda {
+        Some("CUDA0".to_owned())
     } else if cfg!(windows) {
         None
     } else {

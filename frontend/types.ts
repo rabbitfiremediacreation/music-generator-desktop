@@ -45,6 +45,10 @@ export interface BackendStatus {
 }
 export interface Health { ok: boolean; error?: string; props?: { models?: Record<string, string[]> }; backend_status: BackendStatus }
 export interface SetupResult { ok: boolean; mode: string; backend_status: BackendStatus }
+export interface CudaStatus {
+  state: "not_applicable" | "unsupported_build" | "unsupported_gpu" | "check_failed" | "driver_error" | "runtime_missing" | "cuda_failed" | "ready";
+  download_bytes: number; details: string | null;
+}
 export interface Update { available: boolean; current: string; latest?: string; url?: string; notes?: string }
 export interface Model { file: string; estimated_bytes: number; sha256: string; kind: string }
 export interface Bootstrap {
