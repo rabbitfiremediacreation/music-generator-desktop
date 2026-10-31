@@ -45,6 +45,7 @@ Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind 
 - Übernahme einer alten Installation; Originaldaten bleiben erhalten.
 - Modelle und Songs außerhalb der App, mit wählbaren Speicherorten. Updates durch Austausch des Bundles.
 - macOS App Sandbox mit gespeicherten Ordnerfreigaben und vererbter Sandbox für die Engine.
+- **Agentische Steuerung per MCP:** Optionaler lokaler Server für Generierung, Varianten, Warteschlange, Bibliothek, Modelle, Einstellungen, Audioanalyse, Import und Export. Streamable HTTP mit Zugriffsschlüssel und eine stdio-Brücke nutzen denselben Zustand wie die Desktop-App. Einrichtung und Werkzeuge: [MCP-Anleitung](docs/mcp.md).
 
 ## Erster Song
 

@@ -11,6 +11,11 @@ use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
 pub fn model_catalog(state: State<'_, Arc<AppState>>) -> Result<Value> {
+    catalog_data(&state)
+}
+
+/// Share catalog discovery between the desktop interface and MCP without starting engines.
+pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     let settings = state.db.settings()?;
     let root = Path::new(&settings.models_dir);
     let verifier = ModelVerifier::open(&state.db.root);

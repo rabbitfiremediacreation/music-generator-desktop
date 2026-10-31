@@ -14,6 +14,7 @@ pub enum OperationKind {
     Settings,
     Import,
     Analysis,
+    Export,
     Generation,
 }
 

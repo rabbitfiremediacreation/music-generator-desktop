@@ -18,6 +18,7 @@ mod jobs;
 mod launch_location;
 pub mod library;
 pub mod manifest;
+pub mod mcp;
 mod model_commands;
 pub mod paths;
 pub mod power;
@@ -156,6 +157,7 @@ pub fn run() {
             }
         }
         if let tauri::RunEvent::Exit = event {
+            mcp::transport::stop(app);
             if let Some(state) = app.try_state::<Arc<state::AppState>>() {
                 state.begin_shutdown();
                 state.stop_engine();
