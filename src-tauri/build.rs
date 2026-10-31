@@ -1,4 +1,7 @@
 fn main() {
+    println!("cargo:rerun-if-env-changed=GITHUB_SHA");
+    let revision = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "local".into());
+    println!("cargo:rustc-env=MUSIC_GENERATOR_BUILD_REVISION={revision}");
     println!("cargo:rerun-if-env-changed=MUSIC_GENERATOR_LINUX_BACKEND");
     let linux_backend =
         std::env::var("MUSIC_GENERATOR_LINUX_BACKEND").unwrap_or_else(|_| "vulkan".to_owned());

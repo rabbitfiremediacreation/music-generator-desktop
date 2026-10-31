@@ -1,5 +1,29 @@
 use super::*;
 
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum SplashProgress {
+    Connecting,
+    Subscribing,
+    Synchronizing,
+    WaitingForFrames,
+    FramesObserved,
+    FrameTimeout,
+}
+
+#[tauri::command]
+pub fn startup_splash_progress<R: Runtime>(
+    window: WebviewWindow<R>,
+    startup: State<'_, Startup>,
+    attempt: u64,
+    stage: SplashProgress,
+) -> Result<()> {
+    require_window(&window, "splash")?;
+    startup.ensure_active(attempt)?;
+    // Do not create app data here: macOS must first pass the installation check.
+    startup.log_diagnostic(attempt, &format!("Splash progress stage={stage:?}"))
+}
+
 #[tauri::command]
 pub fn startup_status(startup: State<'_, Startup>) -> Status {
     startup.snapshot()
@@ -34,6 +58,7 @@ pub async fn splash_ready<R: Runtime>(
         Ordering::Relaxed,
     );
     startup.painted.send_replace(attempt);
+    let _ = startup.log_diagnostic(attempt, "Splash handshake received");
     Ok(())
 }
 
