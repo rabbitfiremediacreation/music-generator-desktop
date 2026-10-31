@@ -6,7 +6,7 @@ Lokale Musikgenerierung als rahmenlose **Tauri-Desktop-App** für macOS, Windows
 
 ## Projektstatus
 
-**Stand: 27. Oktober 2026 · Entwicklungsstand: 0.1.2** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt inzwischen Tauri, Rust und eine TypeScript-/JavaScript-Oberfläche. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
+**Stand: 27. Oktober 2026 · Entwicklungsstand: 0.1.2** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt Tauri, Rust und eine React-/TypeScript-Oberfläche mit TanStack Router, TanStack Query und Tailwind CSS. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
 
 ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält eine Modellauswahl direkt im Studio, automatische lokale Songtitel, Echtzeit-Fortschritt und native Audio-/Text-/ZIP-Exporte. Die Versionsangabe beschreibt den Quellcode; verfügbare Downloads können einen anderen Stand haben.
 
@@ -110,6 +110,8 @@ npm run bundle
 
 Die plattformspezifischen Pipelines stehen in `.github/workflows/desktop.yml`. Build, Datenablage, Import, Signierung und manuelle Abnahme beschreibt [docs/desktop.md](docs/desktop.md).
 
+React-Einstiegspunkte, Zustandsgrenzen, Event-Synchronisierung und Frontend-Tests beschreibt [docs/frontend.md](docs/frontend.md). Die bestehende typisierte Tauri-Schnittstelle bleibt die Grenze zum Rust-Backend; nach dem Modell-Download benötigt die Oberfläche keine Netzwerkverbindung.
+
 ## Dokumentation
 
 Das eigenständige [Astro-/Starlight-Grundgerüst](docs/site/README.md) unter `docs/site/` enthält deutsche und englische Installationsseiten. Dort stehen auch Vorschau-Befehle und Hinweise, um Texte und Bilder echter Installationen per Pull Request zu ergänzen. Der separate Workflow `.github/workflows/docs.yml` prüft und veröffentlicht die Dokumentation über GitHub Pages; die einmalige Pages-Einrichtung ist in der Beitragsanleitung beschrieben.
@@ -118,11 +120,12 @@ Das eigenständige [Astro-/Starlight-Grundgerüst](docs/site/README.md) unter `d
 
 | Bereich | Inhalt |
 | --- | --- |
-| `frontend/` | Vite-Oberfläche, TypeScript-Tauri-Schnittstelle, Assistent und erhaltene Studio-Bedienung |
+| `frontend/` | React-Einstiege für Hauptfenster/Splash, Übersetzungen, Fachlogik und TypeScript-Tauri-Schnittstelle |
+| `frontend/react/` | Fachlich gegliederte Komponenten/Hooks, Router, Query-/Event-Verwaltung und Tailwind-Styles |
 | `src-tauri/` | Rust-Backend, SQLite, Queue, Download- und Engine-Verwaltung |
 | `models/` | Versionierte Modell-/Engine- und WebView2-Downloadmanifeste |
 | `scripts/desktop/` | Vorbereitung der Engine und fertige Plattformpakete |
-| `static/` | Styles, Bilder und vendorter Waveform-Player |
+| `static/` | Bilder, vendorter Waveform-Player und Lizenztexte |
 | `assets/music-generator-overview.png` | Beispiel-Screenshot für diese README |
 | `docs/legacy/` | Archivierter Ubuntu-Installer mit historischem Kontext, gilt nicht für Desktop |
 

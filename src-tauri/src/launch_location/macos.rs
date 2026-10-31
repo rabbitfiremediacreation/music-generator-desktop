@@ -125,9 +125,9 @@ pub(super) fn inspect() -> Option<bool> {
     // Raw development binaries are not application bundles and must keep their normal startup.
     if macos.file_name()? != "MacOS"
         || contents.file_name()? != "Contents"
-        || !bundle
+        || bundle
             .extension()
-            .is_some_and(|extension| extension == "app")
+            .is_none_or(|extension| extension != "app")
     {
         return Some(false);
     }

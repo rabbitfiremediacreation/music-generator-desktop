@@ -1,16 +1,19 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { mountStudio } from "./dom-fixture";
+import { createElement } from "react";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LANGS } from "./locales";
 import { I18N, setLang } from "./i18n.js";
 import { settingsKeys, settingsTranslations } from "./desktop-i18n";
 import { xlMemoryHints } from "./model-i18n";
-import { initializeSettings } from "./settings";
+import { SettingsDialog } from "./react/settings/SettingsDialog";
+import { I18nProvider } from "./react/i18n";
 const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn() }));
 vi.mock("./backend", () => ({ backend: mocks }));
 
-beforeEach(() => { vi.resetAllMocks(); mountStudio(); setLang("de"); });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+beforeEach(() => { vi.resetAllMocks(); setLang("de"); HTMLDialogElement.prototype.showModal = function () { this.open = true; }; });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("provides every new message in all registered languages", () => {
   expect(Object.keys(settingsTranslations).sort()).toEqual(Object.keys(LANGS).sort());
@@ -21,17 +24,14 @@ it("provides every new message in all registered languages", () => {
   }
 });
 
-it("switches tooltip, accessible name, heading, model hint and a live loading message", async () => {
+it("switches the settings heading and live loading message without restarting the read", async () => {
   mocks.settings.mockReturnValue(new Promise(() => {}));
-  initializeSettings();
-  const gear = document.querySelector<HTMLButtonElement>("#btnSettings")!;
-  gear.click();
-  expect(gear.title).toBe("Einstellungen");
-  expect(document.querySelector("#settingsStatus")!.textContent).toBe("Einstellungen werden geladen…");
-  setLang("en");
-  expect(gear.title).toBe("Settings");
-  expect(gear.getAttribute("aria-label")).toBe("Settings");
-  expect(document.querySelector("#settingsHeading")!.textContent).toBe("Settings");
-  expect(document.querySelector("#settingsStatus")!.textContent).toBe("Loading settings…");
-  expect(document.querySelector("#creatorXlRamHint")!.textContent).toBe("XL needs more memory and is not recommended for this computer.");
+  render(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(I18nProvider, null, createElement(SettingsDialog, {
+    open: true, layout: "auto", onClose: vi.fn(), onBusyChange: vi.fn(), onManageModels: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn(),
+  }))));
+  expect(screen.getByText("Einstellungen werden geladen…")).toBeTruthy();
+  await act(async () => setLang("en"));
+  expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+  expect(screen.getByText("Loading settings…")).toBeTruthy();
+  expect(mocks.settings).toHaveBeenCalledTimes(1);
 });
