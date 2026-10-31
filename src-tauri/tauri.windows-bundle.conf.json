@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": [
+      "msi"
+    ],
+    "resources": {
+      "resources/WebView2/": "WebView2/",
+      "../docs/desktop.md": "README.md"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "allowDowngrades": false,
+      "wix": {
+        "upgradeCode": "e8fcfb38-1e39-4505-93ea-c1d6b77f6b6c",
+        "language": "en-US",
+        "fragmentPaths": [
+          "wix/webview2-permissions.wxs"
+        ],
+        "componentRefs": [
+          "WebView2Permissions"
+        ]
+      }
+    }
+  }
+}
