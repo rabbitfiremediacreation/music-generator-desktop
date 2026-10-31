@@ -99,6 +99,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
             startup::startup_status,
+            startup::startup_splash_progress,
             startup::startup_allowed,
             startup::splash_ready,
             startup::startup_error,

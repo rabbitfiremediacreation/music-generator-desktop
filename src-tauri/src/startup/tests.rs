@@ -6,7 +6,35 @@ use tauri::{
 
 mod exports;
 
-fn fixture(allowed: bool) -> (tempfile::TempDir, tauri::App<MockRuntime>) {
+#[test]
+fn diagnostic_log_identifies_the_process_once_before_any_handshake() {
+    let (temporary, app) = fixture(true);
+    let startup = app.state::<Startup>();
+    startup.initialize_logging().unwrap();
+    startup.initialize_logging().unwrap();
+    let log = std::fs::read_to_string(temporary.path().join("data/logs/desktop.log")).unwrap();
+    assert_eq!(log.matches("Startup process").count(), 1);
+    assert!(log.contains(&format!("pid={}", std::process::id())));
+    assert!(log.contains("version="));
+    assert!(log.contains("build="));
+    assert_eq!(*startup.painted.borrow(), 0);
+}
+
+#[test]
+fn splash_diagnostics_cannot_initialize_data_or_acknowledge_readiness() {
+    let (temporary, app) = fixture(false);
+    startup_splash_progress(
+        app.get_webview_window("splash").unwrap(),
+        app.state(),
+        1,
+        SplashProgress::FrameTimeout,
+    )
+    .unwrap();
+    assert!(!temporary.path().join("data").exists());
+    assert_eq!(*app.state::<Startup>().painted.borrow(), 0);
+}
+
+pub(super) fn fixture(allowed: bool) -> (tempfile::TempDir, tauri::App<MockRuntime>) {
     let temporary = tempfile::tempdir().unwrap();
     let app = mock_app();
     let startup = Startup::new(
