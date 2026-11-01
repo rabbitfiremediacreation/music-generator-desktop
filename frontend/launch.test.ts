@@ -44,14 +44,17 @@ it("keeps setup uninitialized when installation is required", async () => {
 
 it("initializes the real setup interface for a copied application", async () => {
   await import("./launch");
-  await vi.waitFor(() => expect(document.querySelector("#setupForm")).not.toBeNull());
+  // A cold main-module import can exceed waitFor's default timeout on Intel CI.
+  // Drain it before asserting startup, so it cannot spill into the next test.
+  await vi.dynamicImportSettled();
+  await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("startup_complete", { attempt: 2 }));
+  expect(document.querySelector("#setupForm")).not.toBeNull();
   expect(document.querySelector<HTMLElement>("#setupContent")!.hidden).toBe(false);
   expect(document.querySelector<HTMLInputElement>("#setupModels")!.value).toBe("/models");
   expect(document.querySelector("#hardwareInfo")!.textContent).toContain("CPU");
   expect(mocks.invoke).toHaveBeenCalledWith("startup_status");
   expect(mocks.invoke).toHaveBeenCalledWith("startup_allowed", { attempt: 2 });
   expect(mocks.invoke).toHaveBeenCalledWith("bootstrap", { attempt: 2 });
-  await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("startup_complete", { attempt: 2 }));
 });
 
 it("localizes a startup timeout and contains a failed error report", async () => {
