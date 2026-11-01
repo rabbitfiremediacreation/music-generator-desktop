@@ -94,8 +94,7 @@ pub fn request(params: &Value, meta: &Value) -> Value {
     let meaningful = |s: &str| {
         s.lines().any(|l| {
             let l = l.trim();
-            !l.is_empty()
-                && !(l.starts_with('[') && l.ends_with(']'))
+            !(l.is_empty() || l.starts_with('[') && l.ends_with(']'))
                 && l.chars().any(char::is_alphabetic)
         })
     };

@@ -16,6 +16,34 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
+it("acknowledges a connected splash when frames stall and records the fallback", async () => {
+  vi.mocked(window.requestAnimationFrame).mockImplementation(() => 1);
+  await import("./splash");
+  await vi.advanceTimersByTimeAsync(499);
+  expect(mocks.invoke).not.toHaveBeenCalledWith("splash_ready", { attempt: 1 });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(mocks.invoke).toHaveBeenCalledWith("startup_splash_progress", { attempt: 1, stage: "frame_timeout" });
+  expect(mocks.invoke).toHaveBeenCalledWith("splash_ready", { attempt: 1 });
+});
+
+it("cannot bypass a stalled event connection through the frame fallback", async () => {
+  mocks.listen.mockImplementation(() => new Promise(() => {}));
+  await import("./splash");
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(mocks.invoke).toHaveBeenCalledWith("startup_splash_progress", { attempt: 1, stage: "subscribing" });
+  expect(mocks.invoke).not.toHaveBeenCalledWith("splash_ready", { attempt: 1 });
+});
+
+it("does not wait for diagnostic IPC to complete", async () => {
+  mocks.invoke.mockImplementation(name => {
+    if (name === "startup_splash_progress") return new Promise(() => {});
+    return Promise.resolve(name === "startup_status" ? { attempt: 1, sequence: 1, phase: "starting", error: null } : undefined);
+  });
+  await import("./splash");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(mocks.invoke).toHaveBeenCalledWith("splash_ready", { attempt: 1 });
+});
+
 it("uses the current attempt when an event arrives before an older snapshot", async () => {
   let update = (_event: { payload: StartupStatus }) => {};
   mocks.listen.mockImplementation(async (_name, listener) => {

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { element } from "./dom";
 import { startupText } from "./startup-text";
 import { splashView, type StartupStatus } from "./splash-view";
-import { waitForPaint } from "./startup-paint";
+import { waitForSplashPaint } from "./startup-paint";
 import { startupErrorMessage } from "./startup-errors";
 
 const text = startupText();
@@ -36,16 +36,24 @@ async function failed(error: unknown, attempt: number) {
 
 async function connect() {
   let attempt = current.attempt;
+  // Diagnostics must never become another prerequisite for the handshake.
+  const progress = (stage: string) => {
+    void invoke("startup_splash_progress", { attempt, stage }).catch(() => {});
+  };
   try {
+    progress("connecting");
     update(await invoke<StartupStatus>("startup_status"));
     attempt = current.attempt;
+    progress("subscribing");
     await listen<StartupStatus>("startup-status", ({ payload }) => update(payload));
     attempt = current.attempt;
+    progress("synchronizing");
     // Catch transitions between the first snapshot and event subscription.
     update(await invoke<StartupStatus>("startup_status"));
     attempt = current.attempt;
-    // Allow the static icon, status and CSS animation to paint before backend initialization.
-    await waitForPaint();
+    progress("waiting_for_frames");
+    const paint = await waitForSplashPaint();
+    progress(paint === "frames" ? "frames_observed" : "frame_timeout");
     await invoke("splash_ready", { attempt });
   } catch (error) { await failed(error, attempt); }
 }
