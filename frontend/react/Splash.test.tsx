@@ -14,7 +14,7 @@ beforeEach(()=>{
   mocks.invoke.mockReset().mockResolvedValue({attempt:1,sequence:0,phase:"starting",error:null});
   mocks.listen.mockReset().mockImplementation(async(_name,callback)=>{update=callback;return()=>{};});setLang("en");
 });
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();});
 it("keeps newer events over a delayed startup snapshot and releases pending listeners",async()=>{
   let resolve!:(value:unknown)=>void;const off=vi.fn();
   let snapshots=0;
@@ -63,4 +63,38 @@ it("preserves a replacement attempt when retry transport fails",async()=>{
   status={attempt:2,sequence:2,phase:"starting",error:null};
   await act(async()=>rejectRetry("old transport failure"));
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("acknowledges a connected splash after 500 ms without frames and records the fallback",async()=>{
+  vi.useFakeTimers();vi.spyOn(window,"requestAnimationFrame").mockImplementation(()=>1);
+  render(<I18nProvider><Splash/></I18nProvider>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(499);});
+  expect(mocks.invoke).not.toHaveBeenCalledWith("splash_ready",{attempt:1});
+  await act(async()=>{await vi.advanceTimersByTimeAsync(1);});
+  expect(mocks.invoke).toHaveBeenCalledWith("startup_splash_progress",{attempt:1,stage:"frame_timeout"});
+  expect(mocks.invoke).toHaveBeenCalledWith("splash_ready",{attempt:1});
+});
+it("does not bypass a stalled event connection with the frame fallback",async()=>{
+  vi.useFakeTimers();mocks.listen.mockImplementation(()=>new Promise(()=>{}));
+  render(<I18nProvider><Splash/></I18nProvider>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(30000);});
+  expect(mocks.invoke).toHaveBeenCalledWith("startup_splash_progress",{attempt:1,stage:"subscribing"});
+  expect(mocks.invoke).not.toHaveBeenCalledWith("splash_ready",{attempt:1});
+});
+it("does not wait for diagnostic IPC before acknowledging frames",async()=>{
+  vi.useFakeTimers();vi.spyOn(window,"requestAnimationFrame").mockImplementation(callback=>{callback(0);return 1;});
+  mocks.invoke.mockImplementation(async name=>name==="startup_splash_progress"?new Promise(()=>{}):name==="startup_status"?{attempt:3,sequence:1,phase:"starting",error:null}:undefined);
+  render(<I18nProvider><Splash/></I18nProvider>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(mocks.invoke).toHaveBeenCalledWith("splash_ready",{attempt:3});
+});
+it("contains diagnostic failures and suppresses a pending handshake after unmount",async()=>{
+  vi.useFakeTimers();vi.spyOn(window,"requestAnimationFrame").mockImplementation(()=>1);
+  mocks.invoke.mockImplementation(async name=>{if(name==="startup_splash_progress")throw new Error("diagnostics unavailable");if(name==="startup_status")return {attempt:1,sequence:1,phase:"starting",error:null};});
+  const view=render(<I18nProvider><Splash/></I18nProvider>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(mocks.invoke).toHaveBeenCalledWith("startup_splash_progress",{attempt:1,stage:"waiting_for_frames"});
+  view.unmount();await act(async()=>{await vi.advanceTimersByTimeAsync(500);});
+  expect(mocks.invoke).not.toHaveBeenCalledWith("splash_ready",{attempt:1});
+  expect(mocks.invoke).not.toHaveBeenCalledWith("startup_splash_progress",{attempt:1,stage:"frame_timeout"});
 });

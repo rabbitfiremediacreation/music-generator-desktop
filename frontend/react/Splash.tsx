@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { startupText, type StartupLabel } from "../startup-text";
 import { startupErrorDetails, startupErrorMessage, startupErrorText } from "../startup-errors";
-import { waitForPaint } from "../startup-paint";
+import { waitForSplashPaint } from "../startup-paint";
 import { useI18n } from "./i18n";
 
 interface StartupStatus {attempt:number;sequence:number;phase:StartupLabel;error:string|null}
@@ -29,13 +29,20 @@ export function Splash(){
   useEffect(()=>{
     let stopped=false;let off:(()=>void)|undefined;let attempt=current.current.attempt;
     const timer=setTimeout(()=>{if(!stopped)setSlow(true);},15000);
+    // Diagnostic IPC must never block the startup handshake.
+    const progress=(stage:string)=>{if(!stopped)void invoke("startup_splash_progress",{attempt,stage}).catch(()=>{});};
     void(async()=>{
+      progress("connecting");
       const initial=await invoke<StartupStatus>("startup_status");if(stopped)return;update(initial);attempt=current.current.attempt;
+      progress("subscribing");
       const remove=await listen<StartupStatus>("startup-status",({payload})=>{if(!stopped)update(payload);});
       if(stopped){remove();return;}off=remove;
+      attempt=current.current.attempt;progress("synchronizing");
       const snapshot=await invoke<StartupStatus>("startup_status");if(stopped)return;update(snapshot);
       attempt=current.current.attempt;
-      await waitForPaint();
+      progress("waiting_for_frames");
+      const paint=await waitForSplashPaint();
+      progress(paint==="frames"?"frames_observed":"frame_timeout");
       if(!stopped)await invoke("splash_ready",{attempt});
     })().catch(error=>{if(!stopped)void failed(error,attempt);});
     return()=>{stopped=true;off?.();clearTimeout(timer);};

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryHistory } from "@tanstack/react-router";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
@@ -88,7 +88,10 @@ it("can reapply the same song twice even when the system clock has not advanced"
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).value).toBe("old prompt"));
 });
 
-it("binds bootstrap and readiness to the launch attempt and waits for two paints",async()=>{
+it("waits for native presentation before two main-window frames and binds readiness to the launch attempt",async()=>{
+  let presented!:()=>void;
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>name==="startup_show_main"?new Promise<void>(resolve=>{presented=resolve;}):original(name,args));
   const frames:FrameRequestCallback[]=[];
   vi.spyOn(window,"requestAnimationFrame").mockImplementation(callback=>{frames.push(callback);return frames.length;});
   const client=createAppQueryClient(4),router=createAppRouter(client,createMemoryHistory({initialEntries:["/"]}));
@@ -96,6 +99,9 @@ it("binds bootstrap and readiness to the launch attempt and waits for two paints
   await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_show_main",{attempt:4}));
   expect(mocks.invoke).toHaveBeenCalledWith("bootstrap",{attempt:4});
   expect(mocks.invoke).not.toHaveBeenCalledWith("startup_complete",{attempt:4});
+  expect(frames).toHaveLength(0);
+  await act(async()=>{presented();});
+  await waitFor(()=>expect(frames).toHaveLength(1));
   frames.shift()!(0);await Promise.resolve();
   expect(mocks.invoke).not.toHaveBeenCalledWith("startup_complete",{attempt:4});
   frames.shift()!(16);

@@ -1,5 +1,29 @@
 use super::*;
 
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum SplashProgress {
+    Connecting,
+    Subscribing,
+    Synchronizing,
+    WaitingForFrames,
+    FramesObserved,
+    FrameTimeout,
+}
+
+#[tauri::command]
+pub fn startup_splash_progress<R: Runtime>(
+    window: WebviewWindow<R>,
+    startup: State<'_, Startup>,
+    attempt: u64,
+    stage: SplashProgress,
+) -> Result<()> {
+    require_window(&window, "splash")?;
+    startup.ensure_active(attempt)?;
+    // Do not create app data here: macOS must first pass the installation check.
+    startup.log_diagnostic(attempt, &format!("Splash progress stage={stage:?}"))
+}
+
 #[tauri::command]
 pub fn startup_status(startup: State<'_, Startup>) -> Status {
     startup.snapshot()
@@ -34,6 +58,7 @@ pub async fn splash_ready<R: Runtime>(
         Ordering::Relaxed,
     );
     startup.painted.send_replace(attempt);
+    let _ = startup.log_diagnostic(attempt, "Splash handshake received");
     Ok(())
 }
 
@@ -122,14 +147,20 @@ pub async fn startup_show_main<R: Runtime>(
     if startup.main_shown.load(Ordering::Relaxed) == attempt {
         return Ok(());
     }
-    window.show().map_err(|e| message(e.to_string()))?;
-    let _ = window.set_focus();
-    startup.main_shown.store(attempt, Ordering::Relaxed);
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
     *startup
         .main_deadline
         .lock()
         .expect("startup deadline poisoned") = Some(deadline);
+    startup
+        .present_main(
+            &app,
+            attempt,
+            deadline,
+            presentation::show(&window, attempt),
+        )
+        .await?;
+    let _ = window.set_focus();
     tokio::spawn(async move {
         tokio::time::sleep_until(deadline).await;
         let startup = app.state::<Startup>();
