@@ -404,6 +404,16 @@ pub async fn analyze(
     filename: String,
     selection: Option<crate::catalog::Selection>,
 ) -> Result<Value> {
+    analyze_audio(&state, data, filename, selection).await
+}
+
+/// Shared by the studio and phone access.
+pub(crate) async fn analyze_audio(
+    state: &AppState,
+    data: Vec<u8>,
+    filename: String,
+    selection: Option<crate::catalog::Selection>,
+) -> Result<Value> {
     if data.len() > 60 * 1024 * 1024 {
         return Err(message("audio_size"));
     }
@@ -415,7 +425,7 @@ pub async fn analyze(
     if !state.runtime.is_ready() {
         return Err(message("Complete model setup first"));
     }
-    let settings = crate::admission::analysis_settings(&state, selection)?;
+    let settings = crate::admission::analysis_settings(state, selection)?;
     let cancel = operation.cancellation();
     let engine = state.start_engine(&operation, &settings).await?;
     let _awake = crate::power::KeepAwake::new();

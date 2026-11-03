@@ -21,6 +21,7 @@ pub mod library;
 pub mod manifest;
 mod model_commands;
 pub mod paths;
+pub mod phone_access;
 pub mod power;
 mod process_output;
 mod random_titles;
@@ -139,6 +140,8 @@ pub fn run() {
             commands::exit_app,
             commands::remember_folder,
             paths::dialog_directory,
+            phone_access::phone_access_status,
+            phone_access::set_phone_access,
             audio_import::pick_audio_file,
             model_commands::model_catalog,
             model_commands::use_models,

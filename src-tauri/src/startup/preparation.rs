@@ -67,6 +67,10 @@ impl Startup {
         );
         app.manage(state.clone());
         tauri::async_runtime::spawn(jobs::worker(state.clone(), app.clone()));
+        tauri::async_runtime::spawn(crate::phone_access::restore(
+            state.clone(),
+            crate::phone_access::library_events(app.clone()),
+        ));
         self.ensure_active(attempt)?;
         Ok(state)
     }
