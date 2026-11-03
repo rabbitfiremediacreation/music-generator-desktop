@@ -147,3 +147,40 @@ it("opens the configured song folder and reports failure without closing the dia
   expect((await screen.findByRole("alert")).textContent).toBe("Could not open the folder.");
   expect(screen.getByRole("dialog")).toBeTruthy();expect(callbacks.onClose).not.toHaveBeenCalled();
 });
+
+it("dismisses with Escape from an edited field without saving the draft", async () => {
+  render(view());
+  const timeout = await screen.findByRole("spinbutton");
+  fireEvent.change(timeout, {target:{value:"75"}});
+  fireEvent.keyDown(timeout, {key:"Escape",code:"Escape"});
+  expect(callbacks.onClose).toHaveBeenCalledOnce();
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
+
+it("dismisses on a backdrop click but ignores padding and a drag starting inside", async () => {
+  render(view());await screen.findByRole("spinbutton");
+  const dialog=screen.getByRole("dialog");
+  vi.spyOn(dialog,"getBoundingClientRect").mockReturnValue({left:100,right:500,top:100,bottom:600} as DOMRect);
+  fireEvent.pointerDown(dialog,{clientX:110,clientY:110});fireEvent.click(dialog,{clientX:110,clientY:110});
+  fireEvent.pointerDown(dialog,{clientX:110,clientY:110});fireEvent.click(dialog,{clientX:10,clientY:10});
+  expect(callbacks.onClose).not.toHaveBeenCalled();
+  fireEvent.pointerDown(dialog,{clientX:10,clientY:10});fireEvent.click(dialog,{clientX:10,clientY:10});
+  expect(callbacks.onClose).toHaveBeenCalledOnce();expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
+
+it("blocks Escape, native cancel and backdrop dismissal while a settings save is running", async () => {
+  let finish!:(value:Settings)=>void;
+  mocks.saveSettings.mockImplementationOnce(()=>new Promise<Settings>(resolve=>{finish=resolve;}));
+  render(view());const timeout=await screen.findByRole("spinbutton");
+  fireEvent.change(timeout,{target:{value:"75"}});
+  fireEvent.submit(screen.getByRole("button",{name:t("save")}).closest("form")!);
+  await waitFor(()=>expect(finish).toBeTypeOf("function"));
+  const dialog=screen.getByRole("dialog");
+  vi.spyOn(dialog,"getBoundingClientRect").mockReturnValue({left:100,right:500,top:100,bottom:600} as DOMRect);
+  fireEvent.keyDown(timeout,{key:"Escape",code:"Escape"});
+  fireEvent(dialog,new Event("cancel",{cancelable:true}));
+  fireEvent.pointerDown(dialog,{clientX:10,clientY:10});fireEvent.click(dialog,{clientX:10,clientY:10});
+  expect(callbacks.onClose).not.toHaveBeenCalled();
+  await act(async()=>finish({...settings,timeout_minutes:75}));
+  await waitFor(()=>expect(callbacks.onClose).toHaveBeenCalledOnce());
+});

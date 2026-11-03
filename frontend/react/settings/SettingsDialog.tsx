@@ -19,6 +19,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const { t } = useI18n();
   const state = useSettingsDraft(props.open, props.onClose, props.onBusyChange);
   const dialog = useRef<HTMLDialogElement>(null);
+  const backdropPress = useRef(false);
   const [pathError, setPathError] = useState<unknown>();
   const openFolder = useMutation({ mutationFn: backend.openSongsFolder, retry: false, networkMode: "always" });
   const update = useMutation({ mutationFn: backend.checkUpdate, retry: false, networkMode: "always" });
@@ -31,7 +32,19 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const navigate = (action: () => void) => { props.onClose(); action(); };
   const error = failure ?? pathError;
   const errorText = error instanceof Error && error.message === "mp3_failed" ? t("mp3_failed") : error ? pathErrorText(modelErrorText(error, t)) : "";
-  return <dialog ref={dialog} id="settingsDlg" aria-labelledby="settingsHeading" onCancel={event => { event.preventDefault(); if (!saving) props.onClose(); }}>
+  const outside = (x: number, y: number) => {
+    const bounds = dialog.current!.getBoundingClientRect();
+    return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom;
+  };
+  const dismiss = () => { if (!saving) props.onClose(); };
+  return <dialog ref={dialog} id="settingsDlg" aria-labelledby="settingsHeading"
+    onCancel={event => { event.preventDefault(); dismiss(); }}
+    onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } }}
+    onPointerDown={event => { backdropPress.current = event.target === event.currentTarget && outside(event.clientX, event.clientY); }}
+    onClick={event => {
+      const startedOutside = backdropPress.current; backdropPress.current = false;
+      if (startedOutside && event.target === event.currentTarget && outside(event.clientX, event.clientY)) { event.preventDefault(); dismiss(); }
+    }}>
     <form id="settingsForm" aria-busy={saving || pending} onSubmit={event => { event.preventDefault(); void state.submit(); }}>
       <h2 id="settingsHeading" className="col-title">{t("settings_title")}</h2>
       <p role="status" aria-live="polite">{status && t(status)}</p>

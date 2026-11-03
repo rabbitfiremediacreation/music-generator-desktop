@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCudaSetup } from "./useCudaSetup";
 import { backend } from "../../backend";
 import { modelLabel } from "../../expert-mode";
+import { selectionFromSettings } from "../../creator-models";
 import type { Bootstrap, DownloadProgress, SetupRequest } from "../../types";
 
 /** Setup keeps editable paths separate from debounced estimates and durable settings. */
@@ -11,7 +12,7 @@ export function useSetup(bootstrap: Bootstrap, onReady?: () => void) {
   const canUseXl = bootstrap.settings.expert_mode || bootstrap.recommended_profiles.some(profile => profile.synthesis.includes("-xl-"));
   const [draft, setDraft] = useState<SetupRequest>(() => ({
     models_dir: bootstrap.settings.models_dir, songs_dir: bootstrap.settings.songs_dir,
-    xl: canUseXl && (bootstrap.settings.dit === "xl" || Boolean(bootstrap.settings.dit_xl_available)),
+    xl: canUseXl && selectionFromSettings(bootstrap.settings).synthesis.includes("-xl-"),
     lm: bootstrap.settings.lm_model.match(/-(0\.6B|1\.7B|4B)-/)?.[1] || bootstrap.hardware.recommended_lm,
   }));
   const recommended = bootstrap.recommended_profiles.find(profile => profile.synthesis.includes("-xl-") === draft.xl);

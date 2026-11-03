@@ -20,6 +20,7 @@ beforeEach(() => {
   ipc.invoke.mockImplementation(async (name: string, args?: { current?: string }) => {
     if (name === "setup_estimate") return { missing_bytes: 0, free_bytes: 1024 ** 4 };
     if (name === "generation_policy") return { backend: "gpu" };
+    if (name === "cuda_status") return { state: "not_applicable", details: null, download_bytes: 0 };
     if (name === "setup_models") return { ok: true, mode: "single", backend_status: measuredBackend };
     if (name === "dialog_directory") return args?.current || "/home/test";
   });
@@ -157,4 +158,21 @@ it("announces cancellation, preserves selections and allows a translated retry",
   expect(screen.queryByText(/Setup cancelled/)).toBeNull();
   const requests=ipc.invoke.mock.calls.filter(([name])=>name==="setup_models");
   expect(requests[1][1]).toEqual(requests[0][1]);
+});
+
+it("does not preselect an additional XL download just because XL files exist on a 6 GiB GPU", async () => {
+  const bootstrap:Bootstrap={...setupFixture,settings:{...setupFixture.settings,dit_xl_available:true},hardware:{...setupFixture.hardware,platform:"windows",gpu:"NVIDIA GTX 1060",cpu_only:false,vram_bytes:6*1024**3},recommended_profiles:[...setupFixture.recommended_profiles,{...setupFixture.recommended_profiles[0],synthesis:"acestep-v15-xl-sft-Q8_0.gguf"}]};
+  const ready=vi.fn();mount(bootstrap,ready);
+  await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
+  const xl=screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement;
+  expect(xl.checked).toBe(false);
+  expect(ipc.invoke).toHaveBeenCalledWith("setup_estimate",{request:expect.objectContaining({xl:false})});
+  fireEvent.click(xl);expect(xl.checked).toBe(true);
+  await waitFor(()=>expect(ipc.invoke).toHaveBeenCalledWith("setup_estimate",{request:expect.objectContaining({xl:true})}));
+});
+
+it("restores an explicitly selected XL profile when managing models", async () => {
+  const ready=vi.fn();mount({...setupFixture,needs_setup:false,settings:{...setupFixture.settings,dit:"xl",synthesis_model:"acestep-v15-xl-sft-Q8_0.gguf"},recommended_profiles:[{...setupFixture.recommended_profiles[0],synthesis:"acestep-v15-xl-sft-Q8_0.gguf"}]},ready);
+  await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
+  expect((screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement).checked).toBe(true);
 });

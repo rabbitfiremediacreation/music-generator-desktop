@@ -7,7 +7,7 @@ import type { Song } from "../types";
 const engine = { load: vi.fn(), play: vi.fn(), pause: vi.fn(), playPause: vi.fn(), destroy: vi.fn(), on: vi.fn(), setVolume: vi.fn(), getDuration: vi.fn(), getCurrentTime: vi.fn() };
 const handlers = new Map<string,()=>void>();
 const song = (id: string) => ({id,title:id,url:`asset:${id}`,caption:id,seed:1} as Song);
-function Choices() { const player = usePlayer(); return <><button onClick={() => player.play(song("first"))}>first</button><button onClick={() => player.play(song("second"))}>second</button></>; }
+function Choices() { const player = usePlayer(); return <><button onClick={() => player.play(song("first"))}>first</button><button onClick={() => player.play(song("second"))}>second</button><button onClick={() => player.clear("first")}>delete first</button></>; }
 beforeEach(() => {
   vi.resetAllMocks(); handlers.clear();engine.getDuration.mockReturnValue(10);engine.getCurrentTime.mockReturnValue(0);
   engine.load.mockResolvedValue(undefined); engine.on.mockImplementation((name,callback)=>{handlers.set(name,callback);return()=>{};});
@@ -47,4 +47,26 @@ it("only plays the latest requested song and releases audio resources", async ()
   expect(engine.play).toHaveBeenCalledOnce();
   expect(engine.pause).toHaveBeenCalled();
   view.unmount(); expect(engine.destroy).toHaveBeenCalledOnce();
+});
+
+it("clears a deleted song, cancels its pending load and releases the waveform",async()=>{
+  let finish!:()=>void;
+  engine.load.mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve;}));
+  render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
+  fireEvent.click(screen.getByText("first"));
+  await waitFor(()=>expect(engine.load).toHaveBeenCalledWith("asset:first"));
+  fireEvent.click(screen.getByText("delete first"));
+  expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(true);
+  expect(document.querySelector("#pTitle")!.textContent).toBe("");
+  expect(engine.pause).toHaveBeenCalled();expect(engine.destroy).toHaveBeenCalledOnce();
+  await act(async()=>finish());expect(engine.play).not.toHaveBeenCalled();
+});
+it("keeps the current song when a different song is deleted",async()=>{
+  render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
+  fireEvent.click(screen.getByText("second"));
+  await waitFor(()=>expect(engine.play).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByText("delete first"));
+  expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);
+  expect(document.querySelector("#pTitle")!.textContent).toBe("second");
+  expect(engine.destroy).not.toHaveBeenCalled();
 });

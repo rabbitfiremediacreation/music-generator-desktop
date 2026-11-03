@@ -76,7 +76,7 @@ it("stops automatically at thirty seconds and applies a microphone analysis", as
   }
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack }] })) } });
   vi.stubGlobal("MediaRecorder", Recorder); vi.stubGlobal("AudioContext", Context);
-  mocks.analyze.mockResolvedValue({ caption: "calm", bpm: 80, keyscale: "C major" });
+  mocks.analyze.mockResolvedValue({ caption: "calm", prompt: "an unrelated engine prompt", bpm: 80, keyscale: "C major" });
   const { onAnalysis } = mount();
   const microphone = screen.getByRole("button", { name: t("rec_aria") });
   fireEvent.pointerDown(microphone, { button: 0 });

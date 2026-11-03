@@ -5,28 +5,34 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Library } from "./library/Library";
 import { I18nProvider } from "./i18n";
 import { createAppQueryClient } from "./data";
-import { PlayerProvider } from "./player";
+import { Player, PlayerProvider } from "./player";
 import { GenerationAdmissionProvider } from "./generation/admission";
 import { setLang } from "../i18n.js";
 import type { Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
+const waveform={load:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
 let songs: Song[];
 beforeEach(() => {
   setLang("en");
+  Object.values(waveform).forEach(method=>{if(vi.isMockFunction(method))method.mockReset();});
+  waveform.load.mockResolvedValue(undefined);waveform.play.mockResolvedValue(undefined);waveform.on.mockReturnValue(()=>{});
+  Object.assign(window,{WaveSurfer:{create:()=>waveform}});
+  vi.stubGlobal("ResizeObserver",class {observe(){}disconnect(){}});
   songs = [{id:"one",title:"A song",caption:"night",letter:"A",group_id:"g",status:"done",favorite:false,params:{inference_steps:200},result_meta:{duration: 8,duration_source:"wav",inference_steps_limit:200,effective_inference_steps:200},created_at:"2026-01-01",lyrics:"[Instrumental]",finished_at:null,message:null,seed:1,file:null,audio_missing:false,folder_id:null,path:null}];
   mocks.invoke.mockReset().mockImplementation(async (name,args) => {
     if(name === "list_songs") return songs.filter(song => !args.filter.favorites || song.favorite);
     if(name === "list_folders") return {folders:[],all:songs.length,none:songs.length};
     if(name === "queue") return {running:[],queued:0,active:false,progress:null,library:{count:songs.length,bytes:1000}};
     if(name === "get_settings") return {export_format:"wav"};
+    if(name === "delete_song") {songs=songs.filter(song=>song.id!==args.id);return {cancelled:false,deleted:true};}
     if(name === "patch_song") {songs = songs.map(song => song.id === args.id ? {...song,...args.patch} : song);return songs[0];}
   });
 });
-afterEach(cleanup);
-function mount() {
+afterEach(()=>{cleanup();vi.unstubAllGlobals();});
+function mount(withPlayer=false) {
   const client = createAppQueryClient();
-  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><Library folder="" onFolderChange={() => {}} onReuse={() => {}} selection={null}/></PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><Library folder="" onFolderChange={() => {}} onReuse={() => {}} selection={null}/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
   return client;
 }
 it("updates the favorite view after mutation and preserves inline edits during a refresh", async () => {
@@ -123,4 +129,28 @@ it("translates the completion announcement when the interface language changes",
   await waitFor(()=>expect(screen.getByRole("status").textContent).toBe("Done: A song A"));
   act(()=>setLang("de"));
   expect(screen.getByRole("status").textContent).toBe("Fertig: A song A");
+});
+
+it("stops playback and clears the player only after a successful confirmed deletion",async()=>{
+  songs[0].path="/songs/one.wav";mount(true);
+  fireEvent.click(await screen.findByRole("button",{name:"Play"}));
+  await waitFor(()=>expect(waveform.play).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+  expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);
+  fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await waitFor(()=>expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(true));
+  expect(document.querySelector("#pTitle")!.textContent).toBe("");
+  expect(waveform.destroy).toHaveBeenCalledOnce();
+});
+it("keeps the loaded song after a rejected deletion or a filtered library refresh",async()=>{
+  songs[0].path="/songs/one.wav";
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>name==="delete_song"?Promise.reject(new Error("permission denied")):original(name,args));
+  mount(true);fireEvent.click(await screen.findByRole("button",{name:"Play"}));
+  await waitFor(()=>expect(waveform.play).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button",{name:"Delete"}));fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await screen.findByRole("alert");
+  expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);expect(waveform.destroy).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));await screen.findByText("Nothing yet");
+  expect(document.querySelector("#pTitle")!.textContent).toBe("A song");expect(waveform.destroy).not.toHaveBeenCalled();
 });

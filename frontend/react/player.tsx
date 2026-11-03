@@ -14,7 +14,8 @@ function saved<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback; } catch { return fallback; }
 }
 const PlayerContext = createContext<{
-  song: Song | null; playing: boolean; played: Set<string>; play: (song: Song) => void;
+  song: Song | null; playing: boolean; played: Set<string>; play: (song: Song) => void; clear: (id: string) => void;
+  loadRevision: React.RefObject<number>;
   engine: React.RefObject<Waveform | null>; setPlaying: (value: boolean) => void; error: string; setError: (error: string) => void;
 } | null>(null);
 
@@ -25,13 +26,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return new Set<string>(Array.isArray(value)?value.filter((id):id is string=>typeof id==="string"):[]);
   });
   const engine = useRef<Waveform | null>(null);
-  const current = useRef<Song | null>(null);
+  const current = useRef<Song | null>(null), loadRevision = useRef(0);
   const play = useCallback((next: Song) => {
     if (current.current?.id === next.id && engine.current) { void engine.current.playPause().catch(cause => setError(String(cause))); return; }
+    loadRevision.current++;
     engine.current?.pause(); setPlaying(false); setError(""); current.current = next; setSong(next);
     setPlayed(previous => { const updated = new Set(previous).add(next.id); try {localStorage.setItem("played", JSON.stringify([...updated]));} catch { /* Playback remains available without storage. */ } return updated; });
   }, []);
-  return <PlayerContext.Provider value={{ song, playing, played, play, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
+  const clear = useCallback((id: string) => {
+    if (current.current?.id !== id) return;
+    loadRevision.current++; current.current = null; engine.current?.pause();
+    setSong(null); setPlaying(false); setError("");
+  }, []);
+  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
 }
 export function usePlayer() {
   const player = useContext(PlayerContext);
@@ -42,8 +49,8 @@ export function usePlayer() {
 /** Keep one waveform alive across route changes and reject superseded audio loads. */
 export function Player() {
   const { t } = useI18n();
-  const { song, playing, engine, setPlaying, error, setError } = usePlayer();
-  const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null), sequence = useRef(0);
+  const { song, playing, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
+  const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null);
   const [time, setTime] = useState("0:00 / 0:00");
   const [volume, setVolume] = useState(() => {
     const value=saved<unknown>("volume",1);
@@ -63,14 +70,14 @@ export function Player() {
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
     return () => { loadSequence.current++; offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
-  }, [active, engine, setPlaying]);
+  }, [active, engine, sequence, setPlaying]);
   useEffect(() => {
     if (!song?.url || !engine.current) return;
     const loadSequence = sequence;
     const instance = engine.current, version = ++loadSequence.current;
     void instance.load(song.url).then(() => { if (version === sequence.current) return instance.play(); }).catch(cause => { if (version === sequence.current) setError(String(cause)); });
     return () => { loadSequence.current++; };
-  }, [song, active, engine, setError]);
+  }, [song, active, engine, sequence, setError]);
   useEffect(() => {
     engine.current?.setVolume(muted ? 0 : volume);
     try {localStorage.setItem("volume", String(volume)); localStorage.setItem("muted", muted ? "1" : "0");} catch { /* Audio does not depend on saved preferences. */ }

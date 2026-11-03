@@ -20,6 +20,7 @@ beforeEach(() => {
   ipc.invoke.mockImplementation(async (command: string, args: { request?: Generation }) => {
     if (command === "get_generation_form_preferences") return preferences;
     if (command === "generation_policy") return currentPolicy;
+    if (command === "queue") return { queued: requests.length, running: [], active: false, progress: null, library: { count: 0, bytes: 0 } };
     if (command === "generate") { requests.push(args.request!); return { ids: ["song-1"] }; }
     if (command === "save_generation_form_preferences") return;
     throw new Error(`Unexpected command: ${command}`);
@@ -212,7 +213,7 @@ it("keeps microphone analysis from replacing the user's chosen title, style and 
   expect((screen.getByLabelText("Titel") as HTMLInputElement).value).toBe("My idea");
   expect((screen.getByLabelText("Stil") as HTMLTextAreaElement).value).toBe("quiet piano");
   expect((screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement).value).toBe("90");
-  expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("A rising melody");
+  expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("energetic synthesizer");
   view.changeProps({ analysis: { values: { caption: "energetic synthesizer", duration: 201, bpm: 120 }, revision: 2 } });
   expect((screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement).value).toBe("200");
 });
@@ -293,4 +294,44 @@ it("bounds older out-of-range song parameters to the visible controls before gen
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toMatchObject({ duration: 600, bpm: 200, lm_temperature: 1.5 });
   expect(song.params.duration).toBe(900);
+});
+
+it.each([[30, 0], [123.7, 124], [250, 200]])("normalizes analyzed %s BPM before saving preferences and generating", async (bpm, expected) => {
+  let flush!: () => Promise<void>;
+  const view = mount({ onPreferencesFlush: value => { flush = value; } });
+  await waitFor(() => expect((screen.getByRole("button", { name: "2× GENERIEREN" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.change(screen.getByRole("slider", { name: "BPM" }), { target: { value: "90" } });
+  view.changeProps({ analysis: { values: { caption: "a calm piano", prompt: "unrelated engine prompt", bpm }, revision: 1 } });
+  await act(async () => { await flush(); });
+  const writes = ipc.invoke.mock.calls.filter(([command]) => command === "save_generation_form_preferences");
+  expect(writes.at(-1)?.[1]).toEqual({ values: { ...preferences, bpm: expected } });
+  expect(screen.getByRole("slider", { name: "BPM" }).getAttribute("aria-valuetext")).toBe(expected ? `${expected} BPM` : "Auto");
+  fireEvent.submit(document.querySelector("#genForm")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ prompt: "a calm piano", bpm: expected });
+});
+it.each(["[Instrumental]", "  [instrumental]  "])("recognizes manually typed %s as instrumental in both hint and payload", async lyrics => {
+  mount();
+  await waitFor(() => expect((screen.getByRole("button", { name: "2× GENERIEREN" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Lyrics automatisch schreiben lassen (erst beim Generieren)" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: lyrics } });
+  expect(document.querySelector("#lyricsHint")!.textContent).toBe("[Instrumental]");
+  fireEvent.submit(document.querySelector("#genForm")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ instrumental: true, lyrics: "", vocal_language: "" });
+});
+it("updates the queued announcement from backend snapshots and clears it once no songs are queued", async () => {
+  const original = ipc.invoke.getMockImplementation()!;
+  let queued = 2;
+  ipc.invoke.mockImplementation(async (command, args) => command === "queue" ? { queued, running: [], active: false, progress: null, library: { count: 0, bytes: 0 } } : original(command, args));
+  const view = mount();
+  await waitFor(() => expect((screen.getByRole("button", { name: "2× GENERIEREN" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.submit(document.querySelector("#genForm")!);
+  await screen.findByText("2 Song(s) in der Warteschlange");
+  queued = 1;
+  await act(async () => { await view.client.invalidateQueries({ queryKey: ["queue"] }); });
+  await screen.findByText("1 Song(s) in der Warteschlange");
+  queued = 0;
+  await act(async () => { await view.client.invalidateQueries({ queryKey: ["queue"] }); });
+  await waitFor(() => expect(screen.queryByText(/Song\(s\) in der Warteschlange/)).toBeNull());
 });
