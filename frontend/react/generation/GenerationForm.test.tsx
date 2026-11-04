@@ -38,7 +38,7 @@ it("keeps conservative initial defaults and supported limits before backend valu
   const {container}=mount();
   const input=(name:string)=>container.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
   expect(input("inference_steps").value).toBe("30");
-  expect(input("lm_temperature").value).toBe("1.2");
+  expect(input("lm_temperature").value).toBe("0.85");
   expect(input("duration").max).toBe("600");
   expect(input("inference_steps").max).toBe("200");
   expect(screen.queryByText(I18N.de.len_long)).toBeNull();
