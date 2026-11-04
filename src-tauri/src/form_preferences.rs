@@ -25,7 +25,7 @@ impl Default for GenerationFormPreferences {
             duration: 90.0,
             bpm: 0,
             inference_steps: 30,
-            lm_temperature: 1.2,
+            lm_temperature: 0.85,
             variants: 2,
         }
     }

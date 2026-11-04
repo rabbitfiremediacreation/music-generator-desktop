@@ -40,7 +40,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
-  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${song.params.lm_temperature.toFixed(1)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
+  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
     aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>

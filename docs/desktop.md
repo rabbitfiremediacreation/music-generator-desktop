@@ -66,7 +66,7 @@ Settings → Export selects lossless WAV or MP3 at 192 kbit/s for both individua
 
 On macOS, ZIP exports use Foundation's temporary item replacement directory so the save dialog's grant to the chosen file is sufficient. An existing ZIP is replaced only after the new archive is complete; no permission to create sibling files in the destination folder is required.
 
-ACE-Step shows **IT** for synthesis iterations and **VAR** for language-model variance/temperature. New forms start at 80 and 1.2; saved songs retain their previous values. More iterations take longer; higher variance gives freer output, lower variance follows the style and prompt more closely. Use the explicit ModelPicker recommendation for other families, such as Turbo.
+ACE-Step shows **IT** for synthesis iterations and **VAR** for language-model variance/temperature. New forms start at 80 and 0.85; saved songs retain their previous values. More iterations take longer; higher variance gives freer output, lower variance follows the style and prompt more closely. Use the explicit ModelPicker recommendation for other families, such as Turbo.
 
 ## Settings and export destinations
 

@@ -82,6 +82,14 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("shows the variance with up to two decimals",async()=>{
+  songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
+  const view=mount();await screen.findByText("A song A");
+  expect(document.querySelector(".song .m")!.textContent).toBe("0.85VAR");
+  songs[0]={...songs[0],params:{inference_steps:0,lm_temperature:1.2}};
+  await view.invalidateQueries({queryKey:["songs"]});
+  await screen.findByText("1.2VAR");
+});
 it("allows selecting lyrics without starting a song drag",async()=>{
   const original=mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation((name,args)=>name==="list_folders"?Promise.resolve({folders:[{id:"ideas",name:"Ideas",count:1}],all:1,none:0}):original(name,args));

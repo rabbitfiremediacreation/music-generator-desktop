@@ -2,7 +2,7 @@ import { samplingForSong } from "../../song-sampling";
 import { extractStyleTags } from "../../style-tags";
 import type { GenerationFormPreferences, ModelSelection, Song } from "../../types";
 
-export const DEFAULT_PREFERENCES: GenerationFormPreferences = { duration: 90, bpm: 0, inference_steps: 30, lm_temperature: 1.2, variants: 2 };
+export const DEFAULT_PREFERENCES: GenerationFormPreferences = { duration: 90, bpm: 0, inference_steps: 30, lm_temperature: 0.85, variants: 2 };
 export const VOCAL_LANGUAGES = ["en", "de", "fr", "es", "it", "pt", "ja", "ko", "zh", "ru"];
 export const KEYS = ["C major", "G major", "D major", "A major", "E major", "F major", "A minor", "E minor", "D minor", "C minor"];
 export interface FormValues extends GenerationFormPreferences {
