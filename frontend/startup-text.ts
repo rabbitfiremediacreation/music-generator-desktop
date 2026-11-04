@@ -19,8 +19,6 @@ export const startupTranslations = {
   zh: ["正在启动 Music Generator…", "正在打开曲库…", "正在检测硬件…", "正在加载设置…", "正在准备界面…", "准备就绪", "无法启动", "重试", "退出", "启动时间较长。可以退出后重试。", "你的音乐。在你的电脑上。", "无法完成启动。请重试。", "技术详情", "请安装 Music Generator。", "退出应用，将其拖到已打开的 DMG 中的“应用程序”文件夹，推出 DMG，然后启动复制后的应用。"],
 } satisfies Record<Language, Messages<typeof startupKeys>>;
 
-export function startupText() {
-  const language = preferredLanguage();
-  document.documentElement.lang = language;
+export function startupText(language: Language = preferredLanguage()) {
   return Object.fromEntries(startupKeys.map((key, index) => [key, startupTranslations[language][index]])) as Record<StartupLabel, string>;
 }

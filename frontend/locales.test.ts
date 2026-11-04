@@ -1,14 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { LANGS, preferredLanguage, resolveLanguage } from "./locales";
-import { startupKeys, startupText, startupTranslations } from "./startup-text";
-import { splashView } from "./splash-view";
-import html from "./splash.html?raw";
 import { startupErrorKeys, startupErrorText, startupErrorTranslations } from "./startup-errors";
+import { LANGS, preferredLanguage, resolveLanguage } from "./locales";
+import { startupKeys, startupTranslations } from "./startup-text";
 
 beforeEach(() => {
   localStorage.clear();
-  document.body.innerHTML = html.match(/<body>([\s\S]*)<\/body>/)![1].replace(/<script\b[\s\S]*?<\/script>/g, "");
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -18,54 +15,6 @@ it("has complete startup messages for every registered interface language", () =
     expect(values).toHaveLength(startupKeys.length);
     expect(values.every(value => value.trim().length > 0)).toBe(true);
   }
-});
-
-it("has complete startup failure translations for every interface language", () => {
-  expect(Object.keys(startupErrorTranslations).sort()).toEqual(Object.keys(LANGS).sort());
-  for (const messages of Object.values(startupErrorTranslations)) {
-    expect(messages).toHaveLength(startupErrorKeys.length);
-    expect(messages.every(message => message.trim().length > 0)).toBe(true);
-  }
-});
-
-it.each(Object.keys(LANGS) as (keyof typeof LANGS)[])("translates startup timeouts in %s and keeps unknown diagnostics separate", language => {
-  localStorage.setItem("ui_lang", language);
-  const text = startupText();
-  const render = splashView(text);
-  render({ attempt: 1, sequence: 1, phase: "error", error: "startup_splash_timeout" });
-  expect(document.querySelector("#splashError")!.textContent).toBe(startupErrorTranslations[language][0]);
-  expect(document.querySelector("#splashDiagnostic")!.textContent).toBe(startupErrorTranslations[language][0]);
-  render({ attempt: 1, sequence: 2, phase: "error", error: "startup_main_timeout" });
-  expect(document.querySelector("#splashError")!.textContent).toBe(startupErrorTranslations[language][1]);
-  render({ attempt: 1, sequence: 3, phase: "error", error: "database is locked" });
-  expect(document.querySelector("#splashError")!.textContent).toBe(text.failure);
-  expect(document.querySelector("#splashDiagnostic")!.textContent).toBe("database is locked");
-  expect(startupErrorText(new Error("startup_main_timeout"))).toBe(startupErrorTranslations[language][1]);
-});
-
-it.each(Object.keys(LANGS) as (keyof typeof LANGS)[])("localizes the complete error state in %s", (language) => {
-  localStorage.setItem("ui_lang", language);
-  const text = startupText();
-  splashView(text)({ attempt: 1, sequence: 1, phase: "error", error: "database is locked" });
-  expect(document.documentElement.lang).toBe(language);
-  expect(document.querySelector("#splashStatus")!.textContent).toBe(text.error);
-  expect(document.querySelector("#splashError")!.textContent).toBe(text.failure);
-  expect(document.querySelector("#splashRetry")!.textContent).toBe(text.retry);
-  expect(document.querySelector("#splashClose")!.getAttribute("aria-label")).toBe(text.quit);
-  expect(document.querySelector("#splashDetailsLabel")!.textContent).toBe(text.details);
-  expect(document.querySelector("#splashFooter")!.textContent).toBe(text.footer);
-  expect(document.querySelector<HTMLDetailsElement>("#splashDetails")!.open).toBe(false);
-  expect(document.querySelector("#splashError")!.textContent).not.toContain("database is locked");
-});
-
-it.each(Object.keys(LANGS) as (keyof typeof LANGS)[])("localizes the installation requirement in %s", language => {
-  localStorage.setItem("ui_lang", language);
-  const text = startupText();
-  splashView(text)({ attempt: 1, sequence: 1, phase: "installation_required", error: null });
-  expect(document.documentElement.lang).toBe(language);
-  expect(document.querySelector("#splashStatus")!.textContent).toBe(text.installation_required);
-  expect(document.querySelector("#splashInstallation")!.textContent).toBe(text.installation_steps);
-  expect(document.querySelector("#splashQuit")!.textContent).toBe(text.quit);
 });
 
 it.each([
@@ -80,4 +29,14 @@ it("uses the system language when local storage cannot be read", () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("storage unavailable"); });
   vi.spyOn(navigator, "language", "get").mockReturnValue("fr-CA");
   expect(preferredLanguage()).toBe("fr");
+});
+
+it("translates all startup errors and keeps unknown diagnostics out of the main message", () => {
+  expect(Object.keys(startupErrorTranslations).sort()).toEqual(Object.keys(LANGS).sort());
+  for (const values of Object.values(startupErrorTranslations)) {
+    expect(values).toHaveLength(startupErrorKeys.length);
+    expect(values.every(value=>value.trim().length>0)).toBe(true);
+  }
+  expect(startupErrorText("startup_splash_timeout")).toBe(startupErrorTranslations[preferredLanguage()][0]);
+  expect(startupErrorText("private raw diagnostic")).not.toContain("private raw diagnostic");
 });

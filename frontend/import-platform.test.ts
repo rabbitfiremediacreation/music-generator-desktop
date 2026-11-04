@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./import-i18n";
 import { setLang } from "./i18n.js";
-import { openLibraryAssistant } from "./import-wizard";
+import { ImportDialog } from "./react/import/ImportDialog";
+import { I18nProvider } from "./react/i18n";
 import type { ImportPreview } from "./types";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), open: vi.fn() }));
@@ -10,18 +14,16 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: mocks.listen }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
 
-const get = <T extends HTMLElement = HTMLElement>(selector: string): T => document.querySelector<T>(selector)!;
 const preview: ImportPreview = { songs: 1, folders: 0, files: 1, bytes: 10, free_bytes: 100, songs_source: "/old", missing: [], issues: [], can_import: true };
 
 beforeEach(() => {
   vi.resetAllMocks();
-  document.body.replaceChildren();
   setLang("de");
   mocks.listen.mockResolvedValue(() => {});
   mocks.invoke.mockResolvedValue(preview);
   vi.spyOn(HTMLDialogElement.prototype, "showModal").mockImplementation(function (this: HTMLDialogElement) { this.open = true; });
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const copy = {
   de: {
@@ -65,12 +67,13 @@ const accessIssues = ["source_access", "songs_access", "target_access"];
 
 // Exercise the real backend adapter and translations; only native Tauri APIs are mocked.
 async function openAssistant(mode: "import" | "move", platform: string): Promise<void> {
-  await openLibraryAssistant(mode, "/songs", platform);
+  render(createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }, createElement(I18nProvider, null, createElement(ImportDialog, { open: true, mode, songsDirectory: "/songs", platform, onClose: vi.fn() }))));
   if (mode === "import") {
     mocks.open.mockResolvedValueOnce("/library");
-    get("#importSourcePick").click();
-    await vi.waitFor(() => expect(get("#importSummary").textContent).toContain("1"));
+    fireEvent.click(screen.getByRole("button", { name: /Choose previous installation|Alte Installation auswählen/ }));
   }
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(mode === "import" ? "preview_import" : "preview_library_move", expect.any(Object)));
+  await waitFor(() => expect(screen.queryByText(/Checking library and free space|Bibliothek und Speicherplatz werden geprüft/)).toBeNull());
 }
 
 describe.each(["de", "en"] as const)("%s copy", language => {
@@ -80,16 +83,17 @@ describe.each(["de", "en"] as const)("%s copy", language => {
     describe.each(["import", "move"] as const)("during %s", mode => {
       it("offers platform-appropriate folder selection and sandbox guidance", async () => {
         await openAssistant(mode, platform);
-        expect(get("#importTargetPick").textContent).toBe(expected.target);
-        expect(get("#importSongsPick").textContent).toBe(expected.songs);
-        expect(get("#importSandbox").hidden).toBe(platform !== "macos");
-        if (platform === "macos") expect(get("#importSandbox").textContent).toContain("macOS");
+        expect(screen.getByRole("button", { name: expected.target })).toBeTruthy();
+        if (mode === "import") expect(screen.getByRole("button", { name: expected.songs })).toBeTruthy();
+        const sandbox = screen.queryByText(/macOS benötigt|macOS needs/);
+        expect(Boolean(sandbox)).toBe(platform === "macos");
       });
 
       it("explains preview access issues with platform-appropriate guidance", async () => {
         mocks.invoke.mockResolvedValue({ ...preview, can_import: false, issues: accessIssues.map(code => ({ code, path: "/folder" })) });
         await openAssistant(mode, platform);
-        expect(Array.from(get("#importIssues").children, item => item.textContent)).toEqual(expected.errors.map(message => `${message} · /folder`));
+        expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual(expected.errors.map(message => `${message} · /folder`));
+        expect(screen.getByRole("button", { name: expected.songs })).toBeTruthy();
       });
 
       it.each(accessIssues)("explains %s when the transfer fails after preview", async code => {
@@ -98,8 +102,9 @@ describe.each(["de", "en"] as const)("%s copy", language => {
           return preview;
         });
         await openAssistant(mode, platform);
-        get("#importRun").click();
-        await vi.waitFor(() => expect(get("#importError").textContent).toBe(expected.errors[accessIssues.indexOf(code)]));
+        const run = screen.getByRole("button", { name: mode === "import" ? /^(Import library|Bibliothek übernehmen)$/ : /^(Move songs|Songs verschieben)$/ });
+        fireEvent.click(run);
+        await waitFor(() => expect(screen.getByRole("alert").textContent).toBe(expected.errors[accessIssues.indexOf(code)]));
       });
     });
   });
