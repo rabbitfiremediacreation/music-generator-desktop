@@ -576,6 +576,76 @@ async fn switch_persists_and_reports_a_busy_port() {
 }
 
 #[tokio::test]
+async fn web_pairing_serves_only_public_assets_and_certificate() {
+    let f = Fixture::new().await;
+    let shell = f
+        .http
+        .get(format!("{}/mobile/", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(shell.status(), 200);
+    assert_eq!(shell.headers()["referrer-policy"], "no-referrer");
+    let html = shell.text().await.unwrap();
+    assert!(html.contains("manifest.webmanifest"));
+    assert!(!html.contains(&f.token()));
+    let response = f
+        .http
+        .get(format!("{}/mobile/connection.json", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let info: Value = response.json().await.unwrap();
+    assert_eq!(info["certificate_url"], "/mobile-ca.crt");
+    assert!(info["secure_addresses"][0]
+        .as_str()
+        .unwrap()
+        .starts_with("https://"));
+    assert!(!info.to_string().contains(&f.token()));
+    assert!(info.get("token").is_none());
+    let cert = f
+        .http
+        .get(format!("{}/mobile-ca.crt", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cert.status(), 200);
+    assert_eq!(cert.headers()["content-type"], "application/x-x509-ca-cert");
+    assert_eq!(
+        cert.bytes().await.unwrap().as_ref(),
+        certificate(&f.state).unwrap()
+    );
+    for path in [
+        "/mobile/authority-key.pem",
+        "/mobile/connection.json.bak",
+        "/mobile/engine/ace-server",
+    ] {
+        assert_eq!(
+            f.http
+                .get(format!("{}{path}", f.base))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            404
+        );
+    }
+    // Neither an asset request nor a token in a query authenticates an API request.
+    assert_eq!(
+        f.http
+            .get(format!("{}/api/songs?token={}", f.base, f.token()))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
 async fn switching_off_cancels_an_incomplete_upload() {
     let f = Fixture::new().await;
     let mut connection = tokio::net::TcpStream::connect(f.base.trim_start_matches("http://"))

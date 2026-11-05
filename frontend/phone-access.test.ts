@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { LANGS } from "./locales";
 import { I18N } from "./i18n.js";
 import { phoneAccessKeys, phoneAccessTranslations } from "./phone-access-i18n";
-import { phoneAccessLink, phoneAccessQrSvg } from "./phone-access";
+import { phoneAccessLink, phoneAccessQrSvg, phoneWebAccessLink } from "./phone-access";
 import type { PhoneAccess } from "./types";
 
 const off: PhoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767", "http://192.168.1.20:8767"] };
@@ -26,4 +26,16 @@ it("builds the same connect link as the web app", () => {
 
 it("renders the QR code as scalable SVG", () => {
   expect(phoneAccessQrSvg(phoneAccessLink(on)!)).toMatch(/^<svg[^>]*viewBox/);
+});
+
+it("offers a separate web link with the key only in the fragment", () => {
+  expect(phoneWebAccessLink(off)).toBeNull();
+  expect(phoneWebAccessLink({ ...on, token: "" })).toBeNull();
+  expect(phoneWebAccessLink({ ...on, addresses: [] })).toBeNull();
+  const url = new URL(phoneWebAccessLink(on)!);
+  expect(url.origin).toBe("http://studio.local:8767");
+  expect(url.pathname).toBe("/mobile/");
+  expect(url.search).toBe("");
+  expect(new URLSearchParams(url.hash.slice(1)).get("token")).toBe(on.token);
+  expect(phoneWebAccessLink(on)).not.toBe(phoneAccessLink(on));
 });

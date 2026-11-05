@@ -112,5 +112,8 @@ export interface GenerationPolicy {
   defaults: GenerationFormPreferences;
 }
 
-/** Phone access for the iPhone app; the key never leaves this computer except via the QR code. */
-export interface PhoneAccess { enabled: boolean; port: number; token: string; addresses: string[] }
+/** Shared access switch for the native app and the HTTPS web app. */
+export interface PhoneAccess {
+  enabled: boolean; port: number; token: string; addresses: string[];
+  web_port?: number; web_addresses?: string[]; certificate_fingerprint?: string | null;
+}

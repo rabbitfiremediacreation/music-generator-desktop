@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
-import { phoneAccessLink, phoneAccessQrSvg } from "../../phone-access";
+import { phoneAccessLink, phoneAccessQrSvg, phoneWebAccessLink } from "../../phone-access";
 import type { PhoneAccess } from "../../types";
 import { useI18n } from "../i18n";
 
@@ -26,7 +26,10 @@ export function PhoneAccessField() {
   const current = status.data;
   const port = current?.port ?? 8767;
   const link = current ? phoneAccessLink(current) : null;
-  const errorText = failure === null ? "" : failure === "phone_access_port_busy" ? t("remote_port_busy", port) : `${t("remote_failed")} ${failure}`;
+  const webLink = current ? phoneWebAccessLink(current) : null;
+  const errorText = failure === null ? "" : failure === "phone_access_port_busy" ? t("remote_port_busy", port)
+    : failure === "phone_access_https_port_busy" ? t("remote_https_port_busy", current?.web_port ?? 8768)
+    : failure === "phone_access_tls_failed" ? t("remote_tls_failed") : `${t("remote_failed")} ${failure}`;
   const busy = change.isPending || !current;
   return <section className="phone-access" aria-busy={change.isPending}>
     <label className="phone-access-row">
@@ -39,10 +42,19 @@ export function PhoneAccessField() {
     <p id={hintId} className="small">{t("remote_tip")}</p>
     <span className="small">{t("remote_hint")}</span>
     {current?.enabled && <div className="phone-access-info">
-      {link && <>
-        <span className="small">{t("remote_scan")}</span>
-        <div className="remote-qr" data-testid="phone-access-qr" dangerouslySetInnerHTML={{ __html: phoneAccessQrSvg(link) }} />
-      </>}
+      <div className="phone-access-codes">
+        {link && <div>
+          <h3>{t("remote_native")}</h3>
+          <span className="small">{t("remote_scan")}</span>
+          <div className="remote-qr" data-testid="phone-access-qr" dangerouslySetInnerHTML={{ __html: phoneAccessQrSvg(link) }} />
+        </div>}
+        {webLink && <div>
+          <h3>{t("remote_web")}</h3>
+          <span className="small">{t("remote_web_scan")}</span>
+          <div className="remote-qr" data-testid="phone-access-web-qr" dangerouslySetInnerHTML={{ __html: phoneAccessQrSvg(webLink) }} />
+        </div>}
+      </div>
+      {current.certificate_fingerprint && <p className="small phone-access-fingerprint">{t("remote_certificate")}<br /><code>{current.certificate_fingerprint}</code></p>}
       <span className="small">{t("remote_addr")}</span>
       <ul className="upd-list">{current.addresses.map(address => <li key={address}>{address}</li>)}</ul>
       <div className="upd-row">

@@ -27,6 +27,9 @@ serde_json = "1"
 tokio = { version = "1", features = ["fs", "io-util", "net", "process", "sync", "time", "rt-multi-thread", "macros"] }
 tokio-util = { version = "0.7", features = ["io"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "multipart", "query", "tokio"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rcgen = { version = "0.13", default-features = false, features = ["pem", "ring"] }
+time = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 uuid = { version = "1", features = ["v4"] }

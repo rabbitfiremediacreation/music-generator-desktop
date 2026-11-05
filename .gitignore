@@ -17,6 +17,7 @@ __pycache__/
 # Desktop build output and downloaded runtime resources
 node_modules/
 dist/
+dist-mobile/
 release/
 .cache/
 target/

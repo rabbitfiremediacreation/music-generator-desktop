@@ -22,8 +22,11 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::sync::CancellationToken;
 
+mod tls;
+
 /// The Python web app already uses 8766 for its phone access; both apps may run on one computer.
 pub const PORT: u16 = 8767;
+pub const WEB_PORT: u16 = 8768;
 const ENABLED_KEY: &str = "phone_access";
 const TOKEN_KEY: &str = "phone_access_token";
 /// Paths that concern the computer itself and stay local, as in the web app.
@@ -38,10 +41,16 @@ pub struct Status {
     pub port: u16,
     pub token: String,
     pub addresses: Vec<String>,
+    pub web_port: u16,
+    pub web_addresses: Vec<String>,
+    pub certificate_fingerprint: Option<String>,
 }
 
 struct Server {
     port: u16,
+    web_port: u16,
+    certificate_fingerprint: String,
+    addresses: Vec<String>,
     stop: CancellationToken,
     task: tokio::task::JoinHandle<()>,
 }
@@ -60,29 +69,79 @@ impl PhoneAccess {
         changed: Changed,
         port: u16,
     ) -> std::io::Result<u16> {
+        self.start_with_ports(state, changed, port, if port == 0 { 0 } else { WEB_PORT })
+            .await
+    }
+
+    async fn start_with_ports(
+        &self,
+        state: Arc<AppState>,
+        changed: Changed,
+        port: u16,
+        web_bind_port: u16,
+    ) -> std::io::Result<u16> {
         let mut server = self.server.lock().await;
         if let Some(running) = server.as_ref().filter(|s| !s.task.is_finished()) {
             return Ok(running.port);
         }
         let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
         let port = listener.local_addr()?.port();
+        let root = state.db.root.clone();
+        let (identity, addresses) = tauri::async_runtime::spawn_blocking(move || {
+            let addresses = addresses(port);
+            tls::prepare(&root, &addresses).map(|identity| (identity, addresses))
+        })
+        .await
+        .map_err(|error| std::io::Error::other(error.to_string()))?
+        .map_err(|error| {
+            tracing::warn!("Local HTTPS identity could not be prepared: {error}");
+            std::io::Error::new(error.kind(), "phone_access_tls_failed")
+        })?;
+        let web_listener = tokio::net::TcpListener::bind(("0.0.0.0", web_bind_port))
+            .await
+            .map_err(|error| std::io::Error::new(error.kind(), "phone_access_https_port_busy"))?;
+        let web_port = web_listener.local_addr()?.port();
+        let web_listener = tls::Listener::new(web_listener, identity.config);
         let stop = CancellationToken::new();
         let app = router(Remote {
             state,
             changed,
             stop: stop.clone(),
         });
-        let shutdown = stop.clone();
+        let shutdown_http = stop.clone();
+        let shutdown_https = stop.clone();
+        let shutdown_both = stop.clone();
         let task = tokio::spawn(async move {
-            let result = axum::serve(listener, app)
-                .with_graceful_shutdown(async move { shutdown.cancelled().await })
-                .await;
+            let http_app = app.clone();
+            let http = async move {
+                axum::serve(listener, http_app)
+                    .with_graceful_shutdown(async move { shutdown_http.cancelled().await })
+                    .await
+            };
+            let https = async move {
+                axum::serve(web_listener, app)
+                    .with_graceful_shutdown(async move { shutdown_https.cancelled().await })
+                    .await
+            };
+            tokio::pin!(http, https);
+            // If either listener unexpectedly exits, stop its sibling as well.
+            let result = tokio::select! {
+                result = &mut http => { shutdown_both.cancel(); let _ = https.await; result },
+                result = &mut https => { shutdown_both.cancel(); let _ = http.await; result },
+            };
             if let Err(error) = result {
                 tracing::warn!("Phone access stopped: {error}");
             }
         });
-        tracing::info!(port, "Phone access on");
-        *server = Some(Server { port, stop, task });
+        tracing::info!(port, web_port, "Phone access on");
+        *server = Some(Server {
+            port,
+            web_port,
+            certificate_fingerprint: identity.fingerprint,
+            addresses,
+            stop,
+            task,
+        });
         Ok(port)
     }
 
@@ -103,12 +162,23 @@ impl PhoneAccess {
     }
 
     pub async fn port(&self) -> Option<u16> {
+        self.connection().await.map(|(port, _, _, _)| port)
+    }
+
+    async fn connection(&self) -> Option<(u16, u16, String, Vec<String>)> {
         self.server
             .lock()
             .await
             .as_ref()
             .filter(|s| !s.task.is_finished())
-            .map(|s| s.port)
+            .map(|s| {
+                (
+                    s.port,
+                    s.web_port,
+                    s.certificate_fingerprint.clone(),
+                    s.addresses.clone(),
+                )
+            })
     }
 }
 
@@ -205,17 +275,36 @@ pub fn addresses(port: u16) -> Vec<String> {
 }
 
 pub async fn status(state: &AppState) -> Result<Status> {
-    let running = state.phone_access.port().await;
-    let port = running.unwrap_or(PORT);
-    let addresses = tauri::async_runtime::spawn_blocking(move || addresses(port))
-        .await
-        .map_err(|e| message(e.to_string()))?;
+    let running = state.phone_access.connection().await;
+    let port = running.as_ref().map_or(PORT, |(port, _, _, _)| *port);
+    let web_port = running.as_ref().map_or(WEB_PORT, |(_, port, _, _)| *port);
+    let addresses = if let Some((_, _, _, addresses)) = &running {
+        addresses.clone()
+    } else {
+        tauri::async_runtime::spawn_blocking(move || addresses(port))
+            .await
+            .map_err(|e| message(e.to_string()))?
+    };
     Ok(Status {
         enabled: running.is_some(),
         port,
         token: token(state)?,
+        web_addresses: addresses
+            .iter()
+            .filter_map(|address| {
+                let host = address.strip_prefix("http://")?.rsplit_once(':')?.0;
+                Some(format!("https://{host}:{web_port}/mobile/"))
+            })
+            .collect(),
         addresses,
+        web_port,
+        certificate_fingerprint: running.map(|(_, _, fingerprint, _)| fingerprint),
     })
+}
+
+/// Public trust certificate for the phone's one-time local HTTPS setup.
+pub(super) fn certificate(state: &AppState) -> std::io::Result<Vec<u8>> {
+    tls::certificate(&state.db.root)
 }
 
 /// Apply the switch and/or rotate the key; the flag is persisted only after a successful change.
@@ -233,7 +322,11 @@ pub async fn set(
         if enabled {
             if let Err(error) = state.phone_access.start(state.clone(), changed, port).await {
                 tracing::warn!(port, "Phone access could not start: {error}");
-                return Err(message("phone_access_port_busy"));
+                return Err(message(match error.to_string().as_str() {
+                    "phone_access_https_port_busy" => "phone_access_https_port_busy",
+                    "phone_access_tls_failed" => "phone_access_tls_failed",
+                    _ => "phone_access_port_busy",
+                }));
             }
         } else {
             state.phone_access.stop().await;
@@ -288,6 +381,8 @@ pub fn library_events<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Changed {
 
 // ---------------------------------------------------------------- HTTP API
 
+mod web;
+
 #[derive(Clone)]
 struct Remote {
     state: Arc<AppState>,
@@ -310,7 +405,48 @@ fn router(remote: Remote) -> Router {
         )
         .fallback(|| async { detail(StatusCode::NOT_FOUND, "Not Found") })
         .layer(middleware::from_fn_with_state(remote.clone(), guard))
+        .merge(web::routes())
+        .route("/mobile/connection.json", get(web_connection))
+        .route("/mobile-ca.crt", get(web_certificate))
         .with_state(remote)
+}
+
+/// Public setup information only: never serialize Status here because it contains the key.
+async fn web_connection(State(remote): State<Remote>) -> Response {
+    match status(&remote.state).await {
+        Ok(status) => (
+            [
+                (header::CACHE_CONTROL, "no-store"),
+                (header::REFERRER_POLICY, "no-referrer"),
+            ],
+            Json(json!({
+                "secure_addresses": status.web_addresses,
+                "certificate_url": "/mobile-ca.crt",
+                "certificate_fingerprint": status.certificate_fingerprint,
+            })),
+        )
+            .into_response(),
+        Err(_) => detail(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Connection information unavailable",
+        ),
+    }
+}
+
+async fn web_certificate(State(remote): State<Remote>) -> Response {
+    match certificate(&remote.state) {
+        Ok(bytes) => Response::builder()
+            .header(header::CONTENT_TYPE, "application/x-x509-ca-cert")
+            .header(
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"music-generator-local-ca.crt\"",
+            )
+            .header(header::CACHE_CONTROL, "no-store")
+            .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+            .body(Body::from(bytes))
+            .unwrap_or_default(),
+        Err(_) => detail(StatusCode::NOT_FOUND, "Certificate unavailable"),
+    }
 }
 
 fn language(headers: &HeaderMap) -> String {
