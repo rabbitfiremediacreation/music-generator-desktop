@@ -1,0 +1,22 @@
+{
+  "durationSeconds": 300,
+  "bytes": 57600044,
+  "realWaveSurfer": true,
+  "mockedTauriIPC": true,
+  "checks": [
+    "binary-wav-decode",
+    "clock-advances",
+    "five-minute-duration",
+    "pause",
+    "visible-read-error",
+    "time-reset",
+    "same-song-retry",
+    "keyboard-pause"
+  ],
+  "reads": [
+    "tone",
+    "broken",
+    "broken"
+  ],
+  "pageErrors": []
+}

@@ -11,16 +11,17 @@ import { setLang } from "../i18n.js";
 import type { Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
-const waveform={load:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
+const waveform={loadBlob:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
 let songs: Song[];
 beforeEach(() => {
   setLang("en");
   Object.values(waveform).forEach(method=>{if(vi.isMockFunction(method))method.mockReset();});
-  waveform.load.mockResolvedValue(undefined);waveform.play.mockResolvedValue(undefined);waveform.on.mockReturnValue(()=>{});
+  waveform.loadBlob.mockResolvedValue(undefined);waveform.play.mockResolvedValue(undefined);waveform.on.mockReturnValue(()=>{});
   Object.assign(window,{WaveSurfer:{create:()=>waveform}});
   vi.stubGlobal("ResizeObserver",class {observe(){}disconnect(){}});
   songs = [{id:"one",title:"A song",caption:"night",letter:"A",group_id:"g",status:"done",favorite:false,params:{inference_steps:200},result_meta:{duration: 8,duration_source:"wav",inference_steps_limit:200,effective_inference_steps:200},created_at:"2026-01-01",lyrics:"[Instrumental]",finished_at:null,message:null,seed:1,file:null,audio_missing:false,folder_id:null,path:null}];
   mocks.invoke.mockReset().mockImplementation(async (name,args) => {
+    if(name === "read_song_audio") return new Uint8Array([82,73,70,70]).buffer;
     if(name === "list_songs") return songs.filter(song => !args.filter.favorites || song.favorite);
     if(name === "list_folders") return {folders:[],all:songs.length,none:songs.length};
     if(name === "queue") return {running:[],queued:0,active:false,progress:null,library:{count:songs.length,bytes:1000}};

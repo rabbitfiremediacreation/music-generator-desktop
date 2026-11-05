@@ -278,6 +278,16 @@ pub fn get_song(state: Desktop<'_>, id: String) -> Result<Song> {
 }
 
 #[tauri::command]
+pub async fn read_song_audio(state: Desktop<'_>, id: String) -> Result<tauri::ipc::Response> {
+    let db = state.db.clone();
+    let bytes = tauri::async_runtime::spawn_blocking(move || db.read_song_audio(&id))
+        .await
+        .map_err(|error| message(error.to_string()))??;
+    // Prefer binary transport; the frontend also handles Tauri's postMessage fallback.
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
 pub fn generate(state: Desktop<'_>, app: AppHandle, request: GenerateRequest) -> Result<Value> {
     let ids = crate::admission::generate(&state, request)?;
     state.changed(&app);

@@ -23,6 +23,16 @@ describe("desktop contracts", () => {
     expect(invoke).toHaveBeenCalledWith("list_songs", { filter: { q: "piano", favorites: true } });
     expect(songs[0].url).toBe("asset:/songs/one.wav");
   });
+  it("requests audio by song ID and preserves the binary response", async () => {
+    const bytes = new Uint8Array([0, 128, 255, 1]).buffer;
+    invoke.mockResolvedValue(bytes);
+    expect(await backend.songAudio("one")).toBe(bytes);
+    expect(invoke).toHaveBeenLastCalledWith("read_song_audio", { id: "one" });
+  });
+  it("normalizes raw byte arrays from Tauri's postMessage fallback", async () => {
+    invoke.mockResolvedValue([0, 128, 255, 1]);
+    expect(new Uint8Array(await backend.songAudio("one"))).toEqual(new Uint8Array([0, 128, 255, 1]));
+  });
   it("preserves cancellation and generation payloads", async () => {
     invoke.mockResolvedValue({ ids: ["one"] });
     await backend.generate({ prompt: "piano", variants: 2, seed: 42 });

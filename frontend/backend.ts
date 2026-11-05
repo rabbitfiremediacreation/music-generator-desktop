@@ -30,6 +30,11 @@ export const backend = {
   importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
   songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(audioUrl),
   song: async (id: string) => audioUrl(await command<Song>("get_song", { id })),
+  songAudio: async (id: string): Promise<ArrayBuffer> => {
+    // Tauri's postMessage fallback returns a byte array instead of an ArrayBuffer.
+    const bytes = await command<ArrayBuffer | number[]>("read_song_audio", { id });
+    return Array.isArray(bytes) ? new Uint8Array(bytes).buffer : bytes;
+  },
   generate: (request: Generation) => command<{ ids: string[] }>("generate", { request }),
   patch: (id: string, patch: { title?: string; favorite?: boolean; folder_id?: string | null }) => command<Song>("patch_song", { id, patch }),
   remove: (id: string) => command<{ cancelled: boolean; deleted: boolean }>("delete_song", { id }),
