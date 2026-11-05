@@ -5,7 +5,7 @@
 - Windows erhält zusätzlich zum portablen ZIP einen MSI-Installer mit Startmenüeintrag, Deinstallation und Upgrade-Unterstützung. Engine, Visual-C++-Bibliotheken und die feste WebView2-Runtime sind enthalten; Modelle, Songs und Einstellungen bleiben in den bestehenden Benutzerdatenordnern.
 - Der Windows-Fensterstart synchronisiert die WebView2-Darstellung vor der Übergabe an das Hauptfenster. Begrenzte Wartezeiten, Wiederholen im Splash und zusätzliche Startdiagnosen helfen bei Startproblemen. Die Abnahme auf den ursprünglich betroffenen Windows-/GPU-Systemen steht weiterhin aus.
 - Der Windows-Einrichtungsassistent erklärt fehlende CUDA-Laufzeitdateien und bietet deren optionalen Download an. Treiberprobleme erhalten einen passenden Hinweis und eine aufklappbare Diagnose.
-- Der Startablauf und das Wiederholen nach einem Startfehler sind gegen konkurrierende Startversuche abgesichert.
+- Der Startablauf und das Wiederholen nach einem Startfehler sind gegen konkurrierende Startversuche abgesichert. Der aus Windows 0.1.2 gemeldete Fehler `state not managed for field startup` (#45/#60) wird durch Registrierung des Startup-State vor der Fenstererzeugung behoben (#49). Ein schwarzes Hauptfenster (#53) wird gesondert untersucht.
 - Abgebrochene Einrichtung wird lokalisiert angezeigt. Ordnerhinweise berücksichtigen die jeweilige Plattform; Songtitel werden bereinigt.
 - Der Songordner lässt sich direkt aus den Einstellungen öffnen.
 - Temporäre Exportdateien bleiben bis zum Abschluss des Exports verfügbar; zurückgelassene Dateien werden beim nächsten Start aufgeräumt.

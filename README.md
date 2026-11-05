@@ -29,6 +29,8 @@ Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerze
 
 Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind möglich. Downloads werden unter [Releases](https://github.com/rabbitfiremediacreation/music-generator-desktop/releases) veröffentlicht; lokal gebaute Pakete liegen in `release/`.
 
+**Windows-Startfehler in 0.1.2:** Bei `state not managed for field startup` auf [v0.1.3](https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/tag/v0.1.3) oder neuer aktualisieren. Dessen Windows-ZIP und MSI enthalten den Fix aus [PR #49](https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/49), der den Startup-State vor dem Erzeugen der Fenster registriert. [Download-Anleitung, weitere Testbuilds und Abgrenzung zum schwarzen Hauptfenster](docs/desktop.md#windows-startup-error-in-012).
+
 ## Funktionen
 
 - Oberfläche in zwölf Sprachen, Bibliothek, Suche, Favoriten, Ordner und 1–10 Varianten pro Auftrag.
