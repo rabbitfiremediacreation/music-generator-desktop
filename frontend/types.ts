@@ -1,4 +1,10 @@
 export type CpuIterationBehavior = "ask" | "limit_30" | "continue";
+export interface McpSettings { enabled: boolean; port: number; scope: "local" | "network" }
+export interface McpHttpConnection { url: string; token: string; client_config: string }
+export interface McpSettingsStatus extends McpSettings {
+  running: boolean; url: string | null; urls: string[]; config_path: string; client_config: string;
+  managed_by_environment: boolean; error: string | null;
+}
 export interface Settings {
   models_dir: string; songs_dir: string; lm_model: string; dit: "standard" | "xl";
   model_provider: string; synthesis_model: string;

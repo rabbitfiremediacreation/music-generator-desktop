@@ -31,7 +31,10 @@ export function PhoneAccessField() {
     : failure === "phone_access_https_port_busy" ? t("remote_https_port_busy", current?.web_port ?? 8768)
     : failure === "phone_access_tls_failed" ? t("remote_tls_failed") : `${t("remote_failed")} ${failure}`;
   const busy = change.isPending || !current;
-  return <section className="phone-access" aria-busy={change.isPending}>
+  return <section className="phone-access" aria-busy={change.isPending} onKeyDown={event => {
+    // These controls apply independently; Enter must not submit the enclosing wizard/settings form.
+    if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
+  }}>
     <label className="phone-access-row">
       <span className="lbl">{t("remote")}</span>
       <span className="phone-access-control">

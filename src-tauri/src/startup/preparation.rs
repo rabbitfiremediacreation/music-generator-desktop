@@ -71,6 +71,9 @@ impl Startup {
             state.clone(),
             crate::phone_access::library_events(app.clone()),
         ));
+        if let Err(error) = crate::mcp::transport::start(state.clone(), app.clone()) {
+            tracing::error!(%error, "MCP server could not start");
+        }
         self.ensure_active(attempt)?;
         Ok(state)
     }

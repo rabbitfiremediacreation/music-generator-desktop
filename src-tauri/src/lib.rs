@@ -19,6 +19,7 @@ mod jobs;
 mod launch_location;
 pub mod library;
 pub mod manifest;
+pub mod mcp;
 mod model_commands;
 pub mod paths;
 pub mod phone_access;
@@ -127,6 +128,9 @@ pub fn run() {
             commands::delete_folder,
             commands::queue,
             commands::get_settings,
+            mcp::settings::get_mcp_settings,
+            mcp::settings::get_mcp_http_connection,
+            mcp::settings::save_mcp_settings,
             commands::open_songs_folder,
             commands::save_settings,
             commands::export_default_path,
@@ -164,6 +168,7 @@ pub fn run() {
             }
         }
         if let tauri::RunEvent::Exit = event {
+            mcp::transport::stop(app);
             if let Some(state) = app.try_state::<Arc<state::AppState>>() {
                 state.begin_shutdown();
                 state.stop_engine();

@@ -33,18 +33,23 @@ function mount(hw=hardware){
   const view=render(<QueryClientProvider client={client}><I18nProvider><EventBridge><SetupScreen bootstrap={{...setupFixture,hardware:hw}} onComplete={()=>{}}/></EventBridge></I18nProvider></QueryClientProvider>);
   return {client,...view};
 }
+async function showModels() {
+  const next = await screen.findByRole("button", { name: "Weiter" }) as HTMLButtonElement;
+  await waitFor(() => expect(next.disabled).toBe(false));
+  fireEvent.click(next);
+}
 it.each(["macos","linux"])("does not query CUDA or offer downloads on %s",async platform=>{
-  mount({...hardware,platform});await screen.findByRole("button",{name:"Modelle laden und testen"});
+  mount({...hardware,platform});await showModels();
   expect(mocks.invoke).not.toHaveBeenCalledWith("cuda_status",undefined);
   expect(document.querySelector("#cudaSetup")).toBeNull();
 });
 it.each([{...hardware,gpu:"AMD Radeon"},{...hardware,cuda:{...hardware.cuda,architecture_supported:false}}])("hides unsupported hardware %j",async hw=>{
-  mount(hw);await screen.findByRole("button",{name:"Modelle laden und testen"});
+  mount(hw);await showModels();
   expect(mocks.invoke).not.toHaveBeenCalledWith("cuda_status",undefined);
   expect(document.querySelector("#cudaSetup")).toBeNull();
 });
 it.each(["driver_error","cuda_failed","ready","unsupported_build","check_failed","unsupported_gpu","not_applicable"] as const)("renders %s without offering installation",async state=>{
-  current=status(state,"<img src=x onerror=alert(1)>");mount();
+  current=status(state,"<img src=x onerror=alert(1)>");mount();await showModels();
   await screen.findByText("<img src=x onerror=alert(1)>");
   expect(screen.queryByRole("button",{name:"CUDA-Unterstützung herunterladen"})).toBeNull();
   expect(document.querySelector("#cudaSetup img")).toBeNull();
@@ -56,13 +61,17 @@ it("downloads only on request, blocks competing setup and refreshes policy after
   mocks.invoke.mockImplementation((name,args)=>name==="install_cuda_runtime"?new Promise(resolve=>{finish=resolve;}):original(name,args));
   const {client}=mount();
   client.setQueryData(["generation-policy", {synthesis:"other.gguf"}], {backend:"cpu"});
+  await showModels();
   const download=await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"});
   expect(screen.getByText(/0,4 GiB/)).toBeTruthy();
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="install_cuda_runtime")).toHaveLength(0);
   fireEvent.click(download);fireEvent.click(download);fireEvent.click(screen.getByRole("button",{name:"Erneut prüfen"}));
   await waitFor(()=>expect(finish).toBeTypeOf("function"));
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="install_cuda_runtime")).toHaveLength(1);
-  await waitFor(()=>expect((screen.getByRole("button",{name:"Modelle laden und testen"}) as HTMLButtonElement).disabled).toBe(true));
+  expect(screen.queryByRole("button",{name:"Weiter"})).toBeNull();
+  expect((screen.getByRole("button",{name:"Zurück"}) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button",{name:"Modelle laden und testen"})).toBeNull();
+  expect((screen.getByRole("button",{name:"Abbrechen"}) as HTMLButtonElement).disabled).toBe(false);
   expect(client.isMutating({mutationKey:["setup"]})).toBe(1);
   fireEvent.submit(document.querySelector("#setupForm")!);
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="setup_models")).toHaveLength(0);
@@ -86,7 +95,7 @@ it("cancels through the shared backend command, retains retry and translates the
     if(name==="cancel_setup"){reject("Operation cancelled");return Promise.resolve();}
     return original(name,args);
   });
-  mount();fireEvent.click(await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"}));
+  mount();await showModels();fireEvent.click(await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"}));
   fireEvent.click(await screen.findByRole("button",{name:"Abbrechen"}));
   await screen.findByText(/CUDA-Download abgebrochen/);
   fireEvent.change(screen.getByRole("combobox",{name:"Sprache"}),{target:{value:"en"}});
@@ -96,19 +105,19 @@ it("cancels through the shared backend command, retains retry and translates the
 it("keeps diagnostics as text after failure and permits a retry",async()=>{
   const original=mocks.invoke.getMockImplementation()!;let attempts=0;
   mocks.invoke.mockImplementation((name,args)=>name==="install_cuda_runtime"&&attempts++===0?Promise.reject("Checksum mismatch"):original(name,args));
-  mount();fireEvent.click(await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"}));
+  mount();await showModels();fireEvent.click(await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"}));
   await screen.findByText(/Installation ist fehlgeschlagen/);
   expect(screen.getByText(/Checksum mismatch/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"CUDA-Unterstützung herunterladen"}));
   await screen.findByText(/CUDA ist verfügbar/);
 });
 it("opens NVIDIA driver help through the native opener",async()=>{
-  current=status("driver_error");mocks.openUrl.mockResolvedValue(undefined);mount();
+  current=status("driver_error");mocks.openUrl.mockResolvedValue(undefined);mount();await showModels();
   fireEvent.click(await screen.findByRole("button",{name:"NVIDIA-Treiber herunterladen"}));
   expect(mocks.openUrl).toHaveBeenCalledWith("https://www.nvidia.com/Download/index.aspx");
 });
 it("cleans CUDA event subscriptions on unmount",async()=>{
-  const view=mount();await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"});
+  const view=mount();await showModels();await screen.findByRole("button",{name:"CUDA-Unterstützung herunterladen"});
   expect(handlers.has("cuda-progress")).toBe(true);expect(handlers.has("cuda-stage")).toBe(true);
   view.unmount();expect(handlers.size).toBe(0);
 });

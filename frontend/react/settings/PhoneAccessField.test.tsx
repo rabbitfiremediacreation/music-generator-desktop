@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n";
@@ -16,6 +17,23 @@ const toggle = () => screen.getByRole("switch", { name: "Handy-Zugriff" }) as HT
 
 beforeEach(() => { vi.resetAllMocks(); setLang("de"); });
 afterEach(cleanup);
+
+it("keeps Enter in pairing fields from submitting the surrounding setup form", async () => {
+  mocks.phoneAccess.mockResolvedValue(on);
+  mocks.setPhoneAccess.mockResolvedValue({ ...on, token: "rotated" });
+  const submit = vi.fn();
+  const user = userEvent.setup();
+  render(<form onSubmit={event => { event.preventDefault(); submit(); }}>{view()}<button type="submit">Continue setup</button></form>);
+  await user.click(await screen.findByRole("textbox", { name: "Zugangsschlüssel" }));
+  await user.keyboard("{Enter}");
+  await user.click(screen.getByRole("textbox", { name: "Web-Link mit automatischer Anmeldung" }));
+  await user.keyboard("{Enter}");
+  expect(submit).not.toHaveBeenCalled();
+  screen.getByRole("button", { name: "Neuer Schlüssel" }).focus();
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(mocks.setPhoneAccess).toHaveBeenCalledOnce());
+  expect(submit).not.toHaveBeenCalled();
+});
 
 it("shows QR code, addresses and key when switched on and hides them when off", async () => {
   mocks.phoneAccess.mockResolvedValue(off);

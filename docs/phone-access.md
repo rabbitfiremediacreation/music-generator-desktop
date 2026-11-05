@@ -4,7 +4,7 @@ Phone access lets the native iPhone app ("Music Generator Remote") and the mobil
 
 ## Usage
 
-Use the **Phone access** switch at the top of Settings or directly below the language selector in the setup screen. It remains available before model setup is complete and while models are downloading. When switched on, the block shows:
+Use the **Phone access** switch at the top of Settings or in the scrollable content of any setup step. It remains available before model setup is complete and while models are downloading. When switched on, the block shows:
 
 - **iPhone app**: a QR code with `musicgenerator://connect?server=<first address>&token=<key>&alt=<second address>`; the iPhone camera opens the app, which takes over address and key,
 - **Web app / PWA**: a second QR code and a selectable link with `http://<host>:8767/mobile/#token=<key>`; the browser takes over and remembers the key automatically, then opens the one-time certificate setup and the HTTPS app,

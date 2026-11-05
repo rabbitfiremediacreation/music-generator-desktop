@@ -7,7 +7,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import type { Settings } from "../../types";
 import { setLang, t } from "../../i18n.js";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../path-dialogs", () => ({ pickFolder: mocks.pickFolder, pathErrorText: (error: unknown) => String(error) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
@@ -20,6 +20,7 @@ function view(open = true) {
 beforeEach(() => {
   vi.clearAllMocks(); setLang("en"); mocks.settings.mockResolvedValue(settings);
   mocks.phoneAccess.mockResolvedValue({ enabled: false, port: 8767, token: "", addresses: [] });
+  mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   mocks.saveSettings.mockImplementation(async (values: object) => ({ ...settings, ...values }));
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
@@ -115,10 +116,10 @@ it("discards a native folder reply belonging to a previously closed dialog", asy
   let chosen!: (path: string) => void;
   mocks.pickFolder.mockImplementationOnce(() => new Promise<string>(resolve => { chosen = resolve; }));
   const mounted = render(view());
-  await screen.findByRole("textbox");
+  await screen.findByDisplayValue("/songs");
   fireEvent.click(screen.getByText(t("desktop_browse")));
   mounted.rerender(view(false)); mounted.rerender(view());
-  const folder = await screen.findByRole("textbox");
+  const folder = await screen.findByDisplayValue("/songs");
   await act(async () => chosen("/old-dialog-choice"));
   expect((folder as HTMLInputElement).value).toBe("/songs");
 });
@@ -184,4 +185,48 @@ it("blocks Escape, native cancel and backdrop dismissal while a settings save is
   expect(callbacks.onClose).not.toHaveBeenCalled();
   await act(async()=>finish({...settings,timeout_minutes:75}));
   await waitFor(()=>expect(callbacks.onClose).toHaveBeenCalledOnce());
+});
+
+it("keeps MCP application separate from other draft settings and blocks dismissal while it is pending", async () => {
+  let finish!: (value: object) => void;
+  mocks.saveMcpSettings.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  render(view());
+  const timeout = await screen.findByRole("spinbutton");
+  fireEvent.change(timeout, { target: { value: "75" } });
+  fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
+  fireEvent.click(screen.getByRole("button", { name: t("mcp_apply") }));
+  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "local" }));
+  fireEvent.keyDown(timeout, { key: "Escape" });
+  fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  expect(callbacks.onClose).not.toHaveBeenCalled();
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  await act(async () => finish({ enabled: true, port: 0, scope: "local", urls: [], running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null }));
+  expect((timeout as HTMLInputElement).value).toBe("75");
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ timeout_minutes: 75 }));
+  expect(mocks.saveMcpSettings).toHaveBeenCalledTimes(1);
+});
+
+it("does not save an unapplied MCP draft when the other settings are saved", async () => {
+  render(view()); await screen.findByRole("spinbutton");
+  fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
+  fireEvent.change(screen.getByRole("textbox", { name: t("mcp_port") }), { target: { value: "bad port" } });
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledOnce());
+  expect(mocks.saveMcpSettings).not.toHaveBeenCalled();
+});
+
+it("applies MCP from the port field with Enter without submitting the outer settings form", async () => {
+  mocks.saveMcpSettings.mockResolvedValue({ enabled: true, port: 32123, scope: "local", urls: ["http://127.0.0.1:32123/mcp"], running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
+  render(view()); await screen.findByRole("spinbutton");
+  fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
+  const input = screen.getByRole("textbox", { name: t("mcp_port") });
+  fireEvent.change(input, { target: { value: "32123" } });
+  const key = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  fireEvent(input, key);
+  expect(key.defaultPrevented).toBe(true);
+  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 32123, scope: "local" }));
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  expect(callbacks.onClose).not.toHaveBeenCalled();
 });

@@ -38,6 +38,14 @@ function mount(bootstrap: Bootstrap = setupFixture, onReady = vi.fn(), props: Pa
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nProvider><SetupScreen bootstrap={bootstrap} onComplete={() => {}} onReady={onReady} {...props} /></I18nProvider></QueryClientProvider>);
 }
 
+async function next() {
+  const button = screen.getByRole("button", { name: "Weiter" }) as HTMLButtonElement;
+  await waitFor(() => expect(button.disabled).toBe(false));
+  fireEvent.click(button);
+}
+
+async function reviewSetup() { await next(); await next(); }
+
 it("keeps phone access switchable while model setup is running", async () => {
   const original = ipc.invoke.getMockImplementation()!;
   let finishSetup!: (result: unknown) => void;
@@ -48,6 +56,7 @@ it("keeps phone access switchable while model setup is running", async () => {
   await waitFor(() => expect(ready).toHaveBeenCalledOnce());
   const access = screen.getByRole("switch", { name: "Handy-Zugriff" }) as HTMLInputElement;
   await waitFor(() => expect(access.disabled).toBe(false));
+  await reviewSetup();
   fireEvent.click(screen.getByRole("button", { name: "Modelle laden und testen" }));
   await screen.findByRole("button", { name: "Abbrechen" });
 
@@ -70,9 +79,11 @@ it("shows measured setup results until the user explicitly enters the studio", a
   const complete = vi.fn(), ready = vi.fn();
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nProvider><SetupScreen bootstrap={setupFixture} onComplete={complete} onReady={ready} /></I18nProvider></QueryClientProvider>);
   await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+  await reviewSetup();
   fireEvent.click(screen.getByRole("button", { name: "Modelle laden und testen" }));
   expect(await screen.findByText("Sprachmodell: Vulkan · Vulkan0")).toBeTruthy();
   expect(screen.getByText("Klangerzeugung: Noch nicht bestätigt")).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Zum Studio" }));
   expect(complete).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Zum Studio" }));
   expect(complete).toHaveBeenCalledOnce();
@@ -93,31 +104,33 @@ it("never displays an estimate for a path that the user has already replaced", a
   finish({ missing_bytes: 999 * 1024 ** 3, free_bytes: 999 * 1024 ** 3 });
   await new Promise(resolve => setTimeout(resolve, 20));
   expect(screen.queryByText(/999/)).toBeNull();
-  expect((screen.getByRole("button", { name: "Modelle laden und testen" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Weiter" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it("restores the saved language model when the wizard opens again in Expert Mode", async () => {
   const ready = vi.fn(); mount(setupFixture, ready);
   await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+  await next();
   expect((screen.getByRole("combobox", { name: /Sprachmodell/ }) as HTMLSelectElement).disabled).toBe(true);
   cleanup();
   mount({ ...setupFixture, settings: { ...setupFixture.settings, expert_mode: true, lm_model: "acestep-5Hz-lm-4B-Q8_0.gguf" } });
+  await next();
   const lm = screen.getByRole("combobox", { name: /Sprachmodell/ }) as HTMLSelectElement;
   expect(lm.value).toBe("4B"); expect(lm.disabled).toBe(false); expect(lm.options).toHaveLength(3);
   await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("setup_estimate", { request: expect.objectContaining({ lm: "4B" }) }));
 });
 
-it("keeps invalid paths editable and reports submission failure without showing a result", async () => {
+it("keeps invalid paths editable and blocks navigation and setup until they are corrected", async () => {
   const complete = vi.fn(), ready = vi.fn(); mount(setupFixture, ready, { onComplete: complete });
   await waitFor(() => expect(ready).toHaveBeenCalledOnce());
   ipc.invoke.mockRejectedValue(new Error("path_absolute"));
   fireEvent.change(screen.getByRole("textbox", { name: /Song-Ordner/ }), { target: { value: "~/songs" } });
   await waitFor(() => expect(screen.getByText(/absolut/i)).toBeTruthy());
-  const button = screen.getByRole("button", { name: "Modelle laden und testen" }) as HTMLButtonElement;
+  const button = screen.getByRole("button", { name: "Weiter" }) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
-  fireEvent.submit(button.closest("form")!);
-  await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/absolut/i));
-  expect(ipc.invoke).toHaveBeenCalledWith("setup_models", { request: expect.objectContaining({ songs_dir: "~/songs" }) });
+  fireEvent.submit(document.querySelector("#setupForm")!);
+  expect(screen.getByRole("textbox", { name: /Song-Ordner/ })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "setup_models")).toBe(false);
   expect(complete).not.toHaveBeenCalled(); expect(screen.queryByText("Ergebnis des Hardwaretests")).toBeNull();
 });
 
@@ -153,6 +166,7 @@ it.each(["cpu", "unknown"] as const)("keeps %s guidance and CUDA compatibility t
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => name === "generation_policy" ? { backend: device } : invoke(name, args));
   mount({ ...setupFixture, hardware: { ...setupFixture.hardware, cuda: { minimum_compute_capability: "7.5", architecture_supported: false }, nvidia: { compute_capability: "6.1", driver_version: "580" } } });
+  await next();
   expect(await screen.findByText(/Compute Capability ≥ 7.5/)).toBeTruthy();
   expect(await screen.findByText(device === "cpu" ? /Klangerzeugung läuft auf der CPU/ : /Rechengerät der Klangerzeugung konnte nicht ermittelt werden/)).toBeTruthy();
   fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), { target: { value: "en" } });
@@ -162,6 +176,7 @@ it.each(["cpu", "unknown"] as const)("keeps %s guidance and CUDA compatibility t
 it("translates the measured result while keeping the explicit studio transition", async () => {
   const ready = vi.fn(); mount(setupFixture, ready);
   await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+  await reviewSetup();
   fireEvent.click(screen.getByRole("button", { name: "Modelle laden und testen" }));
   await screen.findByText("Sprachmodell: Vulkan · Vulkan0");
   fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), { target: { value: "en" } });
@@ -180,12 +195,16 @@ it("announces cancellation, preserves selections and allows a translated retry",
   });
   const ready=vi.fn();mount(setupFixture,ready);
   await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
-  const models=screen.getByRole("textbox",{name:/Modellordner/}) as HTMLInputElement;
+  await reviewSetup();
   fireEvent.click(screen.getByRole("button",{name:"Modelle laden und testen"}));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Zurück" }) as HTMLButtonElement).disabled).toBe(true));
   fireEvent.click(await screen.findByRole("button",{name:"Abbrechen"}));
   const message=await screen.findByText(/Einrichtung abgebrochen/);
   expect(message.getAttribute("role")).toBe("status");expect(screen.queryByRole("alert")).toBeNull();
-  expect(models.value).toBe(setupFixture.settings.models_dir);
+  fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+  expect((screen.getByRole("textbox", { name: /Modellordner/ }) as HTMLInputElement).value).toBe(setupFixture.settings.models_dir);
+  await reviewSetup();
   fireEvent.change(screen.getByRole("combobox",{name:"Sprache"}),{target:{value:"en"}});
   expect(screen.getByText(/Setup cancelled/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Download models and test"}));
@@ -199,6 +218,7 @@ it("does not preselect an additional XL download just because XL files exist on 
   const bootstrap:Bootstrap={...setupFixture,settings:{...setupFixture.settings,dit_xl_available:true},hardware:{...setupFixture.hardware,platform:"windows",gpu:"NVIDIA GTX 1060",cpu_only:false,vram_bytes:6*1024**3},recommended_profiles:[...setupFixture.recommended_profiles,{...setupFixture.recommended_profiles[0],synthesis:"acestep-v15-xl-sft-Q8_0.gguf"}]};
   const ready=vi.fn();mount(bootstrap,ready);
   await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
+  await next();
   const xl=screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement;
   expect(xl.checked).toBe(false);
   expect(ipc.invoke).toHaveBeenCalledWith("setup_estimate",{request:expect.objectContaining({xl:false})});
@@ -209,5 +229,62 @@ it("does not preselect an additional XL download just because XL files exist on 
 it("restores an explicitly selected XL profile when managing models", async () => {
   const ready=vi.fn();mount({...setupFixture,needs_setup:false,settings:{...setupFixture.settings,dit:"xl",synthesis_model:"acestep-v15-xl-sft-Q8_0.gguf"},recommended_profiles:[{...setupFixture.recommended_profiles[0],synthesis:"acestep-v15-xl-sft-Q8_0.gguf"}]},ready);
   await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
+  await next();
   expect((screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement).checked).toBe(true);
+});
+
+it("keeps choices across all three steps and starts only after the explicit final action", async () => {
+  const ready = vi.fn();
+  mount({ ...setupFixture, settings: { ...setupFixture.settings, expert_mode: true } }, ready);
+  await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+  const steps = document.querySelectorAll(".setup-steps li");
+  expect(steps).toHaveLength(3);
+  expect(document.querySelector('[aria-current="step"]')?.textContent).toMatch(/1.*Bibliothek/);
+  expect(screen.queryByRole("combobox", { name: /Sprachmodell/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Modelle laden und testen" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: /Song-Ordner/ }), { target: { value: "/my-songs" } });
+  await next();
+  expect(document.querySelector('[aria-current="step"]')?.textContent).toMatch(/2.*Modelle/);
+  expect(document.activeElement?.id).toBe("setupStepHeading");
+  expect(screen.queryByRole("textbox", { name: /Song-Ordner/ })).toBeNull();
+  fireEvent.change(screen.getByRole("combobox", { name: /Sprachmodell/ }), { target: { value: "4B" } });
+  fireEvent.click(screen.getByRole("checkbox", { name: "XL-Klangmodell zusätzlich laden" }));
+  await next();
+  expect(document.querySelector('[aria-current="step"]')?.textContent).toMatch(/3.*Laden/);
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "setup_models")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+  expect((screen.getByRole("combobox", { name: /Sprachmodell/ }) as HTMLSelectElement).value).toBe("4B");
+  expect((screen.getByRole("checkbox", { name: "XL-Klangmodell zusätzlich laden" }) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+  expect((screen.getByRole("textbox", { name: /Song-Ordner/ }) as HTMLInputElement).value).toBe("/my-songs");
+  await reviewSetup();
+  const start = screen.getByRole("button", { name: "Modelle laden und testen" }) as HTMLButtonElement;
+  await waitFor(() => expect(start.disabled).toBe(false));
+  fireEvent.click(start);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("setup_models", { request: expect.objectContaining({ songs_dir: "/my-songs", lm: "4B", xl: true }) }));
+});
+
+
+it("keeps the final step usable after a failed setup and retries the same selection", async () => {
+  const original = ipc.invoke.getMockImplementation()!;
+  let attempts = 0;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "setup_models" && attempts++ === 0) throw new Error("Download failed");
+    return original(name, args);
+  });
+  mount();
+  await reviewSetup();
+  fireEvent.click(screen.getByRole("button", { name: "Modelle laden und testen" }));
+  expect((await screen.findByRole("alert")).textContent).toContain("Download failed");
+  expect(document.querySelector('[aria-current="step"]')?.textContent).toMatch(/3.*Laden/);
+  expect(screen.queryByRole("button", { name: "Zum Studio" })).toBeNull();
+  const retry = screen.getByRole("button", { name: "Modelle laden und testen" }) as HTMLButtonElement;
+  await waitFor(() => expect(retry.disabled).toBe(false));
+  expect((screen.getByRole("button", { name: "Zurück" }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(retry);
+  await screen.findByRole("button", { name: "Zum Studio" });
+  expect(screen.queryByRole("alert")).toBeNull();
+  const requests = ipc.invoke.mock.calls.filter(([name]) => name === "setup_models");
+  expect(requests).toHaveLength(2);
+  expect(requests[1][1]).toEqual(requests[0][1]);
 });
