@@ -1,4 +1,4 @@
-//! Opt-in loopback transport sharing the desktop application's state and lifetime.
+//! Opt-in TCP transport sharing the desktop application's state and lifetime.
 use crate::{
     error::{message, Result},
     state::AppState,
@@ -57,7 +57,7 @@ impl Drop for ConnectionFile {
 #[derive(Clone)]
 struct Access {
     authorization: String,
-    authority: String,
+    authorities: Vec<String>,
     cancellation: tokio_util::sync::CancellationToken,
 }
 
@@ -68,10 +68,10 @@ impl Access {
         }
         if headers.contains_key(header::ORIGIN)
             || headers.get_all(header::HOST).iter().count() != 1
-            || headers
+            || !headers
                 .get(header::HOST)
                 .and_then(|value| value.to_str().ok())
-                != Some(&self.authority)
+                .is_some_and(|host| self.authorities.iter().any(|allowed| host == allowed))
         {
             return Err(StatusCode::FORBIDDEN);
         }
@@ -109,7 +109,11 @@ async fn authorize(State(access): State<Access>, request: Request, next: Next) -
             "MCP bearer token required",
         )
             .into_response(),
-        Err(status) => (status, "Only direct loopback MCP clients are allowed").into_response(),
+        Err(status) => (
+            status,
+            "Only direct MCP clients using an advertised address are allowed",
+        )
+            .into_response(),
     }
 }
 
@@ -139,14 +143,14 @@ pub fn stop<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 pub(super) fn router<R: tauri::Runtime>(
     state: Arc<AppState>,
     app: tauri::AppHandle<R>,
-    authority: String,
+    authorities: Vec<String>,
     token: String,
     cancellation: tokio_util::sync::CancellationToken,
 ) -> Router {
     let config = StreamableHttpServerConfig::default()
         .with_legacy_session_mode(false)
         .with_json_response(true)
-        .with_allowed_hosts([authority.clone()])
+        .with_allowed_hosts(authorities.clone())
         .enforce_origin_validation()
         .with_max_request_body_bytes(MAX_REQUEST_BYTES)
         .with_cancellation_token(cancellation.clone());
@@ -161,7 +165,7 @@ pub(super) fn router<R: tauri::Runtime>(
         .layer(middleware::from_fn_with_state(
             Access {
                 authorization: format!("Bearer {token}"),
-                authority,
+                authorities,
                 cancellation,
             },
             authorize,

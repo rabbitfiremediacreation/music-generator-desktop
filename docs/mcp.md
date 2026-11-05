@@ -4,15 +4,24 @@ Der optionale MCP-Server steuert die **laufende Desktop-App**. Er verwendet dies
 
 ## Aktivieren
 
-Den ersten Startassistenten in der Desktop-App abschließen. Unter **Einstellungen → Agent-Zugriff (MCP)** MCP aktivieren und die Änderung mit dem eigenen MCP-Knopf anwenden. `0` wählt einen freien lokalen Port, eine Zahl wie `32123` einen festen Port. Die Auswahl bleibt nach einem App-Neustart erhalten; standardmäßig ist MCP deaktiviert.
+Den ersten Startassistenten in der Desktop-App abschließen. Unter **Einstellungen → MCP** den Dienst aktivieren, den Zugriff auf **diesen Rechner** oder das **lokale Netzwerk** wählen und mit dem eigenen MCP-Knopf anwenden. Die Auswahl bleibt nach einem App-Neustart erhalten; standardmäßig ist MCP deaktiviert und nur für diesen Rechner konfiguriert.
 
-Der Bereich zeigt den tatsächlichen Serverstatus, die lokale Adresse und den Pfad der Verbindungsdatei. Die Client-Konfiguration lässt sich dort kopieren und als stdio-Verbindung im MCP-Client einfügen. Sie enthält keinen Schlüssel, sondern verweist auf die private Verbindungsdatei.
+Der Dienst bietet **Streamable HTTP über TCP**. Neue Profile verwenden Port `32123`; `0` wählt bei jedem Start einen freien Port. Für eine dauerhaft konfigurierte Verbindung einen festen Port verwenden.
 
-MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder **Abbrechen** des Einstellungsdialogs. Deaktivieren schließt den MCP-Zugang und entfernt die Verbindungsdatei. Bereits angenommene Generierungsaufträge bleiben in der gemeinsamen Warteschlange und werden dadurch nicht abgebrochen.
+Im Netzwerkmodus die Adresse des Rechners auswählen, auf dem Music Generator läuft, zum Beispiel `http://192.168.1.20:32123/mcp`. Der Bereich zeigt den tatsächlichen Dienststatus und die verfügbaren Adressen. Die HTTP-Client-Konfiguration lässt sich direkt kopieren; ein separater stdio-Prozess ist dafür nicht nötig. Zugangsdaten werden erst nach einer ausdrücklichen Benutzeraktion geladen, der Schlüssel wird zunächst verdeckt angezeigt.
+
+MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder **Abbrechen** des Einstellungsdialogs. Deaktivieren schließt den TCP-Zugang und entfernt die aktuelle Verbindungsdatei. Bereits angenommene Generierungsaufträge bleiben in der gemeinsamen Warteschlange und werden dadurch nicht abgebrochen. Die Desktop-App muss für den Dienst geöffnet bleiben.
+
+### Zugriff im lokalen Netzwerk
+
+- Auf dem anderen Rechner die angezeigte Netzwerkadresse verwenden. `127.0.0.1` bezeichnet immer den eigenen Rechner.
+- Der gewählte TCP-Port muss in der Firewall des Music-Generator-Rechners erreichbar sein. Die App ändert keine Firewall-Regeln.
+- Der Dienst verwendet HTTP ohne TLS. Nur in einem vertrauenswürdigen Netzwerk verwenden; wer den Zugangsschlüssel besitzt, kann Musik erzeugen und die Bibliothek verwalten.
+- Nach einem Netzwerkwechsel den Dienst aus- und wieder einschalten, damit die Adressen neu erkannt werden. Bei mehreren Netzwerkadaptern die vom Client erreichbare Adresse wählen.
 
 ### Per Umgebungsvariable
 
-Alternativ die App vollständig beenden und mit `MUSIC_GENERATOR_MCP_PORT` starten. Diese Vorgabe hat Vorrang vor der gespeicherten Auswahl; die Oberfläche kennzeichnet sie und sperrt Änderungen, solange die App damit läuft. Ohne diese Variable gilt die gespeicherte MCP-Einstellung.
+Alternativ die App vollständig beenden und mit `MUSIC_GENERATOR_MCP_PORT` starten. Diese Vorgabe aktiviert ausschließlich den lokalen Zugriff und hat Vorrang vor der gespeicherten Auswahl; die Oberfläche kennzeichnet sie und sperrt Änderungen, solange die App damit läuft. Ohne diese Variable gilt die gespeicherte MCP-Einstellung.
 
 macOS, installiertes Bundle:
 
@@ -41,19 +50,21 @@ MUSIC_GENERATOR_MCP_PORT=0 npm run dev
 
 Die Variable muss beim Start des eigentlichen App-Prozesses gesetzt sein; das erneute Öffnen einer bereits laufenden Instanz ändert ihre Konfiguration nicht. Sobald die Dateninitialisierung abgeschlossen ist, schreibt die App `mcp.json` in ihren Datenordner. Die Datei enthält `url`, `token` und `pid`. Die Standardordner stehen in der [README](../README.md#daten-und-updates). Ein Portkonflikt oder ungültige Konfiguration wird in `logs/desktop.log` protokolliert; die Oberfläche bleibt benutzbar.
 
-Beim Start des MCP-Servers wird ein zufälliger Schlüssel erzeugt. Für einen dauerhaft konfigurierten HTTP-Client kann `MUSIC_GENERATOR_MCP_TOKEN` auf einen eigenen zufälligen Schlüssel mit 32–512 Zeichen gesetzt werden (Buchstaben, Ziffern und `-._~+/=`). Schlüssel nicht in Git einchecken oder in Screenshots aufnehmen. Unter Unix ist `mcp.json` nur für den aktuellen Benutzer lesbar und schreibbar (`0600`); unter Windows gelten die Zugriffsrechte des persönlichen App-Datenordners. Die separate Datei `mcp-settings.json` speichert nur Aktivierung und Port. Der Schlüssel wird weder in der React-Statusanzeige noch in den allgemeinen Einstellungen ausgegeben.
+Der automatisch erzeugte Zugangsschlüssel bleibt in der privaten Datei `mcp-token` erhalten, sodass ein HTTP-Client bei festem Port auch nach einem Dienst- oder App-Neustart verbunden werden kann. `MUSIC_GENERATOR_MCP_TOKEN` kann einen eigenen Schlüssel mit 32–512 Zeichen vorgeben (Buchstaben, Ziffern und `-._~+/=`). Unter Unix sind die Schlüsseldatei und `mcp.json` nur für den aktuellen Benutzer lesbar und schreibbar (`0600`); unter Windows gelten die Zugriffsrechte des persönlichen App-Datenordners. `mcp-settings.json` speichert nur Aktivierung, Port und Zugriffsbereich.
+
+Die kopierte HTTP-Konfiguration enthält den Zugangsschlüssel. Sie gehört in die private Client-Konfiguration, nicht in Git, öffentliche Screenshots oder Logs. Allgemeine Einstellungsabfragen und MCP-Werkzeuge geben den Schlüssel nicht aus.
 
 ## MCP-Client verbinden
 
 ### Streamable HTTP
 
-Die `url` aus `mcp.json` als MCP-Endpunkt und `Authorization: Bearer <token>` als HTTP-Header konfigurieren. Beispiel für Clients mit diesem JSON-Konfigurationsformat:
+Die Konfiguration aus den React-Einstellungen im Client einfügen oder die angezeigte Adresse als MCP-Endpunkt und `Authorization: Bearer <token>` als HTTP-Header konfigurieren. Beispiel für Clients mit diesem JSON-Konfigurationsformat:
 
 ```json
 {
   "mcpServers": {
     "music-generator": {
-      "url": "http://127.0.0.1:32123/mcp",
+      "url": "http://192.168.1.20:32123/mcp",
       "headers": {"Authorization": "Bearer YOUR_RANDOM_TOKEN"}
     }
   }
@@ -62,9 +73,9 @@ Die `url` aus `mcp.json` als MCP-Endpunkt und `Authorization: Bearer <token>` al
 
 Die genauen Feldnamen hängen vom MCP-Client ab. Der Server verwendet das offizielle [Rust-MCP-SDK](https://github.com/modelcontextprotocol/rust-sdk) und unterstützt dessen Protokollverhandlung, einschließlich älterer Clients mit `initialize`. Der Endpunkt liefert JSON-Antworten; Fortschritt wird über Werkzeuge und Ressourcen abgefragt.
 
-Es wird ausschließlich an `127.0.0.1` gebunden. Verwende genau diese Adresse, nicht `localhost`. Anfragen ohne gültigen Schlüssel, mit fremdem `Host` oder mit Browser-`Origin` werden abgelehnt. Der Server ist für lokale native MCP-Clients gedacht.
+Im lokalen Modus wird an `127.0.0.1` gebunden, im Netzwerkmodus an alle IPv4-Schnittstellen. Als Client-Adresse eine der angezeigten IP-Adressen verwenden, nicht die Bindeadresse `0.0.0.0`. Anfragen ohne gültigen Schlüssel, mit einem nicht freigegebenen `Host` oder mit Browser-`Origin` werden abgelehnt. Der Server ist für native MCP-Clients gedacht.
 
-### stdio
+### Optionale lokale stdio-Brücke
 
 Clients mit stdio starten die mitgelieferte Brücke. Die Desktop-App muss bereits mit aktiviertem MCP laufen. Die Brücke liest beim Start die aktuelle Verbindungsdatei; nach einem App-Neustart die MCP-Verbindung neu herstellen. Für macOS:
 

@@ -6,9 +6,10 @@ fn disabled_default_and_environment_override_validation() {
     let control = Control::new(root.path().into(), Environment::default());
     let status = control.status().unwrap();
     assert!(!status.enabled && !status.running && !status.managed_by_environment);
-    assert_eq!(status.port, 0);
+    assert_eq!(status.port, 32123);
     assert!(status.error.is_none());
     let settings = McpSettings {
+        scope: McpScope::Local,
         enabled: true,
         port: 32123,
     };
@@ -75,6 +76,7 @@ async fn live_changes_preserve_generation_and_restart_from_saved_preferences() {
         .try_begin(crate::runtime::OperationKind::Generation)
         .unwrap();
     let enabled = McpSettings {
+        scope: McpScope::Local,
         enabled: true,
         port: 0,
     };
@@ -139,6 +141,10 @@ async fn live_changes_preserve_generation_and_restart_from_saved_preferences() {
         .apply(fresh_state, fresh_app.handle().clone(), enabled, false)
         .unwrap();
     assert!(restored.status().unwrap().running);
+    let restarted = restored
+        .http_connection(restored.status().unwrap().url.as_deref().unwrap())
+        .unwrap();
+    assert_eq!(restarted.token, secret.token);
     let server = restored.current.lock().unwrap().server.clone().unwrap();
     server.stop();
     server.wait_closed().await;
@@ -154,6 +160,7 @@ async fn fixed_port_disable_reenable_and_conflicts_preserve_working_connection()
     let port = reservation.local_addr().unwrap().port();
     drop(reservation);
     let settings = McpSettings {
+        scope: McpScope::Local,
         enabled: true,
         port,
     };
@@ -171,6 +178,7 @@ async fn fixed_port_disable_reenable_and_conflicts_preserve_working_connection()
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: busy.local_addr().unwrap().port()
             },
@@ -185,6 +193,7 @@ async fn fixed_port_disable_reenable_and_conflicts_preserve_working_connection()
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: false,
                 port,
             },
@@ -214,6 +223,7 @@ async fn persistence_failure_does_not_replace_server_or_credentials() {
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: 0,
             },
@@ -292,6 +302,7 @@ async fn startup_removes_stale_credentials_and_reports_bind_failure_to_settings(
     assert!(!app.state::<Arc<Control>>().status().unwrap().running);
     let busy = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
     let preferences = McpSettings {
+        scope: McpScope::Local,
         enabled: true,
         port: busy.local_addr().unwrap().port(),
     };
@@ -315,6 +326,7 @@ async fn startup_removes_stale_credentials_and_reports_bind_failure_to_settings(
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: 0,
             },
@@ -330,6 +342,7 @@ async fn startup_removes_stale_credentials_and_reports_bind_failure_to_settings(
             state,
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: 0
             },
@@ -350,6 +363,7 @@ async fn disabling_mcp_rejects_an_authenticated_request_waiting_for_its_body() {
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: 0,
             },
@@ -403,6 +417,7 @@ async fn successful_port_change_preserves_new_credentials_after_old_server_finis
             state.clone(),
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port: 0,
             },
@@ -418,6 +433,7 @@ async fn successful_port_change_preserves_new_credentials_after_old_server_finis
             state,
             app.handle().clone(),
             McpSettings {
+                scope: McpScope::Local,
                 enabled: true,
                 port,
             },
@@ -432,6 +448,7 @@ async fn successful_port_change_preserves_new_credentials_after_old_server_finis
     assert_eq!(status.url.as_deref(), Some(info.url.as_str()));
     assert_ne!(info.url, old_url);
     assert_eq!(status.port, port);
+    assert!(control.http_connection(&old_url).is_err());
     let client = reqwest::Client::builder().no_proxy().build().unwrap();
     let response = client.post(&info.url).bearer_auth(&info.token)
         .header("Accept", "application/json, text/event-stream")
@@ -441,4 +458,254 @@ async fn successful_port_change_preserves_new_credentials_after_old_server_finis
     let server = control.current.lock().unwrap().server.clone().unwrap();
     server.stop();
     server.wait_closed().await;
+}
+
+#[test]
+fn legacy_preferences_stay_local_and_generated_token_is_private_and_stable() {
+    let legacy: McpSettings = serde_json::from_str(r#"{"enabled":true,"port":0}"#).unwrap();
+    assert_eq!(legacy.scope, McpScope::Local);
+    assert_eq!(legacy.port, 0);
+    let root = tempfile::tempdir().unwrap();
+    let token = Environment::default().token(root.path()).unwrap();
+    assert_eq!(Environment::default().token(root.path()).unwrap(), token);
+    let override_token = "override-012345678901234567890123456789";
+    assert_eq!(
+        Environment {
+            port: None,
+            token: Some(override_token.into())
+        }
+        .token(root.path())
+        .unwrap(),
+        override_token
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("mcp-token")).unwrap(),
+        token
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(root.path().join("mcp-token"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+}
+
+#[cfg(unix)]
+fn lan_address() -> Option<Ipv4Addr> {
+    authorities(McpScope::Network, 1)
+        .into_iter()
+        .find_map(|authority| {
+            let address: std::net::SocketAddrV4 = authority.parse().ok()?;
+            (!address.ip().is_loopback()).then_some(*address.ip())
+        })
+}
+
+#[cfg(unix)]
+fn initialize_request(client: &reqwest::Client, url: &str, token: &str) -> reqwest::RequestBuilder {
+    client.post(url).bearer_auth(token).header("Accept", "application/json, text/event-stream")
+        .json(&serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"lan-test","version":"1"}}}))
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() {
+    let Some(lan) = lan_address() else {
+        eprintln!("No non-loopback IPv4 interface on this runner");
+        return;
+    };
+    let root = tempfile::tempdir().unwrap();
+    let (state, app) = fixture(root.path());
+    let control = Arc::new(Control::new(root.path().into(), Environment::default()));
+    let local = McpSettings {
+        enabled: true,
+        port: 0,
+        scope: McpScope::Local,
+    };
+    let status = control
+        .configure(state.clone(), app.handle().clone(), local)
+        .await
+        .unwrap();
+    let local_url = status.url.unwrap();
+    let port = reqwest::Url::parse(&local_url).unwrap().port().unwrap();
+    let lan_url = format!("http://{lan}:{port}/mcp");
+    let connection = control.http_connection(&local_url).unwrap();
+    let token = connection.token.clone();
+    let config: serde_json::Value = serde_json::from_str(&connection.client_config).unwrap();
+    assert_eq!(config["mcpServers"]["music-generator"]["url"], local_url);
+    assert!(config["mcpServers"]["music-generator"]
+        .get("command")
+        .is_none());
+    assert!(control.http_connection(&lan_url).is_err());
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    assert!(initialize_request(&client, &lan_url, &token)
+        .send()
+        .await
+        .is_err());
+    assert!(initialize_request(&client, &local_url, &token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    let network = McpSettings {
+        enabled: true,
+        port,
+        scope: McpScope::Network,
+    };
+    let status = control
+        .configure(state.clone(), app.handle().clone(), network)
+        .await
+        .unwrap();
+    assert_eq!(status.scope, McpScope::Network);
+    assert_eq!(
+        Control::new(root.path().into(), Environment::default())
+            .current
+            .lock()
+            .unwrap()
+            .settings,
+        network
+    );
+    assert!(status.urls.contains(&lan_url));
+    assert!(status.urls.iter().all(|url| !url.contains("0.0.0.0")));
+    assert!(!serde_json::to_string(&status).unwrap().contains(&token));
+    let connection = control.http_connection(&lan_url).unwrap();
+    assert_eq!(connection.token, token);
+    assert!(initialize_request(&client, &lan_url, &token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    assert_eq!(
+        initialize_request(&client, &lan_url, "wrong")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        initialize_request(&client, &lan_url, &token)
+            .header("Host", "foreign.invalid")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        initialize_request(&client, &lan_url, &token)
+            .header("Origin", "http://untrusted.invalid")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
+    let status = control
+        .configure(
+            state.clone(),
+            app.handle().clone(),
+            McpSettings {
+                scope: McpScope::Local,
+                ..network
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(status.urls, vec![local_url.clone()]);
+    assert!(control.http_connection(&lan_url).is_err());
+    assert!(initialize_request(&client, &lan_url, &token)
+        .send()
+        .await
+        .is_err());
+    assert!(initialize_request(&client, &local_url, &token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    control
+        .configure(state, app.handle().clone(), McpSettings::default())
+        .await
+        .unwrap();
+    assert!(control.http_connection(&local_url).is_err());
+    assert!(initialize_request(&client, &local_url, &token)
+        .send()
+        .await
+        .is_err());
+    assert!(!root.path().join("mcp.json").exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn failed_scope_widening_restores_previous_listener_settings_and_token() {
+    let Some(lan) = lan_address() else {
+        eprintln!("No non-loopback IPv4 interface on this runner");
+        return;
+    };
+    let root = tempfile::tempdir().unwrap();
+    let (state, app) = fixture(root.path());
+    let control = Arc::new(Control::new(root.path().into(), Environment::default()));
+    let local = McpSettings {
+        enabled: true,
+        port: 0,
+        scope: McpScope::Local,
+    };
+    let status = control
+        .configure(state.clone(), app.handle().clone(), local)
+        .await
+        .unwrap();
+    let url = status.url.unwrap();
+    let connection = control.http_connection(&url).unwrap();
+    let port = reqwest::Url::parse(&url).unwrap().port().unwrap();
+    // Another service on this interface allows local operation but prevents a wildcard bind.
+    let _busy = TcpListener::bind((lan, port)).unwrap();
+    let saved = std::fs::read(root.path().join("mcp-settings.json")).unwrap();
+    assert!(control
+        .configure(
+            state.clone(),
+            app.handle().clone(),
+            McpSettings {
+                enabled: true,
+                port,
+                scope: McpScope::Network
+            }
+        )
+        .await
+        .is_err());
+    let status = control.status().unwrap();
+    assert!(status.running);
+    assert_eq!(status.scope, McpScope::Local);
+    assert_eq!(status.port, 0);
+    assert_eq!(status.url.as_deref(), Some(url.as_str()));
+    assert_eq!(
+        std::fs::read(root.path().join("mcp-settings.json")).unwrap(),
+        saved
+    );
+    assert_eq!(
+        control.http_connection(&url).unwrap().token,
+        connection.token
+    );
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    assert!(initialize_request(&client, &url, &connection.token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    control
+        .configure(state, app.handle().clone(), McpSettings::default())
+        .await
+        .unwrap();
 }

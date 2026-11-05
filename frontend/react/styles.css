@@ -507,3 +507,9 @@ html[data-platform=macos] .titlebar nav { display: none; }
 .mcp-connection details { margin-top: 12px; }
 .mcp-connection summary { cursor: pointer; color: var(--muted); }
 .mcp-connection textarea { box-sizing: border-box; width: 100%; resize: vertical; font-family: monospace; font-size: 12px; }
+
+.mcp-settings .mcp-scope { margin-top: 12px; }
+.mcp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mcp-details { margin-top: 12px; }
+.mcp-details textarea { margin-top: 12px; }
+.mcp-connection select { min-width: 0; max-width: 100%; font-size: 12px; }

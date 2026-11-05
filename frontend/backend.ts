@@ -8,6 +8,7 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 const audioUrl = (song: Song): Song => ({ ...song, url: song.path ? convertFileSrc(song.path) : null });
 
 export const backend = {
+  mcpHttpConnection: (url: string) => command<import("./types").McpHttpConnection>("get_mcp_http_connection", { url }),
   mcpSettings: () => command<import("./types").McpSettingsStatus>("get_mcp_settings"),
   saveMcpSettings: (settings: import("./types").McpSettings) => command<import("./types").McpSettingsStatus>("save_mcp_settings", { settings }),
   cudaStatus: () => command<import("./types").CudaStatus>("cuda_status"),

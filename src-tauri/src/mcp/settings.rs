@@ -9,7 +9,7 @@ use std::{
     ffi::OsString,
     future::IntoFuture,
     io::Write,
-    net::{Ipv4Addr, TcpListener},
+    net::{IpAddr, Ipv4Addr, TcpListener},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -18,22 +18,51 @@ use tauri::Manager;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum McpScope {
+    #[default]
+    Local,
+    Network,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpSettings {
     pub enabled: bool,
     pub port: u16,
+    #[serde(default)]
+    pub scope: McpScope,
+}
+
+impl Default for McpSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: 32123,
+            scope: McpScope::Local,
+        }
+    }
 }
 
 #[derive(Serialize)]
 pub struct McpSettingsStatus {
     pub enabled: bool,
     pub port: u16,
+    pub scope: McpScope,
+    pub urls: Vec<String>,
     pub running: bool,
     pub url: Option<String>,
     pub config_path: String,
     pub client_config: String,
     pub managed_by_environment: bool,
     pub error: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct McpHttpConnection {
+    pub url: String,
+    pub token: String,
+    pub client_config: String,
 }
 
 #[derive(Default)]
@@ -61,21 +90,33 @@ impl Environment {
                 Ok(McpSettings {
                     enabled: true,
                     port,
+                    scope: McpScope::Local,
                 })
             })
             .transpose()
     }
-    fn token(&self) -> Result<String> {
+    fn token(&self, root: &Path) -> Result<String> {
         let token = match &self.token {
             Some(value) => value
                 .to_str()
                 .ok_or_else(|| message("MUSIC_GENERATOR_MCP_TOKEN is not valid text"))?
                 .to_owned(),
-            None => format!(
-                "{}{}",
-                uuid::Uuid::new_v4().simple(),
-                uuid::Uuid::new_v4().simple()
-            ),
+            None => {
+                let path = root.join("mcp-token");
+                match std::fs::read_to_string(&path) {
+                    Ok(token) => token,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        let token = format!(
+                            "{}{}",
+                            uuid::Uuid::new_v4().simple(),
+                            uuid::Uuid::new_v4().simple()
+                        );
+                        write_private(&path, token.as_bytes())?;
+                        token
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+            }
         };
         transport::validate_token(&token)?;
         Ok(token)
@@ -85,6 +126,8 @@ impl Environment {
 struct Server {
     descriptor: Mutex<Option<ConnectionFile>>,
     url: String,
+    urls: Vec<String>,
+    port: u16,
     cancellation: CancellationToken,
     closed: tokio::sync::watch::Receiver<bool>,
     error: Mutex<Option<String>>,
@@ -128,6 +171,108 @@ pub(super) fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 impl Control {
+    fn http_connection(&self, url: &str) -> Result<McpHttpConnection> {
+        let current = self.current.lock().unwrap();
+        let server = current
+            .server
+            .as_ref()
+            .filter(|server| {
+                !current.shutdown
+                    && !server.cancellation.is_cancelled()
+                    && server.urls.iter().any(|candidate| candidate == url)
+            })
+            .ok_or_else(|| message("Select an address of the running MCP service"))?;
+        let descriptor = server.descriptor.lock().unwrap();
+        let descriptor = descriptor
+            .as_ref()
+            .ok_or_else(|| message("MCP service is stopped"))?;
+        let token = descriptor.info.token.clone();
+        let client_config =
+            serde_json::to_string_pretty(&serde_json::json!({"mcpServers":{"music-generator":{
+                "url":url,"headers":{"Authorization":format!("Bearer {token}")}
+            }}}))?;
+        Ok(McpHttpConnection {
+            url: url.into(),
+            token,
+            client_config,
+        })
+    }
+
+    async fn configure<R: tauri::Runtime>(
+        self: &Arc<Self>,
+        state: Arc<AppState>,
+        app: tauri::AppHandle<R>,
+        settings: McpSettings,
+    ) -> Result<McpSettingsStatus> {
+        let _gate = self.change.clone().lock_owned().await;
+        if self.environment.port.is_some() {
+            return Err(message("MCP is managed by MUSIC_GENERATOR_MCP_PORT; remove the environment override and restart to edit these settings"));
+        }
+        // An IPv4 wildcard and a loopback listener cannot share the same fixed port.
+        // Save the exact previous endpoint so a failed scope change can restore it.
+        let rebind = {
+            let current = self.current.lock().unwrap();
+            current
+                .server
+                .as_ref()
+                .filter(|server| {
+                    settings.enabled
+                        && !server.cancellation.is_cancelled()
+                        && settings.scope != current.settings.scope
+                        && settings.port == server.port
+                })
+                .map(|server| (current.settings, server.clone()))
+        };
+        if let Some((_, server)) = &rebind {
+            server.stop();
+            server.wait_closed().await;
+        }
+        let saved = self.clone();
+        let target_state = state.clone();
+        let target_app = app.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            saved.apply(target_state, target_app, settings, true)
+        })
+        .await
+        .map_err(|error| message(error.to_string()))?;
+        match result {
+            Ok(previous) => {
+                if let Some(server) = previous {
+                    server.wait_closed().await;
+                }
+                self.status()
+            }
+            Err(error) => {
+                if let Some((previous, server)) = rebind {
+                    let control = self.clone();
+                    let restore = tauri::async_runtime::spawn_blocking(move || {
+                        control.apply(
+                            state,
+                            app,
+                            McpSettings {
+                                port: server.port,
+                                ..previous
+                            },
+                            false,
+                        )?;
+                        control.current.lock().unwrap().settings = previous;
+                        Ok::<_, crate::error::Error>(())
+                    })
+                    .await
+                    .map_err(|error| message(error.to_string()))?;
+                    if let Err(restore) = restore {
+                        let detail = format!(
+                            "{error}; previous MCP service could not be restored: {restore}"
+                        );
+                        self.current.lock().unwrap().error = Some(detail.clone());
+                        return Err(message(detail));
+                    }
+                }
+                Err(error)
+            }
+        }
+    }
+
     fn new(root: PathBuf, environment: Environment) -> Self {
         let mut current = Current::default();
         let loaded = (|| -> Result<McpSettings> {
@@ -178,6 +323,13 @@ impl Control {
         Ok(McpSettingsStatus {
             enabled: current.settings.enabled,
             port: current.settings.port,
+            scope: current.settings.scope,
+            urls: current
+                .server
+                .as_ref()
+                .filter(|_| running)
+                .map(|server| server.urls.clone())
+                .unwrap_or_default(),
             running,
             url: current
                 .server
@@ -229,14 +381,27 @@ impl Control {
         }
         // Bind first: a port conflict cannot interrupt the working server or change saved settings.
         let prepared = if settings.enabled {
-            let token = self.environment.token()?;
-            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, settings.port))?;
-            listener.set_nonblocking(true)?;
+            let token = self.environment.token(&self.root)?;
+            let bind = match settings.scope {
+                McpScope::Local => Ipv4Addr::LOCALHOST,
+                McpScope::Network => Ipv4Addr::UNSPECIFIED,
+            };
+            if settings.scope == McpScope::Network && settings.port != 0 {
+                // BSD may allow a reusable wildcard socket beside another service's
+                // specific-address listener. Detect that conflict before advertising it.
+                let mut probes = Vec::new();
+                for authority in authorities(settings.scope, settings.port) {
+                    let address: std::net::SocketAddrV4 =
+                        authority.parse().expect("IPv4 authority");
+                    probes.push(bind_listener(*address.ip(), address.port())?);
+                }
+            }
+            let listener = bind_listener(bind, settings.port)?;
             let address = listener.local_addr()?;
             Some((
                 listener,
                 ConnectionInfo {
-                    url: format!("http://{address}/mcp"),
+                    url: format!("http://127.0.0.1:{}/mcp", address.port()),
                     token,
                     pid: std::process::id(),
                 },
@@ -280,7 +445,14 @@ impl Control {
                     return Err(error);
                 }
             };
-            Some(serve(state, app, listener, descriptor, info))
+            Some(serve(
+                state,
+                app,
+                listener,
+                descriptor,
+                info,
+                settings.scope,
+            ))
         } else {
             None
         };
@@ -298,28 +470,69 @@ impl Control {
     }
 }
 
+fn authorities(scope: McpScope, port: u16) -> Vec<String> {
+    let mut addresses = Vec::new();
+    if scope == McpScope::Network {
+        for network in sysinfo::Networks::new_with_refreshed_list().values() {
+            for subnet in network.ip_networks() {
+                if let IpAddr::V4(address) = subnet.addr {
+                    if !address.is_loopback()
+                        && !address.is_unspecified()
+                        && !address.is_multicast()
+                        && !address.is_broadcast()
+                    {
+                        addresses.push(address);
+                    }
+                }
+            }
+        }
+        addresses.sort_unstable();
+        addresses.dedup();
+    }
+    addresses.push(Ipv4Addr::LOCALHOST);
+    addresses
+        .into_iter()
+        .map(|address| format!("{address}:{port}"))
+        .collect()
+}
+
+fn bind_listener(address: Ipv4Addr, port: u16) -> Result<TcpListener> {
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    // Restart without waiting for old connections' TIME_WAIT on Unix. Windows has
+    // different reuse semantics; never enable shared binding there.
+    #[cfg(unix)]
+    socket.set_reuseaddr(true)?;
+    socket.bind((address, port).into())?;
+    Ok(socket.listen(128)?.into_std()?)
+}
+
 fn serve<R: tauri::Runtime>(
     state: Arc<AppState>,
     app: tauri::AppHandle<R>,
     listener: TcpListener,
     descriptor: ConnectionFile,
     info: ConnectionInfo,
+    scope: McpScope,
 ) -> Arc<Server> {
     let cancellation = state.runtime.cancellation();
     let (closed, receiver) = tokio::sync::watch::channel(false);
+    let port = listener.local_addr().expect("bound MCP listener").port();
+    let authorities = authorities(scope, port);
+    let urls = authorities
+        .iter()
+        .map(|authority| format!("http://{authority}/mcp"))
+        .collect();
     let server = Arc::new(Server {
         descriptor: Mutex::new(Some(descriptor)),
         url: info.url,
+        urls,
+        port,
         cancellation: cancellation.clone(),
         closed: receiver,
         error: Mutex::new(None),
     });
     let control = server.clone();
-    let authority = listener
-        .local_addr()
-        .expect("bound MCP listener")
-        .to_string();
-    let router = transport::router(state, app, authority, info.token, cancellation.clone());
+    let router = transport::router(state, app, authorities, info.token, cancellation.clone());
     tauri::async_runtime::spawn(async move {
         let result = async {
             let listener = tokio::net::TcpListener::from_std(listener)?;
@@ -396,6 +609,13 @@ pub fn get_mcp_settings(app: tauri::AppHandle) -> Result<McpSettingsStatus> {
 }
 
 #[tauri::command]
+pub fn get_mcp_http_connection(app: tauri::AppHandle, url: String) -> Result<McpHttpConnection> {
+    app.try_state::<Arc<Control>>()
+        .ok_or_else(|| message("MCP settings are not ready"))?
+        .http_connection(&url)
+}
+
+#[tauri::command]
 pub async fn save_mcp_settings(
     app: tauri::AppHandle,
     state: tauri::State<'_, Arc<AppState>>,
@@ -407,21 +627,9 @@ pub async fn save_mcp_settings(
         .inner()
         .clone();
     let state = state.inner().clone();
-    tauri::async_runtime::spawn(async move {
-        let _gate = control.change.clone().lock_owned().await;
-        let saved = control.clone();
-        // Accepted writes and serialization survive the invoking window closing.
-        let previous =
-            tauri::async_runtime::spawn_blocking(move || saved.apply(state, app, settings, true))
-                .await
-                .map_err(|error| message(error.to_string()))??;
-        if let Some(server) = previous {
-            server.wait_closed().await;
-        }
-        control.status()
-    })
-    .await
-    .map_err(|error| message(error.to_string()))?
+    tauri::async_runtime::spawn(async move { control.configure(state, app, settings).await })
+        .await
+        .map_err(|error| message(error.to_string()))?
 }
 
 #[cfg(test)]

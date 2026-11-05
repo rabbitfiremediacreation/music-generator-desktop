@@ -19,7 +19,7 @@ function view(open = true) {
 }
 beforeEach(() => {
   vi.clearAllMocks(); setLang("en"); mocks.settings.mockResolvedValue(settings);
-  mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
+  mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   mocks.saveSettings.mockImplementation(async (values: object) => ({ ...settings, ...values }));
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
@@ -194,13 +194,13 @@ it("keeps MCP application separate from other draft settings and blocks dismissa
   fireEvent.change(timeout, { target: { value: "75" } });
   fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
   fireEvent.click(screen.getByRole("button", { name: t("mcp_apply") }));
-  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0 }));
+  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "local" }));
   fireEvent.keyDown(timeout, { key: "Escape" });
   fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   expect(callbacks.onClose).not.toHaveBeenCalled();
   expect(mocks.saveSettings).not.toHaveBeenCalled();
-  await act(async () => finish({ enabled: true, port: 0, running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null }));
+  await act(async () => finish({ enabled: true, port: 0, scope: "local", urls: [], running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null }));
   expect((timeout as HTMLInputElement).value).toBe("75");
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ timeout_minutes: 75 }));
@@ -217,7 +217,7 @@ it("does not save an unapplied MCP draft when the other settings are saved", asy
 });
 
 it("applies MCP from the port field with Enter without submitting the outer settings form", async () => {
-  mocks.saveMcpSettings.mockResolvedValue({ enabled: true, port: 32123, running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
+  mocks.saveMcpSettings.mockResolvedValue({ enabled: true, port: 32123, scope: "local", urls: ["http://127.0.0.1:32123/mcp"], running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   render(view()); await screen.findByRole("spinbutton");
   fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
   const input = screen.getByRole("textbox", { name: t("mcp_port") });
@@ -225,7 +225,7 @@ it("applies MCP from the port field with Enter without submitting the outer sett
   const key = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
   fireEvent(input, key);
   expect(key.defaultPrevented).toBe(true);
-  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 32123 }));
+  await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 32123, scope: "local" }));
   expect(mocks.saveSettings).not.toHaveBeenCalled();
   expect(callbacks.onClose).not.toHaveBeenCalled();
 });

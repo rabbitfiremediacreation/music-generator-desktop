@@ -3,7 +3,7 @@ use super::*;
 fn access() -> Access {
     Access {
         authorization: format!("Bearer {}", "a".repeat(64)),
-        authority: "127.0.0.1:9876".into(),
+        authorities: vec!["127.0.0.1:9876".into()],
         cancellation: tokio_util::sync::CancellationToken::new(),
     }
 }
@@ -107,7 +107,7 @@ async fn http_client_controls_the_shared_library_and_enforces_access() {
     let router = router(
         state.clone(),
         app.handle().clone(),
-        address.to_string(),
+        vec![address.to_string()],
         token.into(),
         cancellation.clone(),
     );
