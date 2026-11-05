@@ -127,6 +127,8 @@ pub fn run() {
             commands::delete_folder,
             commands::queue,
             commands::get_settings,
+            mcp::settings::get_mcp_settings,
+            mcp::settings::save_mcp_settings,
             commands::open_songs_folder,
             commands::save_settings,
             commands::export_default_path,

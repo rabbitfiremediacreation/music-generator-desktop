@@ -15,12 +15,9 @@ use rmcp::transport::streamable_http_server::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    io::Write,
-    net::{Ipv4Addr, TcpListener},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
-use tauri::Manager;
 
 pub(super) const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
@@ -31,51 +28,15 @@ pub(super) struct ConnectionInfo {
     pub pid: u32,
 }
 
-struct ConnectionFile {
-    path: PathBuf,
-    info: ConnectionInfo,
-}
-
-struct Control {
-    descriptor: Mutex<Option<ConnectionFile>>,
-    cancellation: tokio_util::sync::CancellationToken,
-}
-
-impl Control {
-    fn stop(&self) {
-        self.cancellation.cancel();
-        self.descriptor.lock().unwrap().take();
-    }
+pub(super) struct ConnectionFile {
+    pub(super) path: PathBuf,
+    pub(super) info: ConnectionInfo,
 }
 
 impl ConnectionFile {
-    fn create(root: &Path, info: ConnectionInfo) -> Result<Self> {
+    pub(super) fn create(root: &Path, info: ConnectionInfo) -> Result<Self> {
         let path = root.join("mcp.json");
-        let temporary = root.join(format!(".mcp-{}.tmp", uuid::Uuid::new_v4()));
-        let mut options = std::fs::OpenOptions::new();
-        options.create_new(true).write(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let result = (|| -> Result<()> {
-            let mut file = options.open(&temporary)?;
-            file.write_all(&serde_json::to_vec_pretty(&info)?)?;
-            file.sync_all()?;
-            // Windows rename cannot replace an existing file. This process is the
-            // desktop's single instance, so an existing descriptor is from a prior run.
-            #[cfg(windows)]
-            if path.exists() {
-                std::fs::remove_file(&path)?;
-            }
-            std::fs::rename(&temporary, &path)?;
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = std::fs::remove_file(temporary);
-        }
-        result?;
+        super::settings::write_private(&path, &serde_json::to_vec_pretty(&info)?)?;
         Ok(Self { path, info })
     }
 }
@@ -97,10 +58,14 @@ impl Drop for ConnectionFile {
 struct Access {
     authorization: String,
     authority: String,
+    cancellation: tokio_util::sync::CancellationToken,
 }
 
 impl Access {
     fn check(&self, headers: &HeaderMap) -> std::result::Result<(), StatusCode> {
+        if self.cancellation.is_cancelled() {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
         if headers.contains_key(header::ORIGIN)
             || headers.get_all(header::HOST).iter().count() != 1
             || headers
@@ -133,7 +98,11 @@ fn constant_time_equal(left: &[u8], right: &[u8]) -> bool {
 
 async fn authorize(State(access): State<Access>, request: Request, next: Next) -> Response {
     match access.check(request.headers()) {
-        Ok(()) => next.run(request).await,
+        Ok(()) => tokio::select! {
+            biased;
+            _ = access.cancellation.cancelled() => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+            response = next.run(request) => response,
+        },
         Err(StatusCode::UNAUTHORIZED) => (
             StatusCode::UNAUTHORIZED,
             [(header::WWW_AUTHENTICATE, "Bearer realm=\"Music Generator\"")],
@@ -157,67 +126,14 @@ pub(super) fn validate_token(token: &str) -> Result<()> {
     Ok(())
 }
 
-/// Start once after desktop state registration; absence of the port variable disables MCP.
+/// Register settings after desktop state initialization, then apply the startup configuration.
 pub fn start<R: tauri::Runtime>(state: Arc<AppState>, app: tauri::AppHandle<R>) -> Result<()> {
-    let port = match std::env::var("MUSIC_GENERATOR_MCP_PORT") {
-        Err(std::env::VarError::NotPresent) => return Ok(()),
-        Err(_) => {
-            return Err(message(
-                "MUSIC_GENERATOR_MCP_PORT must be a number from 0 to 65535",
-            ))
-        }
-        Ok(value) => value
-            .parse::<u16>()
-            .map_err(|_| message("MUSIC_GENERATOR_MCP_PORT must be a number from 0 to 65535"))?,
-    };
-    let token = match std::env::var("MUSIC_GENERATOR_MCP_TOKEN") {
-        Ok(token) => token,
-        Err(std::env::VarError::NotPresent) => format!(
-            "{}{}",
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple()
-        ),
-        Err(_) => return Err(message("MUSIC_GENERATOR_MCP_TOKEN is not valid text")),
-    };
-    validate_token(&token)?;
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))?;
-    listener.set_nonblocking(true)?;
-    let address = listener.local_addr()?;
-    let info = ConnectionInfo {
-        url: format!("http://{address}/mcp"),
-        token: token.clone(),
-        pid: std::process::id(),
-    };
-    let descriptor = ConnectionFile::create(&state.db.root, info)?;
-    let cancellation = state.runtime.cancellation();
-    let control = Arc::new(Control {
-        descriptor: Mutex::new(Some(descriptor)),
-        cancellation: cancellation.clone(),
-    });
-    app.manage(control.clone());
-    let router = router(state, app, address.to_string(), token, cancellation.clone());
-    tauri::async_runtime::spawn(async move {
-        let result = async {
-            let listener = tokio::net::TcpListener::from_std(listener)?;
-            axum::serve(listener, router)
-                .with_graceful_shutdown(cancellation.cancelled_owned())
-                .await
-        }
-        .await;
-        control.stop();
-        if let Err(error) = result {
-            tracing::error!(%error, "MCP server stopped");
-        }
-    });
-    tracing::info!(%address, "MCP loopback server started; credentials are in the data directory's mcp.json");
-    Ok(())
+    super::settings::start(state, app)
 }
 
 /// Remove credentials synchronously before Tauri terminates its asynchronous runtime.
 pub fn stop<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-    if let Some(control) = app.try_state::<Arc<Control>>() {
-        control.stop();
-    }
+    super::settings::stop(app);
 }
 
 pub(super) fn router<R: tauri::Runtime>(
@@ -246,6 +162,7 @@ pub(super) fn router<R: tauri::Runtime>(
             Access {
                 authorization: format!("Bearer {token}"),
                 authority,
+                cancellation,
             },
             authorize,
         ))

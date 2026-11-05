@@ -7,6 +7,7 @@ import { modelErrorText } from "../../expert-mode";
 import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
 import { useSettingsDraft } from "./useSettingsDraft";
+import { McpSettings } from "./McpSettings";
 
 export interface SettingsDialogProps {
   open: boolean; onClose: () => void; onBusyChange: (busy: boolean) => void;
@@ -20,6 +21,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const state = useSettingsDraft(props.open, props.onClose, props.onBusyChange);
   const dialog = useRef<HTMLDialogElement>(null);
   const backdropPress = useRef(false);
+  const [mcpSaving, setMcpSaving] = useState(false);
   const [pathError, setPathError] = useState<unknown>();
   const openFolder = useMutation({ mutationFn: backend.openSongsFolder, retry: false, networkMode: "always" });
   const update = useMutation({ mutationFn: backend.checkUpdate, retry: false, networkMode: "always" });
@@ -36,7 +38,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
     const bounds = dialog.current!.getBoundingClientRect();
     return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom;
   };
-  const dismiss = () => { if (!saving) props.onClose(); };
+  const busy = saving || mcpSaving;
+  const dismiss = () => { if (!busy) props.onClose(); };
   return <dialog ref={dialog} id="settingsDlg" aria-labelledby="settingsHeading"
     onCancel={event => { event.preventDefault(); dismiss(); }}
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } }}
@@ -45,11 +48,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
       const startedOutside = backdropPress.current; backdropPress.current = false;
       if (startedOutside && event.target === event.currentTarget && outside(event.clientX, event.clientY)) { event.preventDefault(); dismiss(); }
     }}>
-    <form id="settingsForm" aria-busy={saving || pending} onSubmit={event => { event.preventDefault(); void state.submit(); }}>
+    <form id="settingsForm" aria-busy={busy || pending} onSubmit={event => { event.preventDefault(); if (!busy) void state.submit(); }}>
       <h2 id="settingsHeading" className="col-title">{t("settings_title")}</h2>
       <p role="status" aria-live="polite">{status && t(status)}</p>
       {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
-      <fieldset disabled={loading || !draft || saving}>
+      <fieldset disabled={loading || !draft || busy}>
         {draft && <>
           <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
             <select name="lm_device" aria-label={t("lm_dev")} disabled={pending} value={draft.lm_device} onChange={event => void state.device(event.target.value as Settings["lm_device"])}>
@@ -73,6 +76,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <button type="button" className="sek" disabled={openFolder.isPending} onClick={() => openFolder.mutate()}>{t("settings_open_folder")}</button>
           {openFolder.error && <p role="alert" className="small err">{t("settings_open_folder_failed")}</p>}
         </>}
+        <McpSettings onBusyChange={setMcpSaving} />
         <div className="field"><span className="lbl">{t("layout")}</span><div className="seg" role="group" aria-label={t("layout")}>{(["auto", "stack", "side"] as const).map(value => <button key={value} type="button" className="sek" aria-pressed={props.layout === value} title={value === "side" ? t("side_tip") : undefined} onClick={() => props.onLayoutChange(value)}>{t(value === "auto" ? "vt_auto" : value === "stack" ? "stacked" : "side")}</button>)}</div></div>
         <div className="field"><span className="lbl">{t("version")}</span><div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>
           {update.data?.available && update.data.url && <button type="button" className="aktion" onClick={() => void openUrl(update.data!.url!).catch(setPathError)}>{t("desktop_download_release")}</button>}
@@ -82,7 +86,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       </fieldset>
       {saving && <p role="status">{t("settings_saving")}</p>}
       {errorText && <p role="alert" className="small err">{t("error")}: {errorText}</p>}
-      <div className="submit"><button type="button" className="sek" disabled={saving} onClick={props.onClose}>{t("cancel")}</button><button type="submit" className="aktion" disabled={loading || !draft || pending || saving}>{t("save")}</button></div>
+      <div className="submit"><button type="button" className="sek" disabled={busy} onClick={props.onClose}>{t("cancel")}</button><button type="submit" className="aktion" disabled={loading || !draft || pending || busy}>{t("save")}</button></div>
     </form>
   </dialog>;
 }

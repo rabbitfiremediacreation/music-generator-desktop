@@ -4,7 +4,15 @@ Der optionale MCP-Server steuert die **laufende Desktop-App**. Er verwendet dies
 
 ## Aktivieren
 
-Den ersten Startassistenten in der Desktop-App abschließen. Die App vollständig beenden und mit `MUSIC_GENERATOR_MCP_PORT` starten. `0` wählt einen freien lokalen Port, eine Zahl wie `32123` einen festen Port. Ohne diese Variable bleibt MCP deaktiviert.
+Den ersten Startassistenten in der Desktop-App abschließen. Unter **Einstellungen → Agent-Zugriff (MCP)** MCP aktivieren und die Änderung mit dem eigenen MCP-Knopf anwenden. `0` wählt einen freien lokalen Port, eine Zahl wie `32123` einen festen Port. Die Auswahl bleibt nach einem App-Neustart erhalten; standardmäßig ist MCP deaktiviert.
+
+Der Bereich zeigt den tatsächlichen Serverstatus, die lokale Adresse und den Pfad der Verbindungsdatei. Die Client-Konfiguration lässt sich dort kopieren und als stdio-Verbindung im MCP-Client einfügen. Sie enthält keinen Schlüssel, sondern verweist auf die private Verbindungsdatei.
+
+MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder **Abbrechen** des Einstellungsdialogs. Deaktivieren schließt den MCP-Zugang und entfernt die Verbindungsdatei. Bereits angenommene Generierungsaufträge bleiben in der gemeinsamen Warteschlange und werden dadurch nicht abgebrochen.
+
+### Per Umgebungsvariable
+
+Alternativ die App vollständig beenden und mit `MUSIC_GENERATOR_MCP_PORT` starten. Diese Vorgabe hat Vorrang vor der gespeicherten Auswahl; die Oberfläche kennzeichnet sie und sperrt Änderungen, solange die App damit läuft. Ohne diese Variable gilt die gespeicherte MCP-Einstellung.
 
 macOS, installiertes Bundle:
 
@@ -33,7 +41,7 @@ MUSIC_GENERATOR_MCP_PORT=0 npm run dev
 
 Die Variable muss beim Start des eigentlichen App-Prozesses gesetzt sein; das erneute Öffnen einer bereits laufenden Instanz ändert ihre Konfiguration nicht. Sobald die Dateninitialisierung abgeschlossen ist, schreibt die App `mcp.json` in ihren Datenordner. Die Datei enthält `url`, `token` und `pid`. Die Standardordner stehen in der [README](../README.md#daten-und-updates). Ein Portkonflikt oder ungültige Konfiguration wird in `logs/desktop.log` protokolliert; die Oberfläche bleibt benutzbar.
 
-Pro Start wird ein zufälliger Schlüssel erzeugt. Für einen dauerhaft konfigurierten HTTP-Client kann `MUSIC_GENERATOR_MCP_TOKEN` auf einen eigenen zufälligen Schlüssel mit 32–512 Zeichen gesetzt werden (Buchstaben, Ziffern und `-._~+/=`). Schlüssel nicht in Git einchecken oder in Screenshots aufnehmen. Unter Unix ist `mcp.json` nur für den aktuellen Benutzer lesbar und schreibbar (`0600`); unter Windows gelten die Zugriffsrechte des persönlichen App-Datenordners.
+Beim Start des MCP-Servers wird ein zufälliger Schlüssel erzeugt. Für einen dauerhaft konfigurierten HTTP-Client kann `MUSIC_GENERATOR_MCP_TOKEN` auf einen eigenen zufälligen Schlüssel mit 32–512 Zeichen gesetzt werden (Buchstaben, Ziffern und `-._~+/=`). Schlüssel nicht in Git einchecken oder in Screenshots aufnehmen. Unter Unix ist `mcp.json` nur für den aktuellen Benutzer lesbar und schreibbar (`0600`); unter Windows gelten die Zugriffsrechte des persönlichen App-Datenordners. Die separate Datei `mcp-settings.json` speichert nur Aktivierung und Port. Der Schlüssel wird weder in der React-Statusanzeige noch in den allgemeinen Einstellungen ausgegeben.
 
 ## MCP-Client verbinden
 

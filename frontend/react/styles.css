@@ -492,3 +492,18 @@ html[data-platform=macos] .titlebar nav { display: none; }
 }
 
 [hidden] { display: none !important; }
+
+.mcp-settings { margin: 20px 0; padding: 16px 0; border-block: 1px solid var(--border); min-width: 0; }
+.mcp-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.mcp-heading h3 { margin: 0; }
+.mcp-status { color: var(--muted); font-size: 12px; }
+.mcp-status.is-running { color: var(--accent2); }
+.mcp-settings fieldset { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
+.mcp-settings .mcp-port { margin-top: 12px; }
+.mcp-port input { max-width: 160px; }
+.mcp-settings code { display: block; margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mcp-settings p { overflow-wrap: anywhere; }
+.mcp-connection { margin-top: 16px; }
+.mcp-connection details { margin-top: 12px; }
+.mcp-connection summary { cursor: pointer; color: var(--muted); }
+.mcp-connection textarea { box-sizing: border-box; width: 100%; resize: vertical; font-family: monospace; font-size: 12px; }

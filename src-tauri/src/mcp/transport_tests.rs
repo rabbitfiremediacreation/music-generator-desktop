@@ -4,6 +4,7 @@ fn access() -> Access {
     Access {
         authorization: format!("Bearer {}", "a".repeat(64)),
         authority: "127.0.0.1:9876".into(),
+        cancellation: tokio_util::sync::CancellationToken::new(),
     }
 }
 

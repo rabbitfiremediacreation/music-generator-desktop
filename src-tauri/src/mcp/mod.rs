@@ -4,6 +4,7 @@ mod library;
 mod operations;
 mod resources;
 pub mod server;
+pub mod settings;
 mod surface;
 pub mod transport;
 
