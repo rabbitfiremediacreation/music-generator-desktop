@@ -51,7 +51,7 @@ pub(super) fn tools() -> Vec<Value> {
     for (name, description) in [
         ("duration", "Requested seconds; omitted values inherit the source song or use the saved studio preference for new music (initially 90)."),
         ("inference_steps", "Omitted values inherit the source song or use saved studio/device/model defaults for new music. CPU iteration policy still applies."),
-        ("lm_temperature", "Omitted values inherit the source song or use the saved studio preference for new music (initially 1.2)."),
+        ("lm_temperature", "Omitted values inherit the source song or use the saved studio preference for new music (initially 0.85)."),
         ("instrumental", "Omitted values inherit the source song; new music is instrumental by default."),
         ("keep_caption", "Omitted values inherit the source song; new music preserves the supplied caption by default."),
         ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A supplied nonnegative seed is reproducible."),

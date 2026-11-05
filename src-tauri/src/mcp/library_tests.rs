@@ -171,7 +171,7 @@ async fn generation_uses_studio_defaults_and_admission_then_variants_preserve_gr
     let id = ids[0].as_str().unwrap();
     let song = state.db.song(id).unwrap();
     assert_eq!(song.params["duration"], 90.0);
-    assert_eq!(song.params["lm_temperature"], 1.2);
+    assert_eq!(song.params["lm_temperature"], 0.85);
     assert_eq!(song.params["inference_steps"], 30);
     let result = generation::variants(
         state.clone(),
