@@ -15,7 +15,7 @@ MUSIC_GENERATOR_MCP_PORT=0 "/Applications/Music Generator.app/Contents/MacOS/mus
 Linux:
 
 ```sh
-MUSIC_GENERATOR_MCP_PORT=0 ./Music-Generator-0.1.2-linux-x64.AppImage
+MUSIC_GENERATOR_MCP_PORT=0 ./Music-Generator-0.1.3-linux-x64.AppImage
 ```
 
 Windows, PowerShell im entpackten Paket:

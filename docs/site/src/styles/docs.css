@@ -1,0 +1,103 @@
+:root {
+  --sl-font: "Avenir Next", "Segoe UI", sans-serif;
+  --sl-nav-height: 4.75rem;
+  --sl-sidebar-width: 16.5rem;
+  --sl-content-width: 48rem;
+  --sl-content-gap-y: 1.25rem;
+  --sl-text-body: 1.0625rem;
+  --sl-text-h2: 1.75rem;
+  --sl-line-height: 1.8;
+  --sl-color-white: #f2ecdf;
+  --sl-color-gray-1: #e1ddcf;
+  --sl-color-gray-2: #babfb6;
+  --sl-color-gray-3: #939c90;
+  --sl-color-gray-4: #657060;
+  --sl-color-gray-5: #343c33;
+  --sl-color-gray-6: #1d241f;
+  --sl-color-black: #101312;
+  --sl-color-accent-low: #302b1f;
+  --sl-color-accent: #d8b77a;
+  --sl-color-accent-high: #e9cc9a;
+  --sl-color-bg: #101312;
+  --sl-color-bg-nav: #101312;
+  --sl-color-bg-sidebar: #161a18;
+  --sl-color-bg-inline-code: #232a24;
+  --sl-color-hairline: #2c332d;
+  --sl-color-hairline-shade: #2c332d;
+  --sl-color-text-invert: #1a1d17;
+}
+
+:root[data-theme="light"] {
+  --sl-color-white: #202820;
+  --sl-color-gray-1: #2e372c;
+  --sl-color-gray-2: #4d5749;
+  --sl-color-gray-3: #657060;
+  --sl-color-gray-4: #899180;
+  --sl-color-gray-5: #cccdbd;
+  --sl-color-gray-6: #e8e7db;
+  --sl-color-gray-7: #f1eee3;
+  --sl-color-black: #f7f3e9;
+  --sl-color-accent-low: #eee0bc;
+  --sl-color-accent: #77521b;
+  --sl-color-accent-high: #664510;
+  --sl-color-bg: #f7f3e9;
+  --sl-color-bg-nav: #f7f3e9;
+  --sl-color-bg-sidebar: #f0ede2;
+  --sl-color-bg-inline-code: #eae6d7;
+  --sl-color-hairline: #d9d6c6;
+  --sl-color-hairline-shade: #d9d6c6;
+  --sl-color-text-invert: #fff8e6;
+}
+
+html[data-has-sidebar] .page > .header { border-bottom-color: var(--sl-color-hairline); }
+html[data-has-sidebar] .site-title { gap: 0.7rem; font-size: 1.125rem; letter-spacing: -0.045em; color: var(--sl-color-white); }
+html[data-has-sidebar] .site-title img { height: 2.1rem; }
+html[data-has-sidebar] site-search button[data-open-modal] { border-radius: 0.35rem; border-color: var(--sl-color-hairline); background: var(--sl-color-bg-sidebar); }
+html[data-has-sidebar] site-search dialog { border: 1px solid var(--sl-color-gray-5); border-radius: 0.6rem; }
+html[data-has-sidebar] .sidebar-content { padding-top: 2rem; }
+html[data-has-sidebar] .sidebar a { padding: 0.65rem 0.75rem; border-radius: 0.25rem; }
+html[data-has-sidebar] .sidebar .large { font-size: 0.9375rem; }
+html[data-has-sidebar] .sidebar summary { margin: 1.6rem 0 0.65rem; padding-inline: 0.75rem; }
+html[data-has-sidebar] .sidebar .group-label .large { color: var(--sl-color-gray-3); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+html[data-has-sidebar] .sidebar [aria-current="page"] { color: var(--sl-color-accent-high); background: var(--sl-color-accent-low); box-shadow: inset 2px 0 var(--sl-color-accent); }
+html[data-has-sidebar] .sidebar a:hover { color: var(--sl-color-accent-high); }
+html[data-has-sidebar] main > .content-panel:first-of-type { padding-top: 3.5rem; padding-bottom: 2rem; border-bottom: 0; }
+html[data-has-sidebar] h1#_top { margin-top: 0; font-size: clamp(2.75rem, 5vw, 4.5rem); font-weight: 600; letter-spacing: -0.06em; line-height: 1.05; }
+html[data-has-sidebar] h1#_top::before { display: block; width: 2.5rem; height: 3px; margin-bottom: 1.5rem; background: var(--sl-color-accent); content: ""; }
+html[data-has-sidebar] main > .content-panel + .content-panel { border-top: 0; padding-top: 0; }
+html[data-has-sidebar] .sl-markdown-content > p:first-child { color: var(--sl-color-gray-2); font-size: 1.125rem; }
+html[data-has-sidebar] .sl-markdown-content h2 { padding-top: 0.75rem; font-weight: 600; letter-spacing: -0.035em; line-height: 1.25; }
+html[data-has-sidebar] .sl-markdown-content a { text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+html[data-has-sidebar] .sl-markdown-content :is(ol, ul) { padding-inline-start: 1.5rem; }
+html[data-has-sidebar] .sl-markdown-content li { padding-inline-start: 0.25rem; }
+html[data-has-sidebar] .sl-markdown-content li::marker { color: var(--sl-color-accent-high); font-weight: 600; }
+html[data-has-sidebar] .sl-markdown-content li + li { margin-top: 0.6rem; }
+html[data-has-sidebar] .sl-markdown-content table { width: 100%; margin-block: 1.75rem; font-size: 0.9375rem; line-height: 1.65; }
+html[data-has-sidebar] .sl-markdown-content th { color: var(--sl-color-accent-high); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+html[data-has-sidebar] .sl-markdown-content :is(th, td) { padding-block: 1rem; border-bottom-color: var(--sl-color-hairline); }
+html[data-has-sidebar] .sl-markdown-content code { border-radius: 0.2rem; overflow-wrap: anywhere; }
+html[data-has-sidebar] .expressive-code { margin-block: 1.75rem; }
+html[data-has-sidebar] .expressive-code .frame { box-shadow: none; }
+html[data-has-sidebar] .pagination-links a { border-color: var(--sl-color-hairline); border-radius: 0.35rem; padding: 1.5rem; box-shadow: none; }
+html[data-has-sidebar] .pagination-links a:hover { border-color: var(--sl-color-accent); }
+html[data-has-sidebar] .pagination-links .link-title { margin-top: 0.3rem; font-size: 1.25rem; letter-spacing: -0.025em; }
+html[data-has-sidebar] starlight-toc nav > h2 { color: var(--sl-color-gray-3); font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; }
+html[data-has-sidebar] starlight-toc a[aria-current="true"] { color: var(--sl-color-accent-high); }
+html[data-has-sidebar] :focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 4px; }
+
+@media (min-width: 72rem) {
+  html[data-has-sidebar] { --sl-content-pad-x: 2.5rem; }
+}
+
+@media (max-width: 49.99rem) {
+  html[data-has-sidebar] { --sl-nav-height: 4rem; --sl-text-body: 1rem; }
+  html[data-has-sidebar] .site-title { font-size: 1rem; }
+  html[data-has-sidebar] .site-title img { height: 1.8rem; }
+  html[data-has-sidebar] main > .content-panel:first-of-type { padding-top: 2.5rem; }
+  html[data-has-sidebar] .sl-markdown-content > p:first-child { font-size: 1.0625rem; }
+}
+
+@media print {
+  html[data-has-sidebar] { --sl-color-bg: white; --sl-color-white: black; --sl-color-gray-2: #333; --sl-color-accent-high: #333; }
+  html[data-has-sidebar] h1#_top::before { display: none; }
+}

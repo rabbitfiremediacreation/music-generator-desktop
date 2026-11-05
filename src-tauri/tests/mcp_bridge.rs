@@ -66,6 +66,16 @@ async fn endpoint(
 
 #[tokio::test]
 async fn console_binary_forwards_jsonrpc_without_starting_the_desktop() {
+    forwards_jsonrpc(env!("CARGO_BIN_EXE_music-generator-mcp")).await;
+}
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn main_binary_forwards_jsonrpc_without_starting_the_desktop() {
+    forwards_jsonrpc(env!("CARGO_BIN_EXE_music-generator")).await;
+}
+
+async fn forwards_jsonrpc(binary: &str) {
     let root = tempfile::tempdir().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let router = Router::new()
@@ -83,7 +93,7 @@ async fn console_binary_forwards_jsonrpc_without_starting_the_desktop() {
             .to_string(),
     )
     .unwrap();
-    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_music-generator-mcp"))
+    let mut child = tokio::process::Command::new(binary)
         .arg("--mcp-stdio")
         .arg(config)
         .stdin(Stdio::piped())

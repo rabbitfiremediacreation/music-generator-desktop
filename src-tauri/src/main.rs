@@ -4,6 +4,9 @@ fn main() {
     if let Some(code) = music_generator::mcp::bridge::cli() {
         std::process::exit(code);
     }
+    if let Some(code) = music_generator::cuda_runtime::cli() {
+        std::process::exit(code);
+    }
     if let Some(code) = music_generator::synthesis_policy::cli() {
         std::process::exit(code);
     }

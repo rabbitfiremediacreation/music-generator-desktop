@@ -1,0 +1,10 @@
+---
+interface Props { href: string; }
+const { href } = Astro.props;
+---
+<a class="product-brand" href={href} aria-label="Music Generator">
+  <svg viewBox="0 0 36 36" fill="none" aria-hidden="true">
+    <path d="M5 15v6m6-13v20m7-25v30m7-23v16m6-10v4" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+  </svg>
+  <span>Music Generator<span class="brand-desktop">DESKTOP</span></span>
+</a>

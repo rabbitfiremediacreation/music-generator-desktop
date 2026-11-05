@@ -7,7 +7,7 @@ import path from "node:path";
 const suffixes = {
   "macos-arm64": ["macos-arm64.dmg", "macos-arm64.zip"],
   "macos-x64": ["macos-x64.dmg", "macos-x64.zip"],
-  "windows-x64": ["windows-x64.zip"],
+  "windows-x64": ["windows-x64.zip", "windows-x64.msi"],
   "linux-x64": ["linux-x64.AppImage"],
   "linux-x64-cuda": ["linux-x64-cuda.AppImage"],
 };

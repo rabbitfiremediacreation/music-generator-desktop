@@ -5,6 +5,7 @@ pub mod audio_import;
 pub mod catalog;
 mod commands;
 pub mod configuration;
+pub mod cuda_runtime;
 pub mod db;
 pub mod download;
 pub mod engine;
@@ -100,6 +101,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
             startup::startup_status,
+            startup::startup_splash_progress,
             startup::startup_allowed,
             startup::splash_ready,
             startup::startup_error,
@@ -109,6 +111,8 @@ pub fn run() {
             commands::setup_models,
             commands::setup_estimate,
             commands::cancel_setup,
+            commands::cuda_status,
+            commands::install_cuda_runtime,
             commands::import_library,
             commands::preview_import,
             commands::preview_library_move,
@@ -123,6 +127,7 @@ pub fn run() {
             commands::delete_folder,
             commands::queue,
             commands::get_settings,
+            commands::open_songs_folder,
             commands::save_settings,
             commands::export_default_path,
             commands::get_generation_form_preferences,

@@ -27,6 +27,10 @@ impl OwnedProcess {
             }
         };
         let mut command = Command::new(executable);
+        // All owned engines log under the app data root's logs/ directory.
+        if let Some(root) = log.parent().and_then(Path::parent) {
+            crate::cuda_runtime::configure_command(&mut command, root);
+        }
         #[cfg(target_os = "macos")]
         if let Some(index) = args.iter().position(|a| a == "--models" || a == "--model") {
             if let Some(models) = args.get(index + 1) {

@@ -2,11 +2,11 @@
 
 Lokale Musikgenerierung als rahmenlose **Tauri-Desktop-App** für macOS, Windows und Linux. Rust verwaltet Modelle, Warteschlange und Bibliothek; [acestep.cpp](https://github.com/ServeurpersoCom/acestep.cpp) übernimmt die Musikberechnung.
 
-**Herunterladen, entpacken, öffnen.** Keine Installer und keine Python-/Node-Installation beim Anwender. Der Startassistent lädt die benötigten Modelle und prüft die Hardware. Danach funktioniert die Musikgenerierung offline.
+**Herunterladen und öffnen.** Windows bietet zusätzlich zum portablen ZIP einen MSI-Installer. Keine Python-/Node-Installation beim Anwender. Der Startassistent lädt die benötigten Modelle und prüft die Hardware. Danach funktioniert die Musikgenerierung offline.
 
 ## Projektstatus
 
-**Stand: 27. Oktober 2026 · Entwicklungsstand: 0.1.2** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt inzwischen Tauri, Rust und eine TypeScript-/JavaScript-Oberfläche. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
+**Stand: 27. Oktober 2026 · Entwicklungsstand: 0.1.2** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt Tauri, Rust und eine React-/TypeScript-Oberfläche mit TanStack Router, TanStack Query und Tailwind CSS. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
 
 ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält eine Modellauswahl direkt im Studio, automatische lokale Songtitel, Echtzeit-Fortschritt und native Audio-/Text-/ZIP-Exporte. Die Versionsangabe beschreibt den Quellcode; verfügbare Downloads können einen anderen Stand haben.
 
@@ -22,7 +22,7 @@ ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält e
 | --- | --- |
 | macOS 14+, Apple Silicon | DMG und ZIP mit `Music Generator.app` |
 | macOS 13.3+, Intel x64 (experimentell) | Eigenes DMG und ZIP, ausschließlich CPU |
-| Windows 10/11, x64 | ZIP mit EXE, Engine und WebView2 |
+| Windows 10/11, x64 | MSI-Installer oder portables ZIP mit EXE, Engine und WebView2 |
 | Linux, x64 | AppImage mit Vulkan/CPU-Engine; separate CUDA-Ausgabe für NVIDIA |
 
 Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerzeugung rechnen auf der CPU; ein Song kann viele Minuten dauern. Mit 10 Sekunden, dem 0.6B-Sprachmodell und dem Standard-Klangmodell beginnen. Der Assistent prüft den Engine-Start und überspringt den GPU-Test. Native Builds werden auf macOS 15 geprüft; echte Generierung auf weiteren Intel-Macs und der Mindestversion bleibt manuell abzunehmen.
@@ -78,7 +78,7 @@ Bibliothek und Einstellungen liegen in `music.db`; Modelle und Songs bleiben au�
 
 Modell- und Song-Ordner lassen sich separat wählen. Auf macOS externe Ordner über den Auswahldialog freigeben. Protokolle stehen unter `logs/`, insbesondere `desktop.log`, `ace-server.log` und bei separatem Sprachmodell `ace-lm.log`.
 
-Updates erfolgen durch Austausch des Bundles. Für eine Sicherung die App schließen und den Datenordner sowie separat gewählte Song-Ordner kopieren; Modelle können zusätzlich gesichert oder erneut geladen werden. Beim Wechsel von älteren Installationen die Importfunktion verwenden, damit die ursprünglichen Daten erhalten bleiben. Details zu Ordnerfreigaben und Profilwechseln: [Daten und Updates](docs/desktop.md#data-and-updates).
+Updates erfolgen durch Austausch des Bundles oder bei einer MSI-Installation durch Ausführen des neueren MSI-Installers. Für eine Sicherung die App schließen und den Datenordner sowie separat gewählte Song-Ordner kopieren; Modelle können zusätzlich gesichert oder erneut geladen werden. Beim Wechsel von älteren Installationen die Importfunktion verwenden, damit die ursprünglichen Daten erhalten bleiben. Details zu Ordnerfreigaben und Profilwechseln: [Daten und Updates](docs/desktop.md#data-and-updates).
 
 ## Erprobung und bekannte Grenzen
 
@@ -111,15 +111,22 @@ npm run bundle
 
 Die plattformspezifischen Pipelines stehen in `.github/workflows/desktop.yml`. Build, Datenablage, Import, Signierung und manuelle Abnahme beschreibt [docs/desktop.md](docs/desktop.md).
 
+React-Einstiegspunkte, Zustandsgrenzen, Event-Synchronisierung und Frontend-Tests beschreibt [docs/frontend.md](docs/frontend.md). Die bestehende typisierte Tauri-Schnittstelle bleibt die Grenze zum Rust-Backend; nach dem Modell-Download benötigt die Oberfläche keine Netzwerkverbindung.
+
+## Dokumentation
+
+Das eigenständige [Astro-/Starlight-Grundgerüst](docs/site/README.md) unter `docs/site/` enthält deutsche und englische Installationsseiten. Dort stehen auch Vorschau-Befehle und Hinweise, um Texte und Bilder echter Installationen per Pull Request zu ergänzen. Der separate Workflow `.github/workflows/docs.yml` prüft und veröffentlicht die Dokumentation über GitHub Pages; die einmalige Pages-Einrichtung ist in der Beitragsanleitung beschrieben.
+
 ## Aufbau
 
 | Bereich | Inhalt |
 | --- | --- |
-| `frontend/` | Vite-Oberfläche, TypeScript-Tauri-Schnittstelle, Assistent und erhaltene Studio-Bedienung |
+| `frontend/` | React-Einstiege für Hauptfenster/Splash, Übersetzungen, Fachlogik und TypeScript-Tauri-Schnittstelle |
+| `frontend/react/` | Fachlich gegliederte Komponenten/Hooks, Router, Query-/Event-Verwaltung und Tailwind-Styles |
 | `src-tauri/` | Rust-Backend, SQLite, Queue, Download- und Engine-Verwaltung |
 | `models/` | Versionierte Modell-/Engine- und WebView2-Downloadmanifeste |
 | `scripts/desktop/` | Vorbereitung der Engine und fertige Plattformpakete |
-| `static/` | Styles, Bilder und vendorter Waveform-Player |
+| `static/` | Bilder, vendorter Waveform-Player und Lizenztexte |
 | `assets/music-generator-overview.png` | Beispiel-Screenshot für diese README |
 | `docs/legacy/` | Archivierter Ubuntu-Installer mit historischem Kontext, gilt nicht für Desktop |
 

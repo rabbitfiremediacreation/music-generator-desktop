@@ -10,6 +10,11 @@ pub fn initialize<R: Runtime>(
     started: Instant,
 ) -> tauri::Result<()> {
     app.manage(Startup::new(root, resources, started));
+    #[cfg(windows)]
+    if let Err(error) = app.state::<Startup>().initialize_logging() {
+        // Keep the splash available to report the failure through startup_allowed.
+        eprintln!("Unable to initialize startup logging: {error}");
+    }
     for config in &app.config().app.windows {
         WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
     }

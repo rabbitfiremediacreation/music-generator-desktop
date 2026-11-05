@@ -1,0 +1,33 @@
+---
+import { desktopRelease, downloads, type Locale } from "../data/releases";
+import { landingCopy } from "../data/landing";
+import PlatformIcon from "./PlatformIcon.astro";
+
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const copy = landingCopy[locale];
+---
+<section id="download" class="download-section product-section" aria-labelledby="download-title">
+  <div class="section-heading">
+    <p class="eyebrow">{copy.downloadLabel}</p>
+    <div class="heading-line">
+      <h2 id="download-title">{copy.downloadTitle}</h2>
+      <a class="version-link" href={desktopRelease.url}><span class="status-dot"></span>{copy.release} {desktopRelease.version} <span aria-hidden="true">↗</span></a>
+    </div>
+    <p class="section-intro">{copy.downloadIntro}</p>
+  </div>
+  <div class="download-grid">
+    {downloads.map((platform) => <article class="platform-download">
+      <div class="platform-heading"><PlatformIcon platform={platform.id} /><h3>{platform.name}</h3></div>
+      <p class="platform-requirements">{platform.requirements[locale]}</p>
+      <a class="download-button" href={platform.primary.url}>{platform.primary.label[locale]} <span aria-hidden="true">↓</span></a>
+      <a class="checksum-link" href={platform.primary.checksumUrl}>{copy.checksum} <span aria-hidden="true">↗</span></a>
+      {platform.alternatives.length > 0 && <details class="download-alternatives">
+        <summary>{copy.alternatives}</summary>
+        <ul>{platform.alternatives.map((asset) => <li><a href={asset.url}>{asset.label[locale]} <span aria-hidden="true">↓</span></a><a class="alternative-checksum" href={asset.checksumUrl} aria-label={`${asset.label[locale]}: SHA-256`}>SHA-256</a></li>)}</ul>
+      </details>}
+      {platform.note && <p class="platform-note">{platform.note[locale]}</p>}
+    </article>)}
+  </div>
+  <div class="download-footnote"><p>{copy.downloadNote}</p><a class="text-link" href={desktopRelease.url}>{copy.releaseNotes} <span aria-hidden="true">↗</span></a></div>
+</section>

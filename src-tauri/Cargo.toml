@@ -1,6 +1,6 @@
 [package]
 name = "music-generator"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
@@ -52,6 +52,7 @@ sha2 = { version = "0.10", features = ["asm"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Power"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
@@ -64,6 +65,10 @@ tauri = { version = "2", features = ["test"] }
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
 rmcp = { version = "3.8.0", default-features = false, features = ["client", "transport-async-rw"] }
+
+[[test]]
+name = "export_lifecycle"
+harness = false
 
 [profile.release]
 lto = "thin"

@@ -8,6 +8,8 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 const audioUrl = (song: Song): Song => ({ ...song, url: song.path ? convertFileSrc(song.path) : null });
 
 export const backend = {
+  cudaStatus: () => command<import("./types").CudaStatus>("cuda_status"),
+  installCuda: () => command<import("./types").CudaStatus>("install_cuda_runtime"),
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
   pickAudioFile: (directory: string, title: string, filterName: string) => command<{ name: string; directory: string; data: number[] } | null>("pick_audio_file", { directory, title, filterName }),
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),
@@ -35,6 +37,7 @@ export const backend = {
   queue: () => command<Queue>("queue"),
   settings: () => command<Settings>("get_settings"),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
+  openSongsFolder: () => command<void>("open_songs_folder"),
   generationPolicy: (selection?: ModelSelection, refresh = false) => command<GenerationPolicy>("generation_policy", { selection: selection ?? null, refresh }),
   generationFormPreferences: () => command<GenerationFormPreferences>("get_generation_form_preferences"),
   saveGenerationFormPreferences: (values: GenerationFormPreferences) => command<void>("save_generation_form_preferences", { values }),

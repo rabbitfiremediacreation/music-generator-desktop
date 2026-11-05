@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!-- Linking this component includes the actions below in Tauri's standard installer. -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="WebView2Permissions" Guid="719a979e-dc25-435e-a354-a33419562350" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\de.alphatester.music-generator" Name="WebView2Permissions" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <!-- Fixed WebView2 120+ requires these app-container ACLs on Windows 10.
+         Apply them during elevated installation: ordinary users cannot change Program Files ACLs.
+         Only the bundled browser receives read/execute access. -->
+    <CustomAction Id="GrantWebView2Permissions" Directory="INSTALLDIR"
+                  ExeCommand="&quot;[SystemFolder]icacls.exe&quot; &quot;[INSTALLDIR]WebView2&quot; /grant *S-1-15-2-1:(OI)(CI)(RX) *S-1-15-2-2:(OI)(CI)(RX) /Q"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="GrantWebView2Permissions" After="InstallFiles">NOT REMOVE~="ALL"</Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

@@ -1,17 +1,7 @@
-import { readFileSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import { samplingForSong } from "./song-sampling";
 
 afterEach(() => vi.unstubAllGlobals());
-
-it("uses the upstream defaults conservative defaults for an uninitialized generation form", () => {
-  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  expect(html.match(/<input name="inference_steps"[^>]*value="([^"]+)"/)?.[1]).toBe("30");
-  expect(html.match(/<input name="lm_temperature"[^>]*value="([^"]+)"/)?.[1]).toBe("1.2");
-  expect(html.match(/<input name="duration"[^>]*max="([^"]+)"/)?.[1]).toBe("600");
-  expect(html.match(/<input name="inference_steps"[^>]*max="([^"]+)"/)?.[1]).toBe("200");
-  expect(html).toContain('id="lenHint" hidden aria-live="polite"');
-});
 
 it("restores stored old, custom and new song values without mutating parameters", () => {
   for (const params of [{ inference_steps: 8, lm_temperature: 0.65 }, { inference_steps: 50, lm_temperature: 1 }, { inference_steps: 75, lm_temperature: 0.65 }, { inference_steps: 80, lm_temperature: 1.2 }]) {

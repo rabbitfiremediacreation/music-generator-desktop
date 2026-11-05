@@ -1,0 +1,5 @@
+.astro/
+
+# These documentation source modules are not the app's ignored runtime data.
+!src/data/
+!src/data/*.ts

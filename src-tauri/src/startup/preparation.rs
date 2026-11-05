@@ -55,6 +55,7 @@ impl Startup {
         let state = tauri::async_runtime::spawn_blocking(move || -> Result<Arc<AppState>> {
             let db = db::Database::open(&root)?;
             sandbox::initialize(&root)?;
+            crate::audio_export::cleanup_stale(&root);
             Ok(Arc::new(AppState::new(db, resources)))
         })
         .await
