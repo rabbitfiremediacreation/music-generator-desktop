@@ -36,8 +36,23 @@ pub fn range_total(value: &str, offset: u64) -> Option<u64> {
 }
 
 pub fn ensure_space(root: &Path, bytes: u64) -> Result<()> {
-    if fs2::available_space(root)? < bytes {
-        return Err(message("Not enough free disk space"));
+    let available = fs2::available_space(root).map_err(|error| {
+        message(format!(
+            "Could not check free disk space in \"{}\": {error}",
+            root.display()
+        ))
+    })?;
+    check_space(root, bytes, available)
+}
+
+fn check_space(root: &Path, required: u64, available: u64) -> Result<()> {
+    if available < required {
+        return Err(message(format!(
+            "Not enough free disk space in \"{}\": required {required} bytes ({:.1} MiB), available {available} bytes ({:.1} MiB)",
+            root.display(),
+            required as f64 / (1024.0 * 1024.0),
+            available as f64 / (1024.0 * 1024.0),
+        )));
     }
     Ok(())
 }
@@ -174,4 +189,22 @@ pub async fn download_model(
     }
     verifier.promote(&partial, &target)?;
     Ok(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disk_space_boundary_and_diagnostics() {
+        let root = Path::new("CUDA data/Größe");
+        assert!(check_space(root, 1024, 1024).is_ok());
+        assert!(check_space(root, 1024, 1025).is_ok());
+        let error = check_space(root, 1024, 1023).unwrap_err().to_string();
+        assert!(error.contains(&root.display().to_string()));
+        assert!(error.contains("required 1024 bytes"));
+        assert!(error.contains("available 1023 bytes"));
+        assert!(check_space(root, u64::MAX, u64::MAX - 1).is_err());
+        assert!(check_space(root, 0, 0).is_ok());
+    }
 }

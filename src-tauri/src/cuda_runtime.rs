@@ -27,7 +27,35 @@ struct Component {
     path: String,
     sha256: String,
     bytes: u64,
+    // Sum of the selected DLLs and LICENSE, from the pinned ZIP's central directory.
+    installed_bytes: u64,
     files: Vec<String>,
+}
+
+const SPACE_RESERVE: u64 = 64 * 1024 * 1024;
+
+fn archive_name(p: &Pin, component: &Component) -> String {
+    format!("{}-{}.zip", component.name, p.version)
+}
+
+fn required_space(cache: &Path, p: &Pin) -> u64 {
+    p.components.iter().fold(SPACE_RESERVE, |total, component| {
+        let name = archive_name(p, component);
+        // Completed archives are verified by download_model before use. A .part
+        // only saves space if the server accepts resuming; download_model checks
+        // space again if it needs to restart instead.
+        let missing = if cache.join(&name).is_file() {
+            0
+        } else {
+            let partial = fs::metadata(cache.join(format!("{name}.part")))
+                .map(|m| m.len())
+                .unwrap_or(0);
+            component.bytes.saturating_sub(partial)
+        };
+        total
+            .saturating_add(missing)
+            .saturating_add(component.installed_bytes)
+    })
 }
 fn pin() -> Pin {
     serde_json::from_str(include_str!("../../models/cuda-windows.json")).expect("CUDA pin")
@@ -196,7 +224,7 @@ pub async fn install(
     let base = root.join("cuda");
     let cache = base.join("downloads");
     fs::create_dir_all(&cache)?;
-    crate::download::ensure_space(&base, 1536 * 1024 * 1024)?;
+    crate::download::ensure_space(&cache, required_space(&cache, &p))?;
     let client = reqwest::Client::builder()
         .https_only(true)
         .connect_timeout(Duration::from_secs(30))
@@ -206,7 +234,7 @@ pub async fn install(
     let mut archives = Vec::new();
     for c in &p.components {
         let model = crate::manifest::Model {
-            file: format!("{}-{}.zip", c.name, p.version),
+            file: archive_name(&p, c),
             estimated_bytes: c.bytes,
             sha256: c.sha256.clone(),
             kind: "cuda".into(),
@@ -232,10 +260,26 @@ pub async fn install(
     Ok(())
 }
 
-fn publish(base: &Path, p: &Pin, archives: &[PathBuf], cancel: &CancellationToken) -> Result<()> {
+fn installation_space(p: &Pin, archives: &[PathBuf]) -> Result<u64> {
     if p.components.len() != archives.len() {
         return Err(message("Incomplete CUDA download"));
     }
+    let mut required = SPACE_RESERVE;
+    for (component, archive) in p.components.iter().zip(archives) {
+        let mut zip =
+            zip::ZipArchive::new(fs::File::open(archive)?).map_err(|e| message(e.to_string()))?;
+        for (index, _) in selected_entries(&mut zip, component)? {
+            let entry = zip.by_index(index).map_err(|e| message(e.to_string()))?;
+            required = required.saturating_add(entry.size());
+        }
+    }
+    Ok(required)
+}
+
+fn publish(base: &Path, p: &Pin, archives: &[PathBuf], cancel: &CancellationToken) -> Result<()> {
+    // Downloads may take long enough for another process to consume disk space.
+    // Use actual selected entry sizes here, independently of cache/resume credits.
+    crate::download::ensure_space(base, installation_space(p, archives)?)?;
     let name = format!("{}-{}", p.version, uuid::Uuid::new_v4());
     let staging = base.join(&name);
     fs::create_dir(&staging)?;
@@ -261,14 +305,10 @@ fn publish(base: &Path, p: &Pin, archives: &[PathBuf], cancel: &CancellationToke
     result
 }
 
-fn extract(
-    archive: &Path,
-    destination: &Path,
+fn selected_entries(
+    zip: &mut zip::ZipArchive<fs::File>,
     component: &Component,
-    cancel: &CancellationToken,
-) -> Result<()> {
-    let mut zip =
-        zip::ZipArchive::new(fs::File::open(archive)?).map_err(|e| message(e.to_string()))?;
+) -> Result<Vec<(usize, String)>> {
     let wanted = component
         .files
         .iter()
@@ -277,6 +317,7 @@ fn extract(
             "LICENSE",
             format!("LICENSE-{}.txt", component.name),
         )));
+    let mut selected = Vec::new();
     for (name, target) in wanted {
         let matches: Vec<_> = (0..zip.len())
             .filter(|&i| {
@@ -294,12 +335,27 @@ fn extract(
                 "CUDA archive must contain exactly one {name}"
             )));
         }
-        let mut entry = zip
+        let entry = zip
             .by_index(matches[0])
             .map_err(|e| message(e.to_string()))?;
         if entry.size() > 1024 * 1024 * 1024 {
             return Err(message("CUDA archive entry is too large"));
         }
+        selected.push((matches[0], target));
+    }
+    Ok(selected)
+}
+
+fn extract(
+    archive: &Path,
+    destination: &Path,
+    component: &Component,
+    cancel: &CancellationToken,
+) -> Result<()> {
+    let mut zip =
+        zip::ZipArchive::new(fs::File::open(archive)?).map_err(|e| message(e.to_string()))?;
+    for (index, target) in selected_entries(&mut zip, component)? {
+        let mut entry = zip.by_index(index).map_err(|e| message(e.to_string()))?;
         let mut file = fs::File::create(destination.join(target))?;
         let mut buffer = vec![0; 1024 * 1024];
         loop {
@@ -339,8 +395,71 @@ mod tests {
             path: String::new(),
             sha256: String::new(),
             bytes: 0,
+            installed_bytes: 0,
             files: vec!["cudart64_13.dll".into()],
         }
+    }
+
+    fn test_pin() -> Pin {
+        let mut component = component();
+        component.bytes = 100;
+        component.installed_bytes = 200;
+        Pin {
+            version: "test".into(),
+            base_url: String::new(),
+            engine_revision: String::new(),
+            archive_sha256: String::new(),
+            components: vec![component],
+        }
+    }
+
+    #[test]
+    fn preflight_accounts_for_fresh_resumed_and_cached_downloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = test_pin();
+        let archive = dir.path().join("runtime-test.zip");
+        let partial = dir.path().join("runtime-test.zip.part");
+        assert_eq!(required_space(dir.path(), &p), SPACE_RESERVE + 300);
+        fs::write(&partial, [0; 40]).unwrap();
+        assert_eq!(required_space(dir.path(), &p), SPACE_RESERVE + 260);
+        fs::write(&archive, [0; 100]).unwrap();
+        assert_eq!(required_space(dir.path(), &p), SPACE_RESERVE + 200);
+        fs::remove_file(archive).unwrap();
+        fs::write(&partial, [0; 120]).unwrap();
+        assert_eq!(required_space(dir.path(), &p), SPACE_RESERVE + 200);
+        fs::rename(partial, dir.path().join("runtime-previous.zip.part")).unwrap();
+        fs::write(dir.path().join("runtime-previous.zip"), [0; 100]).unwrap();
+        assert_eq!(required_space(dir.path(), &p), SPACE_RESERVE + 300);
+    }
+
+    #[test]
+    fn fresh_pinned_installation_fits_below_one_gib_including_reserve() {
+        let dir = tempfile::tempdir().unwrap();
+        let required = required_space(dir.path(), &pin());
+        assert_eq!(required, 998_583_053);
+        assert!(required < 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn installation_space_uses_actual_selected_entries_including_licenses() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("runtime.zip");
+        fixture(
+            &archive,
+            &[
+                ("archive/bin/cudart64_13.dll", b"dll"),
+                ("archive/LICENSE", b"license"),
+                ("archive/unused.lib", &[0; 1024]),
+            ],
+        );
+        let p = test_pin();
+        assert_eq!(
+            installation_space(&p, std::slice::from_ref(&archive)).unwrap(),
+            SPACE_RESERVE + 10
+        );
+        assert!(installation_space(&p, &[]).is_err());
+        fixture(&archive, &[("archive/bin/cudart64_13.dll", b"dll")]);
+        assert!(installation_space(&p, &[archive]).is_err());
     }
 
     #[test]

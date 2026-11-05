@@ -209,8 +209,23 @@ async fn complete_partial_file_recovers_after_verification_was_interrupted() {
 #[test]
 fn insufficient_disk_and_invalid_ranges_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(ensure_space(dir.path(), u64::MAX).is_err());
+    let error = ensure_space(dir.path(), u64::MAX).unwrap_err().to_string();
+    assert!(error.starts_with("Not enough free disk space"));
+    assert!(error.contains(&dir.path().display().to_string()));
+    assert!(error.contains("required 18446744073709551615 bytes"));
+    assert!(error.contains("available "));
     assert_eq!(range_total("bytes 3-5/6", 3), Some(6));
     assert_eq!(range_total("bytes 3-8/6", 3), None);
     assert_eq!(range_total("bytes 0-5/*", 0), None);
+}
+
+// Windows can resolve the volume even for a nonexistent trailing directory.
+#[cfg(unix)]
+#[test]
+fn disk_space_query_failures_include_the_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing");
+    let error = ensure_space(&missing, 0).unwrap_err().to_string();
+    assert!(error.starts_with("Could not check free disk space"));
+    assert!(error.contains(&missing.display().to_string()));
 }
