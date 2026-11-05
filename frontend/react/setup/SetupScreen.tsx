@@ -8,6 +8,7 @@ import { BackendDetails } from "./BackendDetails";
 import { HardwareCard } from "./HardwareCard";
 import { CudaSetup } from "./CudaSetup";
 import { useSetup } from "./useSetup";
+import { PhoneAccessField } from "../settings/PhoneAccessField";
 
 export interface SetupScreenProps {
   bootstrap: Bootstrap; onComplete: () => void; onBack?: () => void; onReady?: () => void;
@@ -41,6 +42,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
     <p id="bootStatus" role="status">{result ? t("desktop_ready") : bootstrap.error || t(bootstrap.needs_setup ? "desktop_setup_hint" : "desktop_manage_hint")}</p>
     <div id="setupContent">
       <label className="field"><span className="lbl">{t("language")}</span><select value={language} disabled={busy} onChange={event => setLanguage(event.target.value as Language)}>{Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>
+      <PhoneAccessField />
       {!result && <form id="setupForm" onSubmit={event => { event.preventDefault(); if (!busy) { setError(null); setup.mutate(request); } }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLSelectElement) event.preventDefault(); }}>
         <fieldset id="setupFields" disabled={busy}>
           <HardwareCard hardware={bootstrap.hardware} backend={state.policy.data?.backend || "unknown"} />

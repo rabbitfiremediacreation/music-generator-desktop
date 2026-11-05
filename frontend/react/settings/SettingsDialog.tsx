@@ -50,6 +50,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       <h2 id="settingsHeading" className="col-title">{t("settings_title")}</h2>
       <p role="status" aria-live="polite">{status && t(status)}</p>
       {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
+      <PhoneAccessField />
       <fieldset disabled={loading || !draft || saving}>
         {draft && <>
           <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
@@ -74,7 +75,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <button type="button" className="sek" disabled={openFolder.isPending} onClick={() => openFolder.mutate()}>{t("settings_open_folder")}</button>
           {openFolder.error && <p role="alert" className="small err">{t("settings_open_folder_failed")}</p>}
         </>}
-        <PhoneAccessField />
         <div className="field"><span className="lbl">{t("layout")}</span><div className="seg" role="group" aria-label={t("layout")}>{(["auto", "stack", "side"] as const).map(value => <button key={value} type="button" className="sek" aria-pressed={props.layout === value} title={value === "side" ? t("side_tip") : undefined} onClick={() => props.onLayoutChange(value)}>{t(value === "auto" ? "vt_auto" : value === "stack" ? "stacked" : "side")}</button>)}</div></div>
         <div className="field"><span className="lbl">{t("version")}</span><div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>
           {update.data?.available && update.data.url && <button type="button" className="aktion" onClick={() => void openUrl(update.data!.url!).catch(setPathError)}>{t("desktop_download_release")}</button>}

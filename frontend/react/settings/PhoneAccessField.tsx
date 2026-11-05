@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import { phoneAccessLink, phoneAccessQrSvg } from "../../phone-access";
@@ -10,6 +10,7 @@ const phoneAccessKey = ["phone-access"] as const;
 /** Applies immediately through its own command, independent of the settings dialog's Save. */
 export function PhoneAccessField() {
   const { t } = useI18n();
+  const hintId = useId();
   const client = useQueryClient();
   const status = useQuery({ queryKey: phoneAccessKey, queryFn: backend.phoneAccess, staleTime: 0 });
   const [failure, setFailure] = useState<string | null>(null);
@@ -27,11 +28,16 @@ export function PhoneAccessField() {
   const link = current ? phoneAccessLink(current) : null;
   const errorText = failure === null ? "" : failure === "phone_access_port_busy" ? t("remote_port_busy", port) : `${t("remote_failed")} ${failure}`;
   const busy = change.isPending || !current;
-  return <div className="field phone-access">
-    <span className="lbl" title={t("remote_tip")}>{t("remote")}</span>
-    <select aria-label={t("remote")} disabled={busy} value={current?.enabled ? "on" : "off"} onChange={event => change.mutate({ enabled: event.target.value === "on" })}>
-      <option value="off">{t("remote_off")}</option><option value="on">{t("remote_on")}</option>
-    </select>
+  return <section className="phone-access" aria-busy={change.isPending}>
+    <label className="phone-access-row">
+      <span className="lbl">{t("remote")}</span>
+      <span className="phone-access-control">
+        <input type="checkbox" role="switch" disabled={busy} checked={current?.enabled ?? false} aria-describedby={hintId} onChange={event => change.mutate({ enabled: event.target.checked })} />
+        <span aria-hidden="true">{t(current?.enabled ? "remote_on" : "remote_off")}</span>
+      </span>
+    </label>
+    <p id={hintId} className="small">{t("remote_tip")}</p>
+    <span className="small">{t("remote_hint")}</span>
     {current?.enabled && <div className="phone-access-info">
       {link && <>
         <span className="small">{t("remote_scan")}</span>
@@ -43,8 +49,7 @@ export function PhoneAccessField() {
         <input className="phone-access-token" readOnly aria-label={t("remote_token")} value={current.token} onFocus={event => event.currentTarget.select()} />
         <button type="button" className="sek" disabled={busy} onClick={() => change.mutate({ newToken: true })}>{t("remote_new")}</button>
       </div>
-      <span className="small">{t("remote_hint")}</span>
     </div>}
     {errorText && <span className="small err" role="alert">{errorText}</span>}
-  </div>;
+  </section>;
 }

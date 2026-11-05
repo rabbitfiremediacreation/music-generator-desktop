@@ -4,7 +4,7 @@ Phone access lets the native iPhone app ("Music Generator Remote") use the deskt
 
 ## Usage
 
-Settings → **Phone access** → **On**. The block below shows:
+Use the **Phone access** switch at the top of Settings or directly below the language selector in the setup screen. It remains available before model setup is complete and while models are downloading. When switched on, the block shows:
 
 - a QR code with `musicgenerator://connect?server=<first address>&token=<key>&alt=<second address>`; the iPhone camera opens the app, which takes over address and key,
 - the addresses (`http://<LocalHostName>.local:8767` on macOS or the host name elsewhere, plus the LAN IP),
