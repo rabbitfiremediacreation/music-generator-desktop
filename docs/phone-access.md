@@ -12,6 +12,8 @@ Settings → **Phone access** → **On**. The block below shows:
 
 Switching and key changes apply immediately (not through **Save**). The switch and key are stored in the library database (`settings` keys `phone_access` and `phone_access_token`); a switched-on server starts again with the next launch. The computer must stay awake while the phone uses it.
 
+To disable external access, choose Settings → **Phone access** → **Off**. This closes the listener and interrupts ongoing phone uploads and audio transfers. Access stays off after restarting the desktop app. Turning it back on keeps the same access key, so the phone can reconnect without pairing again. Songs already submitted for generation remain in the desktop queue.
+
 ## Server
 
 `src-tauri/src/phone_access.rs` runs an axum HTTP/1 server inside the app process on `0.0.0.0:8767` (`phone_access::PORT`). Port 8766 is the web app's phone access, so both apps can run on one computer. The listener is bound before the server task starts: a busy port returns `phone_access_port_busy` to the settings dialog (translated) and leaves the switch off; it never stops the app. Switching off cancels the server; connections that are still open (for example a paused stream) are refused from then on.
@@ -70,6 +72,6 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib phone_access
 npx vitest run frontend/phone-access.test.ts frontend/react/settings/PhoneAccessField.test.tsx
 ```
 
-The Rust tests run real servers on ephemeral ports against a temporary library: missing/wrong/rotated keys (401), blocked and non-API paths (403), song/folder/queue JSON, patch and folder creation, full, partial, suffix and unsatisfiable ranges, download names, generation and analysis errors, the switch, key rotation and a busy port.
+The Rust tests run real servers on ephemeral ports against a temporary library: missing/wrong/rotated keys (401), blocked and non-API paths (403), song/folder/queue JSON, patch and folder creation, full, partial, suffix and unsatisfiable ranges, download names, generation and analysis errors, the switch, interruption of unfinished uploads and downloads when switching off, re-enabling access, key rotation and a busy port.
 
 A manual check served a temporary library with one finished WAV on port 8767 and was queried with `curl`: 401 without or with a wrong key (German text with `X-Lang: de`), 403 for `/api/remote`, `/api/shutdown` and `/`, song/folder/queue JSON as above, `Range: bytes=0-99` → `206`, `Content-Range: bytes 0-99/352844`, `Content-Length: 100`, `Content-Type: audio/wav`, the full file as a valid WAV, the download name, a favorite/unsorted patch, and the setup-incomplete error from `/api/generate`.

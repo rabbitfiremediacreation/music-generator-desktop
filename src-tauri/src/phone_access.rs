@@ -14,6 +14,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -89,7 +90,7 @@ impl PhoneAccess {
         let Some(server) = self.server.lock().await.take() else {
             return;
         };
-        // Open connections (e.g. a paused stream) are refused by the guard from now on.
+        // The guard cancels in-flight requests and response streams as well as new requests.
         server.stop.cancel();
         let abort = server.task.abort_handle();
         if tokio::time::timeout(std::time::Duration::from_secs(5), server.task)
@@ -407,7 +408,22 @@ async fn guard(State(remote): State<Remote>, request: Request, next: Next) -> Re
     {
         return detail(StatusCode::FORBIDDEN, text("remote_blocked", &lang));
     }
-    next.run(request).await
+    let response = tokio::select! {
+        biased;
+        _ = remote.stop.cancelled() => {
+            return detail(StatusCode::SERVICE_UNAVAILABLE, text("remote_blocked", &lang));
+        }
+        response = next.run(request) => response,
+    };
+    // Graceful server shutdown alone lets uploads and downloads continue indefinitely.
+    // Cancel the handler above and the response body here, while keeping its status and
+    // headers (including audio Content-Length/Content-Range) intact. Accepted generation
+    // jobs belong to the desktop queue and are unaffected by the HTTP connection closing.
+    let (parts, body) = response.into_parts();
+    let body = body
+        .into_data_stream()
+        .take_until(remote.stop.cancelled_owned());
+    Response::from_parts(parts, Body::from_stream(body))
 }
 
 async fn blocking<T: Send + 'static>(

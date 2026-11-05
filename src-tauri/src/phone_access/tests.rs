@@ -2,6 +2,8 @@ use super::*;
 use crate::{db::Database, synthesis_policy::Backend, types::CpuIterationBehavior};
 use reqwest::header::{AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_RANGE, RANGE};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::io::AsyncWriteExt;
+use tokio::time::{timeout, Duration};
 
 fn wav(samples: usize) -> Vec<u8> {
     let data = (samples * 2) as u32;
@@ -571,4 +573,147 @@ async fn switch_persists_and_reports_a_busy_port() {
     assert!(!enabled(&state).unwrap());
     assert!(!status(&state).await.unwrap().enabled);
     drop(occupied);
+}
+
+#[tokio::test]
+async fn switching_off_cancels_an_incomplete_upload() {
+    let f = Fixture::new().await;
+    let mut connection = tokio::net::TcpStream::connect(f.base.trim_start_matches("http://"))
+        .await
+        .unwrap();
+    connection
+        .write_all(
+            format!(
+                "POST /api/analyze HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\nContent-Type: multipart/form-data; boundary=upload\r\nContent-Length: 1048576\r\nExpect: 100-continue\r\n\r\n",
+                f.token()
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    // Hyper sends this only once the authenticated handler starts reading the body.
+    let mut interim = [0; b"HTTP/1.1 100 Continue\r\n\r\n".len()];
+    timeout(Duration::from_secs(2), connection.read_exact(&mut interim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&interim, b"HTTP/1.1 100 Continue\r\n\r\n");
+
+    // No body is sent: shutdown must cancel this request, not wait for the phone.
+    let off = timeout(
+        Duration::from_secs(2),
+        set(&f.state, Arc::new(|| {}), Some(false), false, 0),
+    )
+    .await
+    .expect("an unfinished upload must not hold shutdown open")
+    .unwrap();
+    assert!(!off.enabled);
+    let mut response = Vec::new();
+    timeout(
+        Duration::from_secs(2),
+        connection.read_to_end(&mut response),
+    )
+    .await
+    .expect("the upload connection must close")
+    .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 503"));
+    assert_eq!(f.changes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn switching_off_interrupts_a_download_and_can_be_enabled_again() {
+    let f = Fixture::new().await;
+    let song = f.state.db.song(&f.song).unwrap();
+    // A sparse file larger than socket buffers keeps the response in flight without
+    // allocating a large fixture or relying on sleeps or network timing.
+    let length = 64 * 1024 * 1024;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(song.path.as_ref().unwrap())
+        .unwrap()
+        .set_len(length)
+        .unwrap();
+    let mut connection = tokio::net::TcpStream::connect(f.base.trim_start_matches("http://"))
+        .await
+        .unwrap();
+    connection
+        .write_all(
+            format!(
+                "GET /api/songs/{}/audio HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\nConnection: close\r\n\r\n",
+                f.song,
+                f.token()
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    let headers = timeout(Duration::from_secs(2), async {
+        let mut headers = Vec::new();
+        while !headers.ends_with(b"\r\n\r\n") {
+            headers.push(connection.read_u8().await.unwrap());
+            assert!(headers.len() < 4096);
+        }
+        headers
+    })
+    .await
+    .unwrap();
+    assert!(headers.starts_with(b"HTTP/1.1 200"));
+    assert!(String::from_utf8(headers)
+        .unwrap()
+        .contains(&format!("content-length: {length}")));
+
+    let cancelled = f
+        .state
+        .phone_access
+        .server
+        .lock()
+        .await
+        .as_ref()
+        .unwrap()
+        .stop
+        .clone();
+    let state = f.state.clone();
+    let switch =
+        tokio::spawn(async move { set(&state, Arc::new(|| {}), Some(false), false, 0).await });
+    cancelled.cancelled().await;
+    let mut received = Vec::new();
+    let result = timeout(
+        Duration::from_secs(2),
+        connection.read_to_end(&mut received),
+    )
+    .await
+    .expect("the download connection must close after switching off");
+    // Depending on the platform Hyper's truncated response ends with EOF or a reset.
+    if let Err(error) = result {
+        assert_eq!(error.kind(), std::io::ErrorKind::ConnectionReset);
+    }
+    assert!(
+        (received.len() as u64) < length,
+        "the download continued after switching off"
+    );
+    assert!(!switch.await.unwrap().unwrap().enabled);
+    assert!(!enabled(&f.state).unwrap());
+
+    let on = set(&f.state, Arc::new(|| {}), Some(true), false, 0)
+        .await
+        .unwrap();
+    assert!(on.enabled);
+    assert_eq!(on.token, f.token());
+    let response = f
+        .http
+        .get(format!("http://127.0.0.1:{}/api/queue", on.port))
+        .bearer_auth(&on.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    // Turning off external access did not cancel the previously queued desktop work.
+    assert_eq!(
+        response.json::<Value>().await.unwrap()["running"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    f.state.phone_access.stop().await;
 }
