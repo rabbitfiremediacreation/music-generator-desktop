@@ -599,6 +599,7 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
     assert_eq!(response.headers()["cache-control"], "no-store");
     let info: Value = response.json().await.unwrap();
     assert_eq!(info["certificate_url"], "/mobile-ca.crt");
+    assert_eq!(info["profile_url"], "/mobile-ca.mobileconfig");
     assert!(info["secure_addresses"][0]
         .as_str()
         .unwrap()
@@ -616,6 +617,32 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
     assert_eq!(
         cert.bytes().await.unwrap().as_ref(),
         certificate(&f.state).unwrap()
+    );
+    let profile_url = format!("{}/mobile-ca.mobileconfig", f.base);
+    let response = f.http.get(&profile_url).send().await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers()["content-type"],
+        "application/x-apple-aspen-config"
+    );
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let profile = response.text().await.unwrap();
+    use base64::Engine;
+    let der = base64::engine::general_purpose::STANDARD.encode(certificate(&f.state).unwrap());
+    assert!(profile.contains(&format!("<data>{der}</data>")));
+    assert!(profile.contains("<string>com.apple.security.root</string>"));
+    assert!(!profile.contains(&f.token()));
+    assert!(!profile.contains("PRIVATE KEY"));
+    assert_eq!(
+        f.http
+            .get(profile_url)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap(),
+        profile
     );
     for path in [
         "/mobile/authority-key.pem",

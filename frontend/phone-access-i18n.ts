@@ -4,7 +4,7 @@ import type { Language } from "./locales";
 // Texts match the web app's phone access so both apps read the same.
 const nativeKeys = ["remote", "remote_tip", "remote_off", "remote_on", "remote_scan", "remote_addr", "remote_token", "remote_new", "remote_hint", "remote_port_busy", "remote_failed"] as const;
 const webKeys = ["remote_native", "remote_web", "remote_web_scan", "remote_certificate"] as const;
-const tlsKeys = ["remote_https_port_busy", "remote_tls_failed"] as const;
+const tlsKeys = ["remote_https_port_busy", "remote_tls_failed", "remote_web_link"] as const;
 export const phoneAccessKeys = [...nativeKeys, ...webKeys, ...tlsKeys] as const;
 type Texts = readonly [string, string, string, string, string, string, string, string, string, (port: number) => string, string];
 export const phoneAccessTranslations: Record<Language, Texts> = {
@@ -43,19 +43,19 @@ const webTranslations: Record<Language, readonly [string, string, string, string
 for (const [language, values] of Object.entries(webTranslations)) {
   Object.assign(I18N[language as Language], Object.fromEntries(webKeys.map((key, index) => [key, values[index]])));
 }
-const tlsTranslations: Record<Language, readonly [(port: number) => string, string]> = {
-  de: [port => `Handy-Zugriff ließ sich nicht starten: HTTPS-Port ${port} ist belegt.`, "Das lokale HTTPS-Zertifikat konnte nicht eingerichtet werden. Bitte den Zugriff erneut einschalten."],
-  en: [port => `Phone access could not start: HTTPS port ${port} is in use.`, "The local HTTPS certificate could not be set up. Try enabling access again."],
-  es: [port => `No se pudo iniciar el acceso: el puerto HTTPS ${port} está ocupado.`, "No se pudo configurar el certificado HTTPS local. Intenta activar el acceso de nuevo."],
-  fr: [port => `Impossible d’activer l’accès : le port HTTPS ${port} est occupé.`, "Impossible de configurer le certificat HTTPS local. Réessaie d’activer l’accès."],
-  it: [port => `Impossibile avviare l’accesso: la porta HTTPS ${port} è occupata.`, "Impossibile configurare il certificato HTTPS locale. Prova a riattivare l’accesso."],
-  pt: [port => `Não foi possível iniciar o acesso: a porta HTTPS ${port} está em uso.`, "Não foi possível configurar o certificado HTTPS local. Tente ativar o acesso novamente."],
-  tr: [port => `Erişim başlatılamadı: HTTPS ${port} bağlantı noktası kullanımda.`, "Yerel HTTPS sertifikası ayarlanamadı. Erişimi yeniden açmayı dene."],
-  pl: [port => `Nie można uruchomić dostępu: port HTTPS ${port} jest zajęty.`, "Nie udało się skonfigurować lokalnego certyfikatu HTTPS. Spróbuj ponownie włączyć dostęp."],
-  ru: [port => `Не удалось включить доступ: порт HTTPS ${port} занят.`, "Не удалось настроить локальный сертификат HTTPS. Попробуй включить доступ снова."],
-  uk: [port => `Не вдалося увімкнути доступ: порт HTTPS ${port} зайнятий.`, "Не вдалося налаштувати локальний сертифікат HTTPS. Спробуй знову увімкнути доступ."],
-  ja: [port => `アクセスを開始できません: HTTPS ポート ${port} は使用中です。`, "ローカル HTTPS 証明書を設定できませんでした。もう一度アクセスを有効にしてください。"],
-  zh: [port => `无法启动访问: HTTPS 端口 ${port} 已被占用。`, "无法设置本地 HTTPS 证书。请尝试重新启用访问。"],
+const tlsTranslations: Record<Language, readonly [(port: number) => string, string, string]> = {
+  de: [port => `Handy-Zugriff ließ sich nicht starten: HTTPS-Port ${port} ist belegt.`, "Das lokale HTTPS-Zertifikat konnte nicht eingerichtet werden. Bitte den Zugriff erneut einschalten.", "Web-Link mit automatischer Anmeldung"],
+  en: [port => `Phone access could not start: HTTPS port ${port} is in use.`, "The local HTTPS certificate could not be set up. Try enabling access again.", "Web link with automatic sign-in"],
+  es: [port => `No se pudo iniciar el acceso: el puerto HTTPS ${port} está ocupado.`, "No se pudo configurar el certificado HTTPS local. Intenta activar el acceso de nuevo.", "Enlace web con acceso automático"],
+  fr: [port => `Impossible d’activer l’accès : le port HTTPS ${port} est occupé.`, "Impossible de configurer le certificat HTTPS local. Réessaie d’activer l’accès.", "Lien web avec connexion automatique"],
+  it: [port => `Impossibile avviare l’accesso: la porta HTTPS ${port} è occupata.`, "Impossibile configurare il certificato HTTPS locale. Prova a riattivare l’accesso.", "Link web con accesso automatico"],
+  pt: [port => `Não foi possível iniciar o acesso: a porta HTTPS ${port} está em uso.`, "Não foi possível configurar o certificado HTTPS local. Tente ativar o acesso novamente.", "Link web com acesso automático"],
+  tr: [port => `Erişim başlatılamadı: HTTPS ${port} bağlantı noktası kullanımda.`, "Yerel HTTPS sertifikası ayarlanamadı. Erişimi yeniden açmayı dene.", "Otomatik girişli web bağlantısı"],
+  pl: [port => `Nie można uruchomić dostępu: port HTTPS ${port} jest zajęty.`, "Nie udało się skonfigurować lokalnego certyfikatu HTTPS. Spróbuj ponownie włączyć dostęp.", "Łącze WWW z automatycznym logowaniem"],
+  ru: [port => `Не удалось включить доступ: порт HTTPS ${port} занят.`, "Не удалось настроить локальный сертификат HTTPS. Попробуй включить доступ снова.", "Веб-ссылка с автоматическим входом"],
+  uk: [port => `Не вдалося увімкнути доступ: порт HTTPS ${port} зайнятий.`, "Не вдалося налаштувати локальний сертифікат HTTPS. Спробуй знову увімкнути доступ.", "Вебпосилання з автоматичним входом"],
+  ja: [port => `アクセスを開始できません: HTTPS ポート ${port} は使用中です。`, "ローカル HTTPS 証明書を設定できませんでした。もう一度アクセスを有効にしてください。", "自動ログイン用 Web リンク"],
+  zh: [port => `无法启动访问: HTTPS 端口 ${port} 已被占用。`, "无法设置本地 HTTPS 证书。请尝试重新启用访问。", "自动登录的 Web 链接"],
 };
 for (const [language, values] of Object.entries(tlsTranslations)) {
   Object.assign(I18N[language as Language], Object.fromEntries(tlsKeys.map((key, index) => [key, values[index]])));

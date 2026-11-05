@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from "vitest";
-import { AuthenticationError, connectionKey, readConnection, releaseMedia, rememberConnection, RemoteApi } from "./client";
+import { AuthenticationError, connectionKey, pairingToken, readConnection, releaseMedia, rememberConnection, RemoteApi } from "./client";
 
 const http = vi.fn();
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -68,4 +68,20 @@ it("discards an old media response when its connection closes while reading the 
   await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
   api.close(); finish(new Blob(["audio"]));
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+});
+
+
+it("remembers a URL pairing automatically without an existing saved key", () => {
+  expect(readConnection({ hash: "#token=paired-key", pathname: "/mobile/", search: "" }, { replaceState: vi.fn() })).toEqual({ token: "paired-key", remembered: true });
+});
+
+it("extracts only the key from web or native connection QR data", () => {
+  expect(pairingToken("https://studio.local:8768/mobile/#token=web-key")).toBe("web-key");
+  expect(pairingToken("musicgenerator://connect?server=http%3A%2F%2Fstudio.local%3A8767&token=native_key")).toBe("native_key");
+  expect(pairingToken("https://unrelated.test/#token=local-key")).toBe("local-key");
+  expect(pairingToken("javascript:alert(1)#token=bad")).toBeNull();
+  expect(pairingToken("musicgenerator://other?token=bad")).toBeNull();
+  expect(pairingToken("https://studio.local/mobile/?token=in-query")).toBeNull();
+  expect(pairingToken("not a QR connection")).toBeNull();
+  expect(pairingToken("https://studio.local/mobile/#token=bad%0Akey")).toBeNull();
 });

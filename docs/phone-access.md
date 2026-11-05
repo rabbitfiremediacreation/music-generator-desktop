@@ -7,7 +7,7 @@ Phone access lets the native iPhone app ("Music Generator Remote") and the mobil
 Use the **Phone access** switch at the top of Settings or directly below the language selector in the setup screen. It remains available before model setup is complete and while models are downloading. When switched on, the block shows:
 
 - **iPhone app**: a QR code with `musicgenerator://connect?server=<first address>&token=<key>&alt=<second address>`; the iPhone camera opens the app, which takes over address and key,
-- **Web app / PWA**: a second QR code with `http://<host>:8767/mobile/#token=<key>`; the browser opens the one-time certificate setup and then the HTTPS app,
+- **Web app / PWA**: a second QR code and a selectable link with `http://<host>:8767/mobile/#token=<key>`; the browser takes over and remembers the key automatically, then opens the one-time certificate setup and the HTTPS app,
 - the addresses (`http://<LocalHostName>.local:8767` on macOS or the host name elsewhere, plus the LAN IP),
 - the read-only access key and **New key**, which replaces the key immediately; the phone must then scan again.
 
@@ -18,10 +18,12 @@ To disable external access, choose Settings → **Phone access** → **Off**. Th
 ### Install the web app
 
 1. Scan **Web app / PWA** while the phone and computer are on the same network.
-2. Download the local CA certificate and compare its SHA-256 fingerprint with the value shown in the desktop settings before trusting it.
-3. Install and trust that certificate on the phone. On iPhone, install the downloaded profile under Settings → General → VPN & Device Management, then enable full trust under General → About → Certificate Trust Settings. On Android, find **Install a certificate** in Settings and choose a CA certificate; menu names vary by manufacturer. See [Apple's trust instructions](https://support.apple.com/en-gb/102390) and [Google's certificate instructions](https://support.google.com/pixelphone/answer/2844832?hl=en).
+2. Compare the certificate's SHA-256 fingerprint with the value shown in the desktop settings before trusting it. On iPhone, choose the configuration-profile download (`/mobile-ca.mobileconfig`) in Safari; Android uses the certificate download (`/mobile-ca.crt`). Both contain only the same public CA certificate.
+3. Install and trust that certificate on the phone. On iPhone, install the downloaded profile under Settings → General → VPN & Device Management, then enable full trust under General → About → Certificate Trust Settings. The profile simplifies importing the certificate; the website cannot approve installation or trust on your behalf. On Android, find **Install a certificate** in Settings and choose a CA certificate; menu names vary by manufacturer. See [Apple's profile installation instructions](https://support.apple.com/en-ie/102400), [Apple's trust instructions](https://support.apple.com/en-gb/102390) and [Google's certificate instructions](https://support.google.com/pixelphone/answer/2844832?hl=en).
 4. Return to the browser and choose **Open HTTPS web app**. The key is carried in the fragment, removed from the address bar immediately and sent to the API only as a Bearer header.
-5. Use the browser's install action or, in Safari, Share → Add to Home Screen. Select **Remember on this device** to retain the connection across app launches; otherwise the key stays in memory and must be scanned or entered again.
+5. Use the browser's install action or, in Safari, Share → Add to Home Screen. QR/Web-link pairing remembers the key on this device automatically. Clear **Remember on this device** for memory-only use; **Disconnect** removes the saved connection.
+
+The HTTPS login screen also offers a camera button to scan a web-app or native-app connection QR code directly. Camera access starts only after pressing the button and stops after success, cancellation or leaving the page. On the initial non-secure HTTP page, use the phone's camera app to open the QR link; browser camera access becomes available after HTTPS is trusted. Manual key entry remains available.
 
 The certificate belongs to this desktop installation. Its private key stays on the computer; only the public certificate is downloadable. If the computer changes networks or IP address, switch access off and on to issue a server certificate for the current addresses. The trusted CA remains the same. If the local library data is replaced, a new CA must be trusted.
 
@@ -31,14 +33,14 @@ HTTPS is required for PWA installation and service workers on a phone; see [MDN'
 
 `src-tauri/src/phone_access.rs` runs axum HTTP/1 servers inside the app process: HTTP on `0.0.0.0:8767` for the native app and onboarding, HTTPS on `0.0.0.0:8768` for the PWA. Both ports are bound before either server starts; an occupied port leaves access off and reports a translated error. Switching off cancels both listeners, in-flight requests and response streams. Port 8766 remains available for the separate Python web app.
 
-The Tauri commands are `phone_access_status` and `set_phone_access { enabled?, newToken? }`; both return `{enabled, port, token, addresses, web_port, web_addresses, certificate_fingerprint}`. Public `/mobile/connection.json` returns only HTTPS addresses, the certificate download path and its fingerprint; it never returns the token.
+The Tauri commands are `phone_access_status` and `set_phone_access { enabled?, newToken? }`; both return `{enabled, port, token, addresses, web_port, web_addresses, certificate_fingerprint}`. Public `/mobile/connection.json` returns only HTTPS addresses, certificate/profile download paths and the certificate fingerprint; it never returns the token.
 
 The mobile entry under `frontend/mobile/` is built separately into `dist-mobile/` by `npm run build`. `build.rs` embeds that exact asset tree. Only those allowlisted assets are served under `/mobile/`; desktop resources and arbitrary filesystem paths are inaccessible. The CA identity lives under the library data directory's `phone-access-tls/`, with a private directory and private key permissions on Unix. A fresh leaf certificate is issued on activation using the current hostname and LAN IP, while the persisted CA remains stable.
 
 ## Security model
 
 - Every API request needs `Authorization: Bearer <key>`. The key is 18 random bytes, URL-safe Base64 (24 characters), created on first activation. Comparison uses SHA-256 digests compared in constant time. Missing or wrong key: `401 {"detail": …}`. Keys in query parameters or cookies do not authenticate requests.
-- Public routes are limited to `/mobile/` assets, `/mobile/connection.json` and `/mobile-ca.crt`. `/api/remote`, `/api/shutdown`, `/api/update/…` and any non-GET `/api/settings` answer `403`, as in the web app. The desktop server implements only the endpoints below; it has no settings, delete, export-to-path or model endpoints at all, so the phone cannot read or rotate the key, change settings or touch files outside the library.
+- Public routes are limited to `/mobile/` assets, `/mobile/connection.json`, `/mobile-ca.crt` and `/mobile-ca.mobileconfig`. `/api/remote`, `/api/shutdown`, `/api/update/…` and any non-GET `/api/settings` answer `403`, as in the web app. The desktop server implements only the endpoints below; it has no settings, delete, export-to-path or model endpoints at all, so the phone cannot read or rotate the key, change settings or touch files outside the library.
 - Error texts for 401/403 follow the `X-Lang` header (all twelve UI languages, English fallback).
 - The native iPhone API keeps its existing HTTP transport. The PWA uses local HTTPS after certificate onboarding. Anyone who learns the shared access key can use the API while access is on; **New key** revokes it for both clients. Trust the CA only after checking its desktop fingerprint.
 - macOS: the sandbox already grants `com.apple.security.network.server`. With the macOS firewall on, the system asks once whether Music Generator may accept incoming connections; until that is allowed, requests from the phone time out while `127.0.0.1` works.

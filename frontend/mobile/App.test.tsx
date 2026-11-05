@@ -26,7 +26,7 @@ it("pairs from the QR fragment, shows the library and submits a generation to th
   render(<App />);
   await screen.findByRole("heading", { name: "Rain song" });
   expect(window.location.hash).toBe("");
-  expect(window.localStorage.getItem(connectionKey)).toBeNull();
+  expect(window.localStorage.getItem(connectionKey)).toBe("paired-key");
   fireEvent.click(screen.getByRole("button", { name: "Favorite: Rain song" }));
   await waitFor(() => expect(request).toHaveBeenCalledWith("/api/songs/one", expect.objectContaining({ method: "PATCH", body: '{"favorite":true}' })));
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
@@ -54,6 +54,10 @@ it("shows certificate onboarding over HTTP without sending the pairing key to th
   const link = await screen.findByRole("link", { name: "Open HTTPS web app" });
   expect(link.getAttribute("href")).toBe("https://localhost:8768/mobile/#token=paired-key");
   expect(screen.getByText("AB:CD")).toBeTruthy();
+  const profile = screen.getByRole("link", { name: "iPhone: install profile" });
+  expect(profile.getAttribute("href")).toBe("/mobile-ca.mobileconfig");
+  expect(profile.hasAttribute("download")).toBe(false);
+  expect(screen.getByRole("link", { name: "Android: download certificate" }).getAttribute("href")).toBe("/mobile-ca.crt");
   expect(request.mock.calls.every(([path]) => path === "/mobile/connection.json")).toBe(true);
   expect(request.mock.calls[0][1].headers).toBeUndefined();
 });
@@ -110,4 +114,33 @@ it("waits for a successful queue response before claiming the computer is ready"
   expect(screen.queryByText("Connected to your computer")).toBeNull();
   await act(async () => { finish(new Response('{"running":[],"queued":0,"active":false,"progress":null}')); });
   await screen.findByText("Ready for a new idea");
+});
+
+it("remembers a QR connection across launches and lets the user opt out", async () => {
+  render(<App />); await screen.findByRole("heading", { name: "Rain song" });
+  expect(window.localStorage.getItem(connectionKey)).toBe("paired-key");
+  cleanup(); window.history.replaceState(null, "", "/mobile/");
+  render(<App />); await screen.findByRole("heading", { name: "Rain song" });
+  fireEvent.click(screen.getByText("Connection", { selector: "summary" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Remember the key on this device" }));
+  await waitFor(() => expect(window.localStorage.getItem(connectionKey)).toBeNull());
+  expect(screen.getByRole("heading", { name: "Rain song" })).toBeTruthy();
+  cleanup(); render(<App />);
+  expect(screen.getByRole("button", { name: "Connect" })).toBeTruthy();
+});
+
+it("shows scanning without requesting camera access and accepts a pasted connection link", async () => {
+  const camera = vi.fn();
+  vi.stubGlobal("navigator", { language: "en", mediaDevices: { getUserMedia: camera } });
+  window.history.replaceState(null, "", "/mobile/");
+  const originalAddress = window.location.href;
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Scan QR code" })).toBeTruthy();
+  expect(camera).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Access key"), { target: { value: "https://another-host.test/mobile/#token=pasted-key" } });
+  fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+  await screen.findByRole("heading", { name: "Rain song" });
+  expect(window.location.href).toBe(originalAddress);
+  expect(window.localStorage.getItem(connectionKey)).toBe("pasted-key");
+  expect(request.mock.calls.some(([path]) => String(path).startsWith("https://another-host.test"))).toBe(false);
 });

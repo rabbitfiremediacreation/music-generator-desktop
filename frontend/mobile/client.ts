@@ -9,7 +9,18 @@ export function readConnection(location: Pick<Location, "hash" | "pathname" | "s
   const fragment = new URLSearchParams(location.hash.slice(1));
   const paired = fragment.get("token");
   if (fragment.has("token")) history.replaceState(null, "", location.pathname + location.search);
-  return { token: paired ?? saved, remembered: Boolean(saved) };
+  return { token: paired ?? saved, remembered: Boolean(paired || saved) };
+}
+
+/** Decode pairing data only. A scanned URL is never used as a navigation target. */
+export function pairingToken(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    let token: string | null = null;
+    if (url.protocol === "http:" || url.protocol === "https:") token = new URLSearchParams(url.hash.slice(1)).get("token");
+    if (url.protocol === "musicgenerator:" && url.hostname === "connect") token = url.searchParams.get("token");
+    return token && /^[A-Za-z0-9_-]{1,256}$/.test(token) ? token : null;
+  } catch { return null; }
 }
 
 export function rememberConnection(token: string, remember: boolean, storage?: Pick<Storage, "setItem" | "removeItem">): boolean {

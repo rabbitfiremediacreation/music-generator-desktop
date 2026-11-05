@@ -408,6 +408,7 @@ fn router(remote: Remote) -> Router {
         .merge(web::routes())
         .route("/mobile/connection.json", get(web_connection))
         .route("/mobile-ca.crt", get(web_certificate))
+        .route("/mobile-ca.mobileconfig", get(web_certificate_profile))
         .with_state(remote)
 }
 
@@ -422,6 +423,7 @@ async fn web_connection(State(remote): State<Remote>) -> Response {
             Json(json!({
                 "secure_addresses": status.web_addresses,
                 "certificate_url": "/mobile-ca.crt",
+                "profile_url": "/mobile-ca.mobileconfig",
                 "certificate_fingerprint": status.certificate_fingerprint,
             })),
         )
@@ -447,6 +449,61 @@ async fn web_certificate(State(remote): State<Remote>) -> Response {
             .unwrap_or_default(),
         Err(_) => detail(StatusCode::NOT_FOUND, "Certificate unavailable"),
     }
+}
+
+/// iOS imports the public trust certificate as a profile; installing and trusting it
+/// remain explicit device actions. Stable identifiers prevent duplicate profiles.
+async fn web_certificate_profile(State(remote): State<Remote>) -> Response {
+    let cert = match certificate(&remote.state) {
+        Ok(cert) => cert,
+        Err(_) => return detail(StatusCode::NOT_FOUND, "Certificate unavailable"),
+    };
+    use base64::Engine;
+    let certificate = base64::engine::general_purpose::STANDARD.encode(&cert);
+    let identifier = |kind: &[u8]| {
+        let mut hash = Sha256::new();
+        hash.update(kind);
+        hash.update(&cert);
+        let digest = hash.finalize();
+        let mut bytes = [0; 16];
+        bytes.copy_from_slice(&digest[..16]);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        uuid::Uuid::from_bytes(bytes)
+    };
+    let profile_id = identifier(b"profile");
+    let cert_id = identifier(b"certificate");
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>PayloadType</key><string>Configuration</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>de.alphatester.music-generator.local-https.{profile_id}</string>
+<key>PayloadUUID</key><string>{profile_id}</string>
+<key>PayloadDisplayName</key><string>Music Generator – Local HTTPS</string>
+<key>PayloadDescription</key><string>Local certificate for your Music Generator desktop. Compare its fingerprint with your desktop before installing.</string>
+<key>PayloadRemovalDisallowed</key><false/>
+<key>PayloadContent</key><array><dict>
+<key>PayloadType</key><string>com.apple.security.root</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>de.alphatester.music-generator.local-ca.{cert_id}</string>
+<key>PayloadUUID</key><string>{cert_id}</string>
+<key>PayloadDisplayName</key><string>Music Generator Local CA</string>
+<key>PayloadCertificateFileName</key><string>music-generator-local-ca.crt</string>
+<key>PayloadContent</key><data>{certificate}</data>
+</dict></array></dict></plist>"#
+    );
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/x-apple-aspen-config")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "inline; filename=\"Music-Generator.mobileconfig\"",
+        )
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::from(xml))
+        .unwrap_or_default()
 }
 
 fn language(headers: &HeaderMap) -> String {

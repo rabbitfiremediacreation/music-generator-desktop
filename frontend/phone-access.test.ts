@@ -1,4 +1,6 @@
 import { expect, it } from "vitest";
+import qrcode from "qrcode-generator";
+import jsQR from "jsqr";
 import { LANGS } from "./locales";
 import { I18N } from "./i18n.js";
 import { phoneAccessKeys, phoneAccessTranslations } from "./phone-access-i18n";
@@ -38,4 +40,21 @@ it("offers a separate web link with the key only in the fragment", () => {
   expect(url.search).toBe("");
   expect(new URLSearchParams(url.hash.slice(1)).get("token")).toBe(on.token);
   expect(phoneWebAccessLink(on)).not.toBe(phoneAccessLink(on));
+});
+
+it("can decode the web pairing QR with the PWA camera decoder", () => {
+  const link = phoneWebAccessLink(on)!;
+  const qr = qrcode(0, "M");
+  qr.addData(link); qr.make();
+  const quiet = 4, scale = 4, modules = qr.getModuleCount();
+  const size = (modules + quiet * 2) * scale;
+  const pixels = new Uint8ClampedArray(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const row = Math.floor(y / scale) - quiet, column = Math.floor(x / scale) - quiet;
+    const dark = row >= 0 && row < modules && column >= 0 && column < modules && qr.isDark(row, column);
+    const offset = (y * size + x) * 4;
+    pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = dark ? 0 : 255;
+    pixels[offset + 3] = 255;
+  }
+  expect(jsQR(pixels, size, size)?.data).toBe(link);
 });

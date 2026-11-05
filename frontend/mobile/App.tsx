@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Folder, Queue, Song } from "../types";
-import { AuthenticationError, readConnection, rememberConnection, releaseMedia, RemoteApi } from "./client";
+import { AuthenticationError, pairingToken, readConnection, rememberConnection, releaseMedia, RemoteApi } from "./client";
+import { QrScanner } from "./QrScanner";
 import { messages, type Language, type Message } from "./messages";
 import "./mobile.css";
 
 interface FolderList { folders: Folder[]; all: number; none: number }
 interface InstallPrompt extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }
-interface ConnectionInfo { secure_addresses: string[]; certificate_url: string; certificate_fingerprint: string }
+interface ConnectionInfo { secure_addresses: string[]; certificate_url: string; certificate_profile_url?: string; certificate_fingerprint: string }
 type Translate = (key: Message) => string;
 const noFolders: FolderList = { folders: [], all: 0, none: 0 };
 const duration = (song: Song) => {
@@ -64,10 +65,11 @@ function SecureSetup({ t, token, remember, setRemember, language }: { t: Transla
     {error && <Failure t={t} retry={() => setRevision(value => value + 1)}>{t("unavailable")}</Failure>}
     {!info && !error && <p role="status">{t("loading")}</p>}
     {info && <>
+      {link && <div className="secure-shortcut"><a className="primary wide" href={link} rel="noreferrer">{de ? "HTTPS-Web-App öffnen" : "Open HTTPS web app"}<span aria-hidden="true">→</span></a><p className="fine">{de ? "Schon vertraut? Direkt öffnen. Beim ersten Mal die Schritte darunter abschließen." : "Already trusted? Open it directly. For a first connection, complete the steps below."}</p></div>}
       <ol className="setup-steps">
-        <li><strong>{de ? "Zertifikat laden" : "Download certificate"}</strong><p>{de ? "Prüfe den Fingerabdruck mit dem am Desktop angezeigten Wert." : "Compare the fingerprint with the value shown on your desktop."}</p><a className="secondary" href="/mobile-ca.crt" download="Music-Generator-CA.crt">{de ? "Zertifikat herunterladen" : "Download certificate"}</a><code className="fingerprint">{info.certificate_fingerprint}</code></li>
-        <li><strong>{de ? "Am Handy vertrauen" : "Trust it on your phone"}</strong><p>{de ? "iPhone: Einstellungen → Allgemein → VPN und Geräteverwaltung → geladenes Profil installieren. Dann unter Allgemein → Info → Zertifikatsvertrauenseinstellungen das volle Vertrauen aktivieren." : "iPhone: Settings → General → VPN & Device Management → install the downloaded profile. Then enable full trust in General → About → Certificate Trust Settings."}</p><p>{de ? "Android: In den Einstellungen nach „Zertifikat installieren“ suchen und das Zertifikat als CA-Zertifikat installieren. Menünamen unterscheiden sich je nach Gerät." : "Android: search Settings for “Install a certificate” and install it as a CA certificate. Menu names vary by device."}</p></li>
-        <li><strong>{de ? "Sichere Web-App öffnen" : "Open the secure web app"}</strong><p>{de ? "Wechsle zurück zu diesem Browser. Der Zugangsschlüssel wird beim Öffnen übernommen." : "Return to this browser. Your access key will be carried over when you open the app."}</p>{link ? <a className="primary" href={link} rel="noreferrer">{de ? "HTTPS-Web-App öffnen" : "Open HTTPS web app"}</a> : <p className="muted">{de ? "Scanne den Web-App-QR-Code am Rechner erneut, um die passende Adresse zu öffnen." : "Scan the web-app QR code on your computer again to open the matching address."}</p>}</li>
+        <li><strong>{de ? "Zertifikat für dein Handy laden" : "Download the certificate for your phone"}</strong><p>{de ? "Vergleiche zuerst den SHA-256-Fingerabdruck mit dem Wert in den Desktop-Einstellungen." : "First compare the SHA-256 fingerprint with the value in your desktop settings."}</p><code className="fingerprint">{info.certificate_fingerprint}</code><div className="certificate-buttons"><a className="primary" href="/mobile-ca.mobileconfig">{de ? "iPhone: Profil installieren" : "iPhone: install profile"}</a><a className="secondary" href="/mobile-ca.crt" download="Music-Generator-CA.crt">{de ? "Android: Zertifikat laden" : "Android: download certificate"}</a></div></li>
+        <li><strong>{de ? "Einmalig dem Rechner vertrauen" : "Trust this computer once"}</strong><p>{de ? "iPhone: Öffne den Link in Safari und erlaube das geladene Profil. Dann Einstellungen → Allgemein → VPN und Geräteverwaltung → Music Generator → Installieren." : "iPhone: open the link in Safari and allow the profile download. Then Settings → General → VPN & Device Management → Music Generator → Install."}</p><p>{de ? "Aktiviere anschließend unter Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen das volle Vertrauen für Music Generator." : "Then enable full trust for Music Generator in Settings → General → About → Certificate Trust Settings."}</p><details><summary>{de ? "Android-Anleitung" : "Android instructions"}</summary><p>{de ? "Suche in den Einstellungen nach „Zertifikat installieren“ und installiere die geladene Datei als CA-Zertifikat. Menünamen unterscheiden sich je nach Gerät." : "Search Settings for “Install a certificate” and install the downloaded file as a CA certificate. Menu names vary by device."}</p></details></li>
+        <li><strong>{de ? "Zur sicheren Web-App wechseln" : "Continue to the secure web app"}</strong><p>{de ? "Kehre hierher zurück und öffne den folgenden Link. Dein Schlüssel ist enthalten und wird am Handy gemerkt. In der sicheren Web-App kannst du sie zum Home-Bildschirm hinzufügen." : "Return here and open the link below. It includes your key and remembers it on this phone. You can then add the secure web app to your home screen."}</p>{!link && <p className="muted">{de ? "Scanne den Web-App-QR-Code am Rechner erneut, um die passende Adresse zu öffnen." : "Scan the web-app QR code on your computer again to open the matching address."}</p>}</li>
       </ol>
       <label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label>
       <p className="fine">{t("keyTip")}</p>
@@ -85,6 +87,7 @@ export function App() {
   const [token, setToken] = useState(initial.token);
   const [remember, setRemember] = useState(initial.remembered);
   const [keyDraft, setKeyDraft] = useState("");
+  const [loginError, setLoginError] = useState(false);
   const [authMessage, setAuthMessage] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [page, setPage] = useState<"library" | "create">("library");
@@ -178,8 +181,11 @@ export function App() {
   const main = !token ? <section className="panel connect-panel">
     <div className="panel-icon"><Icon name="key" /></div><p className="eyebrow">MUSIC GENERATOR</p><h1>{t("noConnection")}</h1><p className="muted">{t("pair")}</p>
     {authMessage && <Failure t={t}>{t("expired")}</Failure>}
-    <form onSubmit={event => { event.preventDefault(); if (!keyDraft.trim()) return; setToken(keyDraft.trim()); setAuthMessage(false); setKeyDraft(""); }}>
-      <Field title={t("key")}><input type="password" autoComplete="off" required value={keyDraft} onChange={event => setKeyDraft(event.target.value)} /></Field>
+    <QrScanner t={t} onToken={value => { setToken(value); setRemember(true); setAuthMessage(false); setLoginError(false); setKeyDraft(""); }} />
+    <p className="fine">{t("scanRemember")}</p>
+    {loginError && <Failure t={t}>{t("scanInvalid")}</Failure>}
+    <form onSubmit={event => { event.preventDefault(); const value = keyDraft.trim(); if (!value) return; const paired = pairingToken(value); if (value.includes("://") && !paired) { setLoginError(true); return; } setToken(paired || value); if (paired) setRemember(true); setAuthMessage(false); setLoginError(false); setKeyDraft(""); }}>
+      <Field title={t("key")}><input type="password" autoComplete="off" required value={keyDraft} placeholder={t("scanLink")} onChange={event => setKeyDraft(event.target.value)} /></Field>
       <label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label>
       <button className="primary wide" type="submit">{t("connect")} <span aria-hidden="true">→</span></button>
     </form><p className="fine">{t("keyTip")}</p>

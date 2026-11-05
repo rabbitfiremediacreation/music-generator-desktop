@@ -52,6 +52,7 @@ export function PhoneAccessField() {
           <h3>{t("remote_web")}</h3>
           <span className="small">{t("remote_web_scan")}</span>
           <div className="remote-qr" data-testid="phone-access-web-qr" dangerouslySetInnerHTML={{ __html: phoneAccessQrSvg(webLink) }} />
+          <input readOnly aria-label={t("remote_web_link")} value={webLink} onFocus={event => event.currentTarget.select()} />
         </div>}
       </div>
       {current.certificate_fingerprint && <p className="small phone-access-fingerprint">{t("remote_certificate")}<br /><code>{current.certificate_fingerprint}</code></p>}

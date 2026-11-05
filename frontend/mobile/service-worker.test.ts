@@ -18,7 +18,7 @@ it("pre-caches the shell while authenticated API, certificate and connection req
   handlers.install({ waitUntil: (promise: Promise<void>) => { installed = promise; } });
   await installed;
   expect(cache.addAll).toHaveBeenCalledWith(["/mobile/", "/mobile/index.html", "/mobile/assets/app.js"]);
-  for (const url of ["https://studio.local:8768/api/songs", "https://studio.local:8768/api/songs/one/audio", "https://studio.local:8768/mobile/connection.json", "https://studio.local:8768/mobile-ca.crt", "https://other.test/mobile/assets/app.js", "https://studio.local:8768/mobile/?token=secret"]) {
+  for (const url of ["https://studio.local:8768/api/songs", "https://studio.local:8768/api/songs/one/audio", "https://studio.local:8768/mobile/connection.json", "https://studio.local:8768/mobile-ca.crt", "https://studio.local:8768/mobile-ca.mobileconfig", "https://other.test/mobile/assets/app.js", "https://studio.local:8768/mobile/?token=secret"]) {
     const respondWith = vi.fn();
     handlers.fetch({ request: { url, method: "GET" }, respondWith });
     expect(respondWith, url).not.toHaveBeenCalled();

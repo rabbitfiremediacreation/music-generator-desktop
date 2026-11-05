@@ -21,6 +21,7 @@
     "@tauri-apps/api": "^2.10.0",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
+    "jsqr": "1.4.0",
     "qrcode-generator": "1.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
