@@ -65,7 +65,7 @@ pub(super) fn duration(input: &mut (impl Read + Seek)) -> Result<f64> {
         position = next;
     }
     let (rate, align) = format.ok_or_else(invalid)?;
-    if audio_bytes == 0 || audio_bytes % u64::from(align) != 0 {
+    if audio_bytes == 0 || !audio_bytes.is_multiple_of(u64::from(align)) {
         return Err(invalid());
     }
     Ok((audio_bytes / u64::from(align)) as f64 / f64::from(rate))

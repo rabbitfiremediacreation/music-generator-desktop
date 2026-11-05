@@ -22,6 +22,8 @@ if (platform === "macos") {
   const config = JSON.stringify({ bundle: { macOS: { minimumSystemVersion: desktop.minimumSystemVersion } } });
   await run(process.execPath, [cli,"build","--bundles","app","--config",config]);
   const app = path.join(target,"bundle/macos/Music Generator.app");
+  // Tauri includes every Cargo binary; macOS uses the main executable for MCP stdio.
+  await rm(path.join(app,"Contents/MacOS/music-generator-mcp"),{force:true});
   const identity = process.env.APPLE_SIGNING_IDENTITY || "-";
   const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
   await cp(path.join(target,"music-engine-supervisor"),helper);
@@ -71,6 +73,7 @@ if (platform === "macos") {
   await cp(path.join(wix,installers[0]),installer); artifacts.push(installer);
   const portable = path.join(output,`${name}-windows-x64`); await rm(portable,{recursive:true,force:true}); await mkdir(portable,{recursive:true});
   await cp(path.join(target,"music-generator.exe"),path.join(portable,"Music Generator.exe"));
+  await cp(path.join(target,"music-generator-mcp.exe"),path.join(portable,"music-generator-mcp.exe"));
   await cp(engineFolder,path.join(portable,"engine"),{recursive:true});
   await cp(runtimeDir,path.join(portable,"WebView2"),{recursive:true});
   await cp(path.join(root,"LICENSE"),path.join(portable,"LICENSE"));

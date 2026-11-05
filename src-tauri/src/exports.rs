@@ -48,7 +48,7 @@ impl Database {
         Ok(directory.as_deref().unwrap_or(fallback).join(filename))
     }
 
-    fn remember_export_directory(&self, directory: &Path) -> Result<()> {
+    pub(crate) fn remember_export_directory(&self, directory: &Path) -> Result<()> {
         self.lock().execute(
             "INSERT INTO settings(key,value) VALUES('last_export_dir',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             [serde_json::to_string(directory)?],
@@ -165,6 +165,22 @@ pub async fn export(
         if let Err(error) = db.remember_export_directory(parent) {
             tracing::warn!(%error, "Could not remember export directory");
         }
+    }
+    export_contents(db, resources, kind, sid, folder, destination, cancel).await
+}
+
+/// Export bytes without remembering a temporary staging directory as the user's destination.
+pub(crate) async fn export_contents(
+    db: std::sync::Arc<Database>,
+    resources: PathBuf,
+    kind: String,
+    sid: Option<String>,
+    folder: Option<String>,
+    destination: PathBuf,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    if !destination.is_absolute() {
+        return Err(message("Select an absolute destination"));
     }
     let mp3 = db.settings()?.export_format == "mp3";
     let mut sources = HashMap::new();

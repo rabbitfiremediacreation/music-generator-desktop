@@ -89,6 +89,7 @@ try {
   assert.equal(probe, "cpu", "Relocated model-free backend probe must initialize the CPU runtime");
   if (platform === "macos") await run("codesign", ["--verify", "--deep", "--strict", path.dirname(path.dirname(path.dirname(app)))]);
   if (platform === "windows") {
+    assert(await exists(path.join(path.dirname(app), "music-generator-mcp.exe")), "MCP stdio bridge is missing");
     assert(await exists(path.join(path.dirname(app), "WebView2/msedgewebview2.exe")), "Fixed WebView2 is missing");
     for (const dll of ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"]) {
       assert(await exists(path.join(engine, dll)), `Engine runtime ${dll} is missing`);
