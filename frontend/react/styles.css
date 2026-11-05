@@ -369,9 +369,67 @@ button.chip { background: none; font: inherit; font-size: 12px; }
 .titlebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 html[data-platform=macos] .titlebar-name { padding-left: 90px; }
 html[data-platform=macos] .titlebar nav { display: none; }
-.setup-screen { max-width: 760px; margin: 40px auto; padding: 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); box-shadow: 0 22px 80px #0005; }
-.setup-screen h1 { margin-top: 0; font-size: 26px; }
-.setup-screen h2 { font-size: 14px; margin: 0 0 8px; }
+.setup-screen { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 20px; padding: 24px clamp(20px, 3vw, 40px) 0; background: var(--panel); overflow: hidden; }
+.setup-header { display: flex; align-items: start; justify-content: space-between; gap: 24px; flex-shrink: 0; }
+.setup-screen h1 { margin: 0; font-size: 24px; }
+.setup-screen h2 { font-size: 18px; margin: 0; }
+.setup-header #bootStatus { margin: 6px 0 0; color: var(--muted); }
+.setup-screen .field { min-width: 0; margin: 0; }
+.setup-language { flex: 0 0 160px; }
+.setup-steps { display: flex; flex-shrink: 0; gap: 12px; list-style: none; margin: 0; padding: 0 0 20px; border-bottom: 1px solid var(--border); }
+.setup-steps li { display: flex; flex: 1; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.setup-step-number { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; }
+.setup-steps [aria-current=step] { color: var(--text); }
+.setup-steps [aria-current=step] .setup-step-number { color: var(--bg); border-color: var(--accent2); background: var(--accent2); }
+.setup-steps .is-complete .setup-step-number { color: var(--accent2); border-color: var(--accent2); }
+.setup-screen #setupForm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.setup-content { flex: 1; min-height: 0; overflow: auto; padding: 3px 4px 16px; scrollbar-gutter: stable; }
+.setup-page-heading { margin-bottom: 20px; }
+.setup-page-heading p { margin: 6px 0 0; }
+.setup-library { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(240px, 1fr); gap: 24px; align-items: start; }
+.setup-paths, .setup-hardware, .setup-model-options { display: grid; gap: 16px; min-width: 0; }
+.setup-screen .hardware-card, .setup-screen .import-card { margin: 0; padding: 16px; }
+.setup-screen .hardware-card h2 { font-size: 14px; }
+.setup-screen .hardware-card p { margin: 8px 0; }
+.setup-screen .hardware-card > :last-child, .setup-screen .import-card > :last-child { margin-bottom: 0; }
+.setup-screen #setupPathHint { margin: 0; }
+.setup-models { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.setup-screen .check-row { margin: 0; }
+.setup-model-files { border: 1px solid var(--border); border-radius: 8px; }
+.setup-model-files summary { padding: 10px 12px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.setup-model-files .model-list { border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; }
+.setup-summary { margin: 0; display: grid; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.setup-summary > div { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; padding: 14px 16px; }
+.setup-summary > div + div { border-top: 1px solid var(--border); }
+.setup-summary dt { color: var(--muted); }
+.setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+.setup-screen #spaceEstimate { margin: 16px 0 0; }
+.setup-footer { flex-shrink: 0; padding: 16px 4px 20px; border-top: 1px solid var(--border); }
+.setup-actions, .setup-back-actions { display: flex; align-items: center; gap: 12px; }
+.setup-actions { justify-content: space-between; }
+.setup-actions > :last-child { margin-left: auto; }
+.setup-screen #setupBack { margin: 0; }
+.setup-screen #setupProgressArea { margin: 0 0 12px; }
+.setup-screen #setupProgressText { margin: 6px 0 0; font-size: 13px; }
+@media (max-width: 700px) {
+  .setup-screen { padding: 16px 16px 0; gap: 14px; }
+  .setup-header { gap: 16px; }
+  .setup-screen h1 { font-size: 20px; }
+  .setup-header #bootStatus { font-size: 12px; }
+  .setup-language { flex-basis: 125px; }
+  .setup-steps { gap: 8px; padding-bottom: 14px; }
+  .setup-steps li { gap: 6px; font-size: 12px; }
+  .setup-step-number { flex-basis: 24px; height: 24px; }
+  .setup-library, .setup-models { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .setup-summary > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .setup-footer { padding: 12px 4px; }
+}
+@media (max-height: 700px) {
+  .setup-screen { gap: 12px; padding-top: 14px; }
+  .setup-steps { padding-bottom: 12px; }
+  .setup-page-heading { margin-bottom: 14px; }
+  .setup-footer { padding-top: 12px; padding-bottom: 12px; }
+}
 .setup-screen fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .setup-screen fieldset:disabled { opacity: .55; }
 #settingsFields { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -422,12 +480,6 @@ html[data-platform=macos] .titlebar nav { display: none; }
 #studio .genbar { bottom: 0; }
 #studio #player { position: static; flex: 0 0 auto; z-index: 5; }
 #studio .player-in { width: 100%; max-width: none; margin: 0; padding: 10px clamp(12px, 1.6vw, 24px); }
-.setup-screen { width: 100%; max-width: none; flex: 1; min-height: 0; margin: 0; padding: clamp(20px, 3vw, 44px); border: 0; border-radius: 0; overflow: auto; box-shadow: none; }
-.setup-screen #setupFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; align-items: start; }
-.setup-screen #setupFields > :first-child, .setup-screen .model-list, .setup-screen #spaceEstimate, .setup-screen #setupFields > button { grid-column: 1 / -1; }
-.setup-screen .hardware-card, .setup-screen .import-card { margin: 0; align-self: stretch; }
-.setup-screen .field { min-width: 0; margin-bottom: 0; }
-.setup-screen .check-row { align-self: center; }
 @media (min-width: 1000px) {
   #studio > .wrap.side { display: grid; grid-template-columns: minmax(360px, .9fr) minmax(0, 1.4fr); grid-template-rows: auto minmax(0, 1fr); align-items: stretch; overflow: hidden; }
   #studio > .wrap.side > .top { grid-column: 1 / -1; }
@@ -444,7 +496,6 @@ html[data-platform=macos] .titlebar nav { display: none; }
   .libhead input[type=search] { max-width: none; }
 }
 @media (max-width: 700px) {
-  .setup-screen #setupFields { grid-template-columns: minmax(0, 1fr); }
   #studio .top { flex-wrap: wrap; }
   #studio .brand-link { flex: 1 1 180px; }
   #studio .top .title { flex: 1 1 auto; }
