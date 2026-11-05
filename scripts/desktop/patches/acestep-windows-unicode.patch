@@ -1,0 +1,235 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6798adf..a4f987f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -182,3 +182,8 @@ endif()
+ target_link_libraries(mp3-codec PRIVATE Threads::Threads)
+ 
+ add_subdirectory(tests)
++
++# Desktop Windows programs receive UTF-8 argv from a Unicode CRT entry point.
++foreach(program ace-server ace-lm ace-synth ace-understand mp3-codec)
++    target_sources(${program} PRIVATE tools/desktop-windows-cli.cpp)
++endforeach()
+diff --git a/src/audio-io.h b/src/audio-io.h
+index 5f59b76..0976b88 100644
+--- a/src/audio-io.h
++++ b/src/audio-io.h
+@@ -5,6 +5,7 @@
+ // All functions use planar stereo float: [L: T samples][R: T samples].
+ // Part of acestep.cpp. MIT license.
+ 
++#include "desktop-windows-paths.h"
+ #include "task-types.h"
+ 
+ #include <algorithm>
+@@ -72,7 +73,7 @@ static bool audio_io_ends_with(const char * str, const char * suffix) {
+ // Load entire file into memory. Caller must free() the returned pointer.
+ static uint8_t * audio_io_load_file(const char * path, size_t * size_out) {
+     *size_out = 0;
+-    FILE * fp = fopen(path, "rb");
++    FILE * fp = desktop_fopen(path, "rb");
+     if (!fp) {
+         fprintf(stderr, "[Audio] Cannot open %s\n", path);
+         return NULL;
+@@ -562,7 +563,7 @@ static bool audio_write_wav(const char * path, const float * audio, int T_audio,
+         return false;
+     }
+ 
+-    FILE * fp = fopen(path, "wb");
++    FILE * fp = desktop_fopen(path, "wb");
+     if (!fp) {
+         fprintf(stderr, "[Audio] Cannot open %s for writing\n", path);
+         return false;
+@@ -783,7 +784,7 @@ static bool audio_write_mp3(const char * path, const float * audio, int T_audio,
+         return false;
+     }
+ 
+-    FILE * fp = fopen(path, "wb");
++    FILE * fp = desktop_fopen(path, "wb");
+     if (!fp) {
+         fprintf(stderr, "[Audio] Cannot open %s for writing\n", path);
+         return false;
+diff --git a/src/gguf-weights.h b/src/gguf-weights.h
+index 6adc2b0..10f1fee 100644
+--- a/src/gguf-weights.h
++++ b/src/gguf-weights.h
+@@ -21,7 +21,7 @@
+ #include <string>
+ 
+ #ifdef _WIN32
+-#    include <windows.h>
++#    include "desktop-windows-paths.h"
+ #else
+ #    include <fcntl.h>
+ #    include <sys/mman.h>
+@@ -76,7 +76,7 @@ static bool gf_load(GGUFModel * gf, const char * path) {
+ 
+     // mmap the file
+ #ifdef _WIN32
+-    gf->fh = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
++    gf->fh = CreateFileW(desktop_wide(path).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+     if (gf->fh == INVALID_HANDLE_VALUE) {
+         fprintf(stderr, "[GGUF] Cannot open %s\n", path);
+         return false;
+diff --git a/src/model-registry.h b/src/model-registry.h
+index d928c75..a4f1e39 100644
+--- a/src/model-registry.h
++++ b/src/model-registry.h
+@@ -23,7 +23,7 @@
+ #    ifndef WIN32_LEAN_AND_MEAN
+ #        define WIN32_LEAN_AND_MEAN
+ #    endif
+-#    include <windows.h>
++#    include "desktop-windows-paths.h"
+ #else
+ #    include <dirent.h>
+ #    include <sys/stat.h>
+@@ -109,39 +109,39 @@ static bool str_ends_with(const std::string & s, const char * suffix) {
+ 
+ // scan a directory for files matching a pattern (Windows)
+ static void registry_list_dir(const char * dir, std::vector<std::string> * names) {
+-    std::string      pattern = std::string(dir) + "\\*";
+-    WIN32_FIND_DATAA fd;
+-    HANDLE           h = FindFirstFileA(pattern.c_str(), &fd);
++    std::wstring     pattern = desktop_wide(dir) + L"\\*";
++    WIN32_FIND_DATAW fd;
++    HANDLE           h = FindFirstFileW(pattern.c_str(), &fd);
+     if (h == INVALID_HANDLE_VALUE) {
+         return;
+     }
+     do {
+         if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+-            names->push_back(fd.cFileName);
++            names->push_back(desktop_utf8(fd.cFileName));
+         }
+-    } while (FindNextFileA(h, &fd));
++    } while (FindNextFileW(h, &fd));
+     FindClose(h);
+ }
+ 
+ // list subdirectories (Windows)
+ static void registry_list_subdirs(const char * dir, std::vector<std::string> * names) {
+-    std::string      pattern = std::string(dir) + "\\*";
+-    WIN32_FIND_DATAA fd;
+-    HANDLE           h = FindFirstFileA(pattern.c_str(), &fd);
++    std::wstring     pattern = desktop_wide(dir) + L"\\*";
++    WIN32_FIND_DATAW fd;
++    HANDLE           h = FindFirstFileW(pattern.c_str(), &fd);
+     if (h == INVALID_HANDLE_VALUE) {
+         return;
+     }
+     do {
+-        if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && strcmp(fd.cFileName, ".") != 0 &&
+-            strcmp(fd.cFileName, "..") != 0) {
+-            names->push_back(fd.cFileName);
++        if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && wcscmp(fd.cFileName, L".") != 0 &&
++            wcscmp(fd.cFileName, L"..") != 0) {
++            names->push_back(desktop_utf8(fd.cFileName));
+         }
+-    } while (FindNextFileA(h, &fd));
++    } while (FindNextFileW(h, &fd));
+     FindClose(h);
+ }
+ 
+ static bool registry_is_file(const char * path) {
+-    DWORD attr = GetFileAttributesA(path);
++    DWORD attr = GetFileAttributesW(desktop_wide(path).c_str());
+     return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+ }
+ 
+diff --git a/src/request.cpp b/src/request.cpp
+index 3661ed4..ed40e65 100644
+--- a/src/request.cpp
++++ b/src/request.cpp
+@@ -1,6 +1,7 @@
+ // request.cpp: AceStep request JSON read/write (yyjson)
+ 
+ #include "request.h"
++#include "desktop-windows-paths.h"
+ #include "desktop-generation-limits.h"
+ 
+ #include "task-types.h"
+@@ -286,7 +287,7 @@ bool request_parse_json_array(const char * json, std::vector<AceRequest> * out)
+ 
+ // File I/O
+ static std::string read_file(const char * path) {
+-    FILE * f = fopen(path, "rb");
++    FILE * f = desktop_fopen(path, "rb");
+     if (!f) {
+         return "";
+     }
+@@ -478,7 +479,7 @@ static yyjson_mut_doc * request_build_doc(const AceRequest * r, bool sparse) {
+ }
+ 
+ bool request_write(const AceRequest * r, const char * path) {
+-    FILE * f = fopen(path, "w");
++    FILE * f = desktop_fopen(path, "w");
+     if (!f) {
+         fprintf(stderr, "[Request] ERROR: cannot write %s\n", path);
+         return false;
+diff --git a/tools/ace-lm.cpp b/tools/ace-lm.cpp
+index 7b2f636..4fc2920 100644
+--- a/tools/ace-lm.cpp
++++ b/tools/ace-lm.cpp
+@@ -44,7 +44,7 @@ static void usage(const char * prog) {
+             prog, d.max_seq);
+ }
+ 
+-int main(int argc, char ** argv) {
++int desktop_main(int argc, char ** argv) {
+     AceLmParams params;
+     ace_lm_default_params(&params);
+ 
+diff --git a/tools/ace-server.cpp b/tools/ace-server.cpp
+index fb79f32..de2d2de 100644
+--- a/tools/ace-server.cpp
++++ b/tools/ace-server.cpp
+@@ -1641,7 +1641,7 @@ static void usage(const char * prog) {
+             prog, synth_d.vae_chunk, synth_d.vae_overlap, g_max_batch, lm_d.max_seq);
+ }
+ 
+-int main(int argc, char ** argv) {
++int desktop_main(int argc, char ** argv) {
+     if (argc == 3 && strcmp(argv[1], "--desktop-iteration-probe") == 0) {
+         char * end = nullptr;
+         const long requested = strtol(argv[2], &end, 10);
+diff --git a/tools/ace-synth.cpp b/tools/ace-synth.cpp
+index d965b1f..d8539ce 100644
+--- a/tools/ace-synth.cpp
++++ b/tools/ace-synth.cpp
+@@ -47,7 +47,7 @@ static void usage(const char * prog) {
+             prog, d.vae_chunk, d.vae_overlap);
+ }
+ 
+-int main(int argc, char ** argv) {
++int desktop_main(int argc, char ** argv) {
+     if (argc < 2) {
+         usage(argv[0]);
+         return 1;
+diff --git a/tools/ace-understand.cpp b/tools/ace-understand.cpp
+index 5bc04d5..d522a66 100644
+--- a/tools/ace-understand.cpp
++++ b/tools/ace-understand.cpp
+@@ -54,7 +54,7 @@ static void usage(const char * prog) {
+             prog, d.vae_chunk, d.vae_overlap, d.max_seq);
+ }
+ 
+-int main(int argc, char ** argv) {
++int desktop_main(int argc, char ** argv) {
+     const char * models_dir     = NULL;
+     const char * src_audio_path = NULL;
+     const char * request_path   = NULL;
+diff --git a/tools/mp3-codec.cpp b/tools/mp3-codec.cpp
+index 207f306..0fc2690 100644
+--- a/tools/mp3-codec.cpp
++++ b/tools/mp3-codec.cpp
+@@ -55,7 +55,7 @@ static void print_usage(const char * prog) {
+             prog, prog, prog, prog, prog);
+ }
+ 
+-int main(int argc, char ** argv) {
++int desktop_main(int argc, char ** argv) {
+     if (argc < 5) {
+         print_usage(argv[0]);
+         return 1;

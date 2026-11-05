@@ -8,6 +8,12 @@ export async function patchEngineSource(sourceDir, source) {
   await run("git",["apply",path.join(root,"scripts/desktop/patches",patch)],{cwd:sourceDir});
 }
 
+export async function patchWindowsPaths(sourceDir) {
+  await cp(path.join(root,"scripts/desktop/engine-windows-paths.h"),path.join(sourceDir,"src/desktop-windows-paths.h"));
+  await cp(path.join(root,"scripts/desktop/engine-windows-cli.cpp"),path.join(sourceDir,"tools/desktop-windows-cli.cpp"));
+  await run("git",["apply",path.join(root,"scripts/desktop/patches/acestep-windows-unicode.patch")],{cwd:sourceDir});
+}
+
 export async function checkoutEngineSource(work, source) {
   const sourceDir=path.join(work,"source");
   await run("git",["clone","--filter=blob:none","--no-checkout",source.repository,sourceDir]);

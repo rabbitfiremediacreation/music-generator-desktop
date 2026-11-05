@@ -11,6 +11,7 @@ import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
 import { msiArguments } from "./windows-msi.mjs";
+import { pathTestGguf } from "./windows-unicode.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -28,7 +29,7 @@ const filename = `Music-Generator-${version}${suffix}`;
 const artifact = path.join(output, filename);
 assert(await exists(artifact), `Platform bundle is missing: ${filename}`);
 assert.equal(await hash(artifact), (await readFile(`${artifact}.sha256`, "utf8")).split(/\s/)[0]);
-const work = await mkdtemp(path.join(tmpdir(), "Music Generator portable test "));
+const work = await mkdtemp(path.join(tmpdir(), platform === "windows" ? "Music Generator M\u00fcller \u6771\u4eac \ud83c\udfb5 " : "Music Generator portable test "));
 const mount = path.join(work, "mounted");
 let mounted = false;
 let installed = false;
@@ -124,12 +125,8 @@ try {
   const port = listener.address().port;
   await new Promise(resolve => listener.close(resolve));
   const models = path.join(work, "metadata fixture"); await mkdir(models);
-  // A tensor-free GGUF permits registry/HTTP startup only; this does not test inference.
-  const metadata = Buffer.alloc(96);
-  metadata.write("GGUF"); metadata.writeUInt32LE(3, 4); metadata.writeBigUInt64LE(1n, 16);
-  metadata.writeBigUInt64LE(20n, 24); metadata.write("general.architecture", 32);
-  metadata.writeUInt32LE(8, 52); metadata.writeBigUInt64LE(10n, 56); metadata.write("acestep-lm", 64);
-  await writeFile(path.join(models, "smoke.gguf"), metadata);
+  // A tiny GGUF permits registry/HTTP startup only; this does not test inference.
+  await writeFile(path.join(models, "smoke-\u00e4-\u6771\u4eac-\ud83c\udfb5.gguf"), pathTestGguf());
   const child = spawn(app, ["--engine-supervisor", path.join(engine, platform === "windows" ? "ace-server.exe" : "ace-server"), "--host", "127.0.0.1", "--port", String(port), "--models", models], {
     cwd: engine, stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, GGML_BACKEND: "CPU" },
@@ -160,7 +157,7 @@ try {
   wav.write("RIFF"); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
   wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(44100, 24); wav.writeUInt32LE(88200, 28);
   wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(wav.length - 44, 40);
-  const original = path.join(work, "export fixture.wav"), encoded = path.join(work, "exported.mp3");
+  const original = path.join(work, "song-\u00e4-\u6771\u4eac-\ud83c\udfb5.wav"), encoded = path.join(work, "export-\u00f6-\u97f3\u697d-\ud83c\udfb5.mp3");
   await writeFile(original, wav);
   await run(path.join(engine, platform === "windows" ? "mp3-codec.exe" : "mp3-codec"), ["-i", original, "-o", encoded, "-b", "192"], { cwd: engine });
   const mp3 = await readFile(encoded);

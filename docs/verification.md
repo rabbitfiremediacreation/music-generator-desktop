@@ -1,3 +1,11 @@
+# Issue #64 — Windows Unicode model paths (2026-11-06)
+
+The Windows engine build applies `acestep-windows-unicode.patch` after the existing iteration patch. Unicode CRT entrypoints supply UTF-8 arguments to all five rebuilt tools. Registry enumeration/attributes and GGUF weight mapping use Wide Win32 APIs; audio and request file I/O uses `_wfopen`. GGML DLLs remain pinned and unchanged. The engine recipe hash includes the new patch, helpers and native regression fixture to reject stale cached engines.
+
+Local validation passed: TypeScript/Vite, ESLint, **416 frontend tests**, **34 desktop-script tests** (one Windows-only MSI test skipped on macOS), and sequential patch application against the pinned Windows source revision. A native macOS build of the pinned GGML reader also verified that the regression fixture contains a valid single F32 weight, including registration, file attributes, mapping and the value `0.5` under ASCII, umlaut and Japanese/emoji paths. This macOS fixture check does not establish Windows behavior.
+
+The Windows build runs the real patched registry/weight loader against its distributed GGML DLLs under those same three path cases and prints the active ANSI codepage. Portable ZIP and MSI verification additionally relocate the app/engine under a Unicode path, start the real supervisor/HTTP server with a Unicode GGUF filename, and export a WAV to MP3 with Unicode input/output names. These checks use synthetic fixtures; full generation on the reporting user's Windows/AMD machine remains a separate hardware acceptance check. Native CI results are recorded in the pull request.
+
 # Issue #46 — automatische Titel und Setup-Hinweise (2026-10-27)
 
 Die automatische Titelbereinigung entfernt den gemeldeten Vorsatz „The song title is“, Titel-Labels und äußere Anführungszeichen beziehungsweise Punkte. Unbrauchbare Modellausgaben führen nach erfolgreicher Audiogenerierung zu einem gespeicherten Zufallstitel aus demselben Wortschatz wie der Titelwürfel. Der übersetzte Fehlerhinweis bleibt erhalten. Manuelle Titel, während der Generierung umbenannte Songs, abgeschlossene Songs und Abbrüche werden nicht überschrieben.
