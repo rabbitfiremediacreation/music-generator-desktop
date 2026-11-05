@@ -38,6 +38,8 @@ export const backend = {
   settings: () => command<Settings>("get_settings"),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
   openSongsFolder: () => command<void>("open_songs_folder"),
+  phoneAccess: () => command<import("./types").PhoneAccess>("phone_access_status"),
+  setPhoneAccess: (change: { enabled?: boolean; newToken?: boolean }) => command<import("./types").PhoneAccess>("set_phone_access", { enabled: change.enabled ?? null, newToken: change.newToken ?? false }),
   generationPolicy: (selection?: ModelSelection, refresh = false) => command<GenerationPolicy>("generation_policy", { selection: selection ?? null, refresh }),
   generationFormPreferences: () => command<GenerationFormPreferences>("get_generation_form_preferences"),
   saveGenerationFormPreferences: (values: GenerationFormPreferences) => command<void>("save_generation_form_preferences", { values }),

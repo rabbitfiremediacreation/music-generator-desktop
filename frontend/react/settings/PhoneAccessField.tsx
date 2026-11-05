@@ -1,0 +1,50 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { backend } from "../../backend";
+import { phoneAccessLink, phoneAccessQrSvg } from "../../phone-access";
+import type { PhoneAccess } from "../../types";
+import { useI18n } from "../i18n";
+
+const phoneAccessKey = ["phone-access"] as const;
+
+/** Applies immediately through its own command, independent of the settings dialog's Save. */
+export function PhoneAccessField() {
+  const { t } = useI18n();
+  const client = useQueryClient();
+  const status = useQuery({ queryKey: phoneAccessKey, queryFn: backend.phoneAccess, staleTime: 0 });
+  const [failure, setFailure] = useState<string | null>(null);
+  const change = useMutation({
+    mutationFn: backend.setPhoneAccess,
+    onMutate: () => setFailure(null),
+    onSuccess: next => client.setQueryData<PhoneAccess>(phoneAccessKey, next),
+    onError: reason => {
+      setFailure(reason instanceof Error ? reason.message : String(reason));
+      void client.invalidateQueries({ queryKey: phoneAccessKey });   // show the actual state
+    },
+  });
+  const current = status.data;
+  const port = current?.port ?? 8767;
+  const link = current ? phoneAccessLink(current) : null;
+  const errorText = failure === null ? "" : failure === "phone_access_port_busy" ? t("remote_port_busy", port) : `${t("remote_failed")} ${failure}`;
+  const busy = change.isPending || !current;
+  return <div className="field phone-access">
+    <span className="lbl" title={t("remote_tip")}>{t("remote")}</span>
+    <select aria-label={t("remote")} disabled={busy} value={current?.enabled ? "on" : "off"} onChange={event => change.mutate({ enabled: event.target.value === "on" })}>
+      <option value="off">{t("remote_off")}</option><option value="on">{t("remote_on")}</option>
+    </select>
+    {current?.enabled && <div className="phone-access-info">
+      {link && <>
+        <span className="small">{t("remote_scan")}</span>
+        <div className="remote-qr" data-testid="phone-access-qr" dangerouslySetInnerHTML={{ __html: phoneAccessQrSvg(link) }} />
+      </>}
+      <span className="small">{t("remote_addr")}</span>
+      <ul className="upd-list">{current.addresses.map(address => <li key={address}>{address}</li>)}</ul>
+      <div className="upd-row">
+        <input className="phone-access-token" readOnly aria-label={t("remote_token")} value={current.token} onFocus={event => event.currentTarget.select()} />
+        <button type="button" className="sek" disabled={busy} onClick={() => change.mutate({ newToken: true })}>{t("remote_new")}</button>
+      </div>
+      <span className="small">{t("remote_hint")}</span>
+    </div>}
+    {errorText && <span className="small err" role="alert">{errorText}</span>}
+  </div>;
+}

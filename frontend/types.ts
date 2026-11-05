@@ -111,3 +111,6 @@ export interface GenerationPolicy {
   recommended_steps: number;
   defaults: GenerationFormPreferences;
 }
+
+/** Phone access for the iPhone app; the key never leaves this computer except via the QR code. */
+export interface PhoneAccess { enabled: boolean; port: number; token: string; addresses: string[] }

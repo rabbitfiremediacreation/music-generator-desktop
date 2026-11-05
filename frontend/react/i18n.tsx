@@ -13,6 +13,7 @@ import "../backend-i18n";
 import "../backend-chip-i18n";
 import "../settings-i18n";
 import "../song-result-i18n";
+import "../phone-access-i18n";
 import { getLanguage, setLang, subscribeLanguage, t } from "../i18n.js";
 import type { Language } from "../locales";
 

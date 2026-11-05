@@ -67,7 +67,7 @@ The studio asks before running more than 30 iterations without a confirmed GPU. 
 
 ```sh
 cargo test --manifest-path src-tauri/Cargo.toml --lib phone_access
-npx vitest run frontend/phone-access.test.ts
+npx vitest run frontend/phone-access.test.ts frontend/react/settings/PhoneAccessField.test.tsx
 ```
 
 The Rust tests run real servers on ephemeral ports against a temporary library: missing/wrong/rotated keys (401), blocked and non-API paths (403), song/folder/queue JSON, patch and folder creation, full, partial, suffix and unsatisfiable ranges, download names, generation and analysis errors, the switch, key rotation and a busy port.
