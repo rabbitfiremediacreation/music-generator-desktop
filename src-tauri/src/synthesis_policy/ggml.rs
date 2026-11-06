@@ -140,10 +140,32 @@ unsafe fn load_cpu_backend(
     let path = best
         .or(fallback)
         .ok_or("No compatible CPU backend module")?;
-    let path = CString::new(path.to_string_lossy().as_bytes())?;
     let load = registry
         .get::<unsafe extern "C" fn(*const c_char) -> *mut c_void>(b"ggml_backend_load\0")?;
-    if load(path.as_ptr()).is_null() {
+    #[cfg(windows)]
+    let loaded = {
+        // This pinned GGML entrypoint constructs an ANSI filesystem path, unlike
+        // load_all_from_path's UTF-8 conversion. Its bundled CPU filenames are
+        // ASCII; load the selected filename from the Unicode engine directory.
+        // Detection runs only in a disposable child, before any GUI threads.
+        let filename = CString::new(
+            path.file_name()
+                .ok_or("Invalid CPU backend filename")?
+                .to_string_lossy()
+                .as_bytes(),
+        )?;
+        let previous = std::env::current_dir()?;
+        std::env::set_current_dir(folder)?;
+        let loaded = load(filename.as_ptr());
+        std::env::set_current_dir(previous)?;
+        loaded
+    };
+    #[cfg(not(windows))]
+    let loaded = {
+        let path = CString::new(path.to_string_lossy().as_bytes())?;
+        load(path.as_ptr())
+    };
+    if loaded.is_null() {
         return Err("CPU backend module could not be loaded".into());
     }
     Ok(())

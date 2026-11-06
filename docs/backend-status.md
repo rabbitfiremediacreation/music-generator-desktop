@@ -24,6 +24,8 @@ Der Desktop-Build ergänzt den Windows-Kern um `acestep-windows-unicode.patch`. 
 
 Vor dem Verpacken prüft ein natives Testprogramm die echte Registrierung und das Lesen eines kleinen GGUF-Testgewichts aus ASCII-, Umlaut- und japanischen/Emoji-Pfaden. Es protokolliert die Windows-ANSI-Codepage. ZIP- und MSI-Verifikation starten anschließend die gebündelte Engine über den App-Supervisor aus einem Unicode-Pfad und prüfen den MP3-Export mit Unicode-Dateinamen. Diese synthetischen Dateien prüfen Pfadzugriff und Prozessstart; sie ersetzen keine vollständige Musikgenerierung auf dem betroffenen Rechner. Die separat gepflegte Web-App übernimmt diesen Desktop-Patch nicht automatisch.
 
+Die explizite CPU-Prüfung lädt weiterhin nur die am besten bewertete CPU-Variante. Da der separate GGML-Aufruf `ggml_backend_load` absolute UTF-8-Pfade unter Windows als ANSI behandelt, lädt die Prüfung den ASCII-Dateinamen aus dem Unicode-Engine-Verzeichnis. Das Arbeitsverzeichnis des isolierten Prüfprozesses wird anschließend wiederhergestellt.
+
 ## Untersuchter Windows-Build
 
 Die folgenden Angaben gelten ausschließlich für das im Manifest festgelegte [Windows-Archiv `6013134`](https://github.com/rabbitfiremediacreation/music-generator/releases/tag/engine-win64-6013134):
