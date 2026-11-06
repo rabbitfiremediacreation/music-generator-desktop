@@ -2,7 +2,7 @@ import { verifyTitle } from "./prepare-title.mjs";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { execFileSync, spawn } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, readdir, readlink, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -71,7 +71,13 @@ try {
     await chmod(artifact, 0o755);
     await run(artifact, ["--appimage-extract"], { cwd: work });
   } else if (platform === "windows") {
-    await run("tar.exe", ["-xf", artifact, "-C", work]);
+    // Windows tar uses ANSI argv. Extract in an ASCII staging folder, then
+    // relocate through Node's Unicode filesystem APIs before testing the bundle.
+    const staging = await mkdtemp(path.join(tmpdir(), "music-zip-"));
+    try {
+      await run("tar.exe", ["-xf", artifact, "-C", staging]);
+      for (const entry of await readdir(staging)) await rename(path.join(staging, entry), path.join(work, entry));
+    } finally { await rm(staging, { recursive: true, force: true }); }
   } else {
     await run("ditto", ["-x", "-k", artifact, work]);
   }

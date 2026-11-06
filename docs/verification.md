@@ -6,6 +6,8 @@ Local validation passed: TypeScript/Vite, ESLint, **416 frontend tests**, **34 d
 
 The Windows build runs the real patched registry/weight loader against its distributed GGML DLLs under those same three path cases and prints the active ANSI codepage. Portable ZIP and MSI verification additionally relocate the app/engine under a Unicode path, start the real supervisor/HTTP server with a Unicode GGUF filename, and export a WAV to MP3 with Unicode input/output names. These checks use synthetic fixtures; full generation on the reporting user's Windows/AMD machine remains a separate hardware acceptance check. Native CI results are recorded in the pull request.
 
+The initial Windows CI run on `da98405` passed the native registry, file-attribute and mapped-weight checks for all three path cases with ANSI codepage **1252**. The subsequent ZIP verification exposed a separate ANSI-path limitation in the runner's `tar.exe` before any packaged engine was started. ZIP verification now extracts into an ASCII staging directory and relocates the extracted files through Node's Unicode filesystem APIs; the app/engine/model/export checks still run under the Unicode path. The corrected package verification awaits CI.
+
 # Issue #46 — automatische Titel und Setup-Hinweise (2026-10-27)
 
 Die automatische Titelbereinigung entfernt den gemeldeten Vorsatz „The song title is“, Titel-Labels und äußere Anführungszeichen beziehungsweise Punkte. Unbrauchbare Modellausgaben führen nach erfolgreicher Audiogenerierung zu einem gespeicherten Zufallstitel aus demselben Wortschatz wie der Titelwürfel. Der übersetzte Fehlerhinweis bleibt erhalten. Manuelle Titel, während der Generierung umbenannte Songs, abgeschlossene Songs und Abbrüche werden nicht überschrieben.
