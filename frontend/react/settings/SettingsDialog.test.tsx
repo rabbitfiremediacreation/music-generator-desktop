@@ -13,7 +13,7 @@ vi.mock("../../path-dialogs", () => ({ pickFolder: mocks.pickFolder, pathErrorTe
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 const settings = { lm_device: "auto", cpu_iteration_behavior: "ask", timeout_minutes: 60, songs_dir: "/songs", export_format: "wav", expert_mode: false, mp3_available: true } as Settings;
-const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onManageModels: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
+const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onOpenModelPicker: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
 function view(open = true) {
   return <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nProvider><SettingsDialog open={open} layout="auto" {...callbacks} /></I18nProvider></QueryClientProvider>;
 }
@@ -35,6 +35,20 @@ it("opens immediately during loading and offers retry after a failed read", asyn
   fireEvent.click(retry);
   await screen.findByRole("spinbutton");
   expect(mocks.settings).toHaveBeenCalledTimes(2);
+});
+
+it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers one models and hardware entry in %s without saving the settings draft", async (language, label) => {
+  setLang(language);
+  render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  const buttons = screen.getAllByRole("button", { name: label });
+  expect(buttons).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: t("desktop_manage") })).toBeNull();
+  fireEvent.click(buttons[0]);
+  expect(callbacks.onClose).toHaveBeenCalledOnce();
+  expect(callbacks.onOpenModelPicker).toHaveBeenCalledOnce();
+  expect(callbacks.onClose.mock.invocationCallOrder[0]).toBeLessThan(callbacks.onOpenModelPicker.mock.invocationCallOrder[0]);
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
 });
 
 it("keeps generation busy until a cancelled dialog's device write has finished", async () => {

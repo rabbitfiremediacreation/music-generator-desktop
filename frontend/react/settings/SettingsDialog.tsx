@@ -12,8 +12,7 @@ import { McpSettings } from "./McpSettings";
 
 export interface SettingsDialogProps {
   open: boolean; onClose: () => void; onBusyChange: (busy: boolean) => void;
-  onManageModels: () => void; onMoveLibrary: () => void;
-  onOpenModelPicker?: () => void;
+  onOpenModelPicker: () => void; onMoveLibrary: () => void;
   layout: "auto" | "stack" | "side"; onLayoutChange: (value: "auto" | "stack" | "side") => void;
 }
 
@@ -67,7 +66,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <label className="field"><span className="lbl">{t("timeout")}</span><input name="timeout_minutes" type="number" min="1" max="600" value={draft.timeout_minutes} onChange={event => change({ timeout_minutes: Number(event.target.value) })} /></label>
           <label className="check-row"><input type="checkbox" name="expert_mode" checked={draft.expert_mode} onChange={event => change({ expert_mode: event.target.checked })} aria-describedby="expertModeHint" />{t("expert_mode")}</label>
           <p id="expertModeHint" className="small">{t("expert_mode_hint")}</p>
-          <button type="button" className="sek" disabled={pending} onClick={() => navigate(props.onOpenModelPicker || props.onManageModels)}>{t("creator_manage_models")}</button>
+          <button type="button" className="sek" disabled={pending} onClick={() => navigate(props.onOpenModelPicker)}>{t("creator_manage_models")}</button>
           <label className="field"><span className="lbl" title={t("exp_tip")}>{t("exp")}</span><select name="export_format" value={draft.export_format} onChange={event => change({ export_format: event.target.value as Settings["export_format"] })}>
             <option value="wav">{t("exp_wav")}</option><option value="mp3" disabled={!draft.mp3_available}>{t("exp_mp3")}</option>
           </select>{!draft.mp3_available && <span className="small">{t("exp_no_mp3")}</span>}</label>
@@ -83,7 +82,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
         <div className="field"><span className="lbl">{t("version")}</span><div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>
           {update.data?.available && update.data.url && <button type="button" className="aktion" onClick={() => void openUrl(update.data!.url!).catch(setPathError)}>{t("desktop_download_release")}</button>}
         </div>
-        <button type="button" className="sek" disabled={pending} onClick={() => navigate(props.onManageModels)} aria-describedby="setupWizardHint">{t("desktop_manage")}</button><p id="setupWizardHint" className="small">{t("desktop_manage_hint")}</p>
         <div className="field"><span className="lbl">GitHub</span><button type="button" className="sek" onClick={() => void openUrl("https://github.com/rabbitfiremediacreation/music-generator-desktop").catch(setPathError)}>{t("github")}</button><span className="small">{t("github_info")}</span></div>
       </fieldset>
       {saving && <p role="status">{t("settings_saving")}</p>}

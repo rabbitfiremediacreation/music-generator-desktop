@@ -106,7 +106,7 @@ function DesktopShell(){
         <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>
       </div><Player/>
     </main>}
-    <SettingsDialog open={settingsOpen} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} onManageModels={manage} onOpenModelPicker={()=>setPickerOpen(true)} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>
+    <SettingsDialog open={settingsOpen} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} onOpenModelPicker={()=>setPickerOpen(true)} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>
     {importState&&<ImportDialog open mode={importState.mode} songsDirectory={importState.target} platform={bootstrap.hardware.platform} onClose={()=>setImportState(null)} onImported={directory=>importState.done?.(directory)}/>}
   </GenerationAdmissionProvider></PlayerProvider>;
 }

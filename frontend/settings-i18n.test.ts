@@ -21,13 +21,15 @@ it("provides every new message in all registered languages", () => {
   for (const language of Object.keys(LANGS)) {
     const messages = (I18N as Record<string, Record<string, unknown>>)[language];
     for (const key of [...settingsKeys, "settings_saving", "creator_xl_ram_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    for (const key of ["creator_manage_models", "desktop_manage", "desktop_manage_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    expect(messages.desktop_xl_missing).toContain(messages.creator_manage_models);
   }
 });
 
 it("switches the settings heading and live loading message without restarting the read", async () => {
   mocks.settings.mockReturnValue(new Promise(() => {}));
   render(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(I18nProvider, null, createElement(SettingsDialog, {
-    open: true, layout: "auto", onClose: vi.fn(), onBusyChange: vi.fn(), onManageModels: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn(),
+    open: true, layout: "auto", onClose: vi.fn(), onBusyChange: vi.fn(), onOpenModelPicker: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn(),
   }))));
   expect(screen.getByText("Einstellungen werden geladen…")).toBeTruthy();
   await act(async () => setLang("en"));
