@@ -460,3 +460,215 @@ fn closing_the_supervisor_pipe_terminates_the_engine() {
         .unwrap()
         .success());
 }
+
+/// A request for vocals that the language model answers with `[Instrumental]`
+/// and full-length codes must be rolled again, and the picker's language code
+/// must survive the detour through the spelled-out name. The sung take wins even
+/// though it is two codes shorter, because it still reaches the asked duration.
+#[tokio::test]
+async fn an_instrumental_answer_to_a_vocal_request_is_retried() {
+    let codes = |n: usize| (0..n).map(|n| n.to_string()).collect::<Vec<_>>().join(",");
+    let (silent, sung) = (codes(600), codes(598));
+    let attempts = Arc::new(AtomicU32::new(0));
+    let asked = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+    let synthesized = Arc::new(std::sync::Mutex::new(Value::Null));
+    let (counter, seen, sent) = (attempts.clone(), asked.clone(), synthesized.clone());
+    let app = Router::new()
+        .route(
+            "/lm",
+            post(move |Json(request): Json<Value>| {
+                let (counter, seen) = (counter.clone(), seen.clone());
+                async move {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    seen.lock().unwrap().push(request);
+                    Json(json!({"id":"lm"}))
+                }
+            }),
+        )
+        .route(
+            "/synth",
+            post(move |Json(request): Json<Value>| {
+                let sent = sent.clone();
+                async move {
+                    *sent.lock().unwrap() = request;
+                    Json(json!({"id":"synth"}))
+                }
+            }),
+        )
+        .route(
+            "/job",
+            get(
+                move |Query(query): Query<std::collections::HashMap<String, String>>| {
+                    let (silent, sung, attempts) = (silent.clone(), sung.clone(), attempts.clone());
+                    async move {
+                        if !query.contains_key("result") {
+                            return (
+                                [(CONTENT_TYPE, "application/json")],
+                                serde_json::to_vec(&json!({"status":"done"})).unwrap(),
+                            );
+                        }
+                        if query["id"] != "lm" {
+                            return ([(CONTENT_TYPE, "audio/wav")], wav::tone(120.0));
+                        }
+                        // The first roll stays silent at full length; the second sings
+                        // and is slightly shorter, still within the duration tolerance.
+                        let (lyrics, codes) = if attempts.load(Ordering::SeqCst) == 1 {
+                            ("[Instrumental]", silent)
+                        } else {
+                            ("[Verse 1]\nDie Strassen kalt, die Naechte lang", sung)
+                        };
+                        (
+                            [(CONTENT_TYPE, "application/json")],
+                            serde_json::to_vec(
+                                &json!({"audio_codes":codes,"duration":120,"lyrics":lyrics,"vocal_language":"German"}),
+                            )
+                            .unwrap(),
+                        )
+                    }
+                },
+            ),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let params =
+        json!({"duration":120,"inference_steps":50,"lm_temperature":1.2,"vocal_language":"de"});
+    let client = EngineClient::new(base.clone(), base, 0.01, 1.0).unwrap();
+    client
+        .generate(
+            &params,
+            "lm.gguf",
+            "sft.gguf",
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .unwrap();
+
+    let asked = asked.lock().unwrap();
+    assert_eq!(asked.len(), 2, "the silent answer was not rolled again");
+    // The prompt gets the spelled-out name and at most the engine's own variance.
+    assert_eq!(asked[0]["vocal_language"], "German");
+    assert_eq!(asked[0]["lm_temperature"], json!(0.85));
+    // The first roll leaves the model's own seed alone; only the retry pins one.
+    assert!(asked[0].get("lm_seed").is_none());
+    assert!(asked[1]["lm_seed"].is_number());
+    // Everything else carries over unchanged.
+    assert_eq!(asked[1]["vocal_language"], "German");
+    assert_eq!(asked[1]["lm_temperature"], json!(0.85));
+
+    let sent = synthesized.lock().unwrap();
+    assert!(
+        sent["lyrics"].as_str().unwrap().contains("Strassen"),
+        "synthesis did not receive the sung take: {}",
+        sent["lyrics"]
+    );
+    assert_eq!(sent["vocal_language"], "de", "the saved song lost its code");
+    task.abort();
+}
+
+/// The retry must not make things worse: a second take that stays silent, drops
+/// its codes or comes back too short leaves the first one in place.
+#[tokio::test]
+async fn a_worse_second_take_does_not_replace_the_first() {
+    for (lyrics, codes, duration) in [
+        // Each case isolates one condition: silence, length, any codes at all.
+        // The third asks for no duration, where any length would pass.
+        ("[Instrumental 2]", 598, 120),
+        ("[Verse 1]\nEin Wort", 300, 120),
+        ("[Verse 1]\nEin Wort", 0, 0),
+    ] {
+        let full = (0..600)
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let short = (0..codes)
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let attempts = Arc::new(AtomicU32::new(0));
+        let synthesized = Arc::new(std::sync::Mutex::new(Value::Null));
+        let (counter, sent, ticker) = (attempts.clone(), synthesized.clone(), attempts.clone());
+        let app = Router::new()
+            .route(
+                "/lm",
+                post(move |Json(_): Json<Value>| {
+                    let counter = counter.clone();
+                    async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Json(json!({"id":"lm"}))
+                    }
+                }),
+            )
+            .route(
+                "/synth",
+                post(move |Json(request): Json<Value>| {
+                    let sent = sent.clone();
+                    async move {
+                        *sent.lock().unwrap() = request;
+                        Json(json!({"id":"synth"}))
+                    }
+                }),
+            )
+            .route(
+                "/job",
+                get(
+                    move |Query(query): Query<std::collections::HashMap<String, String>>| {
+                        let (full, short, attempts) = (full.clone(), short.clone(), ticker.clone());
+                        async move {
+                            if !query.contains_key("result") {
+                                return (
+                                    [(CONTENT_TYPE, "application/json")],
+                                    serde_json::to_vec(&json!({"status":"done"})).unwrap(),
+                                );
+                            }
+                            if query["id"] != "lm" {
+                                return ([(CONTENT_TYPE, "audio/wav")], wav::tone(120.0));
+                            }
+                            let (text, codes) = if attempts.load(Ordering::SeqCst) == 1 {
+                                ("[Instrumental]", full)
+                            } else {
+                                (lyrics, short)
+                            };
+                            (
+                                [(CONTENT_TYPE, "application/json")],
+                                serde_json::to_vec(
+                                    &json!({"audio_codes":codes,"duration":120,"lyrics":text}),
+                                )
+                                .unwrap(),
+                            )
+                        }
+                    },
+                ),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut params = json!({"inference_steps":50,"lm_temperature":1.2,"vocal_language":"de"});
+        if duration > 0 {
+            params["duration"] = json!(duration);
+        }
+        let client = EngineClient::new(base.clone(), base, 0.01, 1.0).unwrap();
+        client
+            .generate(
+                &params,
+                "lm.gguf",
+                "sft.gguf",
+                &CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            2,
+            "the silent first take should still be retried"
+        );
+        let sent = synthesized.lock().unwrap();
+        assert_eq!(
+            sent["lyrics"], "[Instrumental]",
+            "the weaker second take replaced the first for {lyrics:?} with {codes} codes"
+        );
+        task.abort();
+    }
+}
