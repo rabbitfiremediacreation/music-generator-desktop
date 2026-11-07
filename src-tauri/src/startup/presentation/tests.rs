@@ -31,12 +31,12 @@ async fn a_stalled_native_callback_times_out_without_acknowledging_main() {
 }
 
 #[tokio::test]
-async fn a_controller_error_keeps_startup_recoverable() {
+async fn a_native_presentation_error_keeps_startup_recoverable() {
     let (_temporary, app) = fixture(true);
     let startup = app.state::<Startup>();
     let error = startup
         .present_main(app.handle(), 1, deadline(&startup), async {
-            Err(message("WebView2 presentation failed: test failure"))
+            Err(message("Native presentation failed: test failure"))
         })
         .await
         .unwrap_err();
@@ -86,14 +86,14 @@ async fn native_acknowledgement_precedes_main_readiness() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn queued_controller_work_cannot_touch_a_timed_out_or_replacement_attempt() {
+async fn queued_native_work_cannot_touch_a_timed_out_or_replacement_attempt() {
     let (_temporary, app) = fixture(true);
     let startup = app.state::<Startup>();
     deadline(&startup);
     startup.with_pending_presentation(1, || Ok(())).unwrap();
     tokio::time::advance(std::time::Duration::from_secs(15)).await;
     let error = startup
-        .with_pending_presentation::<()>(1, || panic!("late controller call"))
+        .with_pending_presentation::<()>(1, || panic!("late native call"))
         .unwrap_err();
     assert_eq!(error.to_string(), "startup_main_timeout");
     startup.report(
@@ -116,6 +116,120 @@ async fn queued_controller_work_cannot_touch_a_timed_out_or_replacement_attempt(
         .unwrap_err();
     assert_eq!(error.to_string(), "startup_attempt_expired");
     startup.with_pending_presentation(2, || Ok(())).unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn frontend_acknowledgement_waits_for_native_recovery_before_ready() {
+    let (_temporary, app) = fixture(true);
+    let startup = app.state::<Startup>();
+    let main = app.get_webview_window("main").unwrap();
+    startup_show_main(main, app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    let finish = startup.finish_main(
+        app.handle(),
+        1,
+        recovery::cycle(
+            async { startup.with_pending_presentation(1, || Ok(Some(()))) },
+            |()| async { startup.with_pending_presentation(1, || Ok(())) },
+        ),
+    );
+    tokio::pin!(finish);
+    tokio::select! {
+        _ = &mut finish => panic!("ready before native recovery"),
+        _ = tokio::time::sleep(std::time::Duration::from_millis(400)) => {},
+    }
+    assert_ne!(startup.snapshot().phase, "ready");
+    assert!(app.get_webview_window("splash").is_some());
+    finish.await.unwrap();
+    assert_ne!(startup.snapshot().phase, "ready");
+}
+
+#[tokio::test(start_paused = true)]
+async fn recovery_uses_the_original_deadline_and_cannot_reshow_after_timeout_or_retry() {
+    let (_temporary, app) = fixture(true);
+    let startup = app.state::<Startup>();
+    let main = app.get_webview_window("main").unwrap();
+    startup_show_main(main, app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    tokio::time::advance(std::time::Duration::from_millis(14_600)).await;
+    let error = startup
+        .finish_main(
+            app.handle(),
+            1,
+            recovery::cycle(
+                async { startup.with_pending_presentation(1, || Ok(Some(()))) },
+                |()| async { panic!("show callback must not run after the deadline") },
+            ),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "startup_main_timeout");
+    assert_eq!(startup.snapshot().phase, "error");
+    assert!(app.get_webview_window("splash").is_some());
+    assert!(startup
+        .with_pending_presentation::<()>(1, || panic!("late show"))
+        .is_err());
+    retry_startup(
+        app.get_webview_window("splash").unwrap(),
+        app.state(),
+        app.handle().clone(),
+        1,
+    )
+    .await
+    .unwrap();
+    deadline(&startup);
+    assert!(startup
+        .with_pending_presentation::<()>(1, || panic!("old show touched retry"))
+        .is_err());
+}
+
+#[tokio::test]
+async fn failed_recovery_keeps_the_splash_and_supports_retry() {
+    let (_temporary, app) = fixture(true);
+    let startup = app.state::<Startup>();
+    deadline(&startup);
+    let error = startup
+        .finish_main(app.handle(), 1, async {
+            Err(message("native show failed"))
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "native show failed");
+    assert_eq!(startup.snapshot().phase, "error");
+    assert!(app.get_webview_window("splash").is_some());
+    retry_startup(
+        app.get_webview_window("splash").unwrap(),
+        app.state(),
+        app.handle().clone(),
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(startup.snapshot().attempt, 2);
+}
+
+#[tokio::test]
+async fn successful_completion_cannot_cycle_a_second_time() {
+    let (temporary, app) = fixture(true);
+    app.state::<Startup>().initialize_logging().unwrap();
+    let main = app.get_webview_window("main").unwrap();
+    startup_show_main(main.clone(), app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    startup_complete(main.clone(), app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    assert!(startup_complete(main, app.state(), app.handle().clone(), 1)
+        .await
+        .is_err());
+    let log = std::fs::read_to_string(temporary.path().join("data/logs/desktop.log")).unwrap();
+    assert_eq!(log.matches("Main frontend frames acknowledged").count(), 1);
+    assert!(app
+        .state::<Startup>()
+        .with_pending_presentation::<()>(1, || panic!("callback after ready"))
+        .is_err());
 }
 
 #[tokio::test(start_paused = true)]
