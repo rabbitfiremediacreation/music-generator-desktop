@@ -36,7 +36,7 @@ export async function prepareTitle() {
     await run(platform === "windows" ? "tar.exe" : "tar", ["-xf", archive, "-C", source, "--strip-components=1"]);
   }
   const options = ["-DCMAKE_BUILD_TYPE=Release", `-DLLAMA_SOURCE=${source}`, `-DSANDBOX_BRIDGE=${path.join(root, "scripts/desktop/engine-sandbox.mm")}`];
-  if (platform === "macos") options.push(`-DCMAKE_OSX_ARCHITECTURES=${architecture === "arm64" ? "arm64" : "x86_64"}`, `-DCMAKE_OSX_DEPLOYMENT_TARGET=${target.minimumSystemVersion}`);
+  if (platform === "macos") options.push(...target.titleCmake);
   await run("cmake", ["-S", path.join(root, "scripts/desktop/title-runtime"), "-B", build, ...options]);
   await run("cmake", ["--build", build, "--config", "Release", "--target", "music-title", "--parallel", "2"]);
   await rm(titleFolder, { recursive: true, force: true }); await mkdir(titleFolder, { recursive: true });
