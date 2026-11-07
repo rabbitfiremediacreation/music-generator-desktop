@@ -1,0 +1,15 @@
+{
+  "caption": "synthwave, retro pop, layered female vocals, analog synths, driving bass, wide reverb",
+  "duration": 120,
+  "bpm": 110,
+  "vocal_language": "English",
+  "lm_temperature": 0.85,
+  "seed": 12345,
+  "lm_seed": 7,
+  "lm_model": "acestep-5Hz-lm-4B-Q8_0.gguf",
+  "synth_model": "acestep-v15-sft-Q8_0.gguf",
+  "output_format": "wav16",
+  "peak_clip": 0,
+  "inference_steps": 5,
+  "use_cot_caption": true
+}

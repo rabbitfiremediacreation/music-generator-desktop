@@ -1,0 +1,7 @@
+All evidence JSON and local report links verified.
+Both Python probes compile; Rust probe built successfully.
+Two real LM jobs and exactly one real synthesis job in engine.log.
+Real pipeline captures and WAV metadata checked: 119.84 s, seed 6 -> 7, English/0.85 -> en.
+No remaining isolated ace-server processes.
+Product source diff is empty.
+main rechecked at completion: aa151677f7d36b43d7c0a8203b12e313bd479e16.
