@@ -12,7 +12,7 @@ it("keeps engine patches usable in Windows Git checkouts", async () => {
     git("init");
     git("config","core.autocrlf","true");
     await writeFile(path.join(work,".gitattributes"),await readFile(new URL("../../.gitattributes",import.meta.url)));
-    for (const name of ["acestep-iterations-windows.patch","acestep-windows-unicode.patch"]) {
+    for (const name of ["acestep-iterations-windows.patch","acestep-windows-unicode.patch","acestep-title-registry.patch"]) {
       await writeFile(path.join(work,name),await readFile(new URL(`./patches/${name}`,import.meta.url)));
       git("add",".gitattributes",name);
       await rm(path.join(work,name));

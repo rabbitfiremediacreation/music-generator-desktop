@@ -6,6 +6,8 @@ export async function patchEngineSource(sourceDir, source) {
   await cp(path.join(root,"scripts/desktop/engine-generation-limits.h"),path.join(sourceDir,"src/desktop-generation-limits.h"));
   const patch=source?.iterations_patch || "acestep-iterations.patch";
   await run("git",["apply",path.join(root,"scripts/desktop/patches",patch)],{cwd:sourceDir});
+  await run("git",["apply",path.join(root,"scripts/desktop/patches/acestep-title-registry.patch")],{cwd:sourceDir});
+  await cp(path.join(root,"scripts/desktop/engine-registry-test.cpp"),path.join(sourceDir,"tools/desktop-registry-test.cpp"));
 }
 
 export async function patchWindowsPaths(sourceDir) {
