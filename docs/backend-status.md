@@ -18,6 +18,14 @@ Die Composite-Revision `6013134-steps200` baut den Windows-ACE-Kern und seine CL
 
 Die produktive Normalisierung unterstützt 1–200 und wird vor Runtime-Caching sowie im verlagerten Bundle modellfrei geprüft. Der Synthesepfad meldet tatsächlich ausgeführte Schritte separat vom ursprünglichen Request. [Abnahme der 200er-Korrektur](qa/iterations-200-0.1.2/README.md).
 
+### Unicode-Pfade unter Windows (Issue #64)
+
+Der Desktop-Build ergänzt den Windows-Kern um `acestep-windows-unicode.patch`. Die fünf gebauten CLI-Programme übernehmen ihre Argumente über `wmain` und wandeln sie in UTF-8 um. Die Modellregistrierung verwendet `FindFirstFileW`/`FindNextFileW` und `GetFileAttributesW`; gefundene Namen werden als UTF-8 an GGML weitergegeben. Auch das anschließende Mapping der Modellgewichte verwendet `CreateFileW`. Audio- und Request-Dateien werden mit `_wfopen` geöffnet. Damit benötigen Modell- und Song-Ordner weder ASCII-Namen noch verfügbare 8.3-Kurznamen. Der Build-Fingerprint enthält den Patch und seine Hilfsdateien, sodass ältere Runtime-Caches neu gebaut werden. Die gepinnten GGML-DLLs und CUDA-Kompatibilitätsdaten bleiben gültig.
+
+Vor dem Verpacken prüft ein natives Testprogramm die echte Registrierung und das Lesen eines kleinen GGUF-Testgewichts aus ASCII-, Umlaut- und japanischen/Emoji-Pfaden. Es protokolliert die Windows-ANSI-Codepage. ZIP- und MSI-Verifikation starten anschließend die gebündelte Engine über den App-Supervisor aus einem Unicode-Pfad und prüfen den MP3-Export mit Unicode-Dateinamen. Diese synthetischen Dateien prüfen Pfadzugriff und Prozessstart; sie ersetzen keine vollständige Musikgenerierung auf dem betroffenen Rechner. Die separat gepflegte Web-App übernimmt diesen Desktop-Patch nicht automatisch.
+
+Die explizite CPU-Prüfung lädt weiterhin nur die am besten bewertete CPU-Variante. Da der separate GGML-Aufruf `ggml_backend_load` absolute UTF-8-Pfade unter Windows als ANSI behandelt, lädt die Prüfung den ASCII-Dateinamen aus dem Unicode-Engine-Verzeichnis. Das Arbeitsverzeichnis des isolierten Prüfprozesses wird anschließend wiederhergestellt.
+
 ## Untersuchter Windows-Build
 
 Die folgenden Angaben gelten ausschließlich für das im Manifest festgelegte [Windows-Archiv `6013134`](https://github.com/rabbitfiremediacreation/music-generator/releases/tag/engine-win64-6013134):

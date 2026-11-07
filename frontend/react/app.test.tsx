@@ -37,15 +37,19 @@ beforeEach(()=>{
   });
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
-function mount(path="/"){
+async function mount(path="/"){
   const client=createAppQueryClient(),router=createAppRouter(client,createMemoryHistory({initialEntries:[path]}));
-  render(<DesktopApp client={client} router={router}/>);return router;
+  await act(async()=>{
+    render(<DesktopApp client={client} router={router}/>);
+    await router.load();
+  });
+  return router;
 }
 it("keeps startup pending until the first library and saved form values are ready",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
   let finishPreferences!:(value:unknown)=>void,finishSongs!:(value:unknown)=>void;
   mocks.invoke.mockImplementation((name,args)=>name==="get_generation_form_preferences"?new Promise(resolve=>{finishPreferences=resolve;}):name==="list_songs"?new Promise(resolve=>{finishSongs=resolve;}):original(name,args));
-  mount();
+  await mount();
   await waitFor(()=>expect(finishSongs).toBeTypeOf("function"));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
   finishSongs([]);
@@ -58,11 +62,11 @@ it("keeps startup pending until the first library and saved form values are read
 it("reports a failed initial library snapshot without completing startup",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.reject(new Error("database busy")):original(name,args));
-  mount();await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_error",{attempt:1,error:"database busy"}));
+  await mount();await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_error",{attempt:1,error:"database busy"}));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
 });
 it("guards direct studio navigation and reports readiness after the initial wizard renders",async()=>{
-  const router=mount("/studio");
+  const router=await mount("/studio");
   await screen.findByRole("heading",{name:"Welcome to Music Generator"});
   await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));
   await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_complete",{attempt:1}));
@@ -88,7 +92,7 @@ it("lets a first-run user switch phone access on and off before configuring mode
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="setup_models")).toHaveLength(0);
 });
 it("keeps a studio draft when visiting setup and returning",async()=>{
-  firstRun=false;mount();
+  firstRun=false;await mount();
   const prompt=await screen.findByRole("textbox",{name:"Prompt"});
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).disabled).toBe(false));
   fireEvent.change(prompt,{target:{value:"keep this idea"}});
@@ -104,7 +108,7 @@ it("can reapply the same song twice even when the system clock has not advanced"
   firstRun=false;
   const original=mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.resolve([{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}]):original(name,args));
-  mount();
+  await mount();
   const reuse=await screen.findByRole("button",{name:"Copy settings to the form"});
   vi.spyOn(Date,"now").mockReturnValue(Date.now());
   const prompt=screen.getByRole("textbox",{name:"Prompt"});
@@ -122,7 +126,10 @@ it("waits for native presentation before two main-window frames and binds readin
   const frames:FrameRequestCallback[]=[];
   vi.spyOn(window,"requestAnimationFrame").mockImplementation(callback=>{frames.push(callback);return frames.length;});
   const client=createAppQueryClient(4),router=createAppRouter(client,createMemoryHistory({initialEntries:["/"]}));
-  render(<DesktopApp client={client} router={router}/>);
+  await act(async()=>{
+    render(<DesktopApp client={client} router={router}/>);
+    await router.load();
+  });
   await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_show_main",{attempt:4}));
   expect(mocks.invoke).toHaveBeenCalledWith("bootstrap",{attempt:4});
   expect(mocks.invoke).not.toHaveBeenCalledWith("startup_complete",{attempt:4});

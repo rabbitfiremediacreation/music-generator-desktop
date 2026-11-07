@@ -12,11 +12,13 @@ it("keeps engine patches usable in Windows Git checkouts", async () => {
     git("init");
     git("config","core.autocrlf","true");
     await writeFile(path.join(work,".gitattributes"),await readFile(new URL("../../.gitattributes",import.meta.url)));
-    await writeFile(path.join(work,"engine.patch"),await readFile(new URL("./patches/acestep-iterations-windows.patch",import.meta.url)));
-    git("add",".gitattributes","engine.patch");
-    await rm(path.join(work,"engine.patch"));
-    git("checkout-index","engine.patch");
-    const patch=await readFile(path.join(work,"engine.patch"));
-    assert.equal(patch.includes(13),false,"CRLF patch context cannot match the upstream LF sources");
+    for (const name of ["acestep-iterations-windows.patch","acestep-windows-unicode.patch"]) {
+      await writeFile(path.join(work,name),await readFile(new URL(`./patches/${name}`,import.meta.url)));
+      git("add",".gitattributes",name);
+      await rm(path.join(work,name));
+      git("checkout-index",name);
+      const patch=await readFile(path.join(work,name));
+      assert.equal(patch.includes(13),false,"CRLF patch context cannot match the upstream LF sources");
+    }
   } finally {await rm(work,{recursive:true,force:true});}
 });
