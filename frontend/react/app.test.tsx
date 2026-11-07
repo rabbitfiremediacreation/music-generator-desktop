@@ -73,7 +73,7 @@ it("guards direct studio navigation and reports readiness after the initial wiza
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="bootstrap")).toHaveLength(1);
 });
 it("lets a first-run user switch phone access on and off before configuring models",async()=>{
-  const router=mount("/studio");
+  const router=await mount("/studio");
   const access=await screen.findByRole("switch",{name:"Phone access"}) as HTMLInputElement;
   await waitFor(()=>expect(access.disabled).toBe(false));
   expect(router.state.location.pathname).toBe("/setup");
