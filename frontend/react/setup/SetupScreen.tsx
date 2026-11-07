@@ -77,10 +77,11 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
         <fieldset id="setupFields" disabled={busy} aria-labelledby="setupStepHeading">
           {step === 1 && <div className="setup-library">
             <div className="setup-paths">
-              {(["songs_dir", "models_dir"] as const).map(field => <label className="field" key={field}>
-                <span className="lbl">{t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}</span>
-                <div className="path-picker"><input required value={draft[field]} aria-describedby="setupPathHint" onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} /><button type="button" className="sek" aria-label={`${t("desktop_browse")} ${t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}`} onClick={() => void browse(field)}>{t("desktop_browse")}</button></div>
-              </label>)}
+              {(["songs_dir", "models_dir"] as const).map(field => <div className="field" key={field}>
+                <label className="lbl" htmlFor={`setup-${field}`}>{t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}</label>
+                <div className="path-picker"><input id={`setup-${field}`} required value={draft[field]} aria-describedby={field === "songs_dir" ? "setupSongsHint setupPathHint" : "setupPathHint"} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} /><button type="button" className="sek" aria-label={`${t("desktop_browse")} ${t(field === "models_dir" ? "desktop_models_folder" : "songs_dir")}`} onClick={() => void browse(field)}>{t("desktop_browse")}</button></div>
+                {field === "songs_dir" && <p className="small" id="setupSongsHint">{t("desktop_songs_tip")}</p>}
+              </div>)}
               <p className="small" id="setupPathHint">{t(bootstrap.hardware.platform === "macos" ? "path_hint" : "path_hint_plain")}</p>
             </div>
             <section className="import-card"><button type="button" className="sek" hidden={imported} onClick={() => onImport?.(request.songs_dir, songsDir => { setDraft(current => ({ ...current, songs_dir: songsDir })); setImported(true); })}>{t("desktop_import")}</button><p className="small">{t("desktop_import_hint")}</p>{imported && <p role="status">{t("desktop_import_done")}</p>}</section>
@@ -94,7 +95,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
             </div>
           </div>}
           {step === 3 && (result ? <section className="hardware-card setup-result"><div role="status" aria-live="polite"><BackendDetails status={result.backend_status} /></div></section> : <dl className="setup-summary">
-            <div><dt>{t("songs_dir")}</dt><dd>{request.songs_dir}</dd></div>
+            <div><dt>{t("songs_dir")}</dt><dd>{request.songs_dir}<p className="small">{t("desktop_songs_tip")}</p></dd></div>
             <div><dt>{t("desktop_models_folder")}</dt><dd>{request.models_dir}</dd></div>
             <div><dt>{t("desktop_language_model")}</dt><dd>{request.lm}{request.xl ? " · XL" : ""}</dd></div>
           </dl>)}

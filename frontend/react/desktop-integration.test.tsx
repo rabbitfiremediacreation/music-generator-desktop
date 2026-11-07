@@ -83,6 +83,24 @@ it("blocks all generation entrypoints in Settings and releases them after Cancel
   fireEvent.submit(form);
   await waitFor(() => expect(calls("generate")).toHaveLength(1));
 });
+it("explains moving existing songs when setup is reopened from Settings", async () => {
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => name === "setup_estimate"
+    ? Promise.resolve({ missing_bytes: 0, free_bytes: 1024 ** 4 }) : original(name, args));
+  await mount();
+  expect(await screen.findByText("done song A")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("desktop_manage") }));
+  const songsPath = await screen.findByRole("textbox", { name: new RegExp(t("songs_dir")) });
+  const hint = screen.getByText("Songs are stored outside the app. Changing this folder moves existing songs.");
+  expect(songsPath.getAttribute("aria-describedby")?.split(" ")).toContain(hint.id);
+  fireEvent.change(songsPath, { target: { value: "/isolated/new-songs" } });
+  fireEvent.click(screen.getByRole("button", { name: t("desktop_back") }));
+  expect(await screen.findByText("done song A")).toBeTruthy();
+  expect(calls("setup_models")).toHaveLength(0);
+  expect(calls("save_settings")).toHaveLength(0);
+  expect(settings.songs_dir).toBe("/songs");
+});
 it("keeps every generation entrypoint blocked after closing a pending device save", async () => {
   let finish!: (value: Settings) => void;
   mocks.saveSettings.mockImplementationOnce(() => new Promise<Settings>(resolve => { finish = resolve; }));
