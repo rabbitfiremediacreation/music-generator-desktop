@@ -10,6 +10,7 @@
       "path": "cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-13.0.48-archive.zip",
       "sha256": "82fb29001895810ce02e88b180cbaa90607b852a7f67a63f18f202079eaa2966",
       "bytes": 2873274,
+      "installed_bytes": 538515,
       "files": ["cudart64_13.dll"]
     },
     {
@@ -17,6 +18,7 @@
       "path": "libcublas/windows-x86_64/libcublas-windows-x86_64-13.0.0.19-archive.zip",
       "sha256": "c8fb12715b9639f51983315cc4b195e272128c675aa3766b13c4f470b892e6c8",
       "bytes": 399809469,
+      "installed_bytes": 528252931,
       "files": ["cublasLt64_13.dll", "cublas64_13.dll"]
     }
   ]
