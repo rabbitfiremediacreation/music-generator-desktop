@@ -19,6 +19,8 @@ import { GenerationForm } from "./generation/GenerationForm";
 import { ModelControls } from "./models/ModelControls";
 import { SetupScreen } from "./setup/SetupScreen";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import type { SettingsPage } from "./settings/SettingsNavigation";
+import { useSettingsEntry } from "./settings/useSettingsEntry";
 import { ImportDialog } from "./import/ImportDialog";
 import { ErrorState, LoadingState } from "./ui";
 
@@ -54,21 +56,28 @@ function DesktopShell(){
   const bootstrap=useQuery(bootstrapQuery(startupAttempt(client))).data!;
   const settings=useQuery(settingsQuery());
   const [selection,setSelection]=useState<ModelSelection|null>(null),[layout,setLayout]=useState<Layout>(()=>{const value=stored("desktop_layout","auto");return value==="stack"||value==="side"?value:"auto";});
-  const [folder,setFolder]=useState(()=>stored("folder","")),[settingsOpen,setSettingsOpen]=useState(false),[settingsBusy,setSettingsBusy]=useState(false),[pickerOpen,setPickerOpen]=useState(false);
+  const [folder,setFolder]=useState(()=>stored("folder","")),[settingsOpen,setSettingsOpen]=useState(false),[settingsBusy,setSettingsBusy]=useState(false);
+  const [settingsPage,setSettingsPage]=useState<SettingsPage>("generation"),[requestedModel,setRequestedModel]=useState<ModelSelection|null>(null);
   const [reuse,setReuse]=useState<{song:Song;revision:number}>(),[analysis,setAnalysis]=useState<{values:Record<string,unknown>;microphone:boolean;revision:number}>(),[recommendedSteps,setRecommendedSteps]=useState<{steps:number;revision:number}>();
   const [importState,setImportState]=useState<{mode:"import"|"move";target:string;done?:(songsDir:string)=>void}|null>(null);
   const [setupReady,setSetupReady]=useState(false),[libraryReady,setLibraryReady]=useState(false),[formReady,setFormReady]=useState(false),[modelsReady,setModelsReady]=useState(false);
   const reported=useRef(false),flush=useRef<()=>Promise<void>>(async()=>{});
   const intentRevision=useRef(0);
-  const operations=useIsMutating({predicate:mutation=>["setup","models","import"].includes(String(mutation.options.mutationKey?.[0]))}),studio=path==="/studio",blocked=settingsOpen||settingsBusy||!studio||importState!==null||pickerOpen;
+  const operations=useIsMutating({predicate:mutation=>["setup","models","import"].includes(String(mutation.options.mutationKey?.[0]))}),studio=path==="/studio",blocked=settingsOpen||settingsBusy||!studio||importState!==null||operations>0;
+  const blockingOperations=useIsMutating({predicate:mutation=>["setup","import"].includes(String(mutation.options.mutationKey?.[0]))});
   const {requestClose:close,closingAccepted}=useDesktop(operations>0,flush);
+  const openSettings=useCallback((page:SettingsPage="generation",requested:ModelSelection|null=null)=>{if(settingsOpen)return;setSettingsPage(page);setRequestedModel(requested);setSettingsOpen(true);},[settingsOpen]);
+  const openModelSettings=useCallback((next?:ModelSelection|null)=>openSettings("models",next??null),[openSettings]);
+  useSettingsEntry(bootstrap.hardware.platform==="macos",studio&&importState===null&&!closingAccepted&&blockingOperations===0,()=>openSettings());
   const setFolderChoice=useCallback((value:string)=>{setFolder(value);remember("folder",value);},[]);
   const setLayoutChoice=useCallback((value:Layout)=>{setLayout(value);remember("desktop_layout",value);},[]);
   const registerFlush=useCallback((value:()=>Promise<void>)=>{flush.current=value;},[]);
+  const selectModel=useCallback((next:ModelSelection)=>{intentRevision.current++;setSelection(next);},[]);
+  const acceptSettingsModel=useCallback((next:ModelSelection,before:number)=>{if(intentRevision.current===before){intentRevision.current++;setSelection(next);setRequestedModel(null);}},[]);
   const libraryInitialized=useCallback(()=>setLibraryReady(true),[]),formInitialized=useCallback(()=>setFormReady(true),[]),modelsInitialized=useCallback(()=>setModelsReady(true),[]),setupInitialized=useCallback(()=>setSetupReady(true),[]);
   const libraryFailed=useCallback((error:unknown)=>{if(!reported.current)report(error);},[report]);
   const back=useCallback(()=>{void navigate({to:"/studio"});},[navigate]);
-  const manage=useCallback(()=>{setSettingsOpen(false);setPickerOpen(false);void navigate({to:"/setup"});},[navigate]);
+  const manage=useCallback(()=>{setSettingsOpen(false);void navigate({to:"/setup"});},[navigate]);
   const importLibrary=useCallback((target:string,done:(songsDir:string)=>void)=>setImportState({mode:"import",target,done}),[]);
   const complete=useCallback(()=>{void(async()=>{
     const saved=await client.fetchQuery({...settingsQuery(),staleTime:0});
@@ -97,16 +106,16 @@ function DesktopShell(){
     <SceneContext.Provider value={{bootstrap:{...bootstrap,settings:settings.data??bootstrap.settings},complete,back,ready:setupInitialized,importLibrary}}><Outlet/></SceneContext.Provider>
     {!bootstrap.needs_setup&&<main id="studio" hidden={!studio} inert={closingAccepted}>
       <div className={`wrap ${layout!=="stack"?"side":""}`}>
-        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})} onSettings={()=>setSettingsOpen(true)}/>}
+        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})} onSettings={()=>openSettings()}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
-          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={setSelection} onManage={manage} onOpenSettings={()=>setSettingsOpen(true)} onReady={modelsInitialized} onRecommendedSteps={steps=>setRecommendedSteps({steps,revision:++intentRevision.current})} open={pickerOpen} onOpenChange={setPickerOpen}/>
-          <GenerationForm selection={selection} onSelectionChange={setSelection} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
+          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onReady={modelsInitialized}/>
+          <GenerationForm selection={selection} onSelectionChange={selectModel} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
         </section>
         <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>
       </div><Player/>
     </main>}
-    <SettingsDialog open={settingsOpen} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} onOpenModelPicker={()=>setPickerOpen(true)} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>
+    <SettingsDialog open={settingsOpen} initialPage={settingsPage} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} modelManager={{selection:requestedModel??selection,currentSelection:selection,selectionRevision:intentRevision.current,onUse:acceptSettingsModel,onManage:manage,onRecommendedSteps:steps=>setRecommendedSteps({steps,revision:++intentRevision.current})}} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>
     {importState&&<ImportDialog open mode={importState.mode} songsDirectory={importState.target} platform={bootstrap.hardware.platform} onClose={()=>setImportState(null)} onImported={directory=>importState.done?.(directory)}/>}
   </GenerationAdmissionProvider></PlayerProvider>;
 }

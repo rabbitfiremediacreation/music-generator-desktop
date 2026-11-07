@@ -8,6 +8,12 @@ TanStack Router verwendet typisierte, programmatisch definierte Routen mit Hash-
 
 Das Desktop-Layout hält den Studiozustand bei einem Besuch des Assistenten gemountet. Formularentwurf, historische Modellwahl, Bibliotheksfilter und Player bleiben erhalten. Erst ein erfolgreich abgeschlossener Assistent übernimmt die bestätigte Modellkonfiguration. `startup_complete` folgt auf das initialisierte Setup beziehungsweise die initiale Bibliothek, Formpräferenzen und Modellauswahl.
 
+Unter macOS öffnen `⌘,` und **Music Generator → Einstellungen…** denselben Settings-Dialog wie das Zahnrad. Der native Menüeintrag folgt der Sprache der Oberfläche und ist während des Setups oder anderer blockierender Aktionen deaktiviert. Wiederholtes Öffnen behält den aktuellen Einstellungsentwurf.
+
+**Einstellungen → Modelle und Hardware** zeigt zuerst die installierten lokalen Modelle mit Typ, Quantisierung, Größe und Prüfstatus. Vollständig geprüfte, erlaubte Profile lassen sich direkt aus der Liste aktivieren. „Modell hinzufügen“ öffnet den Downloader als zusätzlichen modalen Dialog; Escape oder Schließen kehrt zur installierten Liste zurück und erhält den Settings-Entwurf. „Modelle wählen“ im Studio öffnet dieselbe Settings-Seite. Modellaktionen werden sofort angewendet. „Expert Mode übernehmen“ speichert nur diese Einstellung, ohne den Dialog zu schließen. Laufende Downloads bleiben nach Schließen des Zusatzdialogs auf der Settings-Seite sichtbar und abbrechbar; währenddessen bleiben Generierungszugänge gesperrt.
+
+Der zusätzliche Downloader-Dialog zeigt links durchsuchbare Klangmodellfamilien mit Filtern für alle, geprüfte installierte und hardwareempfohlene Modelle. Rechts stehen Varianten/Quantisierung, Sprachmodell, Dateigröße, Ressourcenbedarf und die benötigten Dateien. Ein Klick in die Liste ändert nur den Entwurf; erst die Download-/Übernehmen-Aktion aktiviert ihn. Auf schmalen Flächen stehen Liste und Details untereinander. Recheneinheit und Expert Mode bleiben unterhalb der installierten Liste in den Settings erreichbar.
+
 Backend-Daten liegen in TanStack Query. Lokale Formulare, Dialogentwürfe und Darstellungsoptionen liegen in React. Die SQLite-Datenbank bleibt die dauerhafte Quelle; es gibt keine zusätzliche persistierte Query-Datenbank. Sämtliche lokalen IPC-Queries und Mutations verwenden `networkMode: "always"`. Schreibende Aktionen werden nicht automatisch wiederholt.
 
 ## Queries und Ereignisse
@@ -36,6 +42,6 @@ Tailwind 4 verarbeitet `react/styles.css` über das Vite-Plugin; Dateien in `sta
 
 ## Entwickeln und prüfen
 
-Nach `npm ci` prüfen `npm run check`, `npm run lint`, `npm test` und `npm run build` das Frontend. `npm run dev` startet die native App mit eingebauten Assets; nach Quelländerungen neu bauen/starten. Die vorhandenen Desktop- und Rust-Prüfungen bleiben erforderlich.
+Nach `npm ci` prüfen `npm run check`, `npm run lint`, `npm test` und `npm run build` das Frontend. `npm run dev` baut zuerst die eingebettete Handy-Oberfläche und startet dann Vite unter `http://127.0.0.1:1420` sowie die native App. React Fast Refresh übernimmt Komponentenänderungen direkt im App-Fenster; CSS-Änderungen werden ebenfalls ohne Neustart geladen. `npm run dev:frontend` startet nur Vite. Änderungen an der Handy-Oberfläche benötigen erneut `npm run build:mobile`, da das Rust-Backend diese Dateien einbettet. Die vorhandenen Desktop- und Rust-Prüfungen bleiben erforderlich.
 
 Neue Verhaltenstests laufen mit React Testing Library und Happy DOM an gerenderter Oberfläche und öffentlicher Tauri-Grenze. Router, Provider und QueryClient bleiben echt; IPC, Fenster- und Medienressourcen werden an der Systemgrenze simuliert. Reine Fachtests bleiben getrennt. Die Tests decken insbesondere Navigation, Cache-Aktualisierung, Ereignisrennen, StrictMode-Bereinigung, Speicherschutz und Sprachwechsel ab. Sie ersetzen keine native Plattform-, Mikrofon- oder Screenreader-Abnahme.

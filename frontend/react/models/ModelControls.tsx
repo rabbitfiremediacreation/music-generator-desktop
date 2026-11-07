@@ -11,12 +11,12 @@ import { invalidateModels } from "./model-state";
 export interface ModelControlsProps {
   selection: ModelSelection | null; onSelectionChange: (selection: ModelSelection) => void;
   selectionRevision?: number;
-  onManage: () => void; onOpenSettings?: () => void; onRecommendedSteps?: (steps: number) => void; onReady?: () => void;
+  onManage: () => void; onOpenSettings?: (selection?: ModelSelection | null) => void; onOpenManager?: (selection: ModelSelection | null) => void; onRecommendedSteps?: (steps: number) => void; onReady?: () => void;
   open?: boolean; onOpenChange?: (open: boolean) => void;
 }
 
 /** A restored song is local intent; delayed settings and activation replies cannot replace it. */
-export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
+export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
   const { t } = useI18n(), client = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: backend.settings, networkMode: "always", retry: false });
   const [localOpen, setLocalOpen] = useState(false), [error, setError] = useState<unknown>(null), [pending, setPending] = useState<ModelSelection | null>(null);
@@ -63,7 +63,7 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     setError(null);
     activate.mutate({ next: option.selection, before: ++intent.current.revision });
   }
-  function openSettings() { setOpen(false); (onOpenSettings || onManage)(); }
+  function openSettings() { setOpen(false); if (onOpenSettings) onOpenSettings(pending || chosen || null); else onManage(); }
   function accept(next: ModelSelection, before: number) {
     if (intent.current.revision === before) { preserveSongSelection.current = false; onSelectionChange(next); setPending(null); setError(null); }
   }
@@ -73,7 +73,7 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
         {!options.length && <option value="">{t("expert_no_recommendation")}</option>}{options.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select></label>
       <span id="currentModels" className="small" role="status">{chosen ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
-      <button type="button" className="sek" onClick={() => setOpen(true)}>{t("picker_choose")}</button>
+      <button type="button" className="sek" onClick={() => onOpenManager ? onOpenManager(pending || chosen || null) : setOpen(true)}>{t("picker_choose")}</button>
     </div>
     {!recommendations.some(profile => profile.synthesis.includes("-xl-")) && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
     {(error || settings.error) && <div><p className="setup-error" role="alert">{modelErrorText(error || settings.error, t)}</p>{settings.isError && <button type="button" className="sek" onClick={() => void settings.refetch()}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}

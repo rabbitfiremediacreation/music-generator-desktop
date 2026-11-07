@@ -103,5 +103,24 @@ export function useSettingsDraft(open: boolean, onClose: () => void, onBusyChang
     } catch (error) { if (current === revision.current) setFailure(error); }
     finally { submitting.current = false; setSaving(false); }
   }
-  return { draft, status, failure, loading, saving, pending, load, change, device, submit, selectDirectory };
+  async function applyExpertMode() {
+    if (!draft || !before.current || active.current || loading || saving || draft.expert_mode === before.current.expert_mode) return;
+    const current = revision.current;
+    setPending(true); setFailure(undefined);
+    const operation = mutate({ expert_mode: draft.expert_mode }); active.current = operation;
+    try {
+      const result = await operation;
+      if (current === revision.current && before.current) {
+        before.current = { ...before.current, expert_mode: result.expert_mode };
+        change({ expert_mode: result.expert_mode });
+      }
+      await refresh();
+    } catch (error) { if (current === revision.current) setFailure(error); }
+    finally {
+      if (active.current === operation) active.current = undefined;
+      setPending(false);
+    }
+  }
+  const dirty = !!draft && !!before.current && Object.keys(settingsChanges(before.current, draft)).length > 0;
+  return { draft, status, failure, loading, saving, pending, dirty, confirmedExpertMode: before.current?.expert_mode, load, change, device, submit, applyExpertMode, selectDirectory };
 }

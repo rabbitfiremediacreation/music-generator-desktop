@@ -108,6 +108,16 @@ it("keeps a studio draft when visiting setup and returning",async()=>{
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="bootstrap")).toHaveLength(1);
 });
 
+it("opens the creator model chooser directly on the settings models page", async () => {
+  firstRun=false; await mount();
+  fireEvent.click(await screen.findByRole("button",{name:t("picker_choose")}));
+  expect(await screen.findByRole("dialog",{name:t("settings_title")})).toBeTruthy();
+  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(screen.queryByRole("searchbox",{name:t("browser_search")})).toBeNull();
+  expect(screen.getByRole("button",{name:t("settings_page_models")}).getAttribute("aria-current")).toBe("page");
+  expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
+});
+
 it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten …"], ["en", "Models and hardware", "Hardware test in setup wizard…"]])("opens model management before explicitly running the existing hardware test in %s", async (language, entry, action) => {
   setLang(language); firstRun=false;
   const router=await mount();
@@ -116,10 +126,10 @@ it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten
   fireEvent.change(prompt,{target:{value:"keep this idea"}});
   fireEvent.click(screen.getByRole("button",{name:t("settings_title")}));
   fireEvent.click(await screen.findByRole("button",{name:entry}));
-  const dialog=await screen.findByRole("dialog",{name:t("picker_title")});
-  expect(screen.queryByRole("dialog",{name:t("settings_title")})).toBeNull();
+  const dialog=await screen.findByRole("dialog",{name:t("settings_title")});
+  expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
   expect(router.state.location.pathname).toBe("/studio");
-  await screen.findByRole("button",{name:t("picker_use")});
+  await screen.findByRole("table");
   expect(mocks.invoke.mock.calls.some(([name])=>["setup_models","use_models","select_models"].includes(name))).toBe(false);
   const testButton=screen.getByRole("button",{name:action});
   expect(document.getElementById(testButton.getAttribute("aria-describedby")!)?.textContent).toBe(t("desktop_manage_hint"));
@@ -151,7 +161,7 @@ it.each(["pending", "failed"])("keeps setup reachable when the model catalog is 
   const router=await mount();
   fireEvent.click(await screen.findByRole("button",{name:"Settings"}));
   fireEvent.click(await screen.findByRole("button",{name:"Models and hardware"}));
-  await screen.findByRole("dialog",{name:"Models"});
+  await screen.findByRole("dialog",{name:"Settings"});
   if(status==="failed")await screen.findByText("catalog unavailable");
   fireEvent.click(screen.getByRole("button",{name:"Hardware test in setup wizard…"}));
   await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));

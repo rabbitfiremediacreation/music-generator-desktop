@@ -20,6 +20,7 @@ mod launch_location;
 pub mod library;
 pub mod manifest;
 pub mod mcp;
+mod menu;
 mod model_commands;
 pub mod paths;
 pub mod phone_access;
@@ -84,6 +85,8 @@ pub fn run() {
         )
         .setup(move |app| {
             #[cfg(target_os = "macos")]
+            menu::install(app)?;
+            #[cfg(target_os = "macos")]
             let root = sandbox::data_root();
             #[cfg(not(target_os = "macos"))]
             let root = app.path().app_local_data_dir()?;
@@ -129,6 +132,7 @@ pub fn run() {
             commands::delete_folder,
             commands::queue,
             commands::get_settings,
+            menu::configure_settings_menu,
             mcp::settings::get_mcp_settings,
             mcp::settings::get_mcp_http_connection,
             mcp::settings::save_mcp_settings,

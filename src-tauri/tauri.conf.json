@@ -4,8 +4,9 @@
   "version": "0.1.3",
   "identifier": "de.alphatester.music-generator",
   "build": {
-    "beforeDevCommand": "npm run build",
+    "beforeDevCommand": "npm run build:mobile && npm run dev:frontend",
     "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
   "app": {
@@ -44,6 +45,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost ws://127.0.0.1:1420; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": []

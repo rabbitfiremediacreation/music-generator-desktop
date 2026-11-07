@@ -1,27 +1,42 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n";
 import { SettingsDialog } from "./SettingsDialog";
-import type { Settings } from "../../types";
+import type { SettingsPage } from "./SettingsNavigation";
+import type { ModelCatalog, Settings } from "../../types";
 import { setLang, t } from "../../i18n.js";
+import source from "../../../models/catalog.json";
+import { setupFixture, standard } from "../setup/fixtures";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn(), modelCatalog: vi.fn(), useModels: vi.fn(), downloadTitleModel: vi.fn(), cancelModelDownload: vi.fn(), generationPolicy: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../path-dialogs", () => ({ pickFolder: mocks.pickFolder, pathErrorText: (error: unknown) => String(error) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
-const settings = { lm_device: "auto", cpu_iteration_behavior: "ask", timeout_minutes: 60, songs_dir: "/songs", export_format: "wav", expert_mode: false, mp3_available: true } as Settings;
-const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onOpenModelPicker: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
-function view(open = true) {
-  return <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nProvider><SettingsDialog open={open} layout="auto" {...callbacks} /></I18nProvider></QueryClientProvider>;
+const settings = { ...setupFixture.settings, lm_device: "auto", cpu_iteration_behavior: "ask", timeout_minutes: 60, songs_dir: "/songs", export_format: "wav", expert_mode: false, mp3_available: true, recommended_profiles: [standard] } as Settings;
+const catalog = { ...source, expert_mode: false, recommended_profiles: [standard], selection: standard, hardware: { ...setupFixture.hardware, ram_bytes: 64 * 1024 ** 3 }, free_bytes: null, models_dir: "/models", busy: false,
+  title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 },
+  models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
+} as ModelCatalog;
+const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
+const modelCallbacks = { onUse: vi.fn(), onManage: vi.fn(), onRecommendedSteps: vi.fn() };
+function view(open = true, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  return <QueryClientProvider client={client}><I18nProvider><SettingsDialog open={open} layout="auto" modelManager={{ selection: standard, currentSelection: standard, selectionRevision: 1, ...modelCallbacks }} {...callbacks} /></I18nProvider></QueryClientProvider>;
+}
+function goTo(page: SettingsPage) {
+  fireEvent.click(screen.getByRole("button", { name: t(`settings_page_${page}`) }));
 }
 beforeEach(() => {
   vi.clearAllMocks(); setLang("en"); mocks.settings.mockResolvedValue(settings);
   mocks.phoneAccess.mockResolvedValue({ enabled: false, port: 8767, token: "", addresses: [] });
   mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   mocks.saveSettings.mockImplementation(async (values: object) => ({ ...settings, ...values }));
+  mocks.modelCatalog.mockResolvedValue(structuredClone(catalog));
+  mocks.useModels.mockImplementation(async selection => selection);
+  mocks.downloadTitleModel.mockResolvedValue(undefined);
+  mocks.generationPolicy.mockResolvedValue({ recommended_steps: 30 });
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
 });
@@ -37,7 +52,7 @@ it("opens immediately during loading and offers retry after a failed read", asyn
   expect(mocks.settings).toHaveBeenCalledTimes(2);
 });
 
-it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers one models and hardware entry in %s without saving the settings draft", async (language, label) => {
+it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers a separate models and hardware page in %s without saving the settings draft", async (language, label) => {
   setLang(language);
   render(view());
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
@@ -45,9 +60,20 @@ it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers
   expect(buttons).toHaveLength(1);
   expect(screen.queryByRole("button", { name: t("desktop_manage") })).toBeNull();
   fireEvent.click(buttons[0]);
-  expect(callbacks.onClose).toHaveBeenCalledOnce();
-  expect(callbacks.onOpenModelPicker).toHaveBeenCalledOnce();
-  expect(callbacks.onClose.mock.invocationCallOrder[0]).toBeLessThan(callbacks.onOpenModelPicker.mock.invocationCallOrder[0]);
+  expect(screen.getByRole("heading", { name: label })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: t("lm_dev") })).toBeTruthy();
+  expect(screen.getByRole("checkbox", { name: t("expert_mode") })).toBeTruthy();
+  expect(screen.queryByRole("spinbutton")).toBeNull();
+  expect(callbacks.onClose).not.toHaveBeenCalled();
+  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(screen.queryByRole("searchbox")).toBeNull();
+  expect(screen.queryByRole("button", { name: t("picker_choose") })).toBeNull();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: t("models_add") }));
+  const catalogDialog = await screen.findByRole("dialog", { name: t("models_add") });
+  fireEvent.click(await within(catalogDialog).findByRole("button", { name: t("picker_use") }));
+  await waitFor(() => expect(modelCallbacks.onUse).toHaveBeenCalledWith(standard, 1));
+  expect(callbacks.onClose).not.toHaveBeenCalled();
   expect(mocks.saveSettings).not.toHaveBeenCalled();
 });
 
@@ -55,6 +81,7 @@ it("keeps generation busy until a cancelled dialog's device write has finished",
   let finish!: (settings: Settings) => void;
   mocks.saveSettings.mockImplementationOnce(() => new Promise<Settings>(resolve => { finish = resolve; }));
   const mounted = render(view());
+  goTo("models");
   fireEvent.change(await screen.findByRole("combobox", { name: /Language model/i }), { target: { value: "cpu" } });
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: t("cancel") }));
@@ -66,6 +93,7 @@ it("keeps generation busy until a cancelled dialog's device write has finished",
 
 it("restores the confirmed device after failure and allows switching back to automatic", async () => {
   render(view());
+  goTo("models");
   const device = await screen.findByRole("combobox", { name: /Language model/i });
   mocks.saveSettings.mockRejectedValueOnce(new Error("busy"));
   fireEvent.change(device, { target: { value: "cpu" } });
@@ -82,9 +110,11 @@ it("waits for an accepted device write before loading a reopened dialog", async 
   let finish!: (settings: Settings) => void;
   mocks.saveSettings.mockImplementationOnce(() => new Promise<Settings>(resolve => { finish = resolve; }));
   const mounted = render(view());
+  goTo("models");
   fireEvent.change(await screen.findByRole("combobox", { name: /Language model/i }), { target: { value: "cpu" } });
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledTimes(1));
   mounted.rerender(view(false)); mounted.rerender(view());
+  goTo("models");
   expect(screen.queryByRole("combobox", { name: /Language model/i })).toBeNull();
   mocks.settings.mockResolvedValue({ ...settings, lm_device: "cpu" });
   await act(async () => finish({ ...settings, lm_device: "cpu" }));
@@ -130,9 +160,11 @@ it("discards a native folder reply belonging to a previously closed dialog", asy
   let chosen!: (path: string) => void;
   mocks.pickFolder.mockImplementationOnce(() => new Promise<string>(resolve => { chosen = resolve; }));
   const mounted = render(view());
+  goTo("library");
   await screen.findByDisplayValue("/songs");
   fireEvent.click(screen.getByText(t("desktop_browse")));
   mounted.rerender(view(false)); mounted.rerender(view());
+  goTo("library");
   const folder = await screen.findByDisplayValue("/songs");
   await act(async () => chosen("/old-dialog-choice"));
   expect((folder as HTMLInputElement).value).toBe("/songs");
@@ -141,8 +173,9 @@ afterEach(cleanup);
 
 it("saves the device immediately while leaving other edits for explicit save", async () => {
   render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  goTo("models");
   const device = await screen.findByRole("combobox", { name: /Sprachmodell|Language model/i });
-  fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "75" } });
   fireEvent.change(device, { target: { value: "cpu" } });
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ lm_device: "cpu" }));
   expect(mocks.saveSettings).toHaveBeenCalledTimes(1);
@@ -155,6 +188,7 @@ it("saves the device immediately while leaving other edits for explicit save", a
 it("opens the configured song folder and reports failure without closing the dialog", async () => {
   mocks.openSongsFolder.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("missing"));
   render(view());
+  goTo("library");
   const button=await screen.findByRole("button",{name:"Open folder"});
   fireEvent.click(button);
   await waitFor(()=>expect(mocks.openSongsFolder).toHaveBeenCalledOnce());
@@ -207,6 +241,7 @@ it("keeps MCP application separate from other draft settings and blocks dismissa
   render(view());
   const timeout = await screen.findByRole("spinbutton");
   fireEvent.change(timeout, { target: { value: "75" } });
+  goTo("mcp");
   fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
   fireEvent.click(screen.getByRole("button", { name: t("mcp_apply") }));
   await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "local" }));
@@ -224,6 +259,7 @@ it("keeps MCP application separate from other draft settings and blocks dismissa
 
 it("does not save an unapplied MCP draft when the other settings are saved", async () => {
   render(view()); await screen.findByRole("spinbutton");
+  goTo("mcp");
   fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
   fireEvent.change(screen.getByRole("textbox", { name: t("mcp_port") }), { target: { value: "bad port" } });
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
@@ -234,6 +270,7 @@ it("does not save an unapplied MCP draft when the other settings are saved", asy
 it("applies MCP from the port field with Enter without submitting the outer settings form", async () => {
   mocks.saveMcpSettings.mockResolvedValue({ enabled: true, port: 32123, scope: "local", urls: ["http://127.0.0.1:32123/mcp"], running: true, url: "http://127.0.0.1:32123/mcp", config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   render(view()); await screen.findByRole("spinbutton");
+  goTo("mcp");
   fireEvent.click(await screen.findByRole("checkbox", { name: t("mcp_enable") }));
   const input = screen.getByRole("textbox", { name: t("mcp_port") });
   fireEvent.change(input, { target: { value: "32123" } });
@@ -243,4 +280,85 @@ it("applies MCP from the port field with Enter without submitting the outer sett
   await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 32123, scope: "local" }));
   expect(mocks.saveSettings).not.toHaveBeenCalled();
   expect(callbacks.onClose).not.toHaveBeenCalled();
+});
+
+it("shows one settings page at a time and marks the selected navigation entry", async () => {
+  render(view());
+  await screen.findByRole("spinbutton");
+  const navigation = screen.getByRole("navigation", { name: t("settings_title") });
+  expect(navigation.querySelectorAll("button")).toHaveLength(7);
+  expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
+  expect(screen.queryByRole("button", { name: t("settings_open_folder") })).toBeNull();
+  expect(screen.queryByRole("switch", { name: t("remote") })).toBeNull();
+  expect(screen.queryByRole("combobox", { name: t("lm_dev") })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: t("expert_mode") })).toBeNull();
+  goTo("phone");
+  expect(screen.getByRole("switch", { name: t("remote") })).toBeTruthy();
+  expect(screen.queryByRole("spinbutton")).toBeNull();
+  expect(screen.getByRole("button", { name: t("settings_page_phone") }).getAttribute("aria-current")).toBe("page");
+  expect(screen.getByRole("button", { name: t("settings_page_generation") }).hasAttribute("aria-current")).toBe(false);
+  expect(screen.getByRole("button", { name: t("save") })).toBeTruthy();
+});
+
+it("preserves edits across pages and saves the shared draft from any page", async () => {
+  render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  expect(screen.getByText(t("settings_unsaved"))).toBeTruthy();
+  goTo("library");
+  fireEvent.change(screen.getByRole("combobox", { name: t("exp") }), { target: { value: "mp3" } });
+  goTo("models");
+  fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
+  goTo("about");
+  expect(screen.getByRole("button", { name: t("upd_check") })).toBeTruthy();
+  expect(mocks.checkUpdate).not.toHaveBeenCalled();
+  goTo("generation");
+  expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("75");
+  goTo("library");
+  expect((screen.getByRole("combobox", { name: t("exp") }) as HTMLSelectElement).value).toBe("mp3");
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ timeout_minutes: 75, export_format: "mp3", expert_mode: true }));
+});
+
+it("retains the independent MCP draft while navigating without applying it", async () => {
+  render(view()); await screen.findByRole("spinbutton");
+  goTo("mcp");
+  fireEvent.change(await screen.findByRole("textbox", { name: t("mcp_port") }), { target: { value: "32124" } });
+  fireEvent.click(screen.getByRole("checkbox", { name: t("mcp_enable") }));
+  goTo("appearance"); goTo("mcp");
+  expect((screen.getByRole("textbox", { name: t("mcp_port") }) as HTMLInputElement).value).toBe("32124");
+  expect((screen.getByRole("checkbox", { name: t("mcp_enable") }) as HTMLInputElement).checked).toBe(true);
+  expect(mocks.mcpSettings).toHaveBeenCalledOnce();
+  expect(mocks.saveMcpSettings).not.toHaveBeenCalled();
+});
+
+it("reveals a hidden page when its draft contains an invalid field", async () => {
+  render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "0" } });
+  goTo("library");
+  const form = screen.getByRole("button", { name: t("save") }).closest("form")!;
+  act(() => { expect(form.checkValidity()).toBe(false); });
+  expect(screen.getByRole("spinbutton")).toBeTruthy();
+  expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
+
+it("applies the appearance layout immediately and dismisses with the close control", async () => {
+  render(view()); await screen.findByRole("spinbutton");
+  goTo("appearance");
+  expect(screen.getByRole("button", { name: t("vt_auto") }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: t("side") }));
+  expect(callbacks.onLayoutChange).toHaveBeenCalledWith("side");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: t("desktop_close") }));
+  expect(callbacks.onClose).toHaveBeenCalledOnce();
+});
+
+it("starts a reopened dialog on generation with a fresh settings draft", async () => {
+  const mounted = render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  goTo("library");
+  mounted.rerender(view(false)); mounted.rerender(view());
+  expect((await screen.findByRole("spinbutton") as HTMLInputElement).value).toBe("60");
+  expect(screen.queryByText(t("settings_unsaved"))).toBeNull();
+  expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
 });
