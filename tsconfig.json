@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["frontend", "vite.config.ts"]
+  "include": ["frontend", "vite.config.ts", "vite.mobile.config.ts"]
 }

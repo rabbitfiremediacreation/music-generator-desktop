@@ -117,3 +117,9 @@ export interface GenerationPolicy {
   recommended_steps: number;
   defaults: GenerationFormPreferences;
 }
+
+/** Shared access switch for the native app and the HTTPS web app. */
+export interface PhoneAccess {
+  enabled: boolean; port: number; token: string; addresses: string[];
+  web_port?: number; web_addresses?: string[]; certificate_fingerprint?: string | null;
+}

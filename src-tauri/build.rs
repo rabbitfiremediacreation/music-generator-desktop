@@ -1,4 +1,5 @@
 fn main() {
+    embed_mobile_assets();
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     let revision = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "local".into());
     println!("cargo:rustc-env=MUSIC_GENERATOR_BUILD_REVISION={revision}");
@@ -111,4 +112,65 @@ fn main() {
         println!("cargo:rerun-if-changed=resources/engine/VERSION.desktop.json");
     }
     tauri_build::build();
+}
+
+/// Only the separately built remote UI is exposed by the phone server. Embedding the
+/// allowlist also makes development and installed bundles use the exact same files.
+fn embed_mobile_assets() {
+    use std::{fmt::Write, path::Path};
+    let folder = Path::new("../dist-mobile");
+    println!("cargo:rerun-if-changed={}", folder.display());
+    assert!(
+        folder.join("index.html").is_file(),
+        "Mobile web app missing: run npm run build before building the desktop app"
+    );
+    let mut files = Vec::new();
+    mobile_files(folder, &mut files);
+    files.sort();
+    let mut source = String::from("static ASSETS: &[Asset] = &[\n");
+    for file in files {
+        let relative = file
+            .strip_prefix(folder)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace('\\', "/");
+        let content_type = match file.extension().and_then(|value| value.to_str()) {
+            Some("html") => "text/html; charset=utf-8",
+            Some("js") => "text/javascript; charset=utf-8",
+            Some("css") => "text/css; charset=utf-8",
+            Some("txt") => "text/plain; charset=utf-8",
+            Some("json") => "application/json; charset=utf-8",
+            Some("webmanifest") => "application/manifest+json; charset=utf-8",
+            Some("png") => "image/png",
+            Some("svg") => "image/svg+xml",
+            Some("ico") => "image/x-icon",
+            Some("jpg" | "jpeg") => "image/jpeg",
+            Some("webp") => "image/webp",
+            Some("woff2") => "font/woff2",
+            _ => panic!("Unexpected mobile asset: {relative}"),
+        };
+        let absolute = file.canonicalize().unwrap();
+        let immutable = relative.starts_with("assets/");
+        writeln!(source, "Asset {{ path: {relative:?}, content_type: {content_type:?}, bytes: include_bytes!({:?}), immutable: {immutable} }},", absolute.to_str().unwrap()).unwrap();
+    }
+    source.push_str("];");
+    let generated = Path::new(&std::env::var_os("OUT_DIR").unwrap()).join("mobile_assets.rs");
+    std::fs::write(generated, source).expect("Could not embed mobile web app");
+}
+
+fn mobile_files(folder: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(folder).expect("Could not read mobile web app") {
+        let entry = entry.expect("Could not read mobile web app entry");
+        let kind = entry.file_type().unwrap();
+        assert!(
+            !kind.is_symlink(),
+            "Mobile assets must not contain symlinks"
+        );
+        if kind.is_dir() {
+            mobile_files(&entry.path(), files);
+        } else if kind.is_file() {
+            files.push(entry.path());
+        }
+    }
 }

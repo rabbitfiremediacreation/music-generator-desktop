@@ -7,6 +7,7 @@ import { modelErrorText } from "../../expert-mode";
 import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
 import { useSettingsDraft } from "./useSettingsDraft";
+import { PhoneAccessField } from "./PhoneAccessField";
 import { McpSettings } from "./McpSettings";
 
 export interface SettingsDialogProps {
@@ -52,6 +53,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       <h2 id="settingsHeading" className="col-title">{t("settings_title")}</h2>
       <p role="status" aria-live="polite">{status && t(status)}</p>
       {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
+      <PhoneAccessField />
       <fieldset disabled={loading || !draft || busy}>
         {draft && <>
           <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>

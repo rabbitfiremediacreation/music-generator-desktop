@@ -8,6 +8,7 @@ import { BackendDetails } from "./BackendDetails";
 import { HardwareCard } from "./HardwareCard";
 import { CudaSetup } from "./CudaSetup";
 import { useSetup } from "./useSetup";
+import { PhoneAccessField } from "../settings/PhoneAccessField";
 
 export interface SetupScreenProps {
   bootstrap: Bootstrap; onComplete: () => void; onBack?: () => void; onReady?: () => void;
@@ -72,6 +73,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
           <h2 ref={stepHeading} id="setupStepHeading" tabIndex={-1}>{result ? t("backend_setup_result") : t(steps[step - 1])}</h2>
           {!result && <p className="small">{t(step === 1 ? "setup_library_hint" : step === 2 ? "setup_models_hint" : "setup_test_hint")}</p>}
         </div>
+        <PhoneAccessField />
         <fieldset id="setupFields" disabled={busy} aria-labelledby="setupStepHeading">
           {step === 1 && <div className="setup-library">
             <div className="setup-paths">

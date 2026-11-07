@@ -6,6 +6,7 @@ import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
 import { setupFixture, standard } from "./setup/fixtures";
 import { setLang } from "../i18n.js";
+import type { PhoneAccess } from "../types";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
 vi.mock("@tauri-apps/api/event",()=>({listen:mocks.listen}));
@@ -13,10 +14,12 @@ vi.mock("@tauri-apps/api/window",()=>({getCurrentWindow:()=>({onCloseRequested:m
 vi.mock("@tauri-apps/plugin-dialog",()=>({confirm:mocks.confirm,open:vi.fn(),save:vi.fn()}));
 vi.mock("@tauri-apps/plugin-opener",()=>({openUrl:vi.fn()}));
 let firstRun=true;
+let phoneAccess:PhoneAccess;
 beforeEach(()=>{
   vi.resetAllMocks();setLang("en");firstRun=true;
+  phoneAccess={enabled:false,port:8767,token:"",addresses:["http://studio.local:8767"]};
   mocks.listen.mockResolvedValue(()=>{});mocks.close.mockResolvedValue(()=>{});
-  mocks.invoke.mockImplementation(async(name)=>{
+  mocks.invoke.mockImplementation(async(name,args)=>{
     if(name==="bootstrap")return {...setupFixture,needs_setup:firstRun};
     if(name==="get_settings")return {...setupFixture.settings,recommended_profiles:[standard]};
     if(name==="generation_policy")return {backend:"cpu",cpu_iteration_behavior:"ask",recommended_steps:30,defaults:{duration:90,bpm:0,inference_steps:30,lm_temperature:1.2,variants:2}};
@@ -26,6 +29,11 @@ beforeEach(()=>{
     if(name==="list_folders")return {folders:[],all:0,none:0};
     if(name==="queue")return {running:[],queued:0,active:false,progress:null,library:{count:0,bytes:0}};
     if(name==="health")return {ok:true};
+    if(name==="phone_access_status")return {...phoneAccess};
+    if(name==="set_phone_access"){
+      phoneAccess={...phoneAccess,enabled:args.enabled??phoneAccess.enabled,token:"phone-key"};
+      return {...phoneAccess};
+    }
   });
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
@@ -59,6 +67,25 @@ it("guards direct studio navigation and reports readiness after the initial wiza
   await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));
   await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_complete",{attempt:1}));
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="bootstrap")).toHaveLength(1);
+});
+it("lets a first-run user switch phone access on and off before configuring models",async()=>{
+  const router=mount("/studio");
+  const access=await screen.findByRole("switch",{name:"Phone access"}) as HTMLInputElement;
+  await waitFor(()=>expect(access.disabled).toBe(false));
+  expect(router.state.location.pathname).toBe("/setup");
+  expect(access.checked).toBe(false);
+
+  fireEvent.click(access);
+  await waitFor(()=>expect(access.checked).toBe(true));
+  expect(mocks.invoke).toHaveBeenCalledWith("set_phone_access",{enabled:true,newToken:false});
+  expect(await screen.findByTestId("phone-access-qr")).toBeTruthy();
+
+  await waitFor(()=>expect(access.disabled).toBe(false));
+  fireEvent.click(access);
+  await waitFor(()=>expect(access.checked).toBe(false));
+  expect(mocks.invoke).toHaveBeenCalledWith("set_phone_access",{enabled:false,newToken:false});
+  expect(screen.queryByTestId("phone-access-qr")).toBeNull();
+  expect(mocks.invoke.mock.calls.filter(([name])=>name==="setup_models")).toHaveLength(0);
 });
 it("keeps a studio draft when visiting setup and returning",async()=>{
   firstRun=false;mount();

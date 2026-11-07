@@ -7,7 +7,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import type { Settings } from "../../types";
 import { setLang, t } from "../../i18n.js";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../path-dialogs", () => ({ pickFolder: mocks.pickFolder, pathErrorText: (error: unknown) => String(error) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
@@ -19,6 +19,7 @@ function view(open = true) {
 }
 beforeEach(() => {
   vi.clearAllMocks(); setLang("en"); mocks.settings.mockResolvedValue(settings);
+  mocks.phoneAccess.mockResolvedValue({ enabled: false, port: 8767, token: "", addresses: [] });
   mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });
   mocks.saveSettings.mockImplementation(async (values: object) => ({ ...settings, ...values }));
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };

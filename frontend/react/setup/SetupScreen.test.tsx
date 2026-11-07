@@ -6,23 +6,30 @@ import { I18nProvider } from "../i18n";
 import { setLang } from "../../i18n.js";
 import { SetupScreen, type SetupScreenProps } from "./SetupScreen";
 import { measuredBackend, setupFixture } from "./fixtures";
-import type { Bootstrap } from "../../types";
+import type { Bootstrap, PhoneAccess } from "../../types";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), open: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (path: string) => path }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: ipc.open }));
 
+let phoneAccess: PhoneAccess;
 beforeEach(() => {
   localStorage.setItem("ui_lang", "de");
   setLang("de");
   ipc.invoke.mockReset();
   ipc.open.mockReset();
-  ipc.invoke.mockImplementation(async (name: string, args?: { current?: string }) => {
+  phoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767"] };
+  ipc.invoke.mockImplementation(async (name: string, args?: { current?: string; enabled?: boolean }) => {
     if (name === "setup_estimate") return { missing_bytes: 0, free_bytes: 1024 ** 4 };
     if (name === "generation_policy") return { backend: "gpu" };
     if (name === "cuda_status") return { state: "not_applicable", details: null, download_bytes: 0 };
     if (name === "setup_models") return { ok: true, mode: "single", backend_status: measuredBackend };
     if (name === "dialog_directory") return args?.current || "/home/test";
+    if (name === "phone_access_status") return { ...phoneAccess };
+    if (name === "set_phone_access") {
+      phoneAccess = { ...phoneAccess, enabled: args?.enabled ?? phoneAccess.enabled, token: "phone-key" };
+      return { ...phoneAccess };
+    }
   });
 });
 afterEach(cleanup);
@@ -38,6 +45,35 @@ async function next() {
 }
 
 async function reviewSetup() { await next(); await next(); }
+
+it("keeps phone access switchable while model setup is running", async () => {
+  const original = ipc.invoke.getMockImplementation()!;
+  let finishSetup!: (result: unknown) => void;
+  ipc.invoke.mockImplementation((name, args) => name === "setup_models"
+    ? new Promise(resolve => { finishSetup = resolve; })
+    : original(name, args));
+  const ready = vi.fn(); mount(setupFixture, ready);
+  await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+  const access = screen.getByRole("switch", { name: "Handy-Zugriff" }) as HTMLInputElement;
+  await waitFor(() => expect(access.disabled).toBe(false));
+  await reviewSetup();
+  fireEvent.click(screen.getByRole("button", { name: "Modelle laden und testen" }));
+  await screen.findByRole("button", { name: "Abbrechen" });
+
+  fireEvent.click(access);
+  await waitFor(() => expect(access.checked).toBe(true));
+  expect(ipc.invoke).toHaveBeenCalledWith("set_phone_access", { enabled: true, newToken: false });
+  expect(await screen.findByTestId("phone-access-qr")).toBeTruthy();
+  await waitFor(() => expect(access.disabled).toBe(false));
+  fireEvent.click(access);
+  await waitFor(() => expect(access.checked).toBe(false));
+  expect(ipc.invoke).toHaveBeenCalledWith("set_phone_access", { enabled: false, newToken: false });
+  expect(ipc.invoke.mock.calls.filter(([name]) => name === "setup_models")).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Abbrechen" })).toBeTruthy();
+
+  await act(async () => { finishSetup({ ok: true, mode: "single", backend_status: measuredBackend }); });
+  expect(await screen.findByRole("button", { name: "Zum Studio" })).toBeTruthy();
+});
 
 it("shows measured setup results until the user explicitly enters the studio", async () => {
   const complete = vi.fn(), ready = vi.fn();

@@ -14,6 +14,7 @@ pub struct AppState {
     pub runtime: Arc<Runtime>,
     engine: EngineManager,
     pub synthesis_probe: crate::synthesis_policy::Probe,
+    pub phone_access: crate::phone_access::PhoneAccess,
 }
 
 impl AppState {
@@ -25,6 +26,7 @@ impl AppState {
             runtime: Arc::new(Runtime::default()),
             engine: EngineManager::default(),
             synthesis_probe,
+            phone_access: Default::default(),
         }
     }
 
