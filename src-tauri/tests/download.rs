@@ -166,6 +166,61 @@ async fn verified_existing_model_needs_no_network() {
 }
 
 #[tokio::test]
+async fn damaged_cached_file_is_rejected_on_every_retry_without_network() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("model.gguf");
+    std::fs::write(&target, b"broken").unwrap();
+    let mut verifier = ModelVerifier::open(dir.path());
+    for _ in 0..2 {
+        let error = download_model(
+            &client(),
+            "http://127.0.0.1:1",
+            dir.path(),
+            &model(),
+            &mut verifier,
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("failed verification"));
+        assert_eq!(std::fs::read(&target).unwrap(), b"broken");
+        assert!(!verifier.is_verified(&target, &model().sha256));
+    }
+}
+
+#[tokio::test]
+async fn resumed_download_rechecks_space_before_modifying_partial_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let part = dir.path().join("model.gguf.part");
+    std::fs::write(&part, b"abc").unwrap();
+    let (url, task, _) = server(
+        StatusCode::PARTIAL_CONTENT,
+        Some("bytes 3-5/18446744073709551615"),
+        b"def",
+    )
+    .await;
+    let error = download_model(
+        &client(),
+        &url,
+        dir.path(),
+        &model(),
+        &mut ModelVerifier::open(dir.path()),
+        &CancellationToken::new(),
+        |_| {},
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(error.starts_with("Not enough free disk space"));
+    assert!(error.contains(&dir.path().display().to_string()));
+    assert_eq!(std::fs::read(part).unwrap(), b"abc");
+    assert!(!dir.path().join("model.gguf").exists());
+    task.abort();
+}
+
+#[tokio::test]
 async fn cancellation_keeps_partial_data_for_retry() {
     let dir = tempfile::tempdir().unwrap();
     let part = dir.path().join("model.gguf.part");
