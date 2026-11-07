@@ -53,7 +53,8 @@ export async function recordHashes(folder, metadata) {
 
 export async function engineRecipeHash(buildTarget = target) {
   const digest = createHash("sha256");
-  for (const name of ["prepare-engine.mjs", "engine-source.mjs", "engine-contract.mjs", "engine-generation-limits.h", "targets.mjs", "patches/acestep-macos-compat.patch", "patches/acestep-iterations.patch"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+  for (const name of ["prepare-engine.mjs", "engine-source.mjs", "engine-contract.mjs", "engine-generation-limits.h", "targets.mjs", "patches/acestep-macos-compat.patch", "patches/acestep-iterations.patch", "patches/acestep-title-registry.patch", "engine-registry-test.cpp", "registry-contract.mjs"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+  digest.update(await readFile(path.join(root, "models/title-model.json")));
   if (buildTarget.platform === "windows") {
     for (const name of ["prepare-windows-engine.mjs", "windows-ggml-imports.cmake", "patches/acestep-iterations-windows.patch", "patches/acestep-windows-unicode.patch", "engine-windows-paths.h", "engine-windows-cli.cpp", "engine-windows-paths-test.cpp", "windows-unicode.mjs"]) digest.update(await readFile(path.join(root,"scripts/desktop",name)));
   }

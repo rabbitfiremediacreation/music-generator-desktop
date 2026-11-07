@@ -1,0 +1,71 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -101,6 +101,13 @@
+     add_dependencies(${target} version)
+ endmacro()
+ 
++# Native desktop registry regression; uses the same GGML parser as ace-server.
++add_executable(desktop-registry-test tools/desktop-registry-test.cpp)
++link_ggml_backends(desktop-registry-test)
++if(WIN32)
++    target_sources(desktop-registry-test PRIVATE tools/desktop-windows-cli.cpp)
++endif()
++
+ # yyjson (MIT, fast JSON parser/writer)
+ add_library(yyjson STATIC vendor/yyjson/yyjson.c)
+ target_include_directories(yyjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/vendor/yyjson)
+diff --git a/src/model-registry.h b/src/model-registry.h
+--- a/src/model-registry.h
++++ b/src/model-registry.h
+@@ -68,8 +68,8 @@
+ }
+ 
+ // classify a GGUF file by reading its header.
+-// returns: "lm", "dit", "text-enc", "vae", or "" if unrecognized.
+-static std::string registry_classify_gguf(const char * path) {
++// returns a music bucket, "Title" for the desktop title model, or "" if unrecognized.
++static std::string registry_classify_gguf(const char * path, const char * name) {
+     struct gguf_init_params params = { true, nullptr };
+     struct gguf_context *   ctx    = gguf_init_from_file(path, params);
+     if (!ctx) {
+@@ -78,10 +78,16 @@
+ 
+     std::string arch;
+     int64_t     idx = gguf_find_key(ctx, "general.architecture");
+-    if (idx >= 0) {
++    if (idx >= 0 && gguf_get_kv_type(ctx, idx) == GGUF_TYPE_STRING) {
+         arch = gguf_get_val_str(ctx, idx);
+     }
+     gguf_free(ctx);
++
++    // The pinned desktop title model shares the folder, but uses its own runtime.
++    // Keep unknown or unreadable models visible, even under the title filename.
++    if (arch == "qwen3" && strcmp(name, "Qwen3-0.6B-Q8_0.gguf") == 0) {
++        return "Title";
++    }
+ 
+     // map GGUF architecture string to bucket name
+     if (arch == "acestep-lm") {
+@@ -200,7 +206,7 @@
+ #endif
+ 
+ // scan a directory for .gguf files, classify each by architecture.
+-// returns true if at least one model was found.
++// returns true if at least one music model was found.
+ static bool registry_scan(ModelRegistry * reg, const char * models_dir) {
+     std::vector<std::string> files;
+     registry_list_dir(models_dir, &files);
+@@ -213,7 +219,11 @@
+         }
+ 
+         std::string full = std::string(models_dir) + REGISTRY_SEP + fname;
+-        std::string type = registry_classify_gguf(full.c_str());
++        std::string type = registry_classify_gguf(full.c_str(), fname.c_str());
++        if (type == "Title") {
++            fprintf(stderr, "[Registry] %s -> title model (handled separately)\n", fname.c_str());
++            continue;
++        }
+         if (type.empty()) {
+             fprintf(stderr, "[Registry] WARNING: skipping %s (unknown architecture)\n", fname.c_str());
+             continue;
