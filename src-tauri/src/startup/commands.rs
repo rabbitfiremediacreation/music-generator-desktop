@@ -35,7 +35,7 @@ pub async fn startup_allowed<R: Runtime>(
     app: AppHandle<R>,
     attempt: u64,
 ) -> Result<bool> {
-    startup.ensure_active(attempt)?;
+    startup.ensure_current(attempt)?;
     if !startup.allowed().await {
         startup.report(&app, attempt, "installation_required", None);
         return Ok(false);
@@ -143,6 +143,10 @@ pub async fn startup_show_main<R: Runtime>(
     require_window(&window, "main")?;
     let _transition = startup.transition.lock().await;
     startup.require_allowed(&app, attempt).await?;
+    startup.ensure_current(attempt)?;
+    if startup.is_ready() {
+        return Ok(());
+    }
     startup.ensure_active(attempt)?;
     if startup.main_shown.load(Ordering::Relaxed) == attempt {
         return Ok(());
@@ -184,6 +188,10 @@ pub async fn startup_complete<R: Runtime>(
     require_window(&window, "main")?;
     let _transition = startup.transition.lock().await;
     startup.require_allowed(&app, attempt).await?;
+    startup.ensure_current(attempt)?;
+    if startup.is_ready() {
+        return Ok(());
+    }
     startup.ensure_active(attempt)?;
     if startup.main_shown.load(Ordering::Relaxed) != attempt {
         return Err(message("startup_main_not_shown"));

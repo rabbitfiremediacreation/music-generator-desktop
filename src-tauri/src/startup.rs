@@ -84,8 +84,21 @@ impl Startup {
         Ok(())
     }
 
+    /// A new frontend document may reconnect after the native startup has completed.
+    pub fn ensure_current(&self, attempt: u64) -> Result<()> {
+        let status = self.snapshot();
+        if status.attempt != attempt || status.error.is_some() {
+            return Err(message("startup_attempt_expired"));
+        }
+        Ok(())
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.snapshot().phase == "ready"
+    }
+
     pub fn should_exit_on_splash_close(&self) -> bool {
-        self.snapshot().phase != "ready"
+        !self.is_ready()
     }
 
     fn record(&self, attempt: u64, phase: &'static str, error: Option<String>) -> Option<Status> {
