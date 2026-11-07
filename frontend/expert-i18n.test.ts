@@ -13,5 +13,7 @@ it("provides all Expert Mode labels, explanations and recovery actions in twelve
     for (const key of expertKeys) {
       expect((I18N as Record<string, Record<string, unknown>>)[lang][key], `${lang}:${key}`).toBeTruthy();
     }
+    const messages = (I18N as Record<string, Record<string, unknown>>)[lang];
+    expect(messages.model_setup_required).toContain(messages.creator_manage_models);
   }
 });

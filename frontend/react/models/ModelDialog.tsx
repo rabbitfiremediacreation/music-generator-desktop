@@ -78,9 +78,9 @@ export function ModelDialog({ selection, currentSelection, selectionRevision, on
         <p className="small">{t("picker_sampling_hint")}</p>
       </>}
       <ModelDownloadProgress busy={busy} message={state.message === "picker_selected" ? t(state.message) : state.message} />
-      <p className="small" id="modelSetupWizardHint">{t("desktop_manage_hint")}</p>
-      <div className="model-picker-actions"><button type="button" className="sek" disabled={busy} aria-describedby="modelSetupWizardHint" onClick={onManage}>{t("desktop_manage")}</button>{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button>}<button type="button" className="aktion" disabled={blocked} onClick={state.apply}>{t(selected.verified ? "picker_use" : selected.download ? "picker_download_use" : "picker_verify_use")}</button></div>
     </>}
     {failure && <p className="setup-error" role="alert">{modelErrorText(failure, t)}</p>}
+    <p className="small" id="modelSetupWizardHint">{t("desktop_manage_hint")}</p>
+    <div className="model-picker-actions"><button type="button" className="sek" disabled={busy} aria-describedby="modelSetupWizardHint" onClick={onManage}>{t("desktop_manage")}</button>{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button>}{catalog && draft && selected && <button type="button" className="aktion" disabled={blocked} onClick={state.apply}>{t(selected.verified ? "picker_use" : selected.download ? "picker_download_use" : "picker_verify_use")}</button>}</div>
   </dialog>;
 }

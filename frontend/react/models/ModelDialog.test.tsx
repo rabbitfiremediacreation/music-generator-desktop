@@ -110,6 +110,7 @@ it("shows download progress and allows cancellation without changing the durable
   await waitFor(() => expect(typeof fail).toBe("function"));
   act(() => handlers.get("model-download-progress")!({ payload: { file: "weights.gguf", phase: "downloading", downloaded: 1, total: 2, bytes_per_second: 0 } }));
   expect(await within(dialog).findByText(/weights.gguf/)).toBeTruthy();
+  expect((within(dialog).getByRole("button", { name: "Hardwaretest im Einrichtungsassistenten …" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
   expect(await within(dialog).findByRole("alert")).toBeTruthy();
   expect(screen.getByLabelText("selection").textContent).toBe("acestep-v15-sft-Q8_0.gguf");
