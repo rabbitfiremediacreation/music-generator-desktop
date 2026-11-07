@@ -31,7 +31,6 @@ it("updates both tooltips in all twelve languages while retaining desktop messag
   for (const lang of Object.keys(LANGS) as (keyof typeof I18N)[]) {
     expect(I18N[lang].iterations_tip).toContain("80");
     expect(I18N[lang].iterations_tip).toContain("50");
-    expect(I18N[lang].variance_tip).toContain("1.2");
     expect(I18N[lang].variance_tip).toContain("0.85");
     expect(I18N[lang].mp3_failed).toBeTruthy();
     expect(I18N[lang].lm_dev_hint).not.toContain("OFF");

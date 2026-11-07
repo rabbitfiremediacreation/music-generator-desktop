@@ -24,7 +24,7 @@ fn generation() -> Value {
         "seed": {"type": "integer", "minimum": -1, "maximum": 9007199254740991_i64, "default": -1},
         "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Omitted values use the saved studio preference, initially 2."},
         "inference_steps": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Omitted values use the saved studio preference or device/model recommendation."},
-        "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 1.2."},
+        "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 0.85."},
         "group_id": id(), "folder_id": {"type": ["string", "null"], "maxLength": 200},
         "model_selection": {
             "type": "object", "additionalProperties": false,
