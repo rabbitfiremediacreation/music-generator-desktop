@@ -7,6 +7,20 @@ use rusqlite::params;
 use serde_json::{json, Value};
 
 impl Database {
+    /// Resolve playback by library identity, without accepting a frontend filesystem path.
+    pub fn read_song_audio(&self, id: &str) -> Result<Vec<u8>> {
+        let song = self.song(id)?;
+        let path = song
+            .path
+            .ok_or_else(|| message("Song audio is unavailable"))?;
+        let bytes = std::fs::read(path)
+            .map_err(|error| message(format!("Cannot read song audio: {error}")))?;
+        if bytes.is_empty() {
+            return Err(message("Song audio is unavailable"));
+        }
+        Ok(bytes)
+    }
+
     pub fn folders(&self) -> Result<Value> {
         let con = self.lock();
         let mut stmt = con.prepare("SELECT f.id,f.name,(SELECT COUNT(*) FROM songs s WHERE s.folder_id=f.id) FROM folders f ORDER BY name COLLATE NOCASE")?;

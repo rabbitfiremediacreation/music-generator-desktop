@@ -119,6 +119,7 @@ pub fn run() {
             commands::preview_library_move,
             commands::list_songs,
             commands::get_song,
+            commands::read_song_audio,
             commands::generate,
             commands::patch_song,
             commands::delete_song,

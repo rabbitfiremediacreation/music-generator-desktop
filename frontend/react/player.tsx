@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { Song } from "../types";
 import { audioTime } from "../song-result";
+import { backend } from "../backend";
 import { useI18n } from "./i18n";
 
 interface Waveform {
-  load(url: string): Promise<void>; play(): Promise<void>; pause(): void; playPause(): Promise<void>;
-  destroy(): void; on(event: string, callback: () => void): () => void; setVolume(volume: number): void;
+  loadBlob(blob: Blob): Promise<void>; play(): Promise<void>; pause(): void; playPause(): Promise<void>;
+  destroy(): void; on(event: string, callback: (error?: Error) => void): () => void; setVolume(volume: number): void;
   getCurrentTime(): number; getDuration(): number;
 }
 declare global { interface Window { WaveSurfer: {create(options: Record<string, unknown>): Waveform} } }
@@ -16,6 +17,7 @@ function saved<T>(key: string, fallback: T): T {
 const PlayerContext = createContext<{
   song: Song | null; playing: boolean; played: Set<string>; play: (song: Song) => void; clear: (id: string) => void;
   loadRevision: React.RefObject<number>;
+  playback: React.RefObject<"loading" | "ready" | "error">;
   engine: React.RefObject<Waveform | null>; setPlaying: (value: boolean) => void; error: string; setError: (error: string) => void;
 } | null>(null);
 
@@ -27,10 +29,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   });
   const engine = useRef<Waveform | null>(null);
   const current = useRef<Song | null>(null), loadRevision = useRef(0);
+  const playback = useRef<"loading" | "ready" | "error">("loading");
   const play = useCallback((next: Song) => {
-    if (current.current?.id === next.id && engine.current) { void engine.current.playPause().catch(cause => setError(String(cause))); return; }
+    if (current.current?.id === next.id && engine.current && playback.current !== "error") {
+      if (playback.current === "ready") {
+        const version = loadRevision.current;
+        void engine.current.playPause().catch(cause => {
+          if (version !== loadRevision.current) return;
+          playback.current = "error"; engine.current?.pause(); setPlaying(false); setError(String(cause));
+        });
+      }
+      return;
+    }
     loadRevision.current++;
-    engine.current?.pause(); setPlaying(false); setError(""); current.current = next; setSong(next);
+    playback.current = "loading";
+    engine.current?.pause(); setPlaying(false); setError(""); current.current = next; setSong({ ...next });
     setPlayed(previous => { const updated = new Set(previous).add(next.id); try {localStorage.setItem("played", JSON.stringify([...updated]));} catch { /* Playback remains available without storage. */ } return updated; });
   }, []);
   const clear = useCallback((id: string) => {
@@ -38,7 +51,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     loadRevision.current++; current.current = null; engine.current?.pause();
     setSong(null); setPlaying(false); setError("");
   }, []);
-  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
+  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, playback, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
 }
 export function usePlayer() {
   const player = useContext(PlayerContext);
@@ -46,10 +59,10 @@ export function usePlayer() {
   return player;
 }
 
-/** Keep one waveform alive across route changes and reject superseded audio loads. */
+/** Keep playback across route changes; isolate each song's media events and pending reads. */
 export function Player() {
   const { t } = useI18n();
-  const { song, playing, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
+  const { song, playing, play, playback, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
   const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null);
   const [time, setTime] = useState("0:00 / 0:00");
   const [volume, setVolume] = useState(() => {
@@ -59,42 +72,51 @@ export function Player() {
   const [muted, setMuted] = useState(() => saved<number>("muted", 0) === 1);
   const active = song !== null;
   useEffect(() => {
-    if (!active || !waveform.current) return;
+    if (!song || !waveform.current) return;
     const loadSequence = sequence;
+    const version = ++loadSequence.current;
+    setTime("0:00 / 0:00");
     const css = getComputedStyle(document.documentElement);
     const instance = window.WaveSurfer.create({ container: waveform.current, height:44, barWidth:2, barGap:1, barRadius:2,
       waveColor:css.getPropertyValue("--border").trim() || "#2a2e38", progressColor:css.getPropertyValue("--accent2").trim() || "#d1a75c", cursorWidth:0 });
     engine.current = instance;
+    const fail = (cause: unknown) => {
+      if (version !== sequence.current) return;
+      loadSequence.current++; playback.current = "error";
+      instance.pause(); setPlaying(false); setError(String(cause));
+    };
     const update = () => setTime(`${audioTime(instance.getCurrentTime())} / ${audioTime(instance.getDuration())}`);
-    const offs = [instance.on("timeupdate", update), instance.on("ready", update), instance.on("play", () => setPlaying(true)), instance.on("pause", () => setPlaying(false)), instance.on("finish", () => setPlaying(false))];
+    // A media error can leave WaveSurfer's load promise waiting for metadata forever.
+    const offs = [instance.on("timeupdate", update), instance.on("ready", update), instance.on("play", () => setPlaying(true)), instance.on("pause", () => setPlaying(false)), instance.on("finish", () => setPlaying(false)), instance.on("error", fail)];
+    // Binary IPC avoids asset URL/path and custom-protocol media loading differences on Windows.
+    void backend.songAudio(song.id).then(async bytes => {
+      if (version !== sequence.current) return;
+      await instance.loadBlob(new Blob([bytes]));
+      if (version !== sequence.current) return;
+      playback.current = "ready";
+      await instance.play();
+    }).catch(fail);
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
     return () => { loadSequence.current++; offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
-  }, [active, engine, sequence, setPlaying]);
-  useEffect(() => {
-    if (!song?.url || !engine.current) return;
-    const loadSequence = sequence;
-    const instance = engine.current, version = ++loadSequence.current;
-    void instance.load(song.url).then(() => { if (version === sequence.current) return instance.play(); }).catch(cause => { if (version === sequence.current) setError(String(cause)); });
-    return () => { loadSequence.current++; };
-  }, [song, active, engine, sequence, setError]);
+  }, [song, engine, sequence, playback, setPlaying, setError]);
   useEffect(() => {
     engine.current?.setVolume(muted ? 0 : volume);
     try {localStorage.setItem("volume", String(volume)); localStorage.setItem("muted", muted ? "1" : "0");} catch { /* Audio does not depend on saved preferences. */ }
-  }, [volume, muted, active, engine]);
+  }, [volume, muted, song, engine]);
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,[role="button"],dialog,[contenteditable="true"]')) {
-        event.preventDefault(); void engine.current?.playPause().catch(cause => setError(String(cause)));
+        event.preventDefault(); if (song) play(song);
       }
     };
     document.addEventListener("keydown", keyboard);
     return () => document.removeEventListener("keydown", keyboard);
-  }, [active, engine, setError]);
+  }, [active, song, play]);
   return <footer id="player" ref={footer} hidden={!song}>
     <div className="player-in">
-      <button id="playBtn" className="aktion round" aria-label={t("play")} onClick={() => {void engine.current?.playPause().catch(cause => setError(String(cause)));}}>{playing ? "❚❚" : "▶"}</button>
+      <button id="playBtn" className="aktion round" aria-label={t("play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>
       <div className="pmeta"><div id="pTitle" title={`Seed ${song?.seed ?? ""}`}>{song?.title || song?.caption}</div><div id="waveform" ref={waveform} /></div>
       <span id="pTime" className="time">{time}</span>
       <div className="vol" id="vol" data-level={muted || volume === 0 ? "off" : volume < .5 ? "low" : "high"} style={{"--v":volume} as CSSProperties}>
