@@ -102,6 +102,8 @@ npm run engine:prepare
 npm run dev
 ```
 
+Der Dev-Start lädt die Desktop-Oberfläche über Vite mit React Fast Refresh. Änderungen an React-Komponenten und CSS erscheinen direkt im App-Fenster.
+
 ```sh
 npm run lint
 npm run build

@@ -6,6 +6,7 @@ import source from "../../models/catalog.json";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
 import { setupFixture, standard } from "./setup/fixtures";
+import { profileKey } from "../creator-models";
 import { setLang, t } from "../i18n.js";
 import type { BackendStatus, GenerationFormPreferences, Settings, SettingsPatch, Song } from "../types";
 
@@ -49,7 +50,7 @@ beforeEach(() => {
     if (name === "retry_song") return songs[1];
     if (name === "model_catalog") return { ...source, expert_mode: false, selection: standard, recommended_profiles: [standard], hardware: setupFixture.hardware, free_bytes: null, models_dir: "/models", busy: false, title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 }, models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })) };
     if (name === "select_models" || name === "use_models") return args.selection;
-    if (name === "startup_show_main" || name === "startup_complete" || name === "exit_app") return undefined;
+    if (name === "startup_show_main" || name === "startup_complete" || name === "exit_app" || name === "configure_settings_menu") return undefined;
     throw new Error(`Unexpected command ${name}`);
   });
 });
@@ -83,19 +84,66 @@ it("blocks all generation entrypoints in Settings and releases them after Cancel
   fireEvent.submit(form);
   await waitFor(() => expect(calls("generate")).toHaveLength(1));
 });
-it("explains moving existing songs when setup is reopened from Settings", async () => {
+it.each(["shortcut", "menu"])("opens Settings from the macOS %s and preserves edits on repeated requests", async entry => {
+  const { prompt } = await mount();
+  await waitFor(() => expect(handlers.has("open-settings")).toBe(true));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("configure_settings_menu", { text: "Settings…", enabled: true }));
+  const open = async () => {
+    if (entry === "shortcut") fireEvent.keyDown(prompt, { key: ",", code: "Comma", metaKey: true });
+    else await act(async () => handlers.get("open-settings")!({}));
+  };
+  await open();
+  const dialog = await screen.findByRole("dialog", { name: t("settings_title") });
+  const timeout = await within(dialog).findByRole("spinbutton", { name: t("timeout") });
+  fireEvent.change(timeout, { target: { value: "75" } });
+  await open();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect((within(dialog).getByRole("spinbutton", { name: t("timeout") }) as HTMLInputElement).value).toBe("75");
+  expect(calls("save_settings")).toHaveLength(0);
+  fireEvent.keyDown(timeout, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+it.each([false, true])("keeps generation blocked after closing an inline model operation and preserves a newer song choice=%s", async restore => {
+  const xl = { ...standard, synthesis: "acestep-v15-xl-sft-Q8_0.gguf" };
+  settings.recommended_profiles = [standard, xl];
+  let finish!: (selection: typeof standard) => void;
   const original = mocks.invoke.getMockImplementation()!;
-  mocks.invoke.mockImplementation((name, args) => name === "setup_estimate"
-    ? Promise.resolve({ missing_bytes: 0, free_bytes: 1024 ** 4 }) : original(name, args));
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "use_models") return new Promise(resolve => { finish = resolve; });
+    const result = await original(name, args);
+    return name === "model_catalog" ? { ...result, hardware: { ...result.hardware, ram_bytes: 64 * 1024 ** 3 } } : result;
+  });
+  const { form } = await mount();
+  const creator = screen.getByRole("combobox", { name: t("picker_title") }) as HTMLSelectElement;
+  fireEvent.click(screen.getByRole("button", { name: t("picker_choose") }));
+  const dialog = await screen.findByRole("dialog", { name: t("settings_title") });
+  fireEvent.click(within(dialog).getByRole("button", { name: t("models_add") }));
+  const catalogDialog = await screen.findByRole("dialog", { name: t("models_add") });
+  await within(catalogDialog).findByRole("combobox", { name: t("dit") });
+  fireEvent.click(within(catalogDialog).getByRole("button", { name: "XL SFT" }));
+  fireEvent.click(within(catalogDialog).getByRole("button", { name: t("picker_use") }));
+  await waitFor(() => expect(finish).toBeTypeOf("function"));
+  fireEvent.keyDown(catalogDialog, { key: "Escape" });
+  fireEvent.click(within(dialog).getByRole("button", { name: t("cancel") }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await attemptAll(form);
+  expect(calls("generate")).toHaveLength(0); expect(calls("retry_song")).toHaveLength(0);
+  if (restore) fireEvent.click(within(screen.getByText("done song A").closest("article")!).getByRole("button", { name: t("reuse") }));
+  await act(async () => { settings = { ...settings, synthesis_model: xl.synthesis }; finish(xl); });
+  await waitFor(() => expect(creator.disabled).toBe(false));
+  await waitFor(() => expect(creator.value).toBe(profileKey(restore ? standard : xl)));
+});
+it("explains moving existing songs on the library settings page and discards cancelled folder edits", async () => {
   await mount();
   expect(await screen.findByText("done song A")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
-  fireEvent.click(await screen.findByRole("button", { name: t("desktop_manage") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("settings_page_library") }));
   const songsPath = await screen.findByRole("textbox", { name: new RegExp(t("songs_dir")) });
   const hint = screen.getByText("Songs are stored outside the app. Changing this folder moves existing songs.");
   expect(songsPath.getAttribute("aria-describedby")?.split(" ")).toContain(hint.id);
   fireEvent.change(songsPath, { target: { value: "/isolated/new-songs" } });
-  fireEvent.click(screen.getByRole("button", { name: t("desktop_back") }));
+  fireEvent.click(screen.getByRole("button", { name: t("cancel") }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(await screen.findByText("done song A")).toBeTruthy();
   expect(calls("setup_models")).toHaveLength(0);
   expect(calls("save_settings")).toHaveLength(0);
@@ -106,6 +154,7 @@ it("keeps every generation entrypoint blocked after closing a pending device sav
   mocks.saveSettings.mockImplementationOnce(() => new Promise<Settings>(resolve => { finish = resolve; }));
   const { form } = await mount();
   fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("settings_page_models") }));
   fireEvent.change(await screen.findByRole("combobox", { name: t("lm_dev") }), { target: { value: "cpu" } });
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: t("cancel") }));

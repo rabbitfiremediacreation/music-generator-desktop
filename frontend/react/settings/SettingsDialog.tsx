@@ -1,35 +1,46 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { backend } from "../../backend";
+import { flushSync } from "react-dom";
+import { useIsMutating } from "@tanstack/react-query";
 import { pathErrorText } from "../../path-dialogs";
 import { modelErrorText } from "../../expert-mode";
-import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
 import { useSettingsDraft } from "./useSettingsDraft";
 import { PhoneAccessField } from "./PhoneAccessField";
 import { McpSettings } from "./McpSettings";
+import { SettingsNavigation, settingsGroups, type SettingsPage } from "./SettingsNavigation";
+import { GenerationSettings } from "./GenerationSettings";
+import { ModelsSettings } from "./ModelsSettings";
+import type { ModelManagerProps } from "../models/ModelManager";
+import { LibrarySettings } from "./LibrarySettings";
+import { AppearanceSettings } from "./AppearanceSettings";
+import { AboutSettings } from "./AboutSettings";
+import "./settings.css";
 
 export interface SettingsDialogProps {
   open: boolean; onClose: () => void; onBusyChange: (busy: boolean) => void;
-  onOpenModelPicker: () => void; onMoveLibrary: () => void;
+  modelManager: ModelManagerProps; onMoveLibrary: () => void;
+  initialPage?: SettingsPage;
   layout: "auto" | "stack" | "side"; onLayoutChange: (value: "auto" | "stack" | "side") => void;
 }
 
 export function SettingsDialog(props: SettingsDialogProps) {
   const { t } = useI18n();
   const state = useSettingsDraft(props.open, props.onClose, props.onBusyChange);
+  const modelBusy = useIsMutating({ mutationKey: ["models"] }) > 0;
   const dialog = useRef<HTMLDialogElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const backdropPress = useRef(false);
+  const [page, setPage] = useState<SettingsPage>("generation");
   const [mcpSaving, setMcpSaving] = useState(false);
   const [pathError, setPathError] = useState<unknown>();
-  const openFolder = useMutation({ mutationFn: backend.openSongsFolder, retry: false, networkMode: "always" });
-  const update = useMutation({ mutationFn: backend.checkUpdate, retry: false, networkMode: "always" });
-  const { draft, loading, saving, pending, status, failure, change } = state;
+  const { draft, loading, saving, pending, status, failure } = state;
   useEffect(() => {
-    if (props.open && !dialog.current?.open) dialog.current?.showModal();
+    if (props.open && !dialog.current?.open) {
+      setPage(props.initialPage ?? "generation"); setPathError(undefined);
+      dialog.current?.showModal();
+    }
     if (!props.open && dialog.current?.open) dialog.current?.close();
-  }, [props.open]);
+  }, [props.open, props.initialPage]);
   if (!props.open) return null;
   const navigate = (action: () => void) => { props.onClose(); action(); };
   const error = failure ?? pathError;
@@ -40,6 +51,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
   };
   const busy = saving || mcpSaving;
   const dismiss = () => { if (!busy) props.onClose(); };
+  const selectPage = (value: SettingsPage) => {
+    setPage(value);
+    if (content.current) content.current.scrollTop = 0;
+  };
   return <dialog ref={dialog} id="settingsDlg" aria-labelledby="settingsHeading"
     onCancel={event => { event.preventDefault(); dismiss(); }}
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } }}
@@ -48,45 +63,43 @@ export function SettingsDialog(props: SettingsDialogProps) {
       const startedOutside = backdropPress.current; backdropPress.current = false;
       if (startedOutside && event.target === event.currentTarget && outside(event.clientX, event.clientY)) { event.preventDefault(); dismiss(); }
     }}>
-    <form id="settingsForm" aria-busy={busy || pending} onSubmit={event => { event.preventDefault(); if (!busy) void state.submit(); }}>
-      <h2 id="settingsHeading" className="col-title">{t("settings_title")}</h2>
-      <p role="status" aria-live="polite">{status && t(status)}</p>
-      {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
-      <PhoneAccessField />
-      <fieldset disabled={loading || !draft || busy}>
-        {draft && <>
-          <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
-            <select name="lm_device" aria-label={t("lm_dev")} disabled={pending} value={draft.lm_device} onChange={event => void state.device(event.target.value as Settings["lm_device"])}>
-              <option value="auto">{t("lm_dev_auto")}</option><option value="cpu">{t("lm_dev_cpu")}</option>
-            </select><span className="small">{t("settings_device_hint")}</span>{draft.cpu_only && <span className="small">{t("desktop_intel_cpu_hint")}</span>}
-          </label>
-          <label className="field"><span className="lbl">{t("cpu_behavior_label")}</span><select name="cpu_iteration_behavior" aria-label={t("cpu_behavior_label")} value={draft.cpu_iteration_behavior} onChange={event => change({ cpu_iteration_behavior: event.target.value as Settings["cpu_iteration_behavior"] })} aria-describedby="cpuBehaviorHint">
-            <option value="ask">{t("cpu_behavior_ask")}</option><option value="limit_30">{t("cpu_behavior_limit")}</option><option value="continue">{t("cpu_behavior_continue")}</option>
-          </select><span id="cpuBehaviorHint" className="small">{t("cpu_behavior_hint")}</span></label>
-          <label className="field"><span className="lbl">{t("timeout")}</span><input name="timeout_minutes" type="number" min="1" max="600" value={draft.timeout_minutes} onChange={event => change({ timeout_minutes: Number(event.target.value) })} /></label>
-          <label className="check-row"><input type="checkbox" name="expert_mode" checked={draft.expert_mode} onChange={event => change({ expert_mode: event.target.checked })} aria-describedby="expertModeHint" />{t("expert_mode")}</label>
-          <p id="expertModeHint" className="small">{t("expert_mode_hint")}</p>
-          <button type="button" className="sek" disabled={pending} onClick={() => navigate(props.onOpenModelPicker)}>{t("creator_manage_models")}</button>
-          <label className="field"><span className="lbl" title={t("exp_tip")}>{t("exp")}</span><select name="export_format" value={draft.export_format} onChange={event => change({ export_format: event.target.value as Settings["export_format"] })}>
-            <option value="wav">{t("exp_wav")}</option><option value="mp3" disabled={!draft.mp3_available}>{t("exp_mp3")}</option>
-          </select>{!draft.mp3_available && <span className="small">{t("exp_no_mp3")}</span>}</label>
-          <button type="button" className="sek" disabled={pending} onClick={() => navigate(props.onMoveLibrary)}>{t("import_move_title")}</button>
-          <label className="field"><span className="lbl" title={t("desktop_songs_tip")}>{t("songs_dir")}</span><span className="path-picker"><input name="songs_dir" value={draft.songs_dir} placeholder={draft.songs_dir_default || ""} onChange={event => change({ songs_dir: event.target.value })} />
-            <button type="button" className="sek" aria-label={t("desktop_browse")} onClick={() => void state.selectDirectory()}>{t("desktop_browse")}</button>
-          </span></label>
-          <button type="button" className="sek" disabled={openFolder.isPending} onClick={() => openFolder.mutate()}>{t("settings_open_folder")}</button>
-          {openFolder.error && <p role="alert" className="small err">{t("settings_open_folder_failed")}</p>}
-        </>}
-        <McpSettings onBusyChange={setMcpSaving} />
-        <div className="field"><span className="lbl">{t("layout")}</span><div className="seg" role="group" aria-label={t("layout")}>{(["auto", "stack", "side"] as const).map(value => <button key={value} type="button" className="sek" aria-pressed={props.layout === value} title={value === "side" ? t("side_tip") : undefined} onClick={() => props.onLayoutChange(value)}>{t(value === "auto" ? "vt_auto" : value === "stack" ? "stacked" : "side")}</button>)}</div></div>
-        <div className="field"><span className="lbl">{t("version")}</span><div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>
-          {update.data?.available && update.data.url && <button type="button" className="aktion" onClick={() => void openUrl(update.data!.url!).catch(setPathError)}>{t("desktop_download_release")}</button>}
+    <form id="settingsForm" aria-busy={busy || pending || modelBusy}
+      onInvalidCapture={event => {
+        // Reveal invalid controls on other pages before native validation focuses them.
+        const panel = (event.target as HTMLElement).closest<HTMLElement>("[data-settings-page]");
+        if (panel) flushSync(() => selectPage(panel.dataset.settingsPage as SettingsPage));
+      }}
+      onSubmit={event => { event.preventDefault(); if (!busy && !modelBusy) void state.submit(); }}>
+      <SettingsNavigation page={page} onChange={selectPage} disabled={busy} />
+      <div className="settings-main">
+        <header className="settings-page-header">
+          <div><h3 id="settingsPageHeading">{t(`settings_page_${page}`)}</h3><p>{t(`settings_description_${page}`)}</p></div>
+          <div className="settings-close-wrap"><button type="button" className="settings-close" aria-label={t("desktop_close")} disabled={busy} onClick={dismiss}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
+          </button><span aria-hidden="true">ESC</span></div>
+        </header>
+        <div className="settings-content" ref={content}>
+          <p id="settingsStatus" className="small" role="status" aria-live="polite">{status && t(status)}</p>
+          {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
+          {settingsGroups.flatMap(group => group.pages).map(value => <section key={value} id={`settings-${value}`} data-settings-page={value} hidden={page !== value} aria-labelledby="settingsPageHeading">
+            {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={loading || !draft || busy}>
+              {value === "generation" && <GenerationSettings state={state} />}
+              {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager} />}
+              {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}
+              {value === "appearance" && <AppearanceSettings layout={props.layout} onLayoutChange={props.onLayoutChange} />}
+              {value === "mcp" && <McpSettings onBusyChange={setMcpSaving} />}
+              {value === "about" && <AboutSettings onError={setPathError} />}
+            </fieldset>}
+          </section>)}
         </div>
-        <div className="field"><span className="lbl">GitHub</span><button type="button" className="sek" onClick={() => void openUrl("https://github.com/rabbitfiremediacreation/music-generator-desktop").catch(setPathError)}>{t("github")}</button><span className="small">{t("github_info")}</span></div>
-      </fieldset>
-      {saving && <p role="status">{t("settings_saving")}</p>}
-      {errorText && <p role="alert" className="small err">{t("error")}: {errorText}</p>}
-      <div className="submit"><button type="button" className="sek" disabled={busy} onClick={props.onClose}>{t("cancel")}</button><button type="submit" className="aktion" disabled={loading || !draft || pending || busy}>{t("save")}</button></div>
+        <footer className={`settings-footer${state.dirty ? " has-changes" : ""}`}>
+          <div className="settings-save-status">
+            {saving ? <p role="status">{t("settings_saving")}</p> : state.dirty && <p role="status">{t("settings_unsaved")}</p>}
+            {errorText && <p role="alert" className="small err">{t("error")}: {errorText}</p>}
+          </div>
+          <div className="submit"><button type="button" className="sek" disabled={busy} onClick={props.onClose}>{t("cancel")}</button><button type="submit" className="aktion" disabled={loading || !draft || pending || busy || modelBusy}>{t("save")}</button></div>
+        </footer>
+      </div>
     </form>
   </dialog>;
 }

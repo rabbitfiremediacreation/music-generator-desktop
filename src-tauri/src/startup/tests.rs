@@ -5,6 +5,7 @@ use tauri::{
 };
 
 mod exports;
+mod reload;
 
 #[test]
 fn diagnostic_log_identifies_the_process_once_before_any_handshake() {
