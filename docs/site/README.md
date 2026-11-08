@@ -1,6 +1,6 @@
 # Music Generator documentation
 
-This independent Astro/Starlight project publishes the German and English desktop documentation. It has its own dependencies and lockfile. The root Vite/Tauri build, package files and `.github/workflows/desktop.yml` are unchanged.
+This independent Astro/Starlight project publishes the German and English desktop documentation. It has its own dependencies and lockfile. It builds separately from the root Vite/Tauri desktop application.
 
 Scope agreed in [issue #6](https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/6#issuecomment-6398632531): German and English, followed by text and screenshots from real installations in pull requests. The app's twelve interface languages do not imply twelve documentation languages.
 
@@ -34,7 +34,7 @@ Preview the production output at the same paths. Check both languages, the langu
 | `src/data/landing.ts` | German and English product-page copy |
 | `src/data/releases.ts` | Verified release, platform requirements, download and checksum links |
 | `src/components/ProductLanding.astro` | Product page, screenshot preview and section layout |
-| `src/components/Downloads.astro` | Platform downloads and optional Mac alternatives |
+| `src/components/Downloads.astro` | Platform downloads and optional alternative packages |
 | `src/styles/landing.css` | Custom studio design and responsive landing-page layout |
 | `src/styles/docs.css` | Matching documentation theme, including light mode |
 | `src/content/docs/de/guides/` | German guides |
@@ -75,7 +75,7 @@ Add the file only when you have the real screenshot; this example filename is no
 
 ## Sources and versions
 
-The installation guides and download section were checked on 27 October 2026 against the published **v0.1.2 pre-release**, its assets and its tagged `docs/desktop.md`, plus the installation observations in issue #6. The six packages and their six matching checksums exist. Release 0.1.2 has no separate Linux CUDA edition. This documentation change does not bump the desktop manifests in the local checkout.
+The installation guides and bilingual release notes cover **v0.2.0**, prepared on 8 November 2026 from the changes since v0.1.3, the desktop guide and the release asset manifest in `scripts/desktop/release-assets.mjs`. Installation observations in issue #6 remain historical evidence. The landing-page download data in `src/data/releases.ts` is updated separately after the new release assets and matching checksums have actually been published. The release produces eight packages and eight checksum files, including Windows MSI and Linux CUDA.
 
 Keep the checked date and release links on both installation pages current when updating download examples. Verify the actual release and asset filenames; a version in `main` alone does not prove that a download contains a feature. Use tagged source links for release-specific instructions. Historical `0.2.6` and `0.2.7` claims from the old desktop prose were not adopted: they did not match the desktop version, and the original feature introduction versions were not established. Do not assign a new introduction version without evidence.
 
