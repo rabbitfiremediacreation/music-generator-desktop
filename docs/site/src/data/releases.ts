@@ -21,12 +21,12 @@ const repositoryUrl = "https://github.com/rabbitfiremediacreation/music-generato
 
 // Verified against the published release assets, including each SHA-256 file.
 export const desktopRelease = {
-  version: "0.1.2",
-  tag: "v0.1.2",
-  prerelease: true,
-  url: `${repositoryUrl}/releases/tag/v0.1.2`,
-  checkedOn: "2026-10-27",
-  requirementsSource: `${repositoryUrl}/blob/v0.1.2/docs/desktop.md#start`,
+  version: "0.2.0",
+  tag: "v0.2.0",
+  prerelease: false,
+  url: `${repositoryUrl}/releases/tag/v0.2.0`,
+  checkedOn: "2026-11-08",
+  requirementsSource: `${repositoryUrl}/blob/v0.2.0/docs/desktop.md#start`,
 } as const;
 
 function asset(suffix: string, label: LocalizedText): DownloadAsset {
@@ -68,10 +68,12 @@ export const downloads: readonly PlatformDownload[] = [
       de: "Windows x64 · ZIP",
       en: "Windows x64 · ZIP",
     }),
-    alternatives: [],
+    alternatives: [
+      asset("windows-x64.msi", { de: "Windows x64 · MSI-Installer", en: "Windows x64 · MSI installer" }),
+    ],
     note: {
-      de: "Portables Paket mit Engine und WebView2. Vollständig entpacken und zusammenlassen.",
-      en: "Portable package with the engine and WebView2. Extract everything and keep the files together.",
+      de: "ZIP: vollständig entpacken, Engine und WebView2 zusammenlassen. Alternativ mit dem MSI installieren und über das Startmenü öffnen.",
+      en: "ZIP: extract everything and keep the engine and WebView2 together. Alternatively, install the MSI and open the app from the Start menu.",
     },
   },
   {
@@ -85,10 +87,12 @@ export const downloads: readonly PlatformDownload[] = [
       de: "Linux x64 · AppImage",
       en: "Linux x64 · AppImage",
     }),
-    alternatives: [],
+    alternatives: [
+      asset("linux-x64-cuda.AppImage", { de: "NVIDIA CUDA / CPU · AppImage", en: "NVIDIA CUDA / CPU · AppImage" }),
+    ],
     note: {
-      de: "Vulkan / CPU mit aktuellem Grafiktreiber. Keine separate CUDA-Ausgabe in 0.1.2.",
-      en: "Vulkan / CPU with a current GPU driver. No separate CUDA edition in 0.1.2.",
+      de: "Vulkan / CPU mit aktuellem Grafiktreiber. Separate CUDA-Ausgabe für unterstützte NVIDIA-GPUs mit Treiber ab 570.124.06; echte CUDA-Generierung benötigt Hardwaretests.",
+      en: "Vulkan / CPU with a current GPU driver. Separate CUDA edition for supported NVIDIA GPUs with driver 570.124.06+; real CUDA generation requires hardware testing.",
     },
   },
 ];
