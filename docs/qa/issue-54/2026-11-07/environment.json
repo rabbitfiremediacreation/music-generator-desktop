@@ -1,0 +1,31 @@
+{
+  "main": "aa151677f7d36b43d7c0a8203b12e313bd479e16",
+  "date": "2026-11-07",
+  "os": "macOS 26.6.2 (25G83)",
+  "hardware": "Apple M5 Pro, Mac17,8, 64 GiB RAM",
+  "runtime": {
+    "platform": "macos",
+    "arch": "arm64",
+    "revision": "b7ba6d9-sandbox2-steps200",
+    "source_revision": "b7ba6d9ce2f19ca7627fb8f340032c3ebe8ae253",
+    "recipe_sha256": "c986a73177da5ace2edccce0a9e4eed68df762fb7c4d7d02286a1697b63cac6a"
+  },
+  "runtime_artifact": {
+    "run": "https://github.com/rabbitfiremediacreation/music-generator-desktop/actions/runs/42376912765",
+    "sha256": "77a29ba3246268a88ec8ac7ede5ee80df21547eba104f79749d7e76891b7f7ce",
+    "sha256_matches_sidecar": true,
+    "copied_binary_adhoc_resigned_for_standalone_execution": true
+  },
+  "models": {
+    "vae-BF16.gguf": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
+    "Qwen3-Embedding-0.6B-Q8_0.gguf": "972f23255e46adfe744a0eb9a0039f3c63988f65753b0968d776e8b27168c321",
+    "acestep-v15-sft-Q8_0.gguf": "17f1984e48aaab27b3eb8ccbf0b754a6656e677884c60ea7003845cfc0059b70",
+    "acestep-5Hz-lm-4B-Q8_0.gguf": "972f91147a167f0c041f1b158d67985a82c0f6a852e68cdf70e46030cf08b1bc"
+  },
+  "isolation": {
+    "model_copies": "/private/tmp/issue54-models",
+    "runtime_copy": "/private/tmp/issue54-runtime",
+    "direct_lm": "/private/tmp/issue54-real-lm",
+    "production_client": "/private/tmp/issue54-real-pipeline"
+  }
+}

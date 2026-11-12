@@ -1,0 +1,397 @@
+[Server] Scanning models in /private/tmp/issue54-models
+[Registry] Qwen3-Embedding-0.6B-Q8_0.gguf -> Text-Enc
+[Registry] acestep-5Hz-lm-4B-Q8_0.gguf -> LM
+[Registry] acestep-v15-sft-Q8_0.gguf -> DiT
+[Registry] vae-BF16.gguf -> VAE
+[Store] Created (policy=NEVER)
+[Server] acestep.cpp b7ba6d9 (2026-09-24)
+[Server] Listening on 127.0.0.1:59479
+[Server] Pipelines: /lm /synth /understand
+[Server] Models: 1 LM, 1 Text-Enc, 1 DiT, 1 VAE, 0 Adapter
+[Server] Job 635c27e67423803c created (LM, mode=0, N=1)
+[Ace-LM] Ready: path=/private/tmp/issue54-models/acestep-5Hz-lm-4B-Q8_0.gguf, max_seq=8192, max_batch=1, fa=yes, fsm=yes
+load_backend: loaded BLAS backend from /private/tmp/issue54-runtime/libggml-blas.so
+ggml_metal_device_init: testing tensor API for f16 support
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'dummy_kernel', name = 'dummy_kernel'
+ggml_metal_library_compile_pipeline: loaded dummy_kernel                                  0x10373b130 | th_max = 1024 | th_width =   32
+ggml_metal_device_init: testing tensor API for bfloat support
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'dummy_kernel', name = 'dummy_kernel'
+ggml_metal_library_compile_pipeline: loaded dummy_kernel                                  0x10373b230 | th_max = 1024 | th_width =   32
+ggml_metal_library_init: using embedded metal library
+ggml_metal_library_compile_all: compiled 'fa' library in 0.008 sec
+ggml_metal_library_compile_all: compiled 'mul_mv' library in 0.009 sec
+ggml_metal_library_compile_all: compiled 'mul_mm' library in 0.010 sec
+ggml_metal_library_compile_all: compiled 'quantize' library in 0.008 sec
+ggml_metal_library_compile_all: compiled 'softmax' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'norm' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'unary' library in 0.008 sec
+ggml_metal_library_compile_all: compiled 'binbcast' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'reduce' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'tri' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'ssm' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'wkv' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'gated_delta_net' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'solve_tri' library in 0.008 sec
+ggml_metal_library_compile_all: compiled 'rope' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'conv' library in 0.008 sec
+ggml_metal_library_compile_all: compiled 'upscale' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'argsort' library in 0.000 sec
+ggml_metal_library_compile_all: compiled 'pool' library in 0.007 sec
+ggml_metal_library_compile_all: compiled 'misc' library in 0.000 sec
+ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 0.010 sec (max single = 0.010 sec)
+ggml_metal_rsets_init: creating a residency set collection (keep_alive = 180 s)
+ggml_metal_device_init: GPU name:   MTL0 (Apple M5 Pro)
+ggml_metal_device_init: GPU family: MTLGPUFamilyApple10  (1010)
+ggml_metal_device_init: GPU family: MTLGPUFamilyMetal4  (5002)
+ggml_metal_device_init: simdgroup reduction   = true
+ggml_metal_device_init: simdgroup matrix mul. = true
+ggml_metal_device_init: has unified memory    = true
+ggml_metal_device_init: has bfloat            = true
+ggml_metal_device_init: has tensor            = true
+ggml_metal_device_init: use residency sets    = true
+ggml_metal_device_init: use shared buffers    = true
+ggml_metal_device_init: recommendedMaxWorkingSetSize  = 55662.79 MB
+load_backend: loaded MTL backend from /private/tmp/issue54-runtime/libggml-metal.so
+load_backend: loaded CPU backend from /private/tmp/issue54-runtime/libggml-cpu.so
+ggml_metal_init: allocating
+ggml_metal_init: found device: Apple M5 Pro
+ggml_metal_init: picking default device: Apple M5 Pro
+ggml_metal_init: use fusion         = true
+ggml_metal_init: use concurrency    = true
+ggml_metal_init: use graph optimize = true
+[Load] LM backend: MTL0 (CPU threads: 9)
+[GGUF] /private/tmp/issue54-models/acestep-5Hz-lm-4B-Q8_0.gguf: 398 tensors, data at offset 5346304
+[LM-Config] 36L, H=2560, V=217204, Nh=32, Nkv=8, D=128, tied=1
+[Qwen3] Attn: Q+K+V fused
+[Qwen3] MLP: gate+up fused
+[WeightCtx] Loaded 398 tensors, 4245.7 MB into backend
+[LM-KV] Allocated 2 sets x 36 layers (4D batched), 2304.0 MB
+[Store] Load LM: 3048 ms
+[LM] Partial head: 65559 rows (151645..217204), 170.1 MB
+[BPE] Loaded from GGUF: 151643 vocab, 151387 merges
+[FSM] Prefix trees: bpm=301, dur=601, key=106, lang=53, tsig=5 nodes
+[LM-Generate] mode=fill lyrics=generate metas=fill gaps | 52 tokens, CFG: 1.00, N=1
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_get_rows_q8_0', name = 'kernel_get_rows_q8_0'
+ggml_metal_library_compile_pipeline: loaded kernel_get_rows_q8_0                          0x103745890 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_rms_norm_mul_f32_4', name = 'kernel_rms_norm_mul_f32_4'
+ggml_metal_library_compile_pipeline: loaded kernel_rms_norm_mul_f32_4                     0x103746110 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_q8_0_f32', name = 'kernel_mul_mm_q8_0_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_q8_0_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1      0x103746490 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_cpy_f32_f32', name = 'kernel_cpy_f32_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_cpy_f32_f32                            0x103746810 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_rope_neox_f32', name = 'kernel_rope_neox_f32_imrope=0_is_back=0'
+ggml_metal_library_compile_pipeline: loaded kernel_rope_neox_f32_imrope=0_is_back=0       0xb89d2c000 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_set_rows_f32_i64_f16', name = 'kernel_set_rows_f32_i64_f16'
+ggml_metal_library_compile_pipeline: loaded kernel_set_rows_f32_i64_f16                   0xb89d2c380 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_blk', name = 'kernel_flash_attn_ext_blk_nqptg=8_ncpsg=64'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_blk_nqptg=8_ncpsg=64      0xb89d2c700 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_f16_dk128_dv128', name = 'kernel_flash_attn_ext_f16_dk128_dv128_mask=1_sinks=0_bias=0_scap=0_kvpad=0_bcm=1_ns10=128_ns20=128_nsg=4'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_f16_dk128_dv128_mask=1_sinks=0_bias=0_scap=0_kvpad=0_bcm=1_ns10=128_ns20=128_nsg=4      0xb89d2ca80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32_4', name = 'kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=0_cb=0'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=0_cb=0      0xb89d2ce00 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_swiglu_f32', name = 'kernel_swiglu_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_swiglu_f32                             0xb89d2d180 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mv_q8_0_f32', name = 'kernel_mul_mv_q8_0_f32_nsg=4_ne12=1_r2=1_r3=1_split=0'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mv_q8_0_f32_nsg=4_ne12=1_r2=1_r3=1_split=0      0xb89d2d880 | th_max = 1024 | th_width =   32
+[LM-Phase1] Prefill 71ms, 52 tokens, N=1, CFG=1.00, prompts=shared
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_vec_f16_dk128_dv128', name = 'kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=1_sink=0_bias=0_scap=0_kvpad=0_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=1_sink=0_bias=0_scap=0_kvpad=0_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32      0xb89d2df80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_vec_reduce', name = 'kernel_flash_attn_ext_vec_reduce_dv=128_nwg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_vec_reduce_dv=128_nwg=32      0xb89d2e300 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32_4', name = 'kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=1_cb=0'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=1_cb=0      0xb89d2e680 | th_max = 1024 | th_width =   32
+[LM-Phase1] Step 100, 1 active, 52.5 tok/s
+[LM-Phase1] Decode 3136ms
+[LM-Phase1 Batch0] seed=6, 164 tokens
+[fill Batch0] seed=6:
+bpm:110
+caption: An energetic and driving synthwave track powered by a punchy, gated-reverb
+  drum machine and a relentless sequenced synth bassline. Bright, brassy synthesizer
+  stabs and shimmering arpeggiated melodies define the main hooks, layered over lush
+  atmospheric pads that create a wide stereo image. The arrangement builds dynamically,
+  introducing new melodic synth layers and using filter sweeps for transitions, culminating
+  in powerful, anthemic chorus sections. The track concludes with a brief, atmospheric
+  synth pad outro that fades into silence.
+duration: 163
+genres: synthwave
+keyscale: F# major
+language: unknown
+timesignature: 4
+</think>
+
+# Lyric
+[Instrumental]
+
+[LM-Phase2] N=1, CoT[0]:
+bpm: 110
+caption: An energetic and driving synthwave track powered by a punchy, gated-reverb
+  drum machine and a relentless sequenced synth bassline. Bright, brassy synthesizer
+  stabs and shimmering arpeggiated melodies define the main hooks, layered over lush
+  atmospheric pads that create a wide stereo image. The arrangement builds dynamically,
+  introducing new melodic synth layers and using filter sweeps for transitions, culminating
+  in powerful, anthemic chorus sections. The track concludes with a brief, atmospheric
+  synth pad outro that fades into silence.
+duration: 120
+keyscale: F# major
+language: English
+timesignature: 4
+[LM-Phase2] max_tokens: 700, CFG: 2.00, N=1, prompts=shared
+[LM-Phase2] Prefill 214ms (shared, 1 cond + 1 uncond)
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mv_ext_q8_0_f32_r1_2', name = 'kernel_mul_mv_ext_q8_0_f32_r1_2_nsg=2_nxpsg=16_ne12=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mv_ext_q8_0_f32_r1_2_nsg=2_nxpsg=16_ne12=1_r2=1_r3=1      0xb89d2dc00 | th_max = 1024 | th_width =   32
+[LM-Phase2] Step 50, 1 active, 51 total codes, 49.4 tok/s
+[LM-Phase2] Step 100, 1 active, 101 total codes, 50.5 tok/s
+[LM-Phase2] Step 150, 1 active, 151 total codes, 51.1 tok/s
+[LM-Phase2] Step 200, 1 active, 201 total codes, 51.3 tok/s
+[LM-Phase2] Step 250, 1 active, 251 total codes, 51.5 tok/s
+[LM-Phase2] Step 300, 1 active, 301 total codes, 51.6 tok/s
+[LM-Phase2] Step 350, 1 active, 351 total codes, 51.7 tok/s
+[LM-Phase2] Step 400, 1 active, 401 total codes, 51.8 tok/s
+[LM-Phase2] Step 450, 1 active, 451 total codes, 51.9 tok/s
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_vec_f16_dk128_dv128_q1_ne4', name = 'kernel_flash_attn_ext_vec_f16_dk128_dv128_q1_ne4_mask=1_sink=0_bias=0_scap=0_kvpad=0_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_vec_f16_dk128_dv128_q1_ne4_mask=1_sink=0_bias=0_scap=0_kvpad=0_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32      0xb89d2ea00 | th_max = 1024 | th_width =   32
+[LM-Phase2] Step 500, 1 active, 501 total codes, 52.0 tok/s
+[LM-Phase2] Step 550, 1 active, 551 total codes, 51.9 tok/s
+[LM-Phase2] Decode 11525ms
+[LM-Phase2 Batch0] seed=6, 598 codes
+[Ace-LM] Total 14951ms | N=1 seed=12345
+[Server] Job 635c27e67423803c done (LM, 1 results)
+[Server] Job 9e2b9014bc383271 created (LM, mode=0, N=1)
+[Ace-LM] Ready: path=/private/tmp/issue54-models/acestep-5Hz-lm-4B-Q8_0.gguf, max_seq=8192, max_batch=1, fa=yes, fsm=yes
+[LM-Generate] mode=fill lyrics=generate metas=fill gaps | 52 tokens, CFG: 1.00, N=1
+[LM-Phase1] Prefill 68ms, 52 tokens, N=1, CFG=1.00, prompts=shared
+[LM-Phase1] Step 100, 1 active, 52.8 tok/s
+[LM-Phase1] Step 200, 1 active, 52.5 tok/s
+[LM-Phase1] Step 300, 1 active, 51.6 tok/s
+[LM-Phase1] Step 400, 1 active, 50.5 tok/s
+[LM-Phase1] Decode 9892ms
+[LM-Phase1 Batch0] seed=7, 496 tokens
+[fill Batch0] seed=7:
+bpm:110
+caption: A driving synthwave track powered by a punchy, gated-reverb drum machine
+  and a relentless sequenced synth bassline. Bright, arpeggiated synthesizers create
+  a shimmering, retro-futuristic texture. A clear, melodic female vocal, sung in French
+  and treated with spacious reverb, soars over the electronic arrangement. The track
+  features dynamic shifts, including an atmospheric bridge with whispered vocals and
+  a brief, melodic synth-guitar lead. The song concludes with a spoken-word outro
+  over fading ambient pads, cementing its mysterious, cyberpunk aesthetic.
+duration: 257
+keyscale:F# major
+language:English
+timesignature:4
+</think>
+
+# Lyric
+[Intro - Synth Arpeggio and Drum Machine]
+
+[Verse 1]
+In the shadows of the night, she glides
+Her silk whispers secrets far and wide
+The city sleeps but her eyes are bright
+Aanyeon dreams in the pale moonlight
+
+[Chorus]
+Oh Naya, you steal the air so cool
+Your grace is ancient, yet always a jewel
+The winds carry tales of your stride
+Oh Naya, a mystic, sweet samurai
+
+[Instrumental Break]
+
+[Verse 2]
+Lanterns flicker as she strolls past
+Every step a rhythm, a moment meant to last
+Her voice hums like rivers, soft and deep
+Memories awaken from where they sleep
+
+[Chorus]
+Oh Naya, you steal the air so cool
+Your grace is ancient, yet always a jewel
+The winds carry tales of your stride
+Oh Naya, a mystic, sweet samurai
+
+[Instrumental Break]
+
+[Bridge]
+The guzheng sings of your silent grace
+While the xiao paints the skies with beauty's lace
+On the rooftops, the stars trace your name
+Timeless, your essence will never wane
+
+[Chorus - Softer, more atmospheric]
+Oh Naya, you steal the air so cool
+Your grace is ancient, yet always a jewel
+The winds carry tales of your stride
+Oh Naya, a mystic, sweet samurai
+
+[Outro]
+[Synth arpeggio and beat continue]
+Oh Naya, a mystic, sweet samurai
+[Music fades out]
+
+[LM-Phase2] N=1, CoT[0]:
+bpm: 110
+caption: A driving synthwave track powered by a punchy, gated-reverb drum machine
+  and a relentless sequenced synth bassline. Bright, arpeggiated synthesizers create
+  a shimmering, retro-futuristic texture. A clear, melodic female vocal, sung in French
+  and treated with spacious reverb, soars over the electronic arrangement. The track
+  features dynamic shifts, including an atmospheric bridge with whispered vocals and
+  a brief, melodic synth-guitar lead. The song concludes with a spoken-word outro
+  over fading ambient pads, cementing its mysterious, cyberpunk aesthetic.
+duration: 120
+keyscale: F# major
+language: English
+timesignature: 4
+[LM-Phase2] max_tokens: 700, CFG: 2.00, N=1, prompts=shared
+[LM-Phase2] Prefill 384ms (shared, 1 cond + 1 uncond)
+[LM-Phase2] Step 50, 1 active, 51 total codes, 44.2 tok/s
+[LM-Phase2] Step 100, 1 active, 101 total codes, 44.2 tok/s
+[LM-Phase2] Step 150, 1 active, 151 total codes, 44.2 tok/s
+[LM-Phase2] Step 200, 1 active, 201 total codes, 44.1 tok/s
+[LM-Phase2] Step 250, 1 active, 251 total codes, 44.1 tok/s
+[LM-Phase2] Step 300, 1 active, 301 total codes, 43.9 tok/s
+[LM-Phase2] Step 350, 1 active, 351 total codes, 44.3 tok/s
+[LM-Phase2] Step 400, 1 active, 401 total codes, 44.5 tok/s
+[LM-Phase2] Step 450, 1 active, 451 total codes, 44.5 tok/s
+[LM-Phase2] Step 500, 1 active, 501 total codes, 44.4 tok/s
+[LM-Phase2] Step 550, 1 active, 551 total codes, 44.4 tok/s
+[LM-Phase2] Decode 13463ms
+[LM-Phase2 Batch0] seed=7, 599 codes
+[Ace-LM] Total 23813ms | N=1 seed=12345
+[Server] Job 9e2b9014bc383271 done (LM, 1 results)
+[Server] Job 1dc34443b2c13f9d created (1 requests)
+[Server] Loading synth: DiT=acestep-v15-sft-Q8_0.gguf VAE=vae-BF16.gguf
+[GGUF] /private/tmp/issue54-models/acestep-v15-sft-Q8_0.gguf: 678 tensors, data at offset 56800
+[GGUF] /private/tmp/issue54-models/acestep-v15-sft-Q8_0.gguf: 678 tensors, data at offset 56800
+[Synth-Load] Ready: turbo=no, fa=yes, batch_cfg=yes
+[Resolve-Params] max audio codes across batch: 599 (119.8s @ 5Hz)
+[Resolve-T] T=2996, S=1498
+[Resolve-T] seed=12345, steps=5, guidance=1.0, shift=1.0, duration=120.0s
+[BPE] Loaded from GGUF: 151643 vocab, 151387 merges
+[Load] TextEncoder backend: MTL0 (shared)
+[GGUF] /private/tmp/issue54-models/Qwen3-Embedding-0.6B-Q8_0.gguf: 310 tensors, data at offset 5337664
+[Load] TextEncoder: 28L, H=1024, Nh=16/8
+[Qwen3] Attn: Q+K+V fused
+[Qwen3] MLP: gate+up fused
+[WeightCtx] Loaded 310 tensors, 742.7 MB into backend
+[Store] Load TextEnc: 112 ms
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_get_rows_bf16', name = 'kernel_get_rows_bf16'
+ggml_metal_library_compile_pipeline: loaded kernel_get_rows_bf16                          0xb89d2d500 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_cpy_f32_f16', name = 'kernel_cpy_f32_f16'
+ggml_metal_library_compile_pipeline: loaded kernel_cpy_f32_f16                            0xb89d2f480 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_pad', name = 'kernel_flash_attn_ext_pad_mask=1_ncpsg=64'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_pad_mask=1_ncpsg=64      0xb89d2f800 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_f16_dk128_dv128', name = 'kernel_flash_attn_ext_f16_dk128_dv128_mask=1_sinks=0_bias=0_scap=0_kvpad=1_bcm=1_ns10=128_ns20=128_nsg=4'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_f16_dk128_dv128_mask=1_sinks=0_bias=0_scap=0_kvpad=1_bcm=1_ns10=128_ns20=128_nsg=4      0xb89d2fb80 | th_max = 1024 | th_width =   32
+[Load] CondEncoder backend: MTL0 (shared)
+[GGUF] /private/tmp/issue54-models/acestep-v15-sft-Q8_0.gguf: 678 tensors, data at offset 56800
+[Load] LyricEncoder: 8L
+[Qwen3] Attn: Q+K+V fused
+[Qwen3] MLP: gate+up fused
+[Load] TimbreEncoder: 4L
+[Qwen3] Attn: Q+K+V fused
+[Qwen3] MLP: gate+up fused
+[WeightCtx] Loaded 140 tensors, 616.6 MB into backend
+[Load] CondEncoder: lyric(8L), timbre(4L), text_proj, null_cond
+[Store] Load CondEnc: 92 ms
+[CondEnc] Lyric sliding mask: 341x341, window=128
+[CondEnc] Timbre sliding mask: 1x1, window=128
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_pad', name = 'kernel_flash_attn_ext_pad_mask=0_ncpsg=64'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_pad_mask=0_ncpsg=64      0xb88804380 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_f16_dk128_dv128', name = 'kernel_flash_attn_ext_f16_dk128_dv128_mask=0_sinks=0_bias=0_scap=0_kvpad=1_bcm=0_ns10=128_ns20=128_nsg=4'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_f16_dk128_dv128_mask=0_sinks=0_bias=0_scap=0_kvpad=1_bcm=0_ns10=128_ns20=128_nsg=4      0xb88804a80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_pad', name = 'kernel_flash_attn_ext_pad_mask=1_ncpsg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_pad_mask=1_ncpsg=32      0xb88804700 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_vec_f16_dk128_dv128', name = 'kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=1_sink=0_bias=0_scap=0_kvpad=1_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=1_sink=0_bias=0_scap=0_kvpad=1_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32      0xb88805180 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_pad', name = 'kernel_flash_attn_ext_pad_mask=0_ncpsg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_pad_mask=0_ncpsg=32      0xb88805500 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_flash_attn_ext_vec_f16_dk128_dv128', name = 'kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=0_sink=0_bias=0_scap=0_kvpad=1_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32'
+ggml_metal_library_compile_pipeline: loaded kernel_flash_attn_ext_vec_f16_dk128_dv128_mask=0_sink=0_bias=0_scap=0_kvpad=1_sparse=0_ns10=128_ns20=128_nsg=1_nwg=32      0xb88805880 | th_max = 1024 | th_width =   32
+[Encode] Packed: lyric=341 + timbre=1 + text=171 = 513 tokens
+[Encode-Text Batch0] 171+341 tokens -> enc_S=513, 39.0 ms
+[Load] Detokenizer backend: MTL0 (shared)
+[GGUF] /private/tmp/issue54-models/acestep-v15-sft-Q8_0.gguf: 678 tensors, data at offset 56800
+[WeightCtx] Loaded 30 tensors, 106.5 MB into backend
+[Load] Detokenizer: FSQ(6->2048) + 2L encoder(S=5, 2048->64)
+[Store] Load FSQ-Detok: 25 ms
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mv_bf16_f32_short', name = 'kernel_mul_mv_bf16_f32_short_nsg=1_ne12=1_r2=1_r3=1_split=0'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mv_bf16_f32_short_nsg=1_ne12=1_r2=1_r3=1_split=0      0xb88804000 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_cpy_q8_0_f32', name = 'kernel_cpy_q8_0_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_cpy_q8_0_f32                           0xb88805f80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_repeat_f32', name = 'kernel_repeat_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_repeat_f32                             0xb88806300 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mv_ext_q8_0_f32_r1_5', name = 'kernel_mul_mv_ext_q8_0_f32_r1_5_nsg=2_nxpsg=8_ne12=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mv_ext_q8_0_f32_r1_5_nsg=2_nxpsg=8_ne12=1_r2=1_r3=1      0xb88806680 | th_max = 1024 | th_width =   32
+[Context] Decoded: 599 codes -> 2995 frames (119.8s @ 25Hz)
+[Build-Context Batch0] Detokenizer: 523.9 ms, 599 codes
+[Init-Noise Batch0] Philox noise seed=12345, [2996, 64] solver=euler
+[Init-Noise] Starting: T=2996, S=1498, enc_S=513, steps=5, batch=1 (cover)
+[Load] DiT backend: MTL0 (shared)
+[GGUF] /private/tmp/issue54-models/acestep-v15-sft-Q8_0.gguf: 678 tensors, data at offset 56800
+[DiT] Self-attn: Q+K+V fused
+[DiT] Cross-attn: Q+K+V fused
+[DiT] MLP: gate+up fused
+[Load] null_condition_emb found (CFG available)
+[WeightCtx] Loaded 478 tensors, 1600.7 MB into backend
+[Load] DiT: 24 layers, H=2048, Nh=16/8, D=128
+[Store] Load DiT: 219 ms
+[DiT] Batch N=1, T=2996, S=1498, enc_S=513
+[DiT] Graph: 1937 nodes
+[DiT] Solver: ODE Euler (1 NFE/step, order 1)
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_f32_f32', name = 'kernel_mul_mm_f32_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_f32_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1      0xb88804e00 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_unary_f32_f32', name = 'kernel_unary_f32_f32_op=10_cnt=1'
+ggml_metal_library_compile_pipeline: loaded kernel_unary_f32_f32_op=10_cnt=1              0xb88806d80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_timestep_embedding_f32', name = 'kernel_timestep_embedding_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_timestep_embedding_f32                 0xb88807100 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_unary_f32_f32_4', name = 'kernel_unary_f32_f32_4_op=106_cnt=1'
+ggml_metal_library_compile_pipeline: loaded kernel_unary_f32_f32_4_op=106_cnt=1           0xb88807480 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32', name = 'kernel_bin_fuse_f32_f32_f32_op=1_nf=1_rb=1_cb=0'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_op=1_nf=1_rb=1_cb=0      0xb88807800 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32', name = 'kernel_bin_fuse_f32_f32_f32_op=0_nf=1_rb=1_cb=1'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_op=0_nf=1_rb=1_cb=1      0xb88807b80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32_4', name = 'kernel_bin_fuse_f32_f32_f32_4_op=2_nf=1_rb=0_cb=0'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_4_op=2_nf=1_rb=0_cb=0      0xb89d2f100 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32_4', name = 'kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=0_cb=1'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_4_op=0_nf=1_rb=0_cb=1      0xb88805c00 | th_max = 1024 | th_width =   32
+[DiT] Step 1/5 t=1.000
+[DiT] Step 2/5 t=0.800
+[DiT] Step 3/5 t=0.600
+[DiT] Step 4/5 t=0.400
+[DiT] Step 5/5 t=0.200
+[DiT-Generate] Total: 1846.9 ms (1846.9 ms/sample)
+[GGUF] /private/tmp/issue54-models/vae-BF16.gguf: 365 tensors, data at offset 30048
+[Load] VAE backend: MTL0 (shared)
+[VAE] Backend: MTL0, Weight buffer: 161.1 MB
+[VAE] Loaded: 5 blocks, upsample=1920x, F32 activations
+[Store] Load VAE-Dec: 473 ms
+[VAE] Tiled decode: 4 tiles (chunk=1024, overlap=64, stride=896)
+[VAE] Graph: 479 nodes, T_latent=960
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_im2col_f16', name = 'kernel_im2col_f16'
+ggml_metal_library_compile_pipeline: loaded kernel_im2col_f16                             0xb88828000 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_f16_f16', name = 'kernel_mul_mm_f16_f16_bci=0_bco=0_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_f16_f16_bci=0_bco=0_ne12=1_ne13=1_r2=1_r3=1      0xb88828a80 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_bin_fuse_f32_f32_f32', name = 'kernel_bin_fuse_f32_f32_f32_op=0_nf=1_rb=0_cb=1'
+ggml_metal_library_compile_pipeline: loaded kernel_bin_fuse_f32_f32_f32_op=0_nf=1_rb=0_cb=1      0xb88828e00 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_snake_f32', name = 'kernel_snake_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_snake_f32                              0xb88829180 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_f16_f32', name = 'kernel_mul_mm_f16_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_f16_f32_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1      0xb88829500 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_col2im_1d_f32', name = 'kernel_col2im_1d_f32'
+ggml_metal_library_compile_pipeline: loaded kernel_col2im_1d_f32                          0xb88829880 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_f16_f32', name = 'kernel_mul_mm_f16_f32_bci=0_bco=0_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_f16_f32_bci=0_bco=0_ne12=1_ne13=1_r2=1_r3=1      0xb88828380 | th_max = 1024 | th_width =   32
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mv_f16_f16_4', name = 'kernel_mul_mv_f16_f16_4_nsg=4_ne12=1_r2=1_r3=1_split=0'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mv_f16_f16_4_nsg=4_ne12=1_r2=1_r3=1_split=0      0xb88829f80 | th_max = 1024 | th_width =   32
+[VAE] Upsample factor: 1920.00 (expected ~1920)
+[VAE] Graph: 479 nodes, T_latent=1024
+[VAE] Graph: 479 nodes, T_latent=372
+ggml_metal_library_compile_pipeline: compiling pipeline: base = 'kernel_mul_mm_f16_f16', name = 'kernel_mul_mm_f16_f16_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1'
+ggml_metal_library_compile_pipeline: loaded kernel_mul_mm_f16_f16_bci=0_bco=1_ne12=1_ne13=1_r2=1_r3=1      0xb88829c00 | th_max = 1024 | th_width =   32
+[VAE] Tiled decode done: 4 tiles -> T_audio=5752320 (119.84s @ 48kHz)
+[VAE-Decode Batch0] Decode: 12514.2 ms
+[Server] Job 1dc34443b2c13f9d done (1 tracks)
+[Server] Shutting down...
+ggml_metal_free: deallocating
+[Server] Done

@@ -9,6 +9,9 @@ import { settingsKeys, settingsTranslations } from "./desktop-i18n";
 import { xlMemoryHints } from "./model-i18n";
 import { SettingsDialog } from "./react/settings/SettingsDialog";
 import { I18nProvider } from "./react/i18n";
+import { modelSettingsTranslations, settingsPageKeys, settingsPageTranslations } from "./settings-i18n";
+import { modelBrowserKeys } from "./model-browser-i18n";
+import { modelInventoryKeys } from "./model-inventory-i18n";
 const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn() }));
 vi.mock("./backend", () => ({ backend: mocks }));
 
@@ -18,16 +21,20 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("provides every new message in all registered languages", () => {
   expect(Object.keys(settingsTranslations).sort()).toEqual(Object.keys(LANGS).sort());
   expect(Object.keys(xlMemoryHints).sort()).toEqual(Object.keys(LANGS).sort());
+  expect(Object.keys(settingsPageTranslations).sort()).toEqual(Object.keys(LANGS).sort());
+  expect(Object.keys(modelSettingsTranslations).sort()).toEqual(Object.keys(LANGS).sort());
   for (const language of Object.keys(LANGS)) {
     const messages = (I18N as Record<string, Record<string, unknown>>)[language];
-    for (const key of [...settingsKeys, "settings_saving", "creator_xl_ram_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    for (const key of [...settingsKeys, ...settingsPageKeys, ...modelBrowserKeys, ...modelInventoryKeys, ...Object.keys(modelSettingsTranslations.en), "settings_saving", "creator_xl_ram_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    for (const key of ["creator_manage_models", "desktop_manage", "desktop_manage_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    expect(messages.desktop_xl_missing).toContain(messages.creator_manage_models);
   }
 });
 
 it("switches the settings heading and live loading message without restarting the read", async () => {
   mocks.settings.mockReturnValue(new Promise(() => {}));
   render(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(I18nProvider, null, createElement(SettingsDialog, {
-    open: true, layout: "auto", onClose: vi.fn(), onBusyChange: vi.fn(), onManageModels: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn(),
+    open: true, layout: "auto", onClose: vi.fn(), onBusyChange: vi.fn(), modelManager: { selection: null, currentSelection: null, selectionRevision: 0, onUse: vi.fn() }, onMoveLibrary: vi.fn(), onLayoutChange: vi.fn(),
   }))));
   expect(screen.getByText("Einstellungen werden geladen…")).toBeTruthy();
   await act(async () => setLang("en"));

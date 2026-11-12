@@ -5,6 +5,7 @@ import path from "node:path";
 import { download, files, root, run } from "./common.mjs";
 import { checkoutEngineSource, patchWindowsPaths } from "./engine-source.mjs";
 import { verifyWindowsPaths } from "./windows-unicode.mjs";
+import { verifyRegistryContract } from "./registry-contract.mjs";
 
 export function dllExports(text) {
   const names=[...text.matchAll(/^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\w+)\b/gm)].map(match=>match[1]);
@@ -48,13 +49,14 @@ export async function prepareWindowsEngine(cache, work, source) {
   const build=path.join(work,"build");
   await run("cmake",["-S",sourceDir,"-B",build,"-G","Visual Studio 17 2022","-A","x64",`-DGGML_SOURCE_DIR=${shim}`,`-DGGML_IMPORT_LIB_DIR=${shim}`,`-DWINDOWS_RUNTIME=${runtime}`]);
   const targets=["ace-server","ace-synth","ace-lm","ace-understand","mp3-codec"];
-  await run("cmake",["--build",build,"--config","Release","--target",...targets,"desktop-windows-paths-test","--parallel","2"]);
+  await run("cmake",["--build",build,"--config","Release","--target",...targets,"desktop-windows-paths-test","desktop-registry-test","--parallel","2"]);
+  await verifyRegistryContract(path.join(build,"Release/desktop-registry-test.exe"),runtime);
   await verifyWindowsPaths(path.join(build,"Release/desktop-windows-paths-test.exe"),runtime);
   for (const name of targets) await cp(path.join(build,"Release",`${name}.exe`),path.join(runtime,`${name}.exe`));
   await rm(path.join(runtime,"SHA256SUMS.txt"),{force:true});
   await writeFile(path.join(runtime,"README.txt"),
     `ACE-Step desktop engine ${source.revision}\n\n`+
-    `Engine core rebuilt from ${source.repository} at ${source.source_revision}, with the checked-in desktop iteration and Windows Unicode path patches.\n`+
+    `Engine core rebuilt from ${source.repository} at ${source.source_revision}, with the checked-in desktop iteration, title registry and Windows Unicode path patches.\n`+
     `Rebuilt programs: ${targets.map(name=>`${name}.exe`).join(", ")}.\n`+
     `GGML headers: ${source.ggml_revision}. The original CUDA, Vulkan and CPU runtime DLLs remain unchanged from the SHA-256-pinned archive ${source.sha256}.\n`+
     `The DiT limit is 200 iterations. VERSION.desktop.json contains the final complete runtime inventory and checksums.\n`);

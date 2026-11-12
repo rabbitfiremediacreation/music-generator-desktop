@@ -1,0 +1,57 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.68s
+     Running tests/audio_duration.rs (src-tauri/target/debug/deps/audio_duration-39b6697e35409332)
+
+running 12 tests
+test invalid_audio_is_rejected_instead_of_becoming_a_finished_song ... ok
+test failed_optional_retry_preserves_the_original_audio_with_an_honest_warning ... ok
+test lm_shortfall_gets_one_distinct_seed_retry_before_a_single_synthesis ... ok
+test retry_limit_keeps_the_longer_audio_and_never_changes_music_seed_or_effective_steps ... ok
+test actual_wav_duration_replaces_the_lm_claim_without_rewriting_the_request ... ok
+test an_incomplete_new_synthesis_contract_cannot_be_saved_as_a_verified_result ... ok
+test empty_lm_codes_retry_once_then_fail_clearly_if_both_attempts_are_empty ... ok
+test only_actual_synthesis_result_evidence_can_confirm_two_hundred_iterations ... ok
+test cancellation_during_the_retry_cancels_that_job_and_never_synthesizes ... ok
+test overproduction_is_capped_and_normal_duration_rounding_does_not_retry ... ok
+test optional_retry_respects_remaining_lm_time_and_cancels_its_timed_out_job ... ok
+test optional_retry_budget_includes_waiting_for_the_job_id ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/engine.rs (src-tauri/target/debug/deps/engine-a6f6d6bcca704542)
+
+running 12 tests
+test gpu_selftest_rejects_empty_and_repetitive_codes ... ok
+test multipart_preserves_binary_audio_and_extracts_metadata ... ok
+test codes_obey_requested_duration_and_the_ten_minute_ceiling ... ok
+test analysis_multipart_contains_selected_model_names_and_original_audio ... ok
+test generation_chains_lm_and_synthesis_and_preserves_parameters ... ok
+test an_instrumental_answer_to_a_vocal_request_is_retried ... ok
+test a_worse_second_take_does_not_replace_the_first ... ok
+test generation_trims_lm_overproduction_before_synthesis ... ok
+test user_cancellation_cancels_the_engine_job ... ok
+test timeout_cancels_the_engine_job ... ok
+test synthesis_errors_use_new_logs_for_failed_jobs_http_and_missing_audio ... ok
+test closing_the_supervisor_pipe_terminates_the_engine ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
+
+     Running tests/generation_limits.rs (src-tauri/target/debug/deps/generation_limits-d91459d7dd0eaa79)
+
+running 5 tests
+test historical_metadata_keeps_the_old_cap_without_explicit_new_runtime_evidence ... ok
+test new_requests_above_two_hundred_are_rejected_without_creating_songs ... ok
+test retry_keeps_historical_requests_while_execution_uses_the_supported_limit ... ok
+test legacy_engine_defaults_follow_the_selected_model_including_hybrid_turbo_models ... ok
+test new_queue_snapshots_use_the_iterations_the_pinned_engine_can_execute ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/generation_parameters.rs (src-tauri/target/debug/deps/generation_parameters-67b6a69087cd4b6c)
+
+running 2 tests
+test device_settings_preserve_queued_parameters_and_the_next_request ... ok
+test lm_receives_requested_caption_and_duration_without_rewriting_saved_parameters ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

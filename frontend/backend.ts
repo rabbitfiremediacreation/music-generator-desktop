@@ -44,6 +44,7 @@ export const backend = {
   deleteFolder: (id: string) => command<void>("delete_folder", { id }),
   queue: () => command<Queue>("queue"),
   settings: () => command<Settings>("get_settings"),
+  configureSettingsMenu: (text: string, enabled: boolean) => command<void>("configure_settings_menu", { text, enabled }),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
   openSongsFolder: () => command<void>("open_songs_folder"),
   phoneAccess: () => command<import("./types").PhoneAccess>("phone_access_status"),

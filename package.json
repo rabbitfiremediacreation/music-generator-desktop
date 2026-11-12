@@ -1,11 +1,13 @@
 {
   "name": "music-generator-desktop",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tsc --noEmit && vite build && vite build --config vite.mobile.config.ts",
+    "dev:frontend": "vite",
+    "build": "tsc --noEmit && vite build && npm run build:mobile",
+    "build:mobile": "vite build --config vite.mobile.config.ts",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:desktop": "node --test scripts/desktop/*.test.mjs",

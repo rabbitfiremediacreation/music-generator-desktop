@@ -374,6 +374,9 @@ fn extract(
 }
 
 #[cfg(test)]
+mod space_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use zip::write::SimpleFileOptions;

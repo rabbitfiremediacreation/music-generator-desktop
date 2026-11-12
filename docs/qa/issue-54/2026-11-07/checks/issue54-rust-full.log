@@ -1,0 +1,194 @@
+   Compiling music-generator v0.1.3 (/Users/frank/.t3/worktrees/music-generator-desktop/codex-issue-54-lyrics-verification/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.53s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/music_generator-7d4cdcb9a0ba98a6)
+
+running 173 tests
+test audio_import::tests::native_selection_reads_supported_audio_and_bounds_memory ... ok
+test audio_import::tests::native_selection_rejects_a_fifo_without_waiting_for_a_writer ... ok
+test configuration::tests::mixed_settings_and_preference_write_failures_are_atomic ... ok
+test configuration::tests::an_aborted_setup_validation_releases_admission_without_losing_configuration ... ok
+test configuration::tests::cancellation_after_playback_authorization_still_preserves_the_library ... ok
+test configuration::tests::settings_authorization_failure_changes_neither_files_nor_other_settings ... ok
+test configuration::tests::cancellation_at_the_end_of_the_test_does_not_move_songs ... ok
+test configuration::tests::combined_preferences_roll_back_atomically_on_storage_failure ... ok
+test configuration::tests::denied_playback_access_leaves_the_old_folder_and_settings_intact ... ok
+test configuration::tests::cpu_decision_can_be_saved_together_with_regular_settings ... ok
+test configuration::tests::move_reports_byte_progress_and_can_cancel_inside_a_file ... ok
+test configuration::tests::an_aborted_settings_caller_does_not_release_an_inflight_commit ... ok
+test configuration::tests::cpu_decision_is_targeted_durable_and_editable_while_generating ... ok
+test cuda_runtime::tests::fresh_pinned_installation_fits_below_one_gib_including_reserve ... ok
+test download::tests::disk_space_boundary_and_diagnostics ... ok
+test engine::client::tests::timeout_includes_stage_rounded_minutes_and_settings_guidance ... ok
+test cuda_runtime::tests::preflight_accounts_for_fresh_resumed_and_cached_downloads ... ok
+test cuda_runtime::tests::duplicate_and_traversing_entries_are_rejected ... ok
+test engine::diagnostics::tests::missing_and_truncated_logs_and_direct_engine_errors_are_handled ... ok
+test engine::generation::tests::every_code_the_picker_offers_has_the_english_name_of_its_language ... ok
+test engine::generation::tests::length_is_only_judged_against_a_requested_duration ... ok
+test engine::generation::tests::missing_vocals_only_flags_an_unanswered_request_for_singing ... ok
+test engine::generation::tests::singing_is_what_stands_outside_the_section_markers ... ok
+test configuration::tests::device_changes_are_durable_and_rejected_during_engine_work ... ok
+test engine::generation::tests::temperature_is_capped_only_when_the_model_invents_the_lyrics ... ok
+test engine::generation::tests::vocal_language_is_spelled_out_for_the_prompt_and_handed_back_as_a_code ... ok
+test engine::manager::tests::timing_changes_keep_the_resident_engine_and_its_diagnostics ... ok
+test engine::manager::tests::changing_the_device_clears_the_old_backend_from_health ... ok
+test engine::diagnostics::tests::only_new_synthesis_lines_explain_failures ... ok
+test cuda_runtime::tests::installation_space_uses_actual_selected_entries_including_licenses ... ok
+test engine::manager::tests::healthy_servers_do_not_confirm_a_backend_until_models_execute ... ok
+test cuda_runtime::tests::extraction_copies_only_required_files_and_license ... ok
+test configuration::tests::move_preserves_partial_import_metadata_and_moves_only_available_audio ... ok
+test configuration::tests::legacy_dit_patch_cannot_activate_an_advanced_profile_without_expert_mode ... ok
+test cuda_runtime::tests::activation_requires_a_complete_matching_installation_and_a_local_path ... ok
+test hardware::tests::settings_and_admission_share_one_immutable_hardware_snapshot ... ok
+test cuda_runtime::tests::partial_failed_and_cancelled_installations_never_replace_active_runtime ... ok
+test launch_location::macos::tests::unknown_device_has_no_disk_image_classification ... ok
+test launch_location::tests::allows_regular_installations_and_writable_images ... ok
+test launch_location::tests::blocks_images_independently_of_volume_name_or_mount_directory ... ok
+test launch_location::tests::does_not_guess_when_metadata_is_missing_or_cyclic ... ok
+test launch_location::tests::follows_translocation_to_the_original_volume_without_blocking_copied_apps ... ok
+test mcp::bridge::headers::tests::encodes_names_that_cannot_roundtrip_as_plain_http_headers ... ok
+test mcp::bridge::tests::connection_file_cannot_redirect_bearer_token_outside_the_local_server ... ok
+test mcp::bridge::tests::event_stream_preserves_notifications_and_response ... ok
+test mcp::bridge::headers::tests::routes_tool_resource_and_discovery_requests ... ok
+test configuration::tests::settings_use_the_same_authorize_before_move_contract_as_setup ... ok
+test mcp::bridge::tests::input_is_line_framed_bounded_and_handles_eof ... ok
+test mcp::bridge::tests::partially_read_lines_survive_select_cancellation ... ok
+test configuration::tests::failed_or_cancelled_hardware_test_keeps_the_existing_library ... ok
+test mcp::library::generation::tests::cpu_choices_preserve_saved_behavior_and_never_raise_low_steps ... ok
+test configuration::tests::preference_writes_and_queue_admission_have_a_single_order ... ok
+test configuration::tests::setup_without_a_folder_change_preserves_queued_jobs ... ok
+test form_preferences::tests::active_generation_does_not_block_or_get_cancelled_by_preferences ... ok
+test configuration::tests::successful_setup_grants_playback_before_moving_and_saving ... ok
+test form_preferences::tests::new_preferences_cannot_persist_iterations_above_the_engine_limit ... ok
+test form_preferences::tests::saved_iteration_values_within_two_hundred_remain_unchanged ... ok
+test configuration::tests::sqlite_failure_rolls_back_copies_and_the_entire_settings_change ... ok
+test form_preferences::tests::missing_damaged_and_partially_invalid_values_use_defaults ... ok
+test form_preferences::tests::device_defaults_fill_only_missing_or_invalid_values ... ok
+test mcp::operations::tasks::tests::cancellation_is_scoped_and_does_not_rewrite_completed_results ... ok
+test mcp::operations::tasks::tests::result_retention_never_evicts_active_operations ... ok
+test form_preferences::tests::invalid_writes_do_not_replace_saved_preferences ... ok
+test mcp::operations::files::export_target::tests::explicit_overwrite_replaces_only_after_successful_staging ... ok
+test mcp::operations::files::export_target::tests::intervening_file_is_preserved_and_failed_staging_is_cleaned_up ... ok
+test form_preferences::tests::preferences_survive_reopening_and_unrelated_settings_writes ... ok
+test mcp::operations::tests::only_explicit_download_tools_advertise_network_side_effects ... ok
+test mcp::library::tests::cancel_never_deletes_completed_audio_and_prevents_late_completion ... ok
+test mcp::library::tests::deletion_rejects_pending_work_and_removes_only_explicit_terminal_song ... ok
+test mcp::library::tests::mutations_respect_configuration_and_cancellation_reaches_the_running_job ... ok
+test mcp::server::tests::resource_paths_are_explicit_and_never_arbitrary_files ... ok
+test mcp::operations::files::export_target::tests::app_data_and_library_are_not_export_destinations ... ok
+test mcp::operations::tests::exports_serialize_with_configuration_and_allow_queue_admission ... ok
+test mcp::library::tests::dispatch_requires_delete_confirmation_and_folder_removal_preserves_songs ... ok
+test mcp::server::tests::complete_catalog_has_valid_unique_strict_schemas ... ok
+test mcp::operations::tests::model_install_rejects_incomplete_setup_before_registering_a_job ... ok
+test mcp::settings::tests::disabled_default_and_environment_override_validation ... ok
+test mcp::operations::tests::analysis_errors_are_observable_and_release_the_runtime ... ok
+test mcp::server::tests::context_sections_and_operations_avoid_unrequested_work ... ok
+test mcp::library::tests::legacy_variants_preserve_vocals_and_caption_policy_without_overriding_explicit_flags ... ok
+test mcp::library::tests::generation_uses_studio_defaults_and_admission_then_variants_preserve_group ... ok
+test mcp::settings::tests::legacy_preferences_stay_local_and_generated_token_is_private_and_stable ... ok
+test mcp::library::tests::reduced_cpu_retry_preserves_original_request_and_creates_one_new_song ... ok
+test configuration::tests::invalid_settings_fail_before_authorization_or_side_effects ... ok
+test mcp::settings::tests::malformed_preferences_remain_disabled_with_visible_error ... ok
+test mcp::server::tests::model_selection_does_not_implicitly_start_a_download ... ok
+test mcp::surface::tests::cancellation_targets_remain_distinct_and_async_results_name_public_polling ... ok
+test mcp::server::tests::validation_rejects_unknown_fields_ranges_and_missing_confirmation ... ok
+test mcp::surface::tests::direct_song_poll_is_not_a_timeout_and_waited_shape_is_the_same ... ok
+test mcp::surface::tests::schemas_express_selective_context_and_broad_model_cancellation_effects ... ok
+test mcp::surface::tests::public_vocabulary_has_twenty_unique_tools_and_no_superseded_aliases ... ok
+test mcp::operations::tests::lyrics_export_returns_a_trackable_result_and_preserves_originals ... ok
+test mcp::surface::tests::variant_mapping_inherits_omitted_values_and_keeps_cpu_choice_outside_overrides ... ok
+test mcp::transport::tests::requires_token_and_direct_local_authority_without_browser_origin ... ok
+test mcp::transport::tests::token_configuration_rejects_weak_or_header_injecting_values ... ok
+test paths::tests::denied_folder_requires_authorization_but_remains_a_native_dialog_hint ... ok
+test mcp::transport::tests::credentials_are_private_and_shutdown_preserves_replacement ... ok
+test mcp::server::tests::unified_song_read_keeps_shape_and_cancel_never_deletes ... ok
+test paths::tests::directory_start_keeps_purposes_separate_and_resolves_new_input ... ok
+test phone_access::tests::cpu_iterations_follow_the_desktop_setting_without_a_dialog ... ok
+test mcp::settings::tests::environment_control_rejects_writes_and_stopped_requests_are_denied ... ok
+test mcp::settings::tests::disabling_mcp_rejects_an_authenticated_request_waiting_for_its_body ... ok
+test paths::tests::setup_checks_both_folders_without_creating_them ... ok
+test phone_access::tests::phone_requests_map_onto_desktop_generation ... ok
+test phone_access::tests::ranges_follow_rfc_7233 ... ok
+test phone_access::tests::keys_and_filenames_are_safe ... ok
+test form_preferences::tests::eighty_and_ninety_one_steps_survive_reopening_until_explicit_reset ... ok
+test mcp::settings::tests::failed_scope_widening_restores_previous_listener_settings_and_token ... ok
+test mcp::server::tests::sdk_roundtrip_controls_the_shared_library ... ok
+test mcp::library::tests::waiting_is_bounded_and_leaves_the_job_running ... ok
+test mcp::settings::tests::persistence_failure_does_not_replace_server_or_credentials ... ok
+test mcp::settings::tests::network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests ... FAILED
+test mcp::settings::tests::successful_port_change_preserves_new_credentials_after_old_server_finishes ... ok
+test mcp::settings::tests::fixed_port_disable_reenable_and_conflicts_preserve_working_connection ... ok
+test phone_access::web::tests::only_embedded_mobile_assets_are_available ... ok
+test phone_access::web::tests::shell_manifest_worker_and_assets_have_safe_headers ... ok
+test process_output::tests::captures_successful_output_and_rejects_failed_probes ... ok
+test phone_access::tls::tests::corrupt_ca_is_reported_without_replacing_the_installed_identity ... ok
+test process_output::tests::probe_fixture ... ignored, subprocess fixture for bounded startup probes
+test runtime::tests::blocking_work_keeps_exclusive_admission_after_its_caller_is_aborted ... ok
+test runtime::tests::cancellation_is_scoped_and_does_not_leak_into_the_next_job ... ok
+test mcp::transport::tests::http_client_controls_the_shared_library_and_enforces_access ... ok
+test runtime::tests::dropping_an_aborted_task_clears_its_operation_and_progress ... ok
+test runtime::tests::operations_exclude_each_other_and_release_on_error ... ok
+test runtime::tests::shutdown_cancels_active_work_and_rejects_new_and_waiting_operations ... ok
+test mcp::settings::tests::startup_removes_stale_credentials_and_reports_bind_failure_to_settings ... ok
+test mcp::settings::tests::live_changes_preserve_generation_and_restart_from_saved_preferences ... ok
+test phone_access::tests::audio_streams_with_ranges_and_downloads_as_attachment ... ok
+test startup::presentation::tests::a_ready_native_result_cannot_win_after_the_deadline ... ok
+test startup::presentation::tests::native_acknowledgement_precedes_main_readiness ... ok
+test process_output::tests::kills_and_reaps_a_slow_probe ... ok
+test startup::presentation::tests::a_controller_error_keeps_startup_recoverable ... ok
+test phone_access::tests::generation_and_analysis_report_desktop_errors_as_json ... ok
+test startup::presentation::tests::a_stalled_native_callback_times_out_without_acknowledging_main ... ok
+test startup::tests::blocked_completion_cannot_reveal_main_or_destroy_the_splash ... ok
+test startup::tests::blocked_prepare_returns_before_opening_data_or_creating_application_state ... ok
+test startup::tests::blocked_retry_cannot_reload_main_or_clear_the_installation_requirement ... ok
+test phone_access::tests::requests_need_the_current_key_and_stay_inside_the_api ... ok
+test phone_access::tls::tests::occupied_https_port_does_not_leave_http_access_enabled ... ok
+test phone_access::tests::switch_persists_and_reports_a_busy_port ... ok
+test startup::presentation::tests::queued_controller_work_cannot_touch_a_timed_out_or_replacement_attempt ... ok
+test startup::tests::diagnostic_log_identifies_the_process_once_before_any_handshake ... ok
+test startup::tests::completion_after_its_deadline_cannot_win_against_the_pending_timeout_task ... ok
+test startup::tests::early_frontend_failure_is_logged_before_the_splash_has_painted ... ok
+test startup::tests::snapshot_identifies_the_first_startup_attempt ... ok
+test startup::tests::splash_diagnostics_cannot_initialize_data_or_acknowledge_readiness ... ok
+test phone_access::tests::web_pairing_serves_only_public_assets_and_certificate ... ok
+test startup::tests::installed_start_can_complete_normally ... ok
+test startup_windows::tests::every_window_can_read_startup_status_as_soon_as_it_is_created ... ok
+test startup::tests::missing_main_frame_reports_a_failure_and_rejects_a_late_completion ... ok
+test setup::tests::invalid_folder_input_preserves_saved_configuration_without_starting_setup ... ok
+test startup_windows::tests::macos_window_overrides_preserve_managed_startup ... ok
+test phone_access::tests::switching_off_cancels_an_incomplete_upload ... ok
+test updates::tests::linux_updates_keep_the_installed_backend_when_both_assets_exist ... ok
+test updates::tests::update_links_are_limited_to_the_desktop_release_repository ... ok
+test updates::tests::updates_select_the_correct_architecture ... ok
+test windows::tests::windows_11_older_windows_and_invalid_output_do_not_match ... ok
+test windows::tests::windows_10_builds_with_update_revisions_need_runtime_permissions ... ok
+test synthesis_policy::tests::missing_runtime_is_unknown_and_never_assumed_gpu ... ok
+test startup::tests::manual_retry_runs_once_and_ignores_the_previous_attempts_messages_and_timer ... ok
+test startup::tests::manual_retry_does_not_reset_the_process_wide_automatic_retry_limit ... ok
+test startup::tests::automatic_splash_recovery_completes_the_original_prepare_after_a_new_paint ... ok
+test synthesis_policy::tests::model_recommendations_are_capped_only_for_cpu_or_unknown ... ok
+test startup::tests::splash_timeout_retries_once_then_reports_a_logged_recoverable_failure ... ok
+test phone_access::tls::tests::ca_and_fingerprint_persist_across_enabling_and_leaf_refresh ... ok
+test startup::tests::exports::startup_preserves_temporary_files_beyond_a_symlinked_export_directory ... ok
+test phone_access::tests::library_json_matches_the_web_app_contract ... ok
+test configuration::tests::expert_preference_can_change_during_engine_work_but_not_exclusive_operations ... ok
+test startup::tests::manual_retry_recovers_a_missing_handshake_with_a_fresh_splash_paint ... ok
+test startup::tests::exports::startup_cleans_stale_exports_before_publishing_state_and_never_sweeps_active_state ... ok
+test phone_access::tests::switching_off_interrupts_a_download_and_can_be_enabled_again ... ok
+test phone_access::tls::tests::https_requires_trust_and_the_current_key_and_stops_with_http ... ok
+test mcp::library::tests::pagination_reaches_beyond_the_ui_limit_and_combines_filters ... ok
+
+failures:
+
+---- mcp::settings::tests::network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests stdout ----
+
+thread 'mcp::settings::tests::network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests' (4316793) panicked at src/mcp/settings_tests.rs:586:10:
+called `Result::unwrap()` on an `Err` value: reqwest::Error { kind: Request, url: "http://10.90.0.0:57194/mcp", source: hyper_util::client::legacy::Error(Connect, ConnectError("tcp connect error", 10.90.0.0:57194, Os { code: 49, kind: AddrNotAvailable, message: "Can't assign requested address" })) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    mcp::settings::tests::network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests
+
+test result: FAILED. 171 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+error: test failed, to rerun pass `--lib`

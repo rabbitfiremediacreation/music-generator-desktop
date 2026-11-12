@@ -33,22 +33,25 @@ impl Startup {
         Err(message("Installation required"))
     }
 
-    /// Keep data initialization behind the splash handshake and reuse successful state on retry.
+    /// Gate initialization on the splash, reusing state on retry and after a frontend reload.
     pub async fn prepare<R: Runtime>(
         &self,
         app: &AppHandle<R>,
         attempt: u64,
     ) -> Result<Arc<AppState>> {
         self.require_allowed(app, attempt).await?;
-        self.ensure_active(attempt)?;
+        self.ensure_current(attempt)?;
         self.initialize_logging()?;
-        self.wait_for_splash(app, attempt).await?;
-        self.ensure_active(attempt)?;
+        if !self.is_ready() {
+            self.wait_for_splash(app, attempt).await?;
+        }
+        self.ensure_current(attempt)?;
         let _guard = self.initialization.lock().await;
-        self.ensure_active(attempt)?;
+        self.ensure_current(attempt)?;
         if let Some(state) = app.try_state::<Arc<AppState>>() {
             return Ok(state.inner().clone());
         }
+        self.ensure_active(attempt)?;
         self.report(app, attempt, "data", None);
         let root = self.root.clone();
         let resources = self.resources.clone();
@@ -74,21 +77,21 @@ impl Startup {
         if let Err(error) = crate::mcp::transport::start(state.clone(), app.clone()) {
             tracing::error!(%error, "MCP server could not start");
         }
-        self.ensure_active(attempt)?;
+        self.ensure_current(attempt)?;
         Ok(state)
     }
 
     async fn wait_for_splash<R: Runtime>(&self, app: &AppHandle<R>, attempt: u64) -> Result<()> {
         let mut painted = self.painted.subscribe();
         loop {
-            self.ensure_active(attempt)?;
+            self.ensure_current(attempt)?;
             let ready = tokio::time::timeout(
                 std::time::Duration::from_secs(15),
                 painted.wait_for(|ready| *ready == attempt || self.snapshot().attempt != attempt),
             )
             .await
             .map(|result| result.map(|_| ()));
-            self.ensure_active(attempt)?;
+            self.ensure_current(attempt)?;
             if let Ok(result) = ready {
                 result.map_err(|error| message(error.to_string()))?;
                 return Ok(());

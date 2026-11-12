@@ -4,8 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { createMemoryHistory } from "@tanstack/react-router";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
-import { setupFixture, standard } from "./setup/fixtures";
-import { setLang } from "../i18n.js";
+import { measuredBackend, setupFixture, standard } from "./setup/fixtures";
+import { setLang, t } from "../i18n.js";
+import source from "../../models/catalog.json";
 import type { PhoneAccess } from "../types";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
@@ -25,6 +26,8 @@ beforeEach(()=>{
     if(name==="generation_policy")return {backend:"cpu",cpu_iteration_behavior:"ask",recommended_steps:30,defaults:{duration:90,bpm:0,inference_steps:30,lm_temperature:1.2,variants:2}};
     if(name==="get_generation_form_preferences")return {duration:90,bpm:0,inference_steps:30,lm_temperature:1.2,variants:2};
     if(name==="setup_estimate")return {missing_bytes:0,free_bytes:1000000};
+    if(name==="setup_models")return {ok:true,mode:"single",backend_status:measuredBackend};
+    if(name==="model_catalog")return {...source,selection:standard,expert_mode:false,recommended_profiles:[standard],hardware:setupFixture.hardware,free_bytes:null,models_dir:"/models",busy:false,title_model:{...setupFixture.title_model,verified:true,present:true,partial_bytes:0},models:source.models.map(model=>({...model,verified:true,present:true,partial_bytes:0}))};
     if(name==="list_songs")return [];
     if(name==="list_folders")return {folders:[],all:0,none:0};
     if(name==="queue")return {running:[],queued:0,active:false,progress:null,library:{count:0,bytes:0}};
@@ -97,11 +100,72 @@ it("keeps a studio draft when visiting setup and returning",async()=>{
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).disabled).toBe(false));
   fireEvent.change(prompt,{target:{value:"keep this idea"}});
   fireEvent.click(screen.getByRole("button",{name:"Settings"}));
-  fireEvent.click(await screen.findByRole("button",{name:"Reopen setup wizard…"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Models and hardware"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Hardware test in setup wizard…"}));
   await screen.findByRole("heading",{name:"Welcome to Music Generator"});
   fireEvent.click(screen.getByRole("button",{name:"Back to studio"}));
   await waitFor(()=>expect((screen.getByRole("textbox",{name:"Prompt"}) as HTMLTextAreaElement).value).toBe("keep this idea"));
   expect(mocks.invoke.mock.calls.filter(([name])=>name==="bootstrap")).toHaveLength(1);
+});
+
+it("opens the creator model chooser directly on the settings models page", async () => {
+  firstRun=false; await mount();
+  fireEvent.click(await screen.findByRole("button",{name:t("picker_choose")}));
+  expect(await screen.findByRole("dialog",{name:t("settings_title")})).toBeTruthy();
+  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(screen.queryByRole("searchbox",{name:t("browser_search")})).toBeNull();
+  expect(screen.getByRole("button",{name:t("settings_page_models")}).getAttribute("aria-current")).toBe("page");
+  expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
+});
+
+it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten …"], ["en", "Models and hardware", "Hardware test in setup wizard…"]])("opens model management before explicitly running the existing hardware test in %s", async (language, entry, action) => {
+  setLang(language); firstRun=false;
+  const router=await mount();
+  const prompt=await screen.findByRole("textbox",{name:t("prompt")});
+  await waitFor(()=>expect((prompt as HTMLTextAreaElement).disabled).toBe(false));
+  fireEvent.change(prompt,{target:{value:"keep this idea"}});
+  fireEvent.click(screen.getByRole("button",{name:t("settings_title")}));
+  fireEvent.click(await screen.findByRole("button",{name:entry}));
+  const dialog=await screen.findByRole("dialog",{name:t("settings_title")});
+  expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
+  expect(router.state.location.pathname).toBe("/studio");
+  await screen.findByRole("table");
+  expect(mocks.invoke.mock.calls.some(([name])=>["setup_models","use_models","select_models"].includes(name))).toBe(false);
+  const testButton=screen.getByRole("button",{name:action});
+  expect(document.getElementById(testButton.getAttribute("aria-describedby")!)?.textContent).toBe(t("desktop_manage_hint"));
+  fireEvent.click(testButton);
+  await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));
+  expect(dialog.isConnected).toBe(false);
+  for(let step=0;step<2;step++){
+    const next=screen.getByRole("button",{name:t("setup_next")}) as HTMLButtonElement;
+    await waitFor(()=>expect(next.disabled).toBe(false));
+    fireEvent.click(next);
+  }
+  const start=screen.getByRole("button",{name:t("desktop_start")}) as HTMLButtonElement;
+  await waitFor(()=>expect(start.disabled).toBe(false));
+  expect(mocks.invoke.mock.calls.filter(([name])=>name==="setup_models")).toHaveLength(0);
+  fireEvent.click(start);
+  await screen.findByRole("heading",{name:t("backend_setup_result")});
+  expect(mocks.invoke.mock.calls.filter(([name])=>name==="setup_models")).toEqual([["setup_models",{request:{models_dir:"/models",songs_dir:"/songs",lm:"1.7B",xl:false}}]]);
+  fireEvent.click(screen.getByRole("button",{name:t("backend_enter_studio")}));
+  await waitFor(()=>expect(router.state.location.pathname).toBe("/studio"));
+  expect((screen.getByRole("textbox",{name:t("prompt")}) as HTMLTextAreaElement).value).toBe("keep this idea");
+});
+
+it.each(["pending", "failed"])("keeps setup reachable when the model catalog is %s", async status => {
+  firstRun=false;
+  const original=mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name,args)=>name==="model_catalog"
+    ? status==="pending" ? new Promise(()=>{}) : Promise.reject(new Error("catalog unavailable"))
+    : original(name,args));
+  const router=await mount();
+  fireEvent.click(await screen.findByRole("button",{name:"Settings"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Models and hardware"}));
+  await screen.findByRole("dialog",{name:"Settings"});
+  if(status==="failed")await screen.findByText("catalog unavailable");
+  fireEvent.click(screen.getByRole("button",{name:"Hardware test in setup wizard…"}));
+  await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));
+  expect(mocks.invoke.mock.calls.some(([name])=>name==="setup_models")).toBe(false);
 });
 
 it("can reapply the same song twice even when the system clock has not advanced",async()=>{

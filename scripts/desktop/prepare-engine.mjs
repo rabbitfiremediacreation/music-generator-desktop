@@ -9,6 +9,7 @@ import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
 import { checkoutEngineSource } from "./engine-source.mjs";
 import { prepareWindowsEngine } from "./prepare-windows-engine.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
+import { verifyRegistryContract } from "./registry-contract.mjs";
 import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, target, verifyEngine } from "./common.mjs";
 
 export const engineFolder = path.join(root, "src-tauri/resources/engine");
@@ -35,6 +36,7 @@ export async function prepareEngine() {
       if (target.backend === "cuda") options.push(...await cudaBuildOptions());
       await run("cmake", ["-S", sourceDir, "-B", built, "-DCMAKE_BUILD_TYPE=Release", ...options]);
       await run("cmake", ["--build", built, "--config", "Release", "-j", "2"]);
+      await verifyRegistryContract(path.join(built,"desktop-registry-test"));
       for (const file of await files(sourceDir)) if (/^(LICENSE|COPYING)/i.test(path.basename(file))) await cp(file, path.join(built, `LICENSE-${path.relative(sourceDir,file).replaceAll(path.sep,"-")}`));
     } else {
       built = await prepareWindowsEngine(cache, work, source);
@@ -44,7 +46,7 @@ export async function prepareEngine() {
     // Preserve the complete runtime directory, including dynamically loaded GPU backends.
     for (const file of await files(built)) {
       const relative = path.relative(built, file);
-      if (relative.split(path.sep).some((p) => p === "CMakeFiles" || p === "_deps") || /\.(o|a|obj|pdb|lib)$/.test(file)) continue;
+      if (relative.split(path.sep).some((p) => p === "CMakeFiles" || p === "_deps") || /\.(o|a|obj|pdb|lib)$/.test(file) || path.basename(file) === "desktop-registry-test") continue;
       const dest = path.join(engineFolder, relative); await mkdir(path.dirname(dest), { recursive: true }); await cp(file, dest, { dereference: true });
       if (platform === "linux" && /\.so(?:\.\d+)*$/.test(file) && path.dirname(dest) !== engineFolder) await cp(file, path.join(engineFolder,path.basename(file)), { dereference: true });
     }

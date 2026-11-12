@@ -58,7 +58,7 @@ it("only applies recommended iterations after an explicit click for the active m
   expect(recommended).not.toHaveBeenCalled();
   fireEvent.click(button);
   await waitFor(() => expect(recommended).toHaveBeenCalledWith(30));
-  fireEvent.change(within(dialog).getByRole("combobox", { name: "Klangmodell" }), { target: { value: xl.synthesis } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "XL SFT" }));
   fireEvent.click(button);
   expect(await within(dialog).findByText("Bitte diese Auswahl zuerst verwenden.")).toBeTruthy();
   expect(recommended).toHaveBeenCalledOnce();
@@ -70,7 +70,8 @@ it("preserves a later original-profile intent after a closed dialog installs ano
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation((name, args) => name === "use_models" ? new Promise(resolve => { finish = resolve; }) : name === "get_settings" ? Promise.resolve(settings) : invoke(name, args));
   mountControls(); const dialog = await open();
-  fireEvent.change(await within(dialog).findByRole("combobox", { name: "Klangmodell" }), { target: { value: xl.synthesis } });
+  await within(dialog).findByRole("combobox", { name: "Klangmodell" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "XL SFT" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "Auswahl verwenden" }));
   await waitFor(() => expect(typeof finish).toBe("function"));
   fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
@@ -87,7 +88,7 @@ it.each(["draft","song","close"] as const)("ignores a delayed recommendation aft
   const view=mountControls(recommended);const dialog=await open();
   fireEvent.click(await within(dialog).findByRole("button",{name:"Empfohlene Iterationen übernehmen"}));
   await waitFor(()=>expect(finish).toBeTypeOf("function"));
-  if(change==="draft")fireEvent.change(within(dialog).getByRole("combobox",{name:"Klangmodell"}),{target:{value:xl.synthesis}});
+  if(change==="draft")fireEvent.click(within(dialog).getByRole("button",{name:"XL SFT"}));
   else if(change==="song")fireEvent.click(screen.getByRole("button",{name:"Restore song"}));
   else fireEvent.click(within(dialog).getByRole("button",{name:"Schließen"}));
   await act(async()=>finish({recommended_steps:80}));
@@ -110,7 +111,8 @@ it("shows download progress and allows cancellation without changing the durable
   await waitFor(() => expect(typeof fail).toBe("function"));
   act(() => handlers.get("model-download-progress")!({ payload: { file: "weights.gguf", phase: "downloading", downloaded: 1, total: 2, bytes_per_second: 0 } }));
   expect(await within(dialog).findByText(/weights.gguf/)).toBeTruthy();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+  expect((within(dialog).getByRole("button", { name: "Hardwaretest im Einrichtungsassistenten …" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Download abbrechen" }));
   expect(await within(dialog).findByRole("alert")).toBeTruthy();
   expect(screen.getByLabelText("selection").textContent).toBe("acestep-v15-sft-Q8_0.gguf");
 });
