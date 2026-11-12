@@ -1,0 +1,11 @@
+{
+  "bpm": 110,
+  "caption": "synthwave, retro pop, layered female vocals, analog synths, driving bass, wide reverb",
+  "duration": 120,
+  "inference_steps": 5,
+  "lm_temperature": 1.2,
+  "lyrics": "",
+  "seed": 12345,
+  "use_cot_caption": true,
+  "vocal_language": "en"
+}

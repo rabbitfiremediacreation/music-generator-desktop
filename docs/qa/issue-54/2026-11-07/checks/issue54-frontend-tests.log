@@ -1,0 +1,18 @@
+
+> music-generator-desktop@0.1.3 test
+> vitest run
+
+
+ RUN  v5.0.5 /Users/frank/.t3/worktrees/music-generator-desktop/codex-issue-54-lyrics-verification/frontend
+
+(node:15235) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  52 passed (52)
+      Tests  466 passed (466)
+   Start at  16:58:35
+   Duration  4.43s (tests 47%, environment 25%, transform 15%, import 12%)
+
+    Isolate  52 workers spawned · ~239ms startup each (spawn + environment, per file)
+             at least ~492ms faster with isolate: false — reuses workers across files instead of one per file
+

@@ -1,0 +1,60 @@
+
+> music-generator-desktop@0.1.3 test:desktop
+> node --test scripts/desktop/*.test.mjs
+
+✔ native runtime cache keeps both Linux backends and Mac architectures separate (6.128959ms)
+✔ cross-release cache rejects expired, failed, foreign and unrelated workflow artifacts (0.401ms)
+✔ keeps engine patches usable in Windows Git checkouts (99.591625ms)
+▶ portable Linux runtime
+  ✔ locates shared CUDA libraries from the engine, title helper and nested backends (0.29625ms)
+  ✔ rejects missing libraries, driver stubs and reliance on the builder's CUDA installation (0.589292ms)
+  ✔ copies only redistributable runtime SONAMEs and their licenses (7.645333ms)
+✔ portable Linux runtime (9.484375ms)
+✔ derives import names from native DLL exports without copying ordinals or forwarded destinations (0.8435ms)
+✔ rejects missing or incompatible DLL exports instead of building an unverified import library (0.497042ms)
+✔ rejects a cached engine from the other Linux variant or an older build recipe (16.695875ms)
+✔ rejects the old Windows iteration limit even when target and file hashes match (3.67125ms)
+✔ publishes exactly the expected macos-arm64 files, including checksums (8.307875ms)
+✔ publishes exactly the expected macos-x64 files, including checksums (3.5655ms)
+✔ publishes exactly the expected windows-x64 files, including checksums (3.081459ms)
+✔ publishes exactly the expected linux-x64 files, including checksums (2.237ms)
+✔ publishes exactly the expected linux-x64-cuda files, including checksums (1.989084ms)
+✔ platform asset sets contain eight distinct bundles and eight checksums (0.630042ms)
+✔ requires both the portable ZIP and MSI before publishing Windows (2.39425ms)
+✔ requires matching npm, Cargo and Tauri versions and an exact v-prefixed tag (0.651958ms)
+✔ rejects missing, unexpected and corrupt files before contacting GitHub (8.483708ms)
+✔ rejects directories and symlinks masquerading as release assets (4.389417ms)
+Already uploaded: Music-Generator-0.1.0-windows-x64.zip
+Already uploaded: Music-Generator-0.1.0-windows-x64.zip.sha256
+Already uploaded: Music-Generator-0.1.0-windows-x64.msi
+Already uploaded: Music-Generator-0.1.0-windows-x64.msi.sha256
+✔ skips identical assets and preserves unrelated platforms (2.640625ms)
+Already uploaded: Music-Generator-0.1.0-windows-x64.zip
+Already uploaded: Music-Generator-0.1.0-windows-x64.zip.sha256
+Already uploaded: Music-Generator-0.1.0-windows-x64.msi
+Already uploaded: Music-Generator-0.1.0-windows-x64.msi.sha256
+✔ hashes existing assets when GitHub has no digest (2.799959ms)
+✔ a conflicting existing checksum blocks every upload, including missing bundles (2.310833ms)
+Already uploaded: Music-Generator-0.1.0-macos-arm64.dmg
+✔ retries a partial upload without overwriting its successful files (3.53675ms)
+✔ rejects drafts and an unexpected release tag before uploading (2.479834ms)
+▶ native desktop engine targets
+  ✔ builds a portable Intel CPU engine with the same deployment target as its app (0.333375ms)
+  ✔ targets macOS Sonoma on Apple Silicon with Metal acceleration (0.053875ms)
+  ✔ rejects unsupported architectures (0.08475ms)
+  ✔ keeps the default app bundle minimum aligned with its Apple Silicon engine (1.372958ms)
+  ✔ can fingerprint every engine build input, including the compatibility patch (1.180167ms)
+  ✔ keeps the existing Vulkan artifact and excludes CUDA from its engines (0.121167ms)
+  ✔ builds a separate CUDA artifact without requiring a GPU on the build host (0.069833ms)
+  ✔ rejects an unknown Linux backend rather than reusing the Vulkan cache (0.04925ms)
+✔ native desktop engine targets (4.158459ms)
+✔ MSI paths with spaces use Windows Installer property quoting (1.059833ms)
+﹣ Windows Installer accepts the spaced-path command line without opening a help dialog (0.077333ms) # SKIP
+ℹ tests 35
+ℹ suites 2
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 182.517292
