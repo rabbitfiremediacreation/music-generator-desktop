@@ -4,11 +4,12 @@ Bezug: https://github.com/rabbitfiremediacreation/music-generator-desktop/issues
 
 ## Befund und Stand
 
-Geprüfte Basis: GitHub-`main` und Worktree am 7. November 2026,
-`aa151677f7d36b43d7c0a8203b12e313bd479e16`. Der Ausgangsstand war sauber.
+Erstfassung: Basis `aa151677f7d36b43d7c0a8203b12e313bd479e16`, Kandidat `701e0b2`.
 Alle zwölf Issue-Kommentare einschließlich ihrer Berichtigungen wurden gelesen.
-Der Restfehler ist weiterhin offen; diese Änderung ist ein lokal geprüfter
-Workaround-Kandidat. Die Windows-/GTX-1060-Hardwareabnahme steht aus.
+Am 12. November 2026 wurde `main` (`c982d54`) einschließlich seiner
+Frontend-Reload-Unterstützung in den PR integriert. Die Nachkorrektur behandelt
+die im Hardwaretest der Erstfassung gemeldeten Fokus- und Minimierungsregressionen.
+Die Nachkorrektur muss auf dem betroffenen Windows-/GTX-1060-Rechner erneut geprüft werden.
 
 - Der Vergleich von 0.1.2 mit #61 hat zwei Fehler vermischt. Das Rennen um den
   registrierten Startup-Zustand wurde durch #49 behoben. Die korrigierte Reihe
@@ -28,7 +29,15 @@ Workaround-Kandidat. Die Windows-/GTX-1060-Hardwareabnahme steht aus.
   23 von 23 schwarzen Starts:
   [letzter Testbericht](https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/53#issuecomment-6585427726).
 
-Diese Messungen stammen aus der Issue-Diskussion, nicht aus einer lokalen
+Der [Hardwarebericht zu PR #83](https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/83#issuecomment-6712328902)
+vergleicht je 50 abwechselnde Starts auf Windows 10 / GTX 1060: acht Schwarzbilder
+mit `aa15167`, keines mit `701e0b2`. Allerdings blieb das PR-Fenster bei allen
+40 normalen Starts im Hintergrund, und schnelles Minimieren löste in einer
+gezielten Zusatzreihe 7 Startfehler bei 22 Versuchen aus. Die Reihe nutzte dieselben
+App-Daten und konnte normale gespeicherte Fenstergröße nicht tatsächlich testen;
+MSI, frisches Setup, zweite Monitore/DPI und echte Benutzereingaben blieben offen.
+
+Diese Messungen stammen aus den verlinkten Berichten, nicht aus einer lokalen
 Hardwareprüfung dieser Änderung. Die Ursache im Windows-/WebView2-Compositing
 ist weiterhin unbekannt.
 
@@ -41,19 +50,33 @@ höchstens einmal pro Versuch ein nativer Sichtbarkeitszyklus ausgeführt:
 
 1. Auf dem UI-Thread Sichtbarkeit, Minimierung und aktuellen Zustand prüfen.
    Ein bereits minimiertes oder verborgenes Fenster bleibt unverändert.
-2. Das sichtbare Haupt-HWND mit `SW_HIDE` verbergen.
+2. Nur wenn das Hauptfenster aktuell im Vordergrund ist, seine Aktivierung mit
+   `SetActiveWindow` an das sichtbare eigene Splash übergeben. Danach das
+   Haupt-HWND mit `SW_HIDE` verbergen. Windows darf dadurch nicht mehr selbst
+   irgendein nächstes Fenster als unbeständige Aktivierungsreferenz auswählen.
+   Ist das Hauptfenster im Hintergrund, findet keine Aktivierungsübergabe statt.
+   Eine während `SW_HIDE` erfolgte Minimierung wird erneut geprüft und als
+   übersprungene Korrektur behandelt; eine nötigenfalls verborgene Taskleisten-
+   Repräsentation wird nur minimiert und ohne Aktivierung wieder sichtbar gemacht.
 3. Asynchron 800 ms warten. Diese Dauer entspricht dem dokumentierten externen
    Heilversuch; sie ist keine nachgewiesene Mindestdauer. Der UI-Thread bleibt frei.
-4. Auf dem UI-Thread wieder zeigen. `SW_SHOWNA` erhält die aktuelle Position,
-   Größe und Maximierung ohne Aktivierung. War das Hauptfenster vorher im
-   Vordergrund, wird `SW_SHOW` nur angefordert, wenn seit dem Verbergen weder
-   weitere Eingabe noch ein weiterer Vordergrundwechsel beobachtet wurde.
-   Unbekannter Eingabestatus erlaubt keine Aktivierung. Eine inzwischen erfolgte
-   Minimierung bleibt mit `SW_SHOWMINNOACTIVE` erhalten.
+4. Auf dem UI-Thread mit `SW_SHOWNA` wieder zeigen; Position, Größe und
+   Maximierung bleiben erhalten. Nur wenn die Aktivierung tatsächlich an unser
+   Splash übergeben wurde und dieses weiterhin im Vordergrund ist, wird über
+   das reguläre `SetForegroundWindow` die Aktivierung an das Hauptfenster
+   zurückgegeben. Eine andere Vordergrund-App, fehlgeschlagene Übergabe oder
+   inzwischen erfolgte Minimierung verhindert das. Pointerbewegungen allein
+   lassen die Aktivierungsabsicht unverändert. `GetLastInputInfo` und dessen
+   unbeständiger Zeitstempel werden hierfür nicht mehr verwendet.
+   Minimierte Fenster bleiben mit `SW_SHOWMINNOACTIVE` minimiert.
 5. Erst nach der nativen Rückmeldung den bisherigen `ready`-Übergang ausführen
    und das Splash zerstören.
 
-Die Show-Modi folgen der [Microsoft-Dokumentation zu ShowWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow).
+Die Show-Modi folgen der [ShowWindow-Dokumentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow).
+[`SetActiveWindow`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setactivewindow)
+aktiviert eine Hintergrundanwendung nicht im Vordergrund; die Rückgabe verwendet
+[`SetForegroundWindow`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow)
+ohne Umgehung der Windows-Aktivierungsregeln.
 
 Es gibt keinen Größen-, Maximierungs- oder `SW_RESTORE`-Eingriff und keinen
 Controller-Bounds-Schreibzugriff. Insbesondere werden die kleinen Clientmaße
@@ -93,18 +116,21 @@ Main presentation requested ...
 Main presentation completed; awaiting frontend frames ...
 Main frontend frames acknowledged; pixels unverified ...
 Native presentation stage=before_hide visible=... minimized=... maximized=... foreground=... outer_ok=... outer=... client_ok=... client=... ...
+Native presentation focus_handoff was_foreground=... splash_available=... handoff_active=... foreground_splash=... ...
 Native presentation stage=hidden ...
 Native presentation stage=shown ...
-Native presentation completed activation_requested=...; pixels unverified ...
+Native presentation completed activation_requested=... activation_succeeded=...; pixels unverified ...
 ```
 
 Bei übersprungener Korrektur steht nach `before_hide`:
-`Native presentation skipped: minimized or hidden`. Alle Einträge enthalten PID,
+`Native presentation skipped: minimized or hidden`. Bei einer während des
+Verbergens erfolgten Minimierung erscheinen `stage=minimized_during_hide` und
+`Native presentation skipped: minimized during hide`. Alle Einträge enthalten PID,
 Versuch und Laufzeit. Rechteckabfragen haben eigene Erfolgsfelder; ein positives
 API-Ergebnis wird ausdrücklich nicht als Heilung des Schwarzbilds ausgegeben.
 Die alten `WebView2 presentation visible=...`-Einträge entfallen.
 
-## Lokale Prüfung
+## Prüfung der Erstfassung `701e0b2`
 
 System: macOS/arm64, Rust 1.99.1, Node 26.12.0. Automatisierte Tests verwenden
 Temp-Verzeichnisse und Mock-/Testdaten. Es wurde keine installierte App mit
@@ -136,10 +162,40 @@ Die Rust-Standardbibliothek wurde dafür mit `-Z build-std=std,panic_abort` geba
 Das prüft native API-Typen und Callback-Lebensdauern, ersetzt aber weder einen
 vollständigen Windows-App-/Paketbuild noch das Ausführen der Windows-Tests.
 
-Die neuen Windows-Tests erzeugen eigene User32-HWNDs und prüfen normale und
+Die Windows-Tests der Erstfassung erzeugen eigene User32-HWNDs und prüfen normale und
 maximierte Fensterplatzierung, das Auslassen minimierter Fenster und Minimierung
 zwischen Verbergen und Zeigen. Sie sind hier nur kompiliert, nicht ausgeführt.
 Keine lokale Windows-/GPU-Abnahme, kein Nachweis gegen schwarze Pixel.
+
+## Nachkorrektur vom 12. November 2026
+
+Die Nachkorrektur integriert `main c982d54` und behält insbesondere idempotente
+Fertigmeldungen nach einem Frontend-Reload bei. Die Korrektur darf bei einem
+Reload keinen zweiten HWND-Zyklus ausführen. Ein bestehender PR-Test erwartet
+nun entsprechend dem neuen Vertrag eine erfolgreiche wiederholte Fertigmeldung,
+prüft aber weiterhin genau eine Präsentation und verwirft veraltete UI-Aufrufe.
+
+Zusätzliche Regressionen decken die Aktivierungsentscheidung und einen nativen
+User32-Reentranzfall ab: Beim Verbergen wird aus `WM_WINDOWPOSCHANGED` minimiert,
+bevor `ShowWindow(SW_HIDE)` zurückkehrt. Der Test verlangt danach Erfolg mit
+übersprungener Korrektur sowie ein sichtbares, minimiertes HWND mit unveränderter
+normaler Fensterplatzierung. Ein weiterer nativer Test prüft die Aktivierungs-
+übergabe an ein eigenes Splash und dass Hintergrundstarts sie unterlassen.
+Alle erzeugten HWNDs und Verzeichnisse gehören ausschließlich den Tests.
+
+Lokale Prüfung der Nachkorrektur (macOS/arm64):
+
+- Frontend-Build und ESLint erfolgreich; 517 Frontend-Tests bestanden.
+- Desktop-Skripte: 34 bestanden, ein Windows-spezifischer Test übersprungen.
+- 33 Startup-/Reload-Tests sowie insgesamt 331 Rust-Tests bestanden. Der bereits
+  bekannte LAN-Adapter-Test wurde wie oben beschrieben ausgelassen; zwei bereits
+  ignorierte Tests bleiben ignoriert. Die übrige Suite lief mit erlaubten lokalen
+  Ports und isolierten temporären Daten.
+- Rustfmt und Clippy (`--all-targets -- -D warnings`) erfolgreich.
+
+Die lokalen Startup-/Reload-Tests und die neue Windows-API-Cross-Compile-Prüfung
+ersetzen keine Wiederholung der Hardware-Startreihe. Die folgenden Punkte müssen
+mit dem neuen PR-Artefakt erneut geprüft werden.
 
 ## Noch nötige Windows-Abnahme
 
@@ -157,8 +213,12 @@ getrennt auswerten. Keine kausale Aussage aus einem einzelnen erfolgreichen Star
 3. Zehn Starts mit über die Oberfläche gespeichertem maximiertem Fenster.
 4. Zehn Starts mit gespeichertem normalem Fenster; bei Bedarf zweiter Monitor/DPI.
 5. Fünf Starts mit Startmenü/anderer App im Vordergrund, insbesondere während des
-   verborgenen Intervalls. Kein Zurückholen gegen die Benutzerwahl erwarten.
+   verborgenen Intervalls. Kein Zurückholen gegen die Benutzerwahl erwarten. Zusätzlich während des
+   verborgenen Intervalls nur den Pointer bewegen: Ohne Vordergrundwechsel soll
+   die App nach dem Einblenden weiterhin aktiv sein.
 6. Fünf Starts mit Minimierung vor der Korrektur beziehungsweise während des Starts.
+   Die im Bericht verwendete schnelle Minimierung etwa 30 ms nach `before_hide`
+   zusätzlich gezielt wiederholen und Startfehler getrennt von Schwarzbildern zählen.
    Keine automatische Wiederherstellung erwarten; anschließend manuell wiederherstellen.
 
 Pro Start tatsächliches sichtbares, bedienbares Studio/Setup, Schwarz-/Weißbild,
@@ -167,6 +227,6 @@ Fensterzustand, Fokus und Dauer erfassen. Bei Fehler zuerst Screenshot und Log a
 Vor und nach normalem/maximiertem Start Position, Größe und gespeicherten Zustand
 vergleichen. Ein Song mit Export dient danach als Funktionsprobe.
 
-Der Kandidat bleibt bis zu dieser Prüfung unbestätigt. Insbesondere sind Wirksamkeit
+Die Nachkorrektur bleibt bis zu dieser erneuten Prüfung unbestätigt. Insbesondere sind Wirksamkeit
 auf der GTX 1060, Fokusverhalten bei echter Benutzereingabe, Mehrmonitor/DPI,
 User32-Laufzeittests und Windows-Paketbuild hier noch offen.

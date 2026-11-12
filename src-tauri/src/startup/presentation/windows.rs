@@ -1,15 +1,14 @@
 use super::{recovery, *};
 use ::windows::Win32::{
     Foundation::{HWND, RECT},
-    UI::{
-        Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO},
-        WindowsAndMessaging::{
-            GetClientRect, GetForegroundWindow, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed,
-            ShowWindow, SW_HIDE, SW_SHOW, SW_SHOWMINNOACTIVE, SW_SHOWNA,
-        },
+    UI::WindowsAndMessaging::{
+        GetClientRect, GetForegroundWindow, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed,
+        ShowWindow, SW_HIDE, SW_SHOWMINNOACTIVE, SW_SHOWNA,
     },
 };
 use tokio::sync::oneshot;
+
+mod focus;
 
 /// Cycle the top-level HWND once after frontend frames, without blocking its UI pump.
 /// Controller visibility, focus and resize alone did not repair issue #53.
@@ -17,9 +16,11 @@ pub(in crate::startup) async fn synchronize<R: Runtime>(
     window: &WebviewWindow<R>,
     attempt: u64,
 ) -> Result<()> {
+    let splash = window.app_handle().get_webview_window("splash");
     recovery::cycle(
         on_ui(window, attempt, move |hwnd, startup| {
-            hide(hwnd, startup, attempt)
+            let splash = splash.and_then(|window| window.hwnd().ok());
+            hide(hwnd, splash, startup, attempt)
         }),
         |activation| {
             on_ui(window, attempt, move |hwnd, startup| {
@@ -30,7 +31,12 @@ pub(in crate::startup) async fn synchronize<R: Runtime>(
     .await
 }
 
-fn hide(hwnd: HWND, startup: &Startup, attempt: u64) -> Result<Option<recovery::Activation>> {
+fn hide(
+    hwnd: HWND,
+    splash: Option<HWND>,
+    startup: &Startup,
+    attempt: u64,
+) -> Result<Option<recovery::Activation>> {
     diagnose(startup, attempt, hwnd, "before_hide");
     unsafe {
         if IsIconic(hwnd).as_bool() || !IsWindowVisible(hwnd).as_bool() {
@@ -39,18 +45,32 @@ fn hide(hwnd: HWND, startup: &Startup, attempt: u64) -> Result<Option<recovery::
             return Ok(None);
         }
         let was_foreground = GetForegroundWindow() == hwnd;
-        let input = last_input();
+        let activation = focus::handoff(splash, was_foreground);
+        let _ = startup.log_diagnostic(attempt, &format!(
+            "Native presentation focus_handoff was_foreground={was_foreground} splash_available={} handoff_active={} foreground_splash={}",
+            splash.is_some(), activation.temporary_foreground != 0,
+            splash.is_some_and(|splash| GetForegroundWindow() == splash),
+        ));
         // ShowWindow returns previous visibility, not success/failure.
         let _ = ShowWindow(hwnd, SW_HIDE);
+        // A minimize can re-enter User32 while ShowWindow is hiding the HWND.
+        // Keep its taskbar entry visible without restoring or activating it.
+        if IsIconic(hwnd).as_bool() {
+            if !IsWindowVisible(hwnd).as_bool() {
+                let _ = ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+            }
+            diagnose(startup, attempt, hwnd, "minimized_during_hide");
+            let _ = startup.log_diagnostic(
+                attempt,
+                "Native presentation skipped: minimized during hide",
+            );
+            return Ok(None);
+        }
         if IsWindowVisible(hwnd).as_bool() {
             return Err(message("Native presentation failed to hide main window"));
         }
         diagnose(startup, attempt, hwnd, "hidden");
-        Ok(Some(recovery::Activation {
-            was_foreground,
-            foreground_after_hide: GetForegroundWindow().0 as usize,
-            last_input: input,
-        }))
+        Ok(Some(activation))
     }
 }
 
@@ -62,30 +82,26 @@ fn show(
 ) -> Result<()> {
     unsafe {
         let minimized = IsIconic(hwnd).as_bool();
-        let activate =
-            !minimized && activation.may_restore(GetForegroundWindow().0 as usize, last_input());
-        let mut activation_requested = false;
         // SW_SHOWNA preserves the current normal/maximized placement. Do not
         // use SW_RESTORE or SW_SHOWNORMAL, or copy iconic client bounds to WebView2.
         if !IsWindowVisible(hwnd).as_bool() {
-            activation_requested = activate;
             let command = if minimized {
                 SW_SHOWMINNOACTIVE
-            } else if activate {
-                SW_SHOW
             } else {
                 SW_SHOWNA
             };
             let _ = ShowWindow(hwnd, command);
         }
-        diagnose(startup, attempt, hwnd, "shown");
         if !IsWindowVisible(hwnd).as_bool() {
             return Err(message("Native presentation failed to show main window"));
         }
+        let restored = focus::restore(hwnd, &activation);
+        diagnose(startup, attempt, hwnd, "shown");
         let _ = startup.log_diagnostic(
             attempt,
             &format!(
-                "Native presentation completed activation_requested={activation_requested}; pixels unverified"
+                "Native presentation completed activation_requested={} activation_succeeded={}; pixels unverified",
+                restored.is_some(), restored.unwrap_or(false),
             ),
         );
         Ok(())
@@ -112,18 +128,6 @@ async fn on_ui<R: Runtime, T: Send + 'static>(
     receive
         .await
         .map_err(|_| message("Native presentation callback was dropped"))?
-}
-
-fn last_input() -> Option<u32> {
-    let mut input = LASTINPUTINFO {
-        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
-        ..Default::default()
-    };
-    unsafe {
-        GetLastInputInfo(&mut input)
-            .as_bool()
-            .then_some(input.dwTime)
-    }
 }
 
 fn diagnose(startup: &Startup, attempt: u64, hwnd: HWND, stage: &str) {

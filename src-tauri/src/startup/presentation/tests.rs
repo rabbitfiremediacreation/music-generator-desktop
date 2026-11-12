@@ -221,9 +221,9 @@ async fn successful_completion_cannot_cycle_a_second_time() {
     startup_complete(main.clone(), app.state(), app.handle().clone(), 1)
         .await
         .unwrap();
-    assert!(startup_complete(main, app.state(), app.handle().clone(), 1)
+    startup_complete(main, app.state(), app.handle().clone(), 1)
         .await
-        .is_err());
+        .unwrap();
     let log = std::fs::read_to_string(temporary.path().join("data/logs/desktop.log")).unwrap();
     assert_eq!(log.matches("Main frontend frames acknowledged").count(), 1);
     assert!(app

@@ -60,31 +60,29 @@ async fn native_failures_propagate_without_another_cycle() {
 }
 
 #[test]
-fn activation_restores_only_the_foreground_lost_by_our_hide() {
+fn startup_focus_returns_only_from_our_temporary_splash() {
     let mut activation = Activation {
         was_foreground: true,
-        foreground_after_hide: 17,
-        last_input: Some(42),
+        temporary_foreground: 17,
     };
-    assert!(activation.may_restore(17, Some(42)));
+    assert!(activation.may_restore(17));
     assert!(
-        !activation.may_restore(18, Some(42)),
+        !activation.may_restore(18),
         "another window took foreground"
     );
     assert!(
-        !activation.may_restore(17, Some(43)),
-        "user input during the hidden interval"
-    );
-    assert!(
-        !activation.may_restore(17, None),
-        "unknown input state must not activate"
+        !activation.may_restore(0),
+        "unknown foreground must not activate"
     );
     activation.was_foreground = false;
     assert!(
-        !activation.may_restore(17, Some(42)),
+        !activation.may_restore(17),
         "background starts stay in the background"
     );
     activation.was_foreground = true;
-    activation.last_input = None;
-    assert!(!activation.may_restore(17, None));
+    activation.temporary_foreground = 0;
+    assert!(
+        !activation.may_restore(0),
+        "a failed splash handoff must not activate"
+    );
 }

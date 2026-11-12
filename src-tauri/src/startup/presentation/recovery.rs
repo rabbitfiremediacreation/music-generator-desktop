@@ -16,19 +16,17 @@ pub(super) async fn cycle<T, F: Future<Output = Result<()>>>(
     Ok(())
 }
 
-/// Reclaim only the foreground lost by our own hide, never subsequent user input.
+/// Return from our temporary splash, never from another foreground window.
 pub(super) struct Activation {
     pub was_foreground: bool,
-    pub foreground_after_hide: usize,
-    pub last_input: Option<u32>,
+    pub temporary_foreground: usize,
 }
 
 impl Activation {
-    pub fn may_restore(&self, foreground: usize, last_input: Option<u32>) -> bool {
+    pub fn may_restore(&self, foreground: usize) -> bool {
         self.was_foreground
-            && self.foreground_after_hide == foreground
-            && self.last_input.is_some()
-            && self.last_input == last_input
+            && self.temporary_foreground != 0
+            && self.temporary_foreground == foreground
     }
 }
 
