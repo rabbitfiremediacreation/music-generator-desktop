@@ -34,6 +34,7 @@ struct Options {
     retry_post_delay_ms: u64,
     synthesis_limit: Option<u32>,
     synthesis_steps: Option<u32>,
+    truncate_multipart: bool,
 }
 
 async fn server(counts: Vec<usize>) -> (EngineClient, Arc<Script>, tokio::task::JoinHandle<()>) {
@@ -143,7 +144,9 @@ async fn server_with(
                         let metadata = json!([{"inference_steps_limit":limit,"effective_inference_steps":script.options.synthesis_steps}]);
                         let mut body = format!("--result\r\nContent-Type: application/json\r\n\r\n{metadata}\r\n--result\r\nContent-Type: audio/wav\r\n\r\n").into_bytes();
                         body.extend(audio);
-                        body.extend(b"\r\n--result--\r\n");
+                        if !script.options.truncate_multipart {
+                            body.extend(b"\r\n--result--\r\n");
+                        }
                         ([(CONTENT_TYPE, "multipart/mixed; boundary=result")], body)
                     } else {
                         ([(CONTENT_TYPE, "audio/wav")], audio)
@@ -168,6 +171,34 @@ async fn server_with(
         script,
         task,
     )
+}
+
+#[tokio::test]
+async fn synthesis_rejects_complete_wav_in_unterminated_multipart() {
+    let (client, _, task) = server_with(
+        vec![50],
+        Options {
+            synthesis_limit: Some(200),
+            synthesis_steps: Some(200),
+            truncate_multipart: true,
+            ..Default::default()
+        },
+    )
+    .await;
+    let error = client
+        .generate(
+            &json!({"duration": 10}),
+            "lm.gguf",
+            "synth.gguf",
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Incomplete multipart engine response"));
+    task.abort();
 }
 
 #[tokio::test]

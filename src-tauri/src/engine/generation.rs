@@ -142,7 +142,7 @@ impl EngineClient {
                 progress,
             )
             .await
-            .and_then(|(ctype, body)| extract_generation(&ctype, &body));
+            .and_then(|(ctype, body)| extract_generation(&ctype, body));
         let (audio, extension, metadata) = result.map_err(|error| {
             if matches!(error, Error::Cancelled | Error::EngineTimeout { .. }) {
                 return error;
