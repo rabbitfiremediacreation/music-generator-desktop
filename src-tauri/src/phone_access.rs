@@ -395,6 +395,7 @@ pub fn library_events<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Changed {
 
 // ---------------------------------------------------------------- HTTP API
 
+mod pwa_library;
 mod web;
 
 #[derive(Clone)]
@@ -410,6 +411,7 @@ fn router(remote: Remote) -> Router {
         .route("/api/songs", get(songs))
         .route("/api/songs/{id}", get(song).patch(patch_song))
         .route("/api/songs/{id}/audio", get(audio))
+        .route("/api/pwa/library", get(pwa_library::get))
         .route("/api/folders", get(folders).post(create_folder))
         .route("/api/queue", get(queue))
         .route("/api/generate", post(generate))

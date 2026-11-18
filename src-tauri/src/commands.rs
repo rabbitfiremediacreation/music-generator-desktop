@@ -309,13 +309,21 @@ pub fn patch_song(state: Desktop<'_>, app: AppHandle, id: String, patch: Value) 
 }
 
 #[tauri::command]
-pub fn delete_song(state: Desktop<'_>, app: AppHandle, id: String) -> Result<Value> {
-    let cancelled = state.db.cancel_or_delete(&id)?;
-    if cancelled {
-        state.runtime.cancel_song(&id);
-    }
+pub fn cancel_song(state: Desktop<'_>, app: AppHandle, id: String) -> Result<bool> {
+    let cancelled = state
+        .runtime
+        .cancel_song(&id, || state.db.cancel_song(&id))?;
     state.changed(&app);
-    Ok(json!({"cancelled":cancelled,"deleted":!cancelled}))
+    Ok(cancelled)
+}
+
+#[tauri::command]
+pub fn delete_song(state: Desktop<'_>, app: AppHandle, id: String) -> Result<()> {
+    state
+        .runtime
+        .update_preferences(|| state.db.delete_song(&id))?;
+    state.changed(&app);
+    Ok(())
 }
 
 #[tauri::command]

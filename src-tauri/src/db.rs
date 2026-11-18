@@ -2,7 +2,7 @@ use crate::{
     error::{message, Result},
     types::{id, now, GenerateRequest, Settings, Song, SongFilter},
 };
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::{
     path::{Path, PathBuf},
@@ -334,25 +334,54 @@ impl Database {
         Ok(())
     }
 
-    pub fn cancel_or_delete(&self, sid: &str) -> Result<bool> {
-        let song = self.song(sid)?;
-        if ["queued", "running"].contains(&song.status.as_str()) {
-            self.lock().execute(
-                "UPDATE songs SET status='cancelled',message=NULL,finished_at=?1 WHERE id=?2",
-                params![now(), sid],
+    /// Cancel only pending work, even if completion races with the caller.
+    pub fn cancel_song(&self, id: &str) -> Result<bool> {
+        let mut con = self.lock();
+        let tx = con.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let status: String = tx
+            .query_row("SELECT status FROM songs WHERE id=?1", [id], |r| r.get(0))
+            .optional()?
+            .ok_or_else(|| message("Song not found"))?;
+        let cancelled = matches!(status.as_str(), "queued" | "running");
+        if cancelled {
+            tx.execute(
+                "UPDATE songs SET status='cancelled',message=NULL,finished_at=?2 WHERE id=?1 AND status IN ('queued','running')",
+                params![id, now()],
             )?;
-            return Ok(true);
         }
-        if let Some(path) = song.path {
-            let path = Path::new(&path);
-            if path.is_file() {
-                std::fs::remove_file(path)?;
+        tx.commit()?;
+        Ok(cancelled)
+    }
+
+    /// Delete terminal songs under the same lock used by retries and worker completion.
+    pub fn delete_song(&self, id: &str) -> Result<()> {
+        let songs_dir = self.settings()?.songs_dir;
+        let mut con = self.lock();
+        let tx = con.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let (status, file, audio_missing): (String, Option<String>, bool) = tx
+            .query_row(
+                "SELECT status,file,audio_missing FROM songs WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| message("Song not found"))?;
+        if matches!(status.as_str(), "queued" | "running") {
+            return Err(message("Cancel the song before deleting it"));
+        }
+        tx.execute("DELETE FROM songs WHERE id=?1", [id])?;
+        if let Some(file) = file.filter(|_| !audio_missing) {
+            let path = safe_song_path(Path::new(&songs_dir), &file)?;
+            match std::fs::remove_file(path) {
+                Ok(()) => (),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error.into()),
             }
         }
-        self.lock()
-            .execute("DELETE FROM songs WHERE id=?1", [sid])?;
-        crate::audio_export::remove_cached(&self.root, sid);
-        Ok(false)
+        tx.commit()?;
+        drop(con);
+        crate::audio_export::remove_cached(&self.root, id);
+        Ok(())
     }
 
     pub fn patch(&self, sid: &str, patch: &Value) -> Result<()> {

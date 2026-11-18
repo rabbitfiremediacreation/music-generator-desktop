@@ -190,24 +190,22 @@ async fn ca_and_fingerprint_persist_across_enabling_and_leaf_refresh() {
 async fn occupied_https_port_does_not_leave_http_access_enabled() {
     let root = tempfile::tempdir().unwrap();
     let state = state(root.path());
-    let reserved = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
-    let http_port = reserved.local_addr().unwrap().port();
-    drop(reserved);
     let occupied = TcpListener::bind(("0.0.0.0", 0)).await.unwrap();
+    // The OS chooses the HTTP port at the actual bind. Only the HTTPS port is occupied.
     let error = state
         .phone_access
         .start_with_ports(
             state.clone(),
             Arc::new(|| {}),
-            http_port,
+            0,
             occupied.local_addr().unwrap().port(),
         )
         .await
         .unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
     assert_eq!(error.to_string(), "phone_access_https_port_busy");
     assert_eq!(state.phone_access.port().await, None);
     assert!(!phone_access::enabled(&state).unwrap());
-    assert!(TcpListener::bind(("0.0.0.0", http_port)).await.is_ok());
 }
 
 #[test]

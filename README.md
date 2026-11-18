@@ -25,6 +25,8 @@ ACE-Step ist die unterstützte Musikmodellfamilie. Der aktuelle Stand enthält e
 | Windows 10/11, x64 | MSI-Installer oder portables ZIP mit EXE, Engine und WebView2 |
 | Linux, x64 | AppImage mit Vulkan/CPU-Engine; separate CUDA-Ausgabe für NVIDIA |
 
+**Installationsvideos (0.2.0):** [macOS](https://youtu.be/CmuYYZ2FmKg) · [Windows (MSI oder ZIP)](https://youtu.be/6hWMa5771I8)
+
 Intel-Macs verwenden das separate `macos-x64`-Bundle. Sprachmodell und Klangerzeugung rechnen auf der CPU; ein Song kann viele Minuten dauern. Mit 10 Sekunden, dem 0.6B-Sprachmodell und dem Standard-Klangmodell beginnen. Der Assistent prüft den Engine-Start und überspringt den GPU-Test. Native Builds werden auf macOS 15 geprüft; echte Generierung auf weiteren Intel-Macs und der Mindestversion bleibt manuell abzunehmen.
 
 Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind möglich. Downloads werden unter [Releases](https://github.com/rabbitfiremediacreation/music-generator-desktop/releases) veröffentlicht; lokal gebaute Pakete liegen in `release/`.
@@ -58,6 +60,8 @@ Die ersten Bundles sind unsignierte Testausgaben. Betriebssystem-Warnungen sind 
 3. Im Modell-Drop-down der Creator-Ansicht zwischen den empfohlenen Standard-/XL-Profilen wählen; XL erscheint nur bei ausreichendem RAM für die gesamte Kombination. Das empfohlene Sprachmodell steht fest. Der vollständige Katalog ist im **Expert Mode** verfügbar. Im Screenshot sind SFT Q8_0 und das 4B-Sprachmodell Q8_0 ausgewählt.
 4. **Prompt und Stil** eingeben, zum Beispiel „nächtliche Autofahrt durch eine Neonstadt, langsam und hypnotisch“ und „trip hop, dark, dub bass“. Die Würfel liefern Vorschläge. Einen eigenen Titel eingeben oder das Feld für einen automatisch erzeugten Titel leer lassen.
 5. **Länge, BPM und Lyrics** festlegen. Standard ist Instrumental; im Lyrics-Bereich eigenen Text eingeben oder automatische Lyrics aktivieren. Unter **Erweitert** stehen unter anderem Iterationen, Varianz, Tonart, Takt und Seed bereit.
+
+Ein fester Seed legt die Seeds für Sprachmodell und Klangerzeugung fest. Für Wiederholungen dieselbe Eingabe, dieselben Modelle, dieselbe Engine-Version und dieselben Rechen-Backends verwenden. Audio kann dennoch abweichen. Bei leerem Feld erhält jede Version einen zufälligen Song-Seed. [Details zum Wiederholen einer Generierung](docs/desktop.md#repeat-a-generation-with-a-seed)
 6. **Versionen** auswählen und **Generieren** drücken. Die Warteschlange verarbeitet die Songs nacheinander und zeigt die Berechnungsphasen an.
 
 Beim Ausschalten des Expert Mode bleibt eine zuvor aktive erweiterte Modellauswahl erhalten. Neue Aufträge und Wiederholungen damit benötigen den Expert Mode oder eine ausdrücklich übernommene Hardware-Empfehlung. Es gibt keinen stillen Modellwechsel oder automatischen Download beim Umschalten. Bereits angenommene Aufträge werden fertiggestellt, auch nach einem Neustart. Heruntergeladene Modelle, vorhandene Songs, Wiedergabe und Export bleiben erhalten.

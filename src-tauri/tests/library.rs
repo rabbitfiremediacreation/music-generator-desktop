@@ -201,16 +201,57 @@ fn fresh_sampling_defaults_do_not_rewrite_stored_songs_on_restart_or_retry() {
 }
 
 #[test]
+fn a_late_cancellation_keeps_the_completed_song_and_its_wav() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(dir.path()).unwrap();
+    let id = db.enqueue(&request()).unwrap().remove(0);
+    assert_eq!(db.claim_next().unwrap().unwrap().0, id);
+    assert_eq!(db.song(&id).unwrap().status, "running");
+
+    let songs = dir.path().join("songs");
+    std::fs::create_dir(&songs).unwrap();
+    let audio = songs.join("finished.wav");
+    std::fs::write(&audio, b"finished audio").unwrap();
+    assert!(db.finish(&id, "finished.wav", &json!({})).unwrap());
+
+    assert!(!db.cancel_song(&id).unwrap());
+    let song = db.song(&id).unwrap();
+    assert_eq!(song.status, "done");
+    assert_eq!(song.file.as_deref(), Some("finished.wav"));
+    assert_eq!(std::fs::read(&audio).unwrap(), b"finished audio");
+}
+
+#[test]
+fn deletion_rejects_active_songs_and_removes_completed_audio() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(dir.path()).unwrap();
+    let id = db.enqueue(&request()).unwrap().remove(0);
+    assert!(db.delete_song(&id).is_err());
+    assert_eq!(db.claim_next().unwrap().unwrap().0, id);
+    assert!(db.delete_song(&id).is_err());
+
+    let songs = dir.path().join("songs");
+    std::fs::create_dir(&songs).unwrap();
+    let audio = songs.join("finished.wav");
+    std::fs::write(&audio, b"finished audio").unwrap();
+    assert!(db.finish(&id, "finished.wav", &json!({})).unwrap());
+    db.delete_song(&id).unwrap();
+    assert!(db.song(&id).is_err());
+    assert!(!audio.exists());
+}
+
+#[test]
 fn cancellation_cannot_be_overwritten_by_a_late_result() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).unwrap();
     let ids = db.enqueue(&request()).unwrap();
     db.claim_next().unwrap();
-    assert!(db.cancel_or_delete(&ids[0]).unwrap());
+    assert!(db.cancel_song(&ids[0]).unwrap());
     assert!(!db.finish(&ids[0], "late.wav", &json!({})).unwrap());
     db.fail(&ids[0], "late error").unwrap();
     assert_eq!(db.song(&ids[0]).unwrap().status, "cancelled");
     db.retry(&ids[0]).unwrap();
+    assert_eq!(db.song(&ids[0]).unwrap().status, "queued");
     assert_eq!(db.claim_next().unwrap().unwrap().0, ids[0]);
 }
 
@@ -298,7 +339,7 @@ async fn folder_move_rolls_back_on_collision() {
     std::fs::write(new.join("one.wav"), b"other").unwrap();
     // Complete/cancel other queued variants before a move.
     let next = db.claim_next().unwrap().unwrap().0;
-    db.cancel_or_delete(&next).unwrap();
+    db.cancel_song(&next).unwrap();
     let state = std::sync::Arc::new(music_generator::state::AppState::new(
         db,
         root.path().join("resources"),

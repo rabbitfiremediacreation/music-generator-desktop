@@ -1,61 +1,8 @@
-use crate::{
-    db::{safe_song_path, Database},
-    error::{message, Result},
-    types::{now, SongFilter},
-};
-use rusqlite::{params, OptionalExtension};
+use crate::{db::Database, error::Result, types::SongFilter};
+use rusqlite::params;
 use serde_json::{json, Value};
-use std::path::Path;
 
 impl Database {
-    /// Cancel only pending work, even if completion races with the caller.
-    pub(super) fn mcp_cancel_song(&self, id: &str) -> Result<bool> {
-        let mut con = self.lock();
-        let tx = con.transaction()?;
-        let status: String = tx
-            .query_row("SELECT status FROM songs WHERE id=?1", [id], |r| r.get(0))
-            .optional()?
-            .ok_or_else(|| message("Song not found"))?;
-        let cancelled = matches!(status.as_str(), "queued" | "running");
-        if cancelled {
-            tx.execute(
-                "UPDATE songs SET status='cancelled',message=NULL,finished_at=?2 WHERE id=?1 AND status IN ('queued','running')",
-                params![id, now()],
-            )?;
-        }
-        tx.commit()?;
-        Ok(cancelled)
-    }
-
-    /// Delete terminal songs under the same lock used by retries and worker completion.
-    pub(super) fn mcp_delete_song(&self, id: &str) -> Result<()> {
-        let songs_dir = self.settings()?.songs_dir;
-        let mut con = self.lock();
-        let tx = con.transaction()?;
-        let (status, file): (String, Option<String>) = tx
-            .query_row("SELECT status,file FROM songs WHERE id=?1", [id], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })
-            .optional()?
-            .ok_or_else(|| message("Song not found"))?;
-        if matches!(status.as_str(), "queued" | "running") {
-            return Err(message("Cancel the song before deleting it"));
-        }
-        if let Some(file) = file {
-            let path = safe_song_path(Path::new(&songs_dir), &file)?;
-            match std::fs::remove_file(path) {
-                Ok(()) => (),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-                Err(error) => return Err(error.into()),
-            }
-        }
-        tx.execute("DELETE FROM songs WHERE id=?1", [id])?;
-        tx.commit()?;
-        drop(con);
-        crate::audio_export::remove_cached(&self.root, id);
-        Ok(())
-    }
-
     /// Page identifiers directly in SQL, without the studio's 500-row display limit.
     pub(super) fn mcp_song_page(
         &self,

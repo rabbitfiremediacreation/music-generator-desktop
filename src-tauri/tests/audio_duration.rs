@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use music_generator::engine::client::EngineClient;
+use music_generator::{db::Database, engine::client::EngineClient, phone_access::PhoneGeneration};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -28,12 +28,14 @@ struct Script {
 
 #[derive(Default)]
 struct Options {
+    silent_first_take: bool,
     pending_retry: bool,
     retry_error: bool,
     malformed_audio: bool,
     retry_post_delay_ms: u64,
     synthesis_limit: Option<u32>,
     synthesis_steps: Option<u32>,
+    truncate_multipart: bool,
 }
 
 async fn server(counts: Vec<usize>) -> (EngineClient, Arc<Script>, tokio::task::JoinHandle<()>) {
@@ -121,15 +123,22 @@ async fn server_with(
                         let index: usize = index.parse().unwrap();
                         let count = script.counts[index.min(script.counts.len() - 1)];
                         let request = script.lm.lock().unwrap()[index].clone();
-                        return (
-                            [(CONTENT_TYPE, "application/json")],
-                            serde_json::to_vec(&json!({
-                                "audio_codes":vec!["7";count].join(","), "duration":10,
-                                "lm_seed":request["lm_seed"].as_u64().unwrap_or(4122037654),
+                        let mut result = json!({
+                            "audio_codes":vec!["7";count].join(","), "duration":10,
+                            "lm_seed":request["lm_seed"].as_u64().unwrap_or(4122037654),
                             "inference_steps":999,"seed":999,
                             "effective_inference_steps":200,"inference_steps_limit":200
-                            }))
-                            .unwrap(),
+                        });
+                        if script.options.silent_first_take {
+                            result["lyrics"] = if index == 0 {
+                                json!("[Instrumental]")
+                            } else {
+                                json!("[Verse]\nThe city wakes")
+                            };
+                        }
+                        return (
+                            [(CONTENT_TYPE, "application/json")],
+                            serde_json::to_vec(&result).unwrap(),
                         );
                     }
                     let request = script.synth.lock().unwrap().last().unwrap().clone();
@@ -143,7 +152,9 @@ async fn server_with(
                         let metadata = json!([{"inference_steps_limit":limit,"effective_inference_steps":script.options.synthesis_steps}]);
                         let mut body = format!("--result\r\nContent-Type: application/json\r\n\r\n{metadata}\r\n--result\r\nContent-Type: audio/wav\r\n\r\n").into_bytes();
                         body.extend(audio);
-                        body.extend(b"\r\n--result--\r\n");
+                        if !script.options.truncate_multipart {
+                            body.extend(b"\r\n--result--\r\n");
+                        }
                         ([(CONTENT_TYPE, "multipart/mixed; boundary=result")], body)
                     } else {
                         ([(CONTENT_TYPE, "audio/wav")], audio)
@@ -168,6 +179,87 @@ async fn server_with(
         script,
         task,
     )
+}
+
+fn phone_params(instrumental: bool) -> Value {
+    let phone: PhoneGeneration = serde_json::from_value(json!({
+        "prompt": "quiet piano", "duration": 10, "lyrics": "", "instrumental": instrumental
+    }))
+    .unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let db = Database::open(directory.path()).unwrap();
+    db.enqueue(&phone.request("phone".into()).unwrap()).unwrap();
+    db.claim_next().unwrap().unwrap().1
+}
+
+#[tokio::test]
+async fn full_length_instrumental_answer_retries_only_the_phone_vocal_request() {
+    for (instrumental, attempts, expected_lyrics) in [
+        (false, 2, "[Verse]\nThe city wakes"),
+        (true, 1, "[Instrumental]"),
+    ] {
+        let (client, script, task) = server_with(
+            vec![50, 49],
+            Options {
+                silent_first_take: true,
+                ..Default::default()
+            },
+        )
+        .await;
+        let (_, _, meta) = client
+            .generate(
+                &phone_params(instrumental),
+                "lm.gguf",
+                "sft.gguf",
+                &CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .unwrap();
+        task.abort();
+        let lm = script.lm.lock().unwrap();
+        assert_eq!(lm.len(), attempts, "instrumental={instrumental}");
+        assert!(lm
+            .iter()
+            .all(|request| request.get("vocal_language").is_none()));
+        if instrumental {
+            assert_eq!(lm[0]["lyrics"], "[Instrumental]");
+        } else {
+            assert!(lm.iter().all(|request| request.get("lyrics").is_none()));
+        }
+        assert_eq!(meta["lm_attempts"], attempts);
+        let synth = script.synth.lock().unwrap();
+        assert_eq!(synth.len(), 1);
+        assert_eq!(synth[0]["lyrics"], expected_lyrics);
+    }
+}
+
+#[tokio::test]
+async fn synthesis_rejects_complete_wav_in_unterminated_multipart() {
+    let (client, _, task) = server_with(
+        vec![50],
+        Options {
+            synthesis_limit: Some(200),
+            synthesis_steps: Some(200),
+            truncate_multipart: true,
+            ..Default::default()
+        },
+    )
+    .await;
+    let error = client
+        .generate(
+            &json!({"duration": 10}),
+            "lm.gguf",
+            "synth.gguf",
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Incomplete multipart engine response"));
+    task.abort();
 }
 
 #[tokio::test]
@@ -278,7 +370,8 @@ async fn lm_shortfall_gets_one_distinct_seed_retry_before_a_single_synthesis() {
     assert!(meta.get("duration_warning").is_none());
     let requests = script.lm.lock().unwrap();
     assert_eq!(requests.len(), 2);
-    assert_ne!(requests[1]["lm_seed"], 4122037654u64);
+    assert_eq!(requests[0]["lm_seed"], 1955703464u64);
+    assert_eq!(requests[1]["lm_seed"], 1955703465u64);
     assert_eq!(requests[0]["caption"], requests[1]["caption"]);
     assert_eq!(requests[0]["duration"], requests[1]["duration"]);
     assert_eq!(meta["lm_seed"], requests[1]["lm_seed"]);
@@ -309,8 +402,8 @@ async fn retry_limit_keeps_the_longer_audio_and_never_changes_music_seed_or_effe
     assert_eq!(meta["effective_inference_steps"], 100);
     assert_eq!(meta["inference_steps"], 100);
     assert_eq!(meta["duration"], 5.6);
-    assert_eq!(meta["lm_seed"], 4122037654u64);
-    assert_eq!(meta["lm_retry_seed"], 4122037655u64);
+    assert_eq!(meta["lm_seed"], 42);
+    assert_eq!(meta["lm_retry_seed"], 43);
     assert_eq!(params["inference_steps"], 120);
 }
 
@@ -390,8 +483,9 @@ async fn failed_optional_retry_preserves_the_original_audio_with_an_honest_warni
 #[tokio::test]
 async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() {
     let (client, script, task) = server_with(
-        vec![28, 50],
+        vec![50, 49],
         Options {
+            silent_first_take: true,
             pending_retry: true,
             ..Default::default()
         },
@@ -401,13 +495,7 @@ async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() 
     let signal = token.clone();
     let generation = tokio::spawn(async move {
         client
-            .generate(
-                &json!({"duration":10}),
-                "lm.gguf",
-                "sft.gguf",
-                &token,
-                |_| {},
-            )
+            .generate(&phone_params(false), "lm.gguf", "sft.gguf", &token, |_| {})
             .await
     });
     tokio::time::timeout(std::time::Duration::from_secs(2), async {
@@ -423,6 +511,7 @@ async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() 
         Err(music_generator::error::Error::Cancelled)
     ));
     task.abort();
+    assert_eq!(script.lm.lock().unwrap().len(), 2);
     assert_eq!(script.cancelled.load(Ordering::SeqCst), 1);
     assert!(script.synth.lock().unwrap().is_empty());
 }
@@ -454,18 +543,19 @@ async fn invalid_audio_is_rejected_instead_of_becoming_a_finished_song() {
 #[tokio::test]
 async fn optional_retry_respects_remaining_lm_time_and_cancels_its_timed_out_job() {
     let (mut client, script, task) = server_with(
-        vec![28, 50],
+        vec![50, 49],
         Options {
+            silent_first_take: true,
             pending_retry: true,
             ..Default::default()
         },
     )
     .await;
-    client.timeout = std::time::Duration::from_millis(80);
+    client.timeout = std::time::Duration::from_millis(300);
     let (_, _, meta) = tokio::time::timeout(
         std::time::Duration::from_secs(1),
         client.generate(
-            &json!({"duration":10}),
+            &phone_params(false),
             "lm.gguf",
             "sft.gguf",
             &CancellationToken::new(),
@@ -476,7 +566,9 @@ async fn optional_retry_respects_remaining_lm_time_and_cancels_its_timed_out_job
     .unwrap()
     .unwrap();
     task.abort();
-    assert_eq!(meta["duration"], 5.6);
+    assert_eq!(meta["duration"], 10.0);
+    assert_eq!(meta["lyrics"], "[Instrumental]");
+    assert_eq!(script.lm.lock().unwrap().len(), 2);
     assert!(meta["lm_retry_error"]
         .as_str()
         .unwrap()
