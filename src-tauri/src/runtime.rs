@@ -134,6 +134,11 @@ impl Runtime {
     /// Serialize preference writes with queue admission, without stopping an active engine job.
     pub fn update_preferences<T>(&self, update: impl FnOnce() -> Result<T>) -> Result<T> {
         let status = self.status.lock().unwrap();
+        self.ensure_update_allowed(&status)?;
+        update()
+    }
+
+    fn ensure_update_allowed(&self, status: &Status) -> Result<()> {
         if self.is_shutdown()
             || status
                 .active
@@ -142,7 +147,7 @@ impl Runtime {
         {
             return Err(message("Please wait for the current operation to finish"));
         }
-        update()
+        Ok(())
     }
 
     pub fn is_busy(&self) -> bool {
@@ -156,12 +161,19 @@ impl Runtime {
             .as_ref()
             .and_then(|a| a.progress.clone())
     }
-    pub fn cancel_song(&self, id: &str) {
-        if let Some(active) = &self.status.lock().unwrap().active {
-            if active.song.as_deref() == Some(id) {
-                active.cancel.cancel();
-            }
+    /// Keep the durable cancellation and the worker signal together across retries.
+    pub fn cancel_song(&self, id: &str, cancel: impl FnOnce() -> Result<bool>) -> Result<bool> {
+        let status = self.status.lock().unwrap();
+        self.ensure_update_allowed(&status)?;
+        let cancelled = cancel()?;
+        if let Some(active) = status
+            .active
+            .as_ref()
+            .filter(|active| cancelled && active.song.as_deref() == Some(id))
+        {
+            active.cancel.cancel();
         }
+        Ok(cancelled)
     }
     pub fn cancel_configuration(&self) {
         if let Some(active) = &self.status.lock().unwrap().active {

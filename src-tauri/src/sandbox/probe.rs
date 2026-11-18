@@ -151,7 +151,7 @@ async fn verify_exports(resources: &Path, root: &Path) -> Result<()> {
         ));
     }
     println!("App Sandbox: supervised MP3 export and ZIP passed; original WAV preserved.");
-    db.cancel_or_delete(&id)?;
+    db.delete_song(&id)?;
     if std::fs::read_dir(root.join("export"))?.next().is_some() {
         return Err(message("Deleting a song did not remove its MP3 cache"));
     }

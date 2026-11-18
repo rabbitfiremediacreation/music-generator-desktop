@@ -36,7 +36,7 @@ async fn dropping_an_aborted_task_clears_its_operation_and_progress() {
     let cancel = received.await.unwrap();
     assert_eq!(runtime.progress().unwrap().job_id, "song-a");
     assert!(runtime.enqueue(|| Ok(())).is_ok());
-    runtime.cancel_song("song-b");
+    runtime.cancel_song("song-b", || Ok(true)).unwrap();
     assert!(!cancel.is_cancelled());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
@@ -54,12 +54,14 @@ async fn cancellation_is_scoped_and_does_not_leak_into_the_next_job() {
     let sequence = first.report(Progress::new("starting")).unwrap().sequence;
     runtime.cancel_configuration();
     assert!(!first.cancellation().is_cancelled());
-    runtime.cancel_song("first");
+    assert!(!runtime.cancel_song("first", || Ok(false)).unwrap());
+    assert!(!first.cancellation().is_cancelled());
+    assert!(runtime.cancel_song("first", || Ok(true)).unwrap());
     assert!(first.cancellation().is_cancelled());
     drop(first);
     let next = runtime.try_begin(OperationKind::Generation).unwrap();
     next.start_song("next");
-    runtime.cancel_song("first");
+    runtime.cancel_song("first", || Ok(true)).unwrap();
     assert!(!next.cancellation().is_cancelled());
     assert!(next.report(Progress::new("starting")).unwrap().sequence > sequence);
 }
