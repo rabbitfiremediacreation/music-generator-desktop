@@ -1,10 +1,12 @@
 use crate::{
     engine::progress::Progress,
+    error::{Error, Result},
     runtime::{Operation, OperationKind},
     state::AppState,
 };
-use std::{path::PathBuf, sync::Arc};
+use std::{future::Future, path::PathBuf, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};
+use tokio_util::sync::CancellationToken;
 
 fn report_progress<R: Runtime>(
     state: &AppState,
@@ -18,6 +20,25 @@ fn report_progress<R: Runtime>(
             .progress(&update.job_id, &update.progress.message());
         let _ = app.emit("generation-progress", update);
     }
+}
+
+/// A title model preparation failure only affects naming. Cancellation still ends the job.
+async fn prepare_title<F: Future<Output = Result<()>>>(
+    title: Option<&str>,
+    cancel: &CancellationToken,
+    install: impl FnOnce() -> F,
+) -> Result<Option<Error>> {
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    if title.is_some_and(|title| !title.trim().is_empty()) {
+        return Ok(None);
+    }
+    let result = install().await;
+    if cancel.is_cancelled() || matches!(result, Err(Error::Cancelled)) {
+        return Err(Error::Cancelled);
+    }
+    Ok(result.err())
 }
 
 pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
@@ -75,15 +96,8 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             };
             // Existing installations lazily fetch only this shared model for blank titles.
             // Explicit titles require neither a title download nor title inference.
-            if state
-                .db
-                .song(&sid)?
-                .title
-                .as_deref()
-                .unwrap_or("")
-                .trim()
-                .is_empty()
-            {
+            let title = state.db.song(&sid)?.title;
+            let title_preparation_error = prepare_title(title.as_deref(), &cancel, || async {
                 report_progress(&state, &app, &operation, Progress::new("title_download"));
                 crate::titles::install(
                     &state.db.root,
@@ -95,7 +109,9 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                 )
                 .await?;
                 let _ = app.emit("models-changed", ());
-            }
+                Ok(())
+            })
+            .await?;
             let (audio, ext, mut meta) = {
                 let client = state.start_engine(&operation, &settings).await?;
                 client
@@ -117,27 +133,30 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                 .trim()
                 .is_empty()
             {
-                // Free resident music weights before loading the CPU-only text model.
-                state.stop_engine();
-                report_progress(&state, &app, &operation, Progress::new("title"));
-                let input = crate::titles::request(&params, &meta);
-                match crate::titles::generate(
-                    &state.resources,
-                    &state.db.root,
-                    std::path::Path::new(&settings.models_dir),
-                    &input,
-                    &cancel,
-                    progress,
-                )
-                .await
-                {
+                let title_result = match title_preparation_error {
+                    Some(error) => Err(error),
+                    None => {
+                        // Free resident music weights before loading the CPU-only text model.
+                        state.stop_engine();
+                        report_progress(&state, &app, &operation, Progress::new("title"));
+                        let input = crate::titles::request(&params, &meta);
+                        crate::titles::generate(
+                            &state.resources,
+                            &state.db.root,
+                            std::path::Path::new(&settings.models_dir),
+                            &input,
+                            &cancel,
+                            progress,
+                        )
+                        .await
+                    }
+                };
+                match title_result {
                     Ok(title) => {
                         meta["generated_title"] = serde_json::json!(title);
                         meta["title_model"] = serde_json::json!(crate::titles::manifest().revision);
                     }
-                    Err(crate::error::Error::Cancelled) => {
-                        return Err(crate::error::Error::Cancelled)
-                    }
+                    Err(Error::Cancelled) => return Err(Error::Cancelled),
                     Err(error) => {
                         tracing::warn!("Automatic title: {error}");
                         meta["title_generation_error"] = serde_json::json!(error.to_string());
@@ -153,13 +172,13 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             tokio::fs::write(&temp, audio).await?;
             if cancel.is_cancelled() {
                 let _ = tokio::fs::remove_file(temp).await;
-                return Err(crate::error::Error::Cancelled);
+                return Err(Error::Cancelled);
             }
             tokio::fs::rename(&temp, &path).await?;
             if !state.db.finish(&sid, &filename, &meta)? {
                 let _ = tokio::fs::remove_file(path).await;
             }
-            Ok::<_, crate::error::Error>(())
+            Ok::<_, Error>(())
         }
         .await;
         if let Err(error) = outcome {
@@ -171,4 +190,52 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
         state.changed(&app);
     }
     state.stop_engine();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::message;
+
+    #[tokio::test]
+    async fn failed_title_installation_allows_music_generation_with_a_warning() {
+        let cancel = CancellationToken::new();
+        let warning = prepare_title(Some(" \t"), &cancel, || async { Err(message("offline")) })
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(warning.to_string(), "offline");
+    }
+
+    #[tokio::test]
+    async fn explicit_title_does_not_prepare_the_model() {
+        let cancel = CancellationToken::new();
+        let warning = prepare_title(Some("My title"), &cancel, || async {
+            panic!("Explicit titles must bypass installation")
+        })
+        .await
+        .unwrap();
+        assert!(warning.is_none());
+    }
+
+    #[tokio::test]
+    async fn cancelling_during_title_preparation_stops_the_job() {
+        let cancel = CancellationToken::new();
+        let preparation = prepare_title(None, &cancel, || async {
+            cancel.cancelled().await;
+            // An I/O error can arrive at the same time as cancellation.
+            Err(message("download interrupted"))
+        });
+        tokio::pin!(preparation);
+        assert!(futures_util::poll!(preparation.as_mut()).is_pending());
+        cancel.cancel();
+        assert!(matches!(preparation.await, Err(Error::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn installer_cancellation_is_propagated() {
+        let cancel = CancellationToken::new();
+        let result = prepare_title(None, &cancel, || async { Err(Error::Cancelled) }).await;
+        assert!(matches!(result, Err(Error::Cancelled)));
+    }
 }

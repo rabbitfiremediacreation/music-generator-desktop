@@ -116,7 +116,7 @@ impl EngineClient {
                     .and_then(|s| s.to_str().ok())
                     .unwrap_or("")
                     .to_string();
-                return Ok((ctype, response.bytes().await?.to_vec()));
+                return Ok((ctype, response.bytes().await?.into()));
             }
             if ["err", "fail", "cancel"]
                 .iter()

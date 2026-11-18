@@ -1,6 +1,16 @@
+import type { Folder, Song } from "../types";
+
 export const connectionKey = "music-generator-mobile-token";
 
 export interface Connection { token: string; remembered: boolean }
+export interface FolderList { folders: Folder[]; all: number; none: number }
+export interface SongCard extends Pick<Song, "id" | "status" | "message" | "favorite" | "folder_id"> {
+  title: string;
+  duration: number | null;
+  bpm: number | null;
+  has_audio: boolean;
+}
+interface Library { songs: SongCard[]; folders: FolderList }
 
 /** The pairing key belongs in the fragment, which never goes to the HTTP server. */
 export function readConnection(location: Pick<Location, "hash" | "pathname" | "search">, history: Pick<History, "replaceState">, storage?: Pick<Storage, "getItem">): Connection {
@@ -38,7 +48,7 @@ export class RemoteApi {
   constructor(private token: string, private language: string, private unauthorized: () => void) {}
   close() { this.lifetime.abort(); }
   private ensureOpen() { if (this.lifetime.signal.aborted) throw new DOMException("Connection closed", "AbortError"); }
-  private async request(path: string, options: RequestInit = {}): Promise<Response> {
+  private async request(path: string, options: RequestInit = {}, allowNotModified = false): Promise<Response> {
     this.ensureOpen();
     if (!path.startsWith("/api/")) throw new Error("Invalid API path");
     const headers = new Headers(options.headers);
@@ -46,7 +56,7 @@ export class RemoteApi {
     headers.set("X-Lang", this.language);
     const response = await fetch(path, { ...options, headers, signal: this.lifetime.signal, cache: "no-store", credentials: "omit", redirect: "error", mode: "same-origin" });
     this.ensureOpen();
-    if (!response.ok) {
+    if (!response.ok && !(allowNotModified && response.status === 304)) {
       let detail = `HTTP ${response.status}`;
       try { const body = await response.json() as { detail?: unknown }; if (typeof body.detail === "string") detail = body.detail; } catch { /* Keep the HTTP status. */ }
       this.ensureOpen();
@@ -59,6 +69,14 @@ export class RemoteApi {
     return response;
   }
   async json<T>(path: string, options?: RequestInit): Promise<T> { const value = await (await this.request(path, options)).json() as T; this.ensureOpen(); return value; }
+  async library(query: string, etag?: string): Promise<{ data: Library; etag?: string } | null> {
+    const options = etag ? { headers: { "If-None-Match": etag } } : undefined;
+    const response = await this.request(`/api/pwa/library?${query}`, options, Boolean(etag));
+    if (response.status === 304) return null;
+    const data = await response.json() as Library;
+    this.ensureOpen();
+    return { data, etag: response.headers.get("ETag") ?? undefined };
+  }
   async write<T>(path: string, method: "POST" | "PATCH", value: unknown): Promise<T> {
     return this.json<T>(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
   }

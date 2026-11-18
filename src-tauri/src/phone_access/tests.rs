@@ -100,6 +100,239 @@ impl Fixture {
 }
 
 #[tokio::test]
+async fn pwa_library_revalidates_cards_and_folders_independently_of_queue_progress() {
+    use reqwest::header::{CACHE_CONTROL, ETAG, IF_NONE_MATCH};
+
+    const LIBRARY: &str = "/api/pwa/library";
+    let f = Fixture::new().await;
+    let first = f.get(LIBRARY).send().await.unwrap();
+    assert_eq!(first.status(), 200);
+    assert_eq!(first.headers()[CACHE_CONTROL], "private, no-store");
+    let etag = first.headers()[ETAG].clone();
+    let data: Value = first.json().await.unwrap();
+    let done = data["songs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == f.song)
+        .unwrap();
+    assert_eq!(
+        done,
+        &json!({
+            "id": f.song, "title": "Rain Song", "status": "done", "message": null,
+            "favorite": false, "folder_id": data["folders"]["folders"][0]["id"],
+            "duration": 0.5, "bpm": 120.0, "has_audio": true
+        })
+    );
+    let running = data["songs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["status"] == "running")
+        .unwrap();
+    f.state
+        .db
+        .progress(running["id"].as_str().unwrap(), "Rendering 42%")
+        .unwrap();
+    for _ in 0..2 {
+        let response = f
+            .get(LIBRARY)
+            .header(IF_NONE_MATCH, &etag)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 304);
+        assert_eq!(response.headers()[ETAG], etag);
+        assert!(response.bytes().await.unwrap().is_empty());
+    }
+    let queue: Value = f
+        .get("/api/queue")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(queue["running"][0]["message"], "Rendering 42%");
+
+    let unauthenticated = f
+        .http
+        .get(format!("{}{LIBRARY}", f.base))
+        .header(IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthenticated.status(), 401);
+    let filter = format!("{LIBRARY}?favorites=true");
+    let empty = f
+        .get(&filter)
+        .header(IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(empty.status(), 200);
+    assert_eq!(empty.json::<Value>().await.unwrap()["songs"], json!([]));
+
+    let detail = format!("/api/songs/{}", f.song);
+    let patched: Value = f
+        .send(reqwest::Method::PATCH, &detail)
+        .json(&json!({"favorite": true, "folder_id": null}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(patched["favorite"], true);
+    assert!(patched["params"].is_object());
+    assert_eq!(patched["url"], format!("/api/songs/{}/audio", f.song));
+    let changed = f
+        .get(LIBRARY)
+        .header(IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(changed.status(), 200);
+    let etag = changed.headers()[ETAG].clone();
+    assert_eq!(changed.json::<Value>().await.unwrap()["folders"]["none"], 1);
+
+    let filtered: Value = f
+        .get(&format!("{filter}&folder=none&q=piano"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(filtered["songs"].as_array().unwrap().len(), 1);
+    assert_eq!(filtered["songs"][0]["id"], f.song);
+    assert_eq!(filtered["songs"][0]["favorite"], true);
+    assert_eq!(filtered["songs"][0]["folder_id"], Value::Null);
+
+    let folder = data["folders"]["folders"][0]["id"].as_str().unwrap();
+    f.state.db.folder_save(Some(folder), "Renamed").unwrap();
+    let renamed = f
+        .get(LIBRARY)
+        .header(IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(renamed.status(), 200);
+    let etag = renamed.headers()[ETAG].clone();
+    assert_eq!(
+        renamed.json::<Value>().await.unwrap()["folders"]["folders"][0]["name"],
+        "Renamed"
+    );
+
+    let added = f
+        .state
+        .db
+        .enqueue(&GenerateRequest {
+            prompt: "new".into(),
+            ..Default::default()
+        })
+        .unwrap();
+    let changed = f
+        .get(LIBRARY)
+        .header(IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(changed.status(), 200);
+    let data: Value = changed.json().await.unwrap();
+    assert_eq!(data["songs"][0]["id"], added[0]);
+    assert_eq!(data["songs"][0]["status"], "queued");
+    assert_eq!(data["folders"]["all"], 3);
+    let native: Value = f.get(&detail).send().await.unwrap().json().await.unwrap();
+    assert_eq!(native, patched);
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
+async fn pwa_library_reference_payload_is_compact() {
+    use reqwest::header::{ETAG, IF_NONE_MATCH};
+
+    let f = Fixture::new().await;
+    let metadata: Value = serde_json::from_str(include_str!(
+        "../../../docs/qa/issue-54/2026-11-07/pipeline/metadata.json"
+    ))
+    .unwrap();
+    let songs_dir = f.state.db.settings().unwrap().songs_dir;
+    std::fs::write(Path::new(&songs_dir).join("reference.wav"), wav(958_720)).unwrap();
+    {
+        let mut con = f.state.db.lock();
+        let tx = con.transaction().unwrap();
+        tx.execute_batch("DELETE FROM songs; DELETE FROM folders;")
+            .unwrap();
+        let metadata_json = metadata.to_string();
+        for i in 0..500 {
+            let id = format!("{i:032x}");
+            tx.execute(
+                "INSERT INTO songs (id, group_id, created_at, finished_at, status, title, caption,
+                                    lyrics, seed, params, result_meta, engine, file)
+                 VALUES (?1, ?1, '2026-11-07T00:00:00Z', '2026-11-07T00:02:00Z', 'done', ?2, ?3,
+                         ?4, 12345, '{\"duration\":120,\"bpm\":110}', ?5, 'acestep_cpp', 'reference.wav')",
+                rusqlite::params![id, format!("Reference song {i:03}"), metadata["caption"].as_str(),
+                    metadata["lyrics"].as_str(), metadata_json],
+            ).unwrap();
+        }
+        tx.commit().unwrap();
+    }
+    let native = f
+        .get("/api/songs")
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    let compact = f
+        .get("/api/pwa/library")
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let etag = compact.headers()[ETAG].clone();
+    let compact = compact.bytes().await.unwrap();
+    let data: Value = serde_json::from_slice(&compact).unwrap();
+    assert_eq!(data["songs"].as_array().unwrap().len(), 500);
+    assert_eq!(data["songs"][0]["duration"], 119.84);
+    assert!(!String::from_utf8_lossy(&compact).contains("audio_codes"));
+    let detail: Value = f
+        .get(&format!("/api/songs/{:032x}", 0))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        detail["result_meta"]["audio_codes"],
+        metadata["audio_codes"]
+    );
+    let unchanged = f
+        .get("/api/pwa/library")
+        .header(IF_NONE_MATCH, etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unchanged.status(), 304);
+    let unchanged = unchanged.bytes().await.unwrap();
+    println!(
+        "500 songs, uncompressed HTTP body bytes: native={}, PWA={}, unchanged={}",
+        native.len(),
+        compact.len(),
+        unchanged.len()
+    );
+    assert!(compact.len() < native.len() / 20);
+    assert!(unchanged.is_empty());
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
 async fn requests_need_the_current_key_and_stay_inside_the_api() {
     let f = Fixture::new().await;
     let url = format!("{}/api/songs", f.base);
