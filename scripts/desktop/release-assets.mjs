@@ -12,6 +12,8 @@ const suffixes = {
   "linux-x64-cuda": ["linux-x64-cuda.AppImage"],
 };
 
+export const releaseTargets = Object.freeze(Object.keys(suffixes));
+
 // Release tags must identify the exact version shared by all application manifests.
 export function validateReleaseVersion(tag, versions) {
   assert(versions.length === 3 && versions.every(version => typeof version === "string" && version.length > 0), "Missing application version");
