@@ -6,9 +6,9 @@ Phone access lets the native iPhone app ("Music Generator Remote") and the mobil
 
 Use the **Phone access** switch under Settings → **Phone access** or in the scrollable content of any setup step. It remains available before model setup is complete and while models are downloading. When switched on, the block shows:
 
-- **iPhone app**: a QR code with `musicgenerator://connect?server=<first address>&token=<key>&alt=<second address>`; the iPhone camera opens the app, which takes over address and key,
+- **iPhone app**: a QR code with `musicgenerator://connect?server=<first address>&token=<key>&alt=<second address>`; the iPhone camera opens the app, which takes over the HTTPS address and key once the iPhone trusts the desktop CA,
 - **Web app / PWA**: a second QR code and a selectable link with `http://<host>:8767/mobile/#token=<key>`; the browser takes over and remembers the key automatically, then opens the one-time certificate setup and the HTTPS app,
-- the addresses (`http://<LocalHostName>.local:8767` on macOS or the host name elsewhere, plus the LAN IP),
+- the HTTPS addresses (`https://<LocalHostName>.local:8768` on macOS or the host name elsewhere, plus the LAN IP),
 - the read-only access key and **New key**, which replaces the key immediately; the phone must then scan again.
 
 Switching and key changes apply immediately (not through **Save**). The switch and key are stored in the library database (`settings` keys `phone_access` and `phone_access_token`); a switched-on server starts again with the next launch. The computer must stay awake while the phone uses it.
@@ -29,9 +29,18 @@ The certificate belongs to this desktop installation. Its private key stays on t
 
 HTTPS is required for PWA installation and service workers on a phone; see [MDN's installation requirements](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable). HTTP serves certificate onboarding; remote controls use HTTPS on port 8768. The PWA caches only its static interface, so opening it offline can show the interface but playback, library changes and generation require the desktop connection. API responses, songs, certificates and pairing keys are never stored in the service-worker cache. The mobile interface supports German and English.
 
+### Migrate the native iPhone app from HTTP
+
+1. Update the desktop app. In its **Phone access** panel, keep the SHA-256 CA fingerprint visible. If this iPhone already trusts the CA for the PWA from the same desktop profile, reuse it.
+2. For a fresh trust setup, obtain the configuration profile directly from the desktop. With phone access enabled, run `curl --noproxy '*' --fail http://127.0.0.1:8767/mobile-ca.mobileconfig --output Music-Generator-CA.mobileconfig` on that desktop. Use AirDrop or another trusted transfer to send the profile to your iPhone, then install it and enable full trust as described above. In a shared network, use this route to obtain the CA through a trusted channel. If you obtain a CA over the network, verify the actual certificate's SHA-256 fingerprint against the desktop before trusting it.
+3. Use **New key** on the desktop to replace the key previously used over HTTP. Then scan the new **iPhone app** code with the iPhone camera. For manual pairing, enter the complete advertised `https://…:8768` address and new key in **Connection**. Re-pair the PWA with the new key if you use both clients.
+4. Test the library and playback. If the client reports a certificate error, check that full trust is enabled for this desktop CA and that the saved address matches an advertised address. Keep certificate verification enabled. Old `http://…:8767` API configurations must be replaced.
+
+[Music Generator Remote](https://github.com/rabbitfiremediacreation/music-generator-ios) is maintained in its own repository. Its pairing code accepts the desktop's HTTPS URLs, and HTTPS uses operating-system certificate trust. The desktop keeps the API payloads and QR parameter names compatible.
+
 ## Server
 
-`src-tauri/src/phone_access.rs` runs axum HTTP/1 servers inside the app process: HTTP on `0.0.0.0:8767` for the native app and onboarding, HTTPS on `0.0.0.0:8768` for the PWA. Both ports are bound before either server starts; an occupied port leaves access off and reports a translated error. Switching off cancels both listeners, in-flight requests and response streams. Port 8766 remains available for the separate Python web app.
+`src-tauri/src/phone_access.rs` runs axum HTTP/1 servers inside the app process: HTTP on `0.0.0.0:8767` for public onboarding, HTTPS on `0.0.0.0:8768` for the native API and PWA. The HTTP listener has no API routes or API redirects. Both ports are bound before either server starts; an occupied port leaves access off and reports a translated error. Switching off cancels both listeners, in-flight requests and response streams. Port 8766 remains available for the separate Python web app.
 
 The Tauri commands are `phone_access_status` and `set_phone_access { enabled?, newToken? }`; both return `{enabled, port, token, addresses, web_port, web_addresses, certificate_fingerprint}`. Public `/mobile/connection.json` returns only HTTPS addresses, certificate/profile download paths and the certificate fingerprint; it never returns the token.
 
@@ -42,7 +51,7 @@ The mobile entry under `frontend/mobile/` is built separately into `dist-mobile/
 - Every API request needs `Authorization: Bearer <key>`. The key is 18 random bytes, URL-safe Base64 (24 characters), created on first activation. Comparison uses SHA-256 digests compared in constant time. Missing or wrong key: `401 {"detail": …}`. Keys in query parameters or cookies do not authenticate requests.
 - Public routes are limited to `/mobile/` assets, `/mobile/connection.json`, `/mobile-ca.crt` and `/mobile-ca.mobileconfig`. `/api/remote`, `/api/shutdown`, `/api/update/…` and any non-GET `/api/settings` answer `403`, as in the web app. The desktop server implements only the endpoints below; it has no settings, delete, export-to-path or model endpoints at all, so the phone cannot read or rotate the key, change settings or touch files outside the library.
 - Error texts for 401/403 follow the `X-Lang` header (all twelve UI languages, English fallback).
-- The native iPhone API keeps its existing HTTP transport. The PWA uses local HTTPS after certificate onboarding. Anyone who learns the shared access key can use the API while access is on; **New key** revokes it for both clients. Trust the CA only after checking its desktop fingerprint.
+- The native app and PWA use local HTTPS after certificate onboarding. Clients validate the certificate chain and the hostname or IP in the HTTPS URL. Anyone who learns the shared access key can use the API while access is on. **New key** revokes it for both clients.
 - macOS: the sandbox already grants `com.apple.security.network.server`. With the macOS firewall on, the system asks once whether Music Generator may accept incoming connections; until that is allowed, requests from the phone time out while `127.0.0.1` works.
 
 ## API contract
@@ -77,7 +86,7 @@ The studio asks before running more than 30 iterations without a confirmed GPU. 
 
 ## Differences from the web app
 
-- Port 8767 instead of 8766.
+- Port 8768 for the API and port 8767 for onboarding. The separate Python web app uses port 8766.
 - Song IDs are the desktop's 32-character IDs; the web app uses 12 characters. The phone treats IDs as opaque strings.
 - Analysis is refused during a running generation (single engine operation at a time in the desktop app).
 - Only the endpoints the iPhone app uses are served (no song delete/retry, folder rename/delete, ZIP download or settings).

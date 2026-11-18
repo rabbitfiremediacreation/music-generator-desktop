@@ -11,7 +11,6 @@ use time::OffsetDateTime;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 
-const FOLDER: &str = "phone-access-tls";
 const CERTIFICATE: &str = "certificate.crt";
 const KEY: &str = "authority-key.pem";
 const IDENTITY: &str = "authority.json";
@@ -27,16 +26,17 @@ struct Authority {
     certificate_sha256: String,
 }
 
-pub(super) struct Identity {
+pub(crate) struct Identity {
     pub config: Arc<rustls::ServerConfig>,
     pub fingerprint: String,
+    pub certificate: Vec<u8>,
 }
 
 fn invalid(error: impl std::fmt::Display) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, error.to_string())
 }
 
-fn fingerprint(bytes: &[u8]) -> String {
+pub(crate) fn fingerprint(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02X}"))
@@ -73,18 +73,17 @@ fn private_write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     file.sync_all()
 }
 
-fn authority(root: &Path) -> io::Result<(Authority, KeyPair, Vec<u8>)> {
-    let folder = root.join(FOLDER);
-    std::fs::create_dir_all(&folder)?;
+fn authority(folder: &Path) -> io::Result<(Authority, KeyPair, Vec<u8>)> {
+    std::fs::create_dir_all(folder)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o700))?;
+        std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700))?;
     }
     let paths = [
         folder.join(IDENTITY),
         folder.join(KEY),
-        folder.join(CERTIFICATE),
+        certificate_path(folder),
     ];
     if paths.iter().any(|path| path.exists()) {
         // Never silently replace a trusted CA when files are incomplete or corrupt.
@@ -125,23 +124,20 @@ fn authority(root: &Path) -> io::Result<(Authority, KeyPair, Vec<u8>)> {
 }
 
 /// The downloadable trust certificate contains no key or connection token.
-pub(super) fn certificate(root: &Path) -> io::Result<Vec<u8>> {
-    std::fs::read(root.join(FOLDER).join(CERTIFICATE))
+pub(crate) fn certificate_path(folder: &Path) -> std::path::PathBuf {
+    folder.join(CERTIFICATE)
 }
 
-/// Keep the CA stable, while issuing a fresh leaf for the machine's current LAN addresses.
-pub(super) fn prepare(root: &Path, addresses: &[String]) -> io::Result<Identity> {
-    let (authority, authority_key, ca_der) = authority(root)?;
+/// Keep the CA stable, while issuing a fresh leaf for the current advertised hosts.
+pub(crate) fn prepare(
+    folder: &Path,
+    hosts: impl IntoIterator<Item = String>,
+) -> io::Result<Identity> {
+    let (authority, authority_key, ca_der) = authority(folder)?;
     let ca = parameters(&authority)?
         .self_signed(&authority_key)
         .map_err(invalid)?;
-    let mut names = vec!["localhost".to_string(), "127.0.0.1".to_string()];
-    names.extend(addresses.iter().filter_map(|address| {
-        address
-            .strip_prefix("http://")?
-            .rsplit_once(':')
-            .map(|(host, _)| host.to_string())
-    }));
+    let mut names: Vec<_> = hosts.into_iter().collect();
     names.sort();
     names.dedup();
     let mut params = CertificateParams::new(names).map_err(invalid)?;
@@ -178,13 +174,14 @@ pub(super) fn prepare(root: &Path, addresses: &[String]) -> io::Result<Identity>
     Ok(Identity {
         config: Arc::new(config),
         fingerprint: fingerprint(&ca_der),
+        certificate: ca_der,
     })
 }
 
 type Handshake = BoxFuture<'static, io::Result<(TlsStream<TcpStream>, SocketAddr)>>;
 
 /// Handshakes progress concurrently; dropping the listener cancels every pending handshake.
-pub(super) struct Listener {
+pub(crate) struct Listener {
     tcp: TcpListener,
     acceptor: TlsAcceptor,
     pending: FuturesUnordered<Handshake>,
@@ -232,211 +229,5 @@ impl axum::serve::Listener for Listener {
 
     fn local_addr(&self) -> io::Result<Self::Addr> {
         self.tcp.local_addr()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{db::Database, phone_access, state::AppState};
-    use tokio::io::AsyncReadExt;
-
-    fn state(root: &Path) -> Arc<AppState> {
-        Arc::new(AppState::new(
-            Database::open(root).unwrap(),
-            root.join("resources"),
-        ))
-    }
-
-    fn trusted_client(state: &AppState) -> reqwest::Client {
-        reqwest::Client::builder()
-            .no_proxy()
-            .timeout(Duration::from_secs(2))
-            .add_root_certificate(
-                reqwest::Certificate::from_der(&phone_access::certificate(state).unwrap()).unwrap(),
-            )
-            .build()
-            .unwrap()
-    }
-
-    #[tokio::test]
-    async fn https_requires_trust_and_the_current_key_and_stops_with_http() {
-        let root = tempfile::tempdir().unwrap();
-        let state = state(root.path());
-        let status = phone_access::set(&state, Arc::new(|| {}), Some(true), false, 0)
-            .await
-            .unwrap();
-        assert!(status.enabled);
-        assert_ne!(status.web_port, status.port);
-        assert!(status
-            .web_addresses
-            .iter()
-            .all(|address| address.starts_with("https://") && address.ends_with("/mobile/")));
-        let url = format!("https://localhost:{}/api/queue", status.web_port);
-        let untrusted = reqwest::Client::builder()
-            .no_proxy()
-            .timeout(Duration::from_secs(2))
-            .build()
-            .unwrap();
-        assert!(
-            untrusted.get(&url).send().await.is_err(),
-            "untrusted local CA must not be silently accepted"
-        );
-        let trusted = trusted_client(&state);
-        assert_eq!(trusted.get(&url).send().await.unwrap().status(), 401);
-        assert_eq!(
-            trusted
-                .get(&url)
-                .bearer_auth("wrong")
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            401
-        );
-        assert_eq!(
-            trusted
-                .get(&url)
-                .bearer_auth(&status.token)
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            200
-        );
-
-        // One client never sends a TLS ClientHello; other clients must still connect.
-        let mut stalled = TcpStream::connect(("127.0.0.1", status.web_port))
-            .await
-            .unwrap();
-        assert_eq!(
-            trusted
-                .get(&url)
-                .bearer_auth(&status.token)
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            200
-        );
-        let off = tokio::time::timeout(
-            Duration::from_secs(2),
-            phone_access::set(&state, Arc::new(|| {}), Some(false), false, 0),
-        )
-        .await
-        .expect("a stalled handshake must not delay switching off")
-        .unwrap();
-        assert!(!off.enabled);
-        assert!(trusted
-            .get(&url)
-            .bearer_auth(&status.token)
-            .send()
-            .await
-            .is_err());
-        assert!(TcpStream::connect(("127.0.0.1", status.port))
-            .await
-            .is_err());
-        let mut byte = [0];
-        let closed = tokio::time::timeout(Duration::from_secs(2), stalled.read(&mut byte))
-            .await
-            .unwrap();
-        assert!(matches!(closed, Ok(0) | Err(_)));
-    }
-
-    #[tokio::test]
-    async fn ca_and_fingerprint_persist_across_enabling_and_leaf_refresh() {
-        let root = tempfile::tempdir().unwrap();
-        let state = state(root.path());
-        let first = phone_access::set(&state, Arc::new(|| {}), Some(true), false, 0)
-            .await
-            .unwrap();
-        let certificate = phone_access::certificate(&state).unwrap();
-        assert_eq!(
-            first.certificate_fingerprint.as_deref(),
-            Some(fingerprint(&certificate).as_str())
-        );
-        state.phone_access.stop().await;
-        let refreshed = prepare(
-            root.path(),
-            &[
-                "http://studio-renamed.local:8767".into(),
-                "http://192.168.2.10:8767".into(),
-            ],
-        )
-        .unwrap();
-        assert_eq!(
-            refreshed.fingerprint,
-            first.certificate_fingerprint.unwrap()
-        );
-        assert_eq!(phone_access::certificate(&state).unwrap(), certificate);
-        let second = phone_access::set(&state, Arc::new(|| {}), Some(true), false, 0)
-            .await
-            .unwrap();
-        let url = format!("https://localhost:{}/api/queue", second.web_port);
-        assert_eq!(
-            trusted_client(&state)
-                .get(url)
-                .bearer_auth(second.token)
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            200
-        );
-        state.phone_access.stop().await;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(
-                std::fs::metadata(root.path().join(FOLDER).join(KEY))
-                    .unwrap()
-                    .permissions()
-                    .mode()
-                    & 0o777,
-                0o600
-            );
-            assert_eq!(
-                std::fs::metadata(root.path().join(FOLDER))
-                    .unwrap()
-                    .permissions()
-                    .mode()
-                    & 0o777,
-                0o700
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn occupied_https_port_does_not_leave_http_access_enabled() {
-        let root = tempfile::tempdir().unwrap();
-        let state = state(root.path());
-        let reserved = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
-        let http_port = reserved.local_addr().unwrap().port();
-        drop(reserved);
-        let occupied = TcpListener::bind(("0.0.0.0", 0)).await.unwrap();
-        let error = state
-            .phone_access
-            .start_with_ports(
-                state.clone(),
-                Arc::new(|| {}),
-                http_port,
-                occupied.local_addr().unwrap().port(),
-            )
-            .await
-            .unwrap_err();
-        assert_eq!(error.to_string(), "phone_access_https_port_busy");
-        assert_eq!(state.phone_access.port().await, None);
-        assert!(!phone_access::enabled(&state).unwrap());
-        assert!(TcpListener::bind(("0.0.0.0", http_port)).await.is_ok());
-    }
-
-    #[test]
-    fn corrupt_ca_is_reported_without_replacing_the_installed_identity() {
-        let root = tempfile::tempdir().unwrap();
-        prepare(root.path(), &[]).unwrap();
-        let original = certificate(root.path()).unwrap();
-        std::fs::write(root.path().join(FOLDER).join(KEY), "broken key").unwrap();
-        assert!(prepare(root.path(), &[]).is_err());
-        assert_eq!(certificate(root.path()).unwrap(), original);
     }
 }

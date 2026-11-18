@@ -140,8 +140,11 @@ it("offers recovery when startup failed and updates labels without losing the dr
   fireEvent.click(apply()); await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 43210, scope: "local" }));
 });
 
-it("persists the LAN scope and chooses an advertised server address", async () => {
-  const lan = { ...active, scope: "network" as const, urls: ["http://192.168.1.40:32123/mcp", active.url!] };
+it("persists the LAN scope and copies the advertised HTTPS URL and shows the CA fingerprint", async () => {
+  const lanUrl = "https://192.168.1.40:32123/mcp";
+  const lan = { ...active, scope: "network" as const, urls: [lanUrl, "https://127.0.0.1:32123/mcp"], certificate_fingerprint: "A1:B2:C3" };
+  const lanConfig = credentials.client_config.replace(active.url!, lanUrl);
+  mocks.mcpHttpConnection.mockResolvedValue({ ...credentials, url: lanUrl, client_config: lanConfig });
   mocks.saveMcpSettings.mockResolvedValue(lan);
   view(); await screen.findByText(t("mcp_off"));
   fireEvent.click(enable()); fireEvent.change(screen.getByLabelText(t("mcp_scope")), { target: { value: "network" } });
@@ -150,7 +153,11 @@ it("persists the LAN scope and chooses an advertised server address", async () =
   await screen.findByText(t("mcp_on"));
   expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "network" });
   expect((screen.getByLabelText(t("mcp_endpoint")) as HTMLSelectElement).value).toBe(lan.urls[0]);
+  expect(screen.getByText(lan.certificate_fingerprint)).toBeTruthy();
   expect(mocks.mcpHttpConnection).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: t("mcp_copy") }));
+  await waitFor(() => expect(clipboard).toHaveBeenCalledWith(lanConfig));
+  expect(mocks.mcpHttpConnection).toHaveBeenCalledWith(lanUrl);
 });
 
 it("retrieves credentials only on request and masks the key and JSON by default", async () => {
@@ -170,7 +177,7 @@ it("retrieves credentials only on request and masks the key and JSON by default"
 });
 
 it.each(["disable", "address", "unmount"])("discards a late credential result after %s", async change => {
-  const lan = { ...active, scope: "network" as const, urls: ["http://192.168.1.40:32123/mcp", active.url!] };
+  const lan = { ...active, scope: "network" as const, urls: ["https://192.168.1.40:32123/mcp", "https://127.0.0.1:32123/mcp"] };
   let finish!: (value: McpHttpConnection) => void;
   mocks.mcpSettings.mockResolvedValue(lan);
   mocks.mcpHttpConnection.mockReturnValue(new Promise<McpHttpConnection>(resolve => { finish = resolve; }));
@@ -178,7 +185,7 @@ it.each(["disable", "address", "unmount"])("discards a late credential result af
   fireEvent.click(screen.getByRole("button", { name: t("mcp_copy") }));
   await waitFor(() => expect(mocks.mcpHttpConnection).toHaveBeenCalledOnce());
   if (change === "disable") fireEvent.click(enable());
-  if (change === "address") fireEvent.change(screen.getByLabelText(t("mcp_endpoint")), { target: { value: active.url } });
+  if (change === "address") fireEvent.change(screen.getByLabelText(t("mcp_endpoint")), { target: { value: lan.urls[1] } });
   if (change === "unmount") mounted.unmount();
   await act(async () => finish(credentials));
   expect(clipboard).not.toHaveBeenCalled();

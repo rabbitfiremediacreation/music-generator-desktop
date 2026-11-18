@@ -10,7 +10,7 @@ import { setLang } from "../../i18n.js";
 
 const mocks = vi.hoisted(() => ({ phoneAccess: vi.fn(), setPhoneAccess: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
-const off: PhoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767", "http://192.168.1.20:8767"] };
+const off: PhoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767", "http://192.168.1.20:8767"], web_addresses: ["https://studio.local:8768/mobile/", "https://192.168.1.20:8768/mobile/"] };
 const on: PhoneAccess = { ...off, enabled: true, token: "abc-DEF_123" };
 const view = () => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nProvider><PhoneAccessField /></I18nProvider></QueryClientProvider>;
 const toggle = () => screen.getByRole("switch", { name: "Handy-Zugriff" }) as HTMLInputElement;
@@ -51,7 +51,7 @@ it("shows QR code, addresses and key when switched on and hides them when off", 
   expect(screen.getByRole("heading", { name: "iPhone-App" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "Web-App / PWA" })).toBeTruthy();
   expect(screen.getByTestId("phone-access-web-qr").querySelector("svg")).not.toBeNull();
-  expect(screen.getAllByRole("listitem").map(li => li.textContent)).toEqual(on.addresses);
+  expect(screen.getAllByRole("listitem").map(li => li.textContent)).toEqual(["https://studio.local:8768", "https://192.168.1.20:8768"]);
   const token = screen.getByRole("textbox", { name: "Zugangsschlüssel" }) as HTMLInputElement;
   expect(token.value).toBe("abc-DEF_123");
   expect(token.readOnly).toBe(true);

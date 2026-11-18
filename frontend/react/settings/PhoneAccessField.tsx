@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
-import { phoneAccessLink, phoneAccessQrSvg, phoneWebAccessLink } from "../../phone-access";
+import { phoneAccessLink, phoneAccessQrSvg, phoneNativeAddresses, phoneWebAccessLink } from "../../phone-access";
 import type { PhoneAccess } from "../../types";
 import { useI18n } from "../i18n";
 
@@ -60,7 +60,7 @@ export function PhoneAccessField() {
       </div>
       {current.certificate_fingerprint && <p className="small phone-access-fingerprint">{t("remote_certificate")}<br /><code>{current.certificate_fingerprint}</code></p>}
       <span className="small">{t("remote_addr")}</span>
-      <ul className="upd-list">{current.addresses.map(address => <li key={address}>{address}</li>)}</ul>
+      <ul className="upd-list">{phoneNativeAddresses(current).map(address => <li key={address}>{address}</li>)}</ul>
       <div className="upd-row">
         <input className="phone-access-token" readOnly aria-label={t("remote_token")} value={current.token} onFocus={event => event.currentTarget.select()} />
         <button type="button" className="sek" disabled={busy} onClick={() => change.mutate({ newToken: true })}>{t("remote_new")}</button>

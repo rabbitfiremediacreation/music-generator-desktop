@@ -1,7 +1,8 @@
-//! Optional phone access: a token-protected HTTP API on the local network for the iPhone app.
+//! Optional phone access: a token-protected HTTPS API on the local network for the iPhone app.
 //! It speaks the same JSON contract as the Python web app's phone access and is off by default.
 use crate::{
     error::{message, Error, Result},
+    lan_tls,
     state::AppState,
     types::{GenerateRequest, Song, SongFilter},
 };
@@ -22,7 +23,11 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::sync::CancellationToken;
 
-mod tls;
+const TLS_FOLDER: &str = "phone-access-tls";
+
+#[cfg(test)]
+#[path = "phone_access/tls_tests.rs"]
+mod tls_tests;
 
 /// The Python web app already uses 8766 for its phone access; both apps may run on one computer.
 pub const PORT: u16 = 8767;
@@ -89,7 +94,15 @@ impl PhoneAccess {
         let root = state.db.root.clone();
         let (identity, addresses) = tauri::async_runtime::spawn_blocking(move || {
             let addresses = addresses(port);
-            tls::prepare(&root, &addresses).map(|identity| (identity, addresses))
+            let hosts = ["localhost".into(), "127.0.0.1".into()].into_iter().chain(
+                addresses.iter().filter_map(|address| {
+                    reqwest::Url::parse(address)
+                        .ok()?
+                        .host_str()
+                        .map(str::to_owned)
+                }),
+            );
+            lan_tls::prepare(&root.join(TLS_FOLDER), hosts).map(|identity| (identity, addresses))
         })
         .await
         .map_err(|error| std::io::Error::other(error.to_string()))?
@@ -101,18 +114,19 @@ impl PhoneAccess {
             .await
             .map_err(|error| std::io::Error::new(error.kind(), "phone_access_https_port_busy"))?;
         let web_port = web_listener.local_addr()?.port();
-        let web_listener = tls::Listener::new(web_listener, identity.config);
+        let web_listener = lan_tls::Listener::new(web_listener, identity.config);
         let stop = CancellationToken::new();
-        let app = router(Remote {
+        let remote = Remote {
             state,
             changed,
             stop: stop.clone(),
-        });
+        };
+        let app = router(remote.clone());
         let shutdown_http = stop.clone();
         let shutdown_https = stop.clone();
         let shutdown_both = stop.clone();
         let task = tokio::spawn(async move {
-            let http_app = app.clone();
+            let http_app = onboarding_router(remote);
             let http = async move {
                 axum::serve(listener, http_app)
                     .with_graceful_shutdown(async move { shutdown_http.cancelled().await })
@@ -304,7 +318,7 @@ pub async fn status(state: &AppState) -> Result<Status> {
 
 /// Public trust certificate for the phone's one-time local HTTPS setup.
 pub(super) fn certificate(state: &AppState) -> std::io::Result<Vec<u8>> {
-    tls::certificate(&state.db.root)
+    std::fs::read(lan_tls::certificate_path(&state.db.root.join(TLS_FOLDER)))
 }
 
 /// Apply the switch and/or rotate the key; the flag is persisted only after a successful change.
@@ -405,7 +419,12 @@ fn router(remote: Remote) -> Router {
         )
         .fallback(|| async { detail(StatusCode::NOT_FOUND, "Not Found") })
         .layer(middleware::from_fn_with_state(remote.clone(), guard))
-        .merge(web::routes())
+        .with_state(remote.clone())
+        .merge(onboarding_router(remote))
+}
+
+fn onboarding_router(remote: Remote) -> Router {
+    web::routes()
         .route("/mobile/connection.json", get(web_connection))
         .route("/mobile-ca.crt", get(web_certificate))
         .route("/mobile-ca.mobileconfig", get(web_certificate_profile))

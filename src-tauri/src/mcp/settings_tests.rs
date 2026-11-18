@@ -533,7 +533,8 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
         .unwrap();
     let local_url = status.url.unwrap();
     let port = reqwest::Url::parse(&local_url).unwrap().port().unwrap();
-    let lan_url = format!("http://{lan}:{port}/mcp");
+    let http_lan_url = format!("http://{lan}:{port}/mcp");
+    let lan_url = format!("https://{lan}:{port}/mcp");
     let connection = control.http_connection(&local_url).unwrap();
     let token = connection.token.clone();
     let config: serde_json::Value = serde_json::from_str(&connection.client_config).unwrap();
@@ -547,7 +548,7 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
         .timeout(Duration::from_secs(2))
         .build()
         .unwrap();
-    assert!(initialize_request(&client, &lan_url, &token)
+    assert!(initialize_request(&client, &http_lan_url, &token)
         .send()
         .await
         .is_err());
@@ -580,14 +581,22 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
     assert!(!serde_json::to_string(&status).unwrap().contains(&token));
     let connection = control.http_connection(&lan_url).unwrap();
     assert_eq!(connection.token, token);
-    assert!(initialize_request(&client, &lan_url, &token)
+    let ca = std::fs::read(lan_tls::certificate_path(&root.path().join(TLS_FOLDER))).unwrap();
+    let tls_client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .tls_built_in_root_certs(false)
+        .add_root_certificate(reqwest::Certificate::from_der(&ca).unwrap())
+        .build()
+        .unwrap();
+    assert!(initialize_request(&tls_client, &lan_url, &token)
         .send()
         .await
         .unwrap()
         .status()
         .is_success());
     assert_eq!(
-        initialize_request(&client, &lan_url, "wrong")
+        initialize_request(&tls_client, &lan_url, "wrong")
             .send()
             .await
             .unwrap()
@@ -595,7 +604,7 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
         reqwest::StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        initialize_request(&client, &lan_url, &token)
+        initialize_request(&tls_client, &lan_url, &token)
             .header("Host", "foreign.invalid")
             .send()
             .await
@@ -604,7 +613,7 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
         reqwest::StatusCode::FORBIDDEN
     );
     assert_eq!(
-        initialize_request(&client, &lan_url, &token)
+        initialize_request(&tls_client, &lan_url, &token)
             .header("Origin", "http://untrusted.invalid")
             .send()
             .await
@@ -708,4 +717,112 @@ async fn failed_scope_widening_restores_previous_listener_settings_and_token() {
         .configure(state, app.handle().clone(), McpSettings::default())
         .await
         .unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn network_transport_checks_trust_name_and_key_and_reconnects_with_the_same_ca() {
+    let root = tempfile::tempdir().unwrap();
+    let (state, app) = fixture(root.path());
+    let control = Arc::new(Control::new(root.path().into(), Environment::default()));
+    let network = McpSettings {
+        enabled: true,
+        port: 0,
+        scope: McpScope::Network,
+    };
+    let status = control
+        .configure(state.clone(), app.handle().clone(), network)
+        .await
+        .unwrap();
+    let url = status.url.unwrap();
+    let port = reqwest::Url::parse(&url).unwrap().port().unwrap();
+    let connection = control.http_connection(&url).unwrap();
+    let config: serde_json::Value = serde_json::from_str(&connection.client_config).unwrap();
+    assert_eq!(config["mcpServers"]["music-generator"]["url"], url);
+    assert!(status.urls.iter().all(|url| url.starts_with("https://")));
+    let ca = std::fs::read(lan_tls::certificate_path(&root.path().join(TLS_FOLDER))).unwrap();
+    assert_eq!(
+        status.certificate_fingerprint,
+        Some(lan_tls::fingerprint(&ca))
+    );
+    let descriptor: ConnectionInfo =
+        serde_json::from_slice(&std::fs::read(&status.config_path).unwrap()).unwrap();
+    let trusted = super::super::bridge::connection_client(&descriptor).unwrap();
+    assert!(initialize_request(&trusted, &url, &connection.token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    assert!(initialize_request(&client, &url, &connection.token)
+        .send()
+        .await
+        .is_err());
+    let plain = format!("http://127.0.0.1:{port}/mcp");
+    assert!(control.http_connection(&plain).is_err());
+    assert!(initialize_request(&client, &plain, &connection.token)
+        .send()
+        .await
+        .is_err());
+    // The CA is trusted, but the certificate does not cover this name.
+    let wrong_peer = format!("https://localhost:{port}/mcp");
+    let ca_client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .resolve("localhost", (Ipv4Addr::LOCALHOST, port).into())
+        .tls_built_in_root_certs(false)
+        .add_root_certificate(reqwest::Certificate::from_der(&ca).unwrap())
+        .build()
+        .unwrap();
+    assert!(
+        initialize_request(&ca_client, &wrong_peer, &connection.token)
+            .send()
+            .await
+            .is_err()
+    );
+
+    control
+        .configure(state.clone(), app.handle().clone(), McpSettings::default())
+        .await
+        .unwrap();
+    assert!(!root.path().join("mcp.json").exists());
+    assert!(initialize_request(&trusted, &url, &connection.token)
+        .send()
+        .await
+        .is_err());
+    std::fs::remove_file(root.path().join("mcp-token")).unwrap();
+    let restarted = control
+        .configure(state, app.handle().clone(), network)
+        .await
+        .unwrap();
+    let new_url = restarted.url.unwrap();
+    assert_eq!(
+        restarted.certificate_fingerprint,
+        status.certificate_fingerprint
+    );
+    let new_token = control.http_connection(&new_url).unwrap().token;
+    assert_ne!(new_token, connection.token);
+    assert_eq!(
+        initialize_request(&trusted, &new_url, &connection.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert!(initialize_request(&trusted, &new_url, &new_token)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    let server = control.current.lock().unwrap().server.clone().unwrap();
+    server.stop();
+    server.wait_closed().await;
 }

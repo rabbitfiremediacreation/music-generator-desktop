@@ -3,7 +3,7 @@ export interface McpSettings { enabled: boolean; port: number; scope: "local" | 
 export interface McpHttpConnection { url: string; token: string; client_config: string }
 export interface McpSettingsStatus extends McpSettings {
   running: boolean; url: string | null; urls: string[]; config_path: string; client_config: string;
-  managed_by_environment: boolean; error: string | null;
+  managed_by_environment: boolean; error: string | null; certificate_fingerprint?: string | null;
 }
 export interface Settings {
   models_dir: string; songs_dir: string; lm_model: string; dit: "standard" | "xl";

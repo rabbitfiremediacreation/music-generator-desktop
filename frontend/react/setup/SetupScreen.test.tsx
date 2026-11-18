@@ -18,7 +18,7 @@ beforeEach(() => {
   setLang("de");
   ipc.invoke.mockReset();
   ipc.open.mockReset();
-  phoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767"] };
+  phoneAccess = { enabled: false, port: 8767, token: "", addresses: ["http://studio.local:8767"], web_addresses: ["https://studio.local:8768/mobile/"] };
   ipc.invoke.mockImplementation(async (name: string, args?: { current?: string; enabled?: boolean }) => {
     if (name === "setup_estimate") return { missing_bytes: 0, free_bytes: 1024 ** 4 };
     if (name === "generation_policy") return { backend: "gpu" };

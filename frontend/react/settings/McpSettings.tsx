@@ -135,6 +135,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
             {status.urls.map(address => <option key={address} value={address}>{address}</option>)}
           </select>
         </label>
+        {status.certificate_fingerprint && <p className="small phone-access-fingerprint">{t("remote_certificate")}<br /><code>{status.certificate_fingerprint}</code></p>}
         <div className="mcp-actions">
           <button type="button" className="sek" disabled={!canConnect || connecting} onClick={() => void connect(true)}>{t("mcp_copy")}</button>
           <button type="button" className="sek" disabled={!canConnect || connecting} onClick={() => void connect(false)}>{t("mcp_connection")}</button>

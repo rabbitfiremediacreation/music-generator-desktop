@@ -1,6 +1,7 @@
 //! Stdio adapter for clients without Streamable HTTP support; never opens the library.
 use super::transport::{validate_token, ConnectionInfo, MAX_REQUEST_BYTES};
 use crate::error::{message, Result};
+use base64::Engine;
 use serde_json::{json, Value};
 use std::{path::Path, sync::Arc, time::Duration};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -60,7 +61,12 @@ fn read_connection(path: &Path) -> Result<ConnectionInfo> {
 
 fn validate_connection(info: &ConnectionInfo) -> Result<()> {
     let url = reqwest::Url::parse(&info.url).map_err(|_| message("Invalid MCP endpoint"))?;
-    if url.scheme() != "http"
+    let scheme = if info.ca_der_base64.is_some() {
+        "https"
+    } else {
+        "http"
+    };
+    if url.scheme() != scheme
         || url.host_str() != Some("127.0.0.1")
         || url.port_or_known_default().is_none_or(|port| port == 0)
         || url.path() != "/mcp"
@@ -70,19 +76,32 @@ fn validate_connection(info: &ConnectionInfo) -> Result<()> {
         || url.fragment().is_some()
     {
         return Err(message(
-            "MCP connection must target http://127.0.0.1:PORT/mcp",
+            "MCP connection must target 127.0.0.1:PORT/mcp using the configured transport",
         ));
     }
     validate_token(&info.token)
 }
 
-async fn run(info: ConnectionInfo) -> Result<()> {
-    let client = reqwest::Client::builder()
+pub(super) fn connection_client(info: &ConnectionInfo) -> Result<reqwest::Client> {
+    validate_connection(info)?;
+    let mut builder = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(3))
-        .timeout(Duration::from_secs(600))
-        .build()?;
+        .timeout(Duration::from_secs(600));
+    if let Some(certificate) = &info.ca_der_base64 {
+        let der = base64::engine::general_purpose::STANDARD
+            .decode(certificate)
+            .map_err(|_| message("Invalid MCP trust certificate"))?;
+        builder = builder
+            .tls_built_in_root_certs(false)
+            .add_root_certificate(reqwest::Certificate::from_der(&der)?);
+    }
+    Ok(builder.build()?)
+}
+
+async fn run(info: ConnectionInfo) -> Result<()> {
+    let client = connection_client(&info)?;
     let output: Output = Arc::new(Mutex::new(tokio::io::stdout()));
     let mut input = BufReader::new(tokio::io::stdin());
     let mut pending = Vec::new();

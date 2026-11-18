@@ -6,9 +6,9 @@ Der optionale MCP-Server steuert die **laufende Desktop-App**. Er verwendet dies
 
 Den ersten Startassistenten in der Desktop-App abschließen. Unter **Einstellungen → MCP** den Dienst aktivieren, den Zugriff auf **diesen Rechner** oder das **lokale Netzwerk** wählen und mit dem eigenen MCP-Knopf anwenden. Die Auswahl bleibt nach einem App-Neustart erhalten; standardmäßig ist MCP deaktiviert und nur für diesen Rechner konfiguriert.
 
-Der Dienst bietet **Streamable HTTP über TCP**. Neue Profile verwenden Port `32123`; `0` wählt bei jedem Start einen freien Port. Für eine dauerhaft konfigurierte Verbindung einen festen Port verwenden.
+Der Dienst bietet **Streamable HTTP** über Loopback-HTTP oder über HTTPS im Netzwerkmodus. Neue Profile verwenden Port `32123`; `0` wählt bei jedem Start einen freien Port. Für eine dauerhaft konfigurierte Verbindung einen festen Port verwenden.
 
-Im Netzwerkmodus die Adresse des Rechners auswählen, auf dem Music Generator läuft, zum Beispiel `http://192.168.1.20:32123/mcp`. Der Bereich zeigt den tatsächlichen Dienststatus und die verfügbaren Adressen. Die HTTP-Client-Konfiguration lässt sich direkt kopieren; ein separater stdio-Prozess ist dafür nicht nötig. Zugangsdaten werden erst nach einer ausdrücklichen Benutzeraktion geladen, der Schlüssel wird zunächst verdeckt angezeigt.
+Im Netzwerkmodus die Adresse des Rechners auswählen, auf dem Music Generator läuft, zum Beispiel `https://192.168.1.20:32123/mcp`. Der Bereich zeigt den tatsächlichen Dienststatus und die verfügbaren Adressen. Die HTTP-Client-Konfiguration lässt sich direkt kopieren; ein separater stdio-Prozess ist dafür nicht nötig. Zugangsdaten werden erst nach einer ausdrücklichen Benutzeraktion geladen, der Schlüssel wird zunächst verdeckt angezeigt.
 
 MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder **Abbrechen** des Einstellungsdialogs. Deaktivieren schließt den TCP-Zugang und entfernt die aktuelle Verbindungsdatei. Bereits angenommene Generierungsaufträge bleiben in der gemeinsamen Warteschlange und werden dadurch nicht abgebrochen. Die Desktop-App muss für den Dienst geöffnet bleiben.
 
@@ -16,8 +16,17 @@ MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder
 
 - Auf dem anderen Rechner die angezeigte Netzwerkadresse verwenden. `127.0.0.1` bezeichnet immer den eigenen Rechner.
 - Der gewählte TCP-Port muss in der Firewall des Music-Generator-Rechners erreichbar sein. Die App ändert keine Firewall-Regeln.
-- Der Dienst verwendet HTTP ohne TLS. Nur in einem vertrauenswürdigen Netzwerk verwenden; wer den Zugangsschlüssel besitzt, kann Musik erzeugen und die Bibliothek verwalten.
+- Der Netzwerkmodus verlangt TLS. Der Client prüft die Zertifikatskette und die IP-Adresse in der URL. Wer den Zugangsschlüssel besitzt, kann Musik erzeugen und die Bibliothek verwalten.
 - Nach einem Netzwerkwechsel den Dienst aus- und wieder einschalten, damit die Adressen neu erkannt werden. Bei mehreren Netzwerkadaptern die vom Client erreichbare Adresse wählen.
+
+### Bestehende LAN-Clients auf HTTPS umstellen
+
+1. Deaktiviere MCP und ersetze den bisherigen, über HTTP verwendeten Schlüssel. Für den automatisch erzeugten Schlüssel die App beenden, `mcp-token` im App-Datenordner entfernen und die App neu starten. Bei Verwendung von `MUSIC_GENERATOR_MCP_TOKEN` den Wert in der Startumgebung ersetzen. Anschließend MCP wieder im Netzwerkmodus aktivieren.
+2. Kopiere **nur** `mcp-lan-tls/certificate.crt` aus dem App-Datenordner über einen vertrauenswürdigen Weg zum Client. Das ist das öffentliche CA-Zertifikat im DER-Format. Vergleiche den SHA-256-Wert der Kopie mit dem Fingerabdruck in **Einstellungen → MCP**. Mit OpenSSL: `openssl x509 -inform DER -in certificate.crt -noout -fingerprint -sha256`.
+3. Importiere die CA in den Vertrauensspeicher, den der konkrete MCP-Client für TLS verwendet. Manche Clients nutzen einen eigenen Speicher. Für einen Client, dessen Prozess eine PEM-Datei erwartet, konvertiere mit `openssl x509 -inform DER -in certificate.crt -out music-generator-mcp-ca.pem`. Verwende einen Client, der die CA und die IP-Adresse prüft.
+4. Kopiere die neue HTTPS-Konfiguration aus den MCP-Einstellungen. Ersetze den alten HTTP-Endpunkt und den alten Schlüssel; verwende genau die angezeigte IP-Adresse. Bei einem Zertifikatsfehler prüfe CA und Adresse und lass die Zertifikatsprüfung aktiv.
+
+Die MCP-CA gehört zum Desktop-Datenprofil und ist von der Handy-CA unabhängig. Beim Wiedereinschalten wird ein Serverzertifikat für die aktuellen Adressen ausgestellt. Nach einem Profilwechsel oder Verlust der CA ist ein neuer Vertrauensaufbau nötig. Bis zur Umstellung kann ein Client auf demselben Rechner den Modus **Dieser Rechner** oder die mitgelieferte lokale stdio-Brücke nutzen.
 
 ### Per Umgebungsvariable
 
@@ -48,7 +57,7 @@ Entwicklung:
 MUSIC_GENERATOR_MCP_PORT=0 npm run dev
 ```
 
-Die Variable muss beim Start des eigentlichen App-Prozesses gesetzt sein; das erneute Öffnen einer bereits laufenden Instanz ändert ihre Konfiguration nicht. Sobald die Dateninitialisierung abgeschlossen ist, schreibt die App `mcp.json` in ihren Datenordner. Die Datei enthält `url`, `token` und `pid`. Die Standardordner stehen in der [README](../README.md#daten-und-updates). Ein Portkonflikt oder ungültige Konfiguration wird in `logs/desktop.log` protokolliert; die Oberfläche bleibt benutzbar.
+Die Variable muss beim Start des eigentlichen App-Prozesses gesetzt sein; das erneute Öffnen einer bereits laufenden Instanz ändert ihre Konfiguration nicht. Sobald die Dateninitialisierung abgeschlossen ist, schreibt die App `mcp.json` in ihren Datenordner. Die Datei enthält `url`, `token` und `pid`. Im Netzwerkmodus enthält sie zusätzlich das öffentliche CA-Zertifikat für die lokale Brücke. Die Standardordner stehen in der [README](../README.md#daten-und-updates). Ein Portkonflikt oder ungültige Konfiguration wird in `logs/desktop.log` protokolliert; die Oberfläche bleibt benutzbar.
 
 Der automatisch erzeugte Zugangsschlüssel bleibt in der privaten Datei `mcp-token` erhalten, sodass ein HTTP-Client bei festem Port auch nach einem Dienst- oder App-Neustart verbunden werden kann. `MUSIC_GENERATOR_MCP_TOKEN` kann einen eigenen Schlüssel mit 32–512 Zeichen vorgeben (Buchstaben, Ziffern und `-._~+/=`). Unter Unix sind die Schlüsseldatei und `mcp.json` nur für den aktuellen Benutzer lesbar und schreibbar (`0600`); unter Windows gelten die Zugriffsrechte des persönlichen App-Datenordners. `mcp-settings.json` speichert nur Aktivierung, Port und Zugriffsbereich.
 
@@ -64,7 +73,7 @@ Die Konfiguration aus den React-Einstellungen im Client einfügen oder die angez
 {
   "mcpServers": {
     "music-generator": {
-      "url": "http://192.168.1.20:32123/mcp",
+      "url": "https://192.168.1.20:32123/mcp",
       "headers": {"Authorization": "Bearer YOUR_RANDOM_TOKEN"}
     }
   }
@@ -73,7 +82,7 @@ Die Konfiguration aus den React-Einstellungen im Client einfügen oder die angez
 
 Die genauen Feldnamen hängen vom MCP-Client ab. Der Server verwendet das offizielle [Rust-MCP-SDK](https://github.com/modelcontextprotocol/rust-sdk) und unterstützt dessen Protokollverhandlung, einschließlich älterer Clients mit `initialize`. Der Endpunkt liefert JSON-Antworten; Fortschritt wird über Werkzeuge und Ressourcen abgefragt.
 
-Im lokalen Modus wird an `127.0.0.1` gebunden, im Netzwerkmodus an alle IPv4-Schnittstellen. Als Client-Adresse eine der angezeigten IP-Adressen verwenden, nicht die Bindeadresse `0.0.0.0`. Anfragen ohne gültigen Schlüssel, mit einem nicht freigegebenen `Host` oder mit Browser-`Origin` werden abgelehnt. Der Server ist für native MCP-Clients gedacht.
+Im lokalen Modus bleibt `http://127.0.0.1:PORT/mcp` verfügbar. Im Netzwerkmodus wird HTTPS an alle IPv4-Schnittstellen einschließlich Loopback gebunden. Als Client-Adresse eine der angezeigten IP-Adressen verwenden, nicht die Bindeadresse `0.0.0.0`. Anfragen ohne gültigen Schlüssel, mit einem nicht freigegebenen `Host` oder mit Browser-`Origin` werden abgelehnt. Der Server ist für native MCP-Clients gedacht.
 
 ### Optionale lokale stdio-Brücke
 
@@ -95,7 +104,7 @@ Clients mit stdio starten die mitgelieferte Brücke. Die Desktop-App muss bereit
 
 Unter Linux kann die AppImage mit denselben Argumenten verwendet werden. Unter Windows `music-generator-mcp.exe` neben `Music Generator.exe` als `command` verwenden, mit `--mcp-stdio` und dem absoluten Pfad zu `mcp.json`. Der separate Konsolenprozess hält die stdio-Schnittstelle unabhängig vom Windows-GUI-Subsystem.
 
-Es ist keine Node-/Python-Installation nötig. stdout enthält ausschließlich MCP-Nachrichten, Diagnosemeldungen gehen an stderr. Die Brücke verwendet weder einen HTTP-Proxy noch Weiterleitungen und akzeptiert ausschließlich den lokalen Endpunkt. Das Beenden des Clients beendet weder die App noch bereits angenommene Songs.
+Es ist keine Node-/Python-Installation nötig. stdout enthält ausschließlich MCP-Nachrichten, Diagnosemeldungen gehen an stderr. Die Brücke verbindet sich direkt mit dem Loopback-Endpunkt ohne Proxy oder Weiterleitungen. Im Netzwerkmodus prüft sie das Zertifikat gegen die CA aus der lokalen Verbindungsdatei und prüft die Loopback-IP. Das Beenden des Clients beendet weder die App noch bereits angenommene Songs.
 
 ## Werkzeuge
 
