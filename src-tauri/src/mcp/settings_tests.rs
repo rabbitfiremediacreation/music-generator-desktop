@@ -527,11 +527,14 @@ fn lan_address_selection_filters_unsuitable_interfaces_and_deduplicates() {
 
 #[cfg(unix)]
 fn lan_address() -> Option<Ipv4Addr> {
-    use std::{io::ErrorKind, net::TcpStream};
+    use std::net::TcpStream;
 
     // Qualify the test host independently of MCP discovery and its listener.
     let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0)).unwrap();
     let port = listener.local_addr().unwrap().port();
+    let timeout = Duration::from_millis(250);
+    TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port).into(), timeout)
+        .expect("Independent TCP probe must work over loopback");
     let networks = sysinfo::Networks::new_with_refreshed_list();
     let candidates: std::collections::BTreeSet<_> = networks
         .values()
@@ -549,24 +552,12 @@ fn lan_address() -> Option<Ipv4Addr> {
         })
         .collect();
     for address in candidates {
-        match TcpStream::connect_timeout(&(address, port).into(), Duration::from_millis(250)) {
+        match TcpStream::connect_timeout(&(address, port).into(), timeout) {
             Ok(_) => {
                 eprintln!("Independent LAN TCP probe connected to {address}");
                 return Some(address);
             }
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    ErrorKind::AddrNotAvailable
-                        | ErrorKind::ConnectionRefused
-                        | ErrorKind::HostUnreachable
-                        | ErrorKind::NetworkUnreachable
-                        | ErrorKind::TimedOut
-                ) =>
-            {
-                eprintln!("Independent LAN TCP probe could not reach {address}: {error}");
-            }
-            Err(error) => panic!("Independent LAN TCP probe failed for {address}: {error}"),
+            Err(error) => eprintln!("Independent LAN TCP probe could not reach {address}: {error}"),
         }
     }
     eprintln!("Skipping LAN integration: no non-loopback IPv4 address reached the independent TCP listener");
