@@ -148,7 +148,7 @@ impl Database {
 
     fn song_filter_params<'a>(
         filter: &'a SongFilter,
-        search: &'a String,
+        search: &'a dyn rusqlite::ToSql,
     ) -> [&'a dyn rusqlite::ToSql; 6] {
         [
             &filter.q,
