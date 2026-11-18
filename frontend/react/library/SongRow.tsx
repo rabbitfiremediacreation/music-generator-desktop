@@ -22,6 +22,9 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
   const progress = useQuery<Record<string,JobProgress>>({queryKey:queryKeys.progress,queryFn:async()=>({}),enabled:false}).data?.[song.id];
   const change = useMutation({mutationFn:async (action:()=>Promise<unknown>)=>action(),onSuccess:()=>invalidateLibrary(client),onError});
+  const canCancel = song.status === "queued" || song.status === "running";
+  const confirmDelete = !canCancel && armed;
+  const removeLabel = t(canCancel ? "cancel" : confirmDelete ? "del_q" : "del");
   useEffect(() => { if (editing) {edit.current?.focus();edit.current?.select();} },[editing]);
   useEffect(() => {
     if (!moving) return;
@@ -67,8 +70,17 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       {action(t("more"),"＋",()=>{void more();},"",admission.busy)}
       {action(t("reuse"),"↑",()=>onReuse(song))}
       {["error","cancelled"].includes(song.status)&&action(t("retry"),"↻",()=>{void more(true);},"",admission.busy)}
-      <button type="button" data-arm={`song:${song.id}`} className={`sek icon del ${armed?"armed":""}`} title={armed?t("del_q"):t(["queued","running"].includes(song.status)?"cancel":"del")} aria-label={armed?t("del_q"):t(["queued","running"].includes(song.status)?"cancel":"del")} disabled={change.isPending}
-        onClick={()=>{if(["queued","running"].includes(song.status)||onArm())change.mutate(async()=>{const result=await backend.remove(song.id);if(result.deleted)player.clear(song.id);});}}>{armed?"?":"✕"}</button>
+      <button type="button" data-arm={canCancel ? undefined : `song:${song.id}`} className={`sek icon del ${confirmDelete?"armed":""}`} title={removeLabel} aria-label={removeLabel} disabled={change.isPending}
+        onClick={() => {
+          if (canCancel) {
+            change.mutate(() => backend.cancel(song.id));
+          } else if (onArm()) {
+            change.mutate(async () => {
+              await backend.remove(song.id);
+              player.clear(song.id);
+            });
+          }
+        }}>{confirmDelete?"?":"✕"}</button>
     </div>
     {lyrics&&lyricsOpen&&<div className="lyr-wrap"><pre className="lyr">{lyrics}</pre><button type="button" className="download mini lyr-dl" title={t("lyrics_dl")} aria-label={t("lyrics_dl")} onClick={()=>change.mutate(()=>exportSong(song,true))}>TXT ↓</button></div>}
   </article>;

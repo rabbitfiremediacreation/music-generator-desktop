@@ -200,7 +200,7 @@ fn title_failure_does_not_backfill_completed_or_cancelled_songs() {
             .clone();
         db.claim_next().unwrap();
         if cancelled {
-            db.cancel_or_delete(&id).unwrap();
+            db.cancel_song(&id).unwrap();
         } else {
             db.finish(&id, "song.wav", &json!({})).unwrap();
         }

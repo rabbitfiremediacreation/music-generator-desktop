@@ -83,12 +83,7 @@ pub async fn call<R: tauri::Runtime>(
             "get_song" => Ok(serde_json::to_value(state.db.song(string(&args, "id")?)?)?),
             "cancel_song" => {
                 let id = string(&args, "id")?;
-                let cancelled = state
-                    .runtime
-                    .update_preferences(|| state.db.mcp_cancel_song(id))?;
-                if cancelled {
-                    state.runtime.cancel_song(id);
-                }
+                let cancelled = state.runtime.cancel_song(id, || state.db.cancel_song(id))?;
                 Ok(json!({"cancelled": cancelled, "song": state.db.song(id)?}))
             }
             "delete_song" => {
@@ -96,7 +91,7 @@ pub async fn call<R: tauri::Runtime>(
                 let id = string(&args, "id")?;
                 state
                     .runtime
-                    .update_preferences(|| state.db.mcp_delete_song(id))?;
+                    .update_preferences(|| state.db.delete_song(id))?;
                 Ok(json!({"deleted": true, "id": id}))
             }
             "update_song" => {
