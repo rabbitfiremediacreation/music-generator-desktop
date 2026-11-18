@@ -5,7 +5,8 @@ import { App, secureConnectionUrl } from "./App";
 import { connectionKey } from "./client";
 
 const request = vi.fn();
-const song = { id: "one", title: "Rain song", caption: "piano", status: "done", favorite: false, folder_id: null, result_meta: { duration: 90, bpm: 80 }, params: {}, url: "/api/songs/one/audio" };
+const song = { id: "one", title: "Rain song", status: "done", favorite: false, folder_id: null, duration: 90, bpm: 80, has_audio: true, message: null };
+const library = { songs: [song], folders: { folders: [], all: 1, none: 1 } };
 beforeEach(() => {
   window.localStorage.clear(); window.history.replaceState(null, "", "/mobile/#token=paired-key");
   vi.stubGlobal("isSecureContext", true);
@@ -16,11 +17,11 @@ beforeEach(() => {
   vi.stubGlobal("fetch", request);
   request.mockReset();
   request.mockImplementation(async (path: string) => {
-    const value = path.startsWith("/api/songs?") ? [song] : path === "/api/folders" ? { folders: [], all: 1, none: 1 } : path === "/api/queue" ? { running: [], queued: 0, active: false, progress: null } : path === "/api/generate" ? { ids: ["new"], group_id: "g" } : {};
+    const value = path.startsWith("/api/pwa/library?") ? library : path === "/api/queue" ? { running: [], queued: 0, active: false, progress: null } : path === "/api/generate" ? { ids: ["new"], group_id: "g" } : {};
     return new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
   });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("pairs from the QR fragment, shows the library and submits a generation to the same computer", async () => {
   render(<App />);
@@ -36,6 +37,54 @@ it("pairs from the QR fragment, shows the library and submits a generation to th
   const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
   expect(call[1].headers.get("Authorization")).toBe("Bearer paired-key");
   expect(JSON.parse(call[1].body)).toMatchObject({ prompt: "warm piano", instrumental: true, duration: 90, variants: 1, folder_id: null });
+});
+
+it("keeps cards on two 304 polls, updates queue progress and refreshes the changed library", async () => {
+  vi.useFakeTimers();
+  const validators: (string | null)[] = [];
+  let revision = '"first"';
+  let progress = 0;
+  const updated = {
+    songs: [{ ...song, favorite: true, folder_id: "demos" }, { ...song, id: "two", title: "New song", status: "queued", has_audio: false }],
+    folders: { folders: [{ id: "demos", name: "Demos", count: 1 }], all: 2, none: 1 },
+  };
+  request.mockImplementation(async (path: string, options: { headers: Headers }) => {
+    if (path === "/api/queue") {
+      progress += 20;
+      return Response.json({ running: [{ message: `Rendering ${progress}%` }], queued: 0, active: true, progress: null });
+    }
+    expect(path).toMatch(/^\/api\/pwa\/library\?/);
+    const validator = options.headers.get("If-None-Match");
+    validators.push(validator);
+    if (validator === revision) return new Response(null, { status: 304, headers: { ETag: revision } });
+    const data = revision === '"first"' ? library : updated;
+    return Response.json(path.includes("favorites=true") ? { ...data, songs: data.songs.filter(card => card.favorite) } : data, { headers: { ETag: revision } });
+  });
+  render(<App />);
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByRole("heading", { name: "Rain song" })).toBeTruthy();
+  expect(screen.getByText("1:30 · 80 BPM")).toBeTruthy();
+
+  for (const progress of [40, 60]) {
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.getByText(`Rendering ${progress}%`)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Rain song" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  }
+  expect(validators).toEqual([null, '"first"', '"first"']);
+
+  revision = '"changed"';
+  await act(() => vi.advanceTimersByTimeAsync(5000));
+  expect(validators.at(-1)).toBe('"first"');
+  expect(screen.getByRole("heading", { name: "New song" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Favorite: Rain song" }).getAttribute("aria-pressed")).toBe("true");
+  expect((screen.getByRole("combobox", { name: "Move to folder: Rain song" }) as HTMLSelectElement).value).toBe("demos");
+  expect(screen.getByRole("option", { name: "Demos · 1" })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Favorites" }));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(validators.at(-1)).toBeNull();
+  expect(screen.queryByRole("heading", { name: "New song" })).toBeNull();
 });
 
 it("clears a revoked saved key and asks for a fresh pairing", async () => {
