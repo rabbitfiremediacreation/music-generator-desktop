@@ -1,0 +1,26 @@
+{
+  "qa_source_commit": "c982d54c7abff35463c6c31517a3b3f69389b963",
+  "bundle_tag": "v0.2.0",
+  "bundle_source_commit": "2c9daeb86967a4667384c4543df3c5a3ac8d77c9",
+  "bundle_archive": "Music-Generator-0.2.0-macos-arm64.zip",
+  "bundle_sha256": "d85d253b52130ba11466a4513a79053a77153c82b03f0cc5673a8c2b5db5d177",
+  "cpu": "Apple M5 Pro",
+  "memory_bytes": 68719476736,
+  "backend": "Metal",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.9.6",
+  "engine": {
+    "revision": "b7ba6d9-sandbox2-steps200",
+    "source_revision": "b7ba6d9ce2f19ca7627fb8f340032c3ebe8ae253",
+    "max_inference_steps": 200
+  },
+  "models": {
+    "acestep-v15-sft-Q8_0.gguf": "17f1984e48aaab27b3eb8ccbf0b754a6656e677884c60ea7003845cfc0059b70",
+    "vae-BF16.gguf": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
+    "Qwen3-Embedding-0.6B-Q8_0.gguf": "972f23255e46adfe744a0eb9a0039f3c63988f65753b0968d776e8b27168c321",
+    "acestep-5Hz-lm-0.6B-Q8_0.gguf": "bdaf9e292d4470f31c19cafeaca1b74936a114667e3a85e5d33b65247e9908ec",
+    "acestep-5Hz-lm-1.7B-Q8_0.gguf": "726f99a82f050b32ebc5c5e36acaa9d7acd06bfe5e579a62b00e0d0d6d0b7ec6",
+    "acestep-5Hz-lm-4B-Q8_0.gguf": "972f91147a167f0c041f1b158d67985a82c0f6a852e68cdf70e46030cf08b1bc"
+  },
+  "model_source": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/666ac70204440867d8c01ba4b119cc79c95b370a"
+}
