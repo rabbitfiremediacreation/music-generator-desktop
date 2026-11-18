@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { Folder, Queue, Song } from "../types";
-import { AuthenticationError, pairingToken, readConnection, rememberConnection, releaseMedia, RemoteApi } from "./client";
+import type { Folder, Queue } from "../types";
+import { AuthenticationError, pairingToken, readConnection, rememberConnection, releaseMedia, RemoteApi, type FolderList, type SongCard } from "./client";
 import { QrScanner } from "./QrScanner";
 import { messages, type Language, type Message } from "./messages";
 import "./mobile.css";
 
-interface FolderList { folders: Folder[]; all: number; none: number }
 interface InstallPrompt extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }
 interface ConnectionInfo { secure_addresses: string[]; certificate_url: string; certificate_profile_url?: string; certificate_fingerprint: string }
 type Translate = (key: Message) => string;
 const noFolders: FolderList = { folders: [], all: 0, none: 0 };
-const duration = (song: Song) => {
-  const seconds = Number(song.result_meta?.duration || song.params?.duration || 0);
+const duration = (seconds: number | null) => {
   return seconds ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "";
 };
 const isAborted = (error: unknown) => error instanceof Error && error.name === "AbortError";
@@ -92,12 +90,13 @@ export function App() {
   const [storageError, setStorageError] = useState(false);
   const [page, setPage] = useState<"library" | "create">("library");
   const [search, setSearch] = useState(""), [folder, setFolder] = useState(""), [favorites, setFavorites] = useState(false);
-  const [songs, setSongs] = useState<Song[]>([]), [folders, setFolders] = useState<FolderList>(noFolders), [queue, setQueue] = useState<Queue | null>(null);
+  const [songs, setSongs] = useState<SongCard[]>([]), [folders, setFolders] = useState<FolderList>(noFolders), [queue, setQueue] = useState<Queue | null>(null);
+  const libraryValidator = useRef<{ api: RemoteApi; query: string; etag?: string } | null>(null);
   const [loading, setLoading] = useState(true), [failure, setFailure] = useState<string | null>(null), [revision, setRevision] = useState(0), [action, setAction] = useState<string | null>(null);
   const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
   const [toast, setToast] = useState<Message | null>(null);
   const audio = useRef<HTMLAudioElement>(null), mediaUrl = useRef<string | null>(null);
-  const [playing, setPlaying] = useState<Song | null>(null);
+  const [playing, setPlaying] = useState<SongCard | null>(null);
   const downloadUrls = useRef(new Set<string>());
   const t = useCallback((key: Message) => messages[language][key], [language]);
   const secure = window.isSecureContext;
@@ -107,6 +106,7 @@ export function App() {
     downloadUrls.current.clear();
   }, []);
   const disconnect = useCallback((expired = false) => {
+    libraryValidator.current = null;
     setToken(""); setKeyDraft(""); setAuthMessage(expired); setSongs([]); setFolders(noFolders); setQueue(null); clearMedia();
     try { rememberConnection("", false, window.localStorage); } catch { /* Storage is optional. */ }
     setRemember(false);
@@ -121,17 +121,30 @@ export function App() {
   useEffect(() => {
     if (!secure || !token) return;
     let active = true, pending = false;
+    const query = new URLSearchParams({ q: search, folder, favorites: String(favorites) }).toString();
     const refresh = async () => {
       if (pending || document.hidden) return;
       pending = true;
-      try {
-        const query = new URLSearchParams({ q: search, folder, favorites: String(favorites) });
-        const [nextSongs, nextFolders, nextQueue] = await Promise.all([
-          api.json<Song[]>(`/api/songs?${query}`), api.json<FolderList>("/api/folders"), api.json<Queue>("/api/queue"),
-        ]);
-        if (active) { setSongs(nextSongs); setFolders(nextFolders); setQueue(nextQueue); setFailure(null); setLoading(false); }
-      } catch (error) { if (active && !isAborted(error) && !(error instanceof AuthenticationError)) { setFailure(error instanceof TypeError ? t("unavailable") : String(error instanceof Error ? error.message : error)); setLoading(false); } }
-      finally { pending = false; }
+      const current = libraryValidator.current;
+      const etag = current?.api === api && current.query === query ? current.etag : undefined;
+      const [library, nextQueue] = await Promise.allSettled([api.library(query, etag), api.json<Queue>("/api/queue")]);
+      pending = false;
+      if (!active) return;
+      if (library.status === "fulfilled" && library.value) {
+        libraryValidator.current = { api, query, etag: library.value.etag };
+        setSongs(library.value.data.songs);
+        setFolders(library.value.data.folders);
+      }
+      if (nextQueue.status === "fulfilled") setQueue(nextQueue.value);
+      const failed = [library, nextQueue].find(result => result.status === "rejected");
+      if (!failed) setFailure(null);
+      else {
+        const error: unknown = failed.reason;
+        if (!isAborted(error) && !(error instanceof AuthenticationError)) {
+          setFailure(error instanceof TypeError ? t("unavailable") : String(error instanceof Error ? error.message : error));
+        }
+      }
+      setLoading(false);
     };
     setLoading(true);
     const debounce = setTimeout(() => void refresh(), search ? 250 : 0);
@@ -155,7 +168,7 @@ export function App() {
     try { await work(); } catch (error) { if (!isAborted(error) && !(error instanceof AuthenticationError)) setFailure(error instanceof Error ? error.message : String(error)); }
     finally { setAction(null); }
   }
-  async function play(song: Song) {
+  async function play(song: SongCard) {
     await run(`play-${song.id}`, async () => {
       const { blob } = await api.blob(`/api/songs/${encodeURIComponent(song.id)}/audio`);
       clearMedia(); mediaUrl.current = URL.createObjectURL(blob); setPlaying(song);
@@ -166,7 +179,7 @@ export function App() {
     audio.current.src = mediaUrl.current;
     void audio.current.play().catch(() => { /* Native controls remain available when autoplay is denied. */ });
   }, [playing]);
-  async function download(song: Song) {
+  async function download(song: SongCard) {
     await run(`download-${song.id}`, async () => {
       const { blob, filename } = await api.blob(`/api/songs/${encodeURIComponent(song.id)}/audio?download=true`);
       const url = URL.createObjectURL(blob); downloadUrls.current.add(url);
@@ -175,7 +188,7 @@ export function App() {
       setToast("downloadReady");
     });
   }
-  async function favorite(song: Song) {
+  async function favorite(song: SongCard) {
     await run(`favorite-${song.id}`, async () => { await api.write(`/api/songs/${encodeURIComponent(song.id)}`, "PATCH", { favorite: !song.favorite }); setRevision(value => value + 1); });
   }
   const main = !token ? <section className="panel connect-panel">
@@ -203,16 +216,16 @@ export function App() {
       {loading && <p className="muted" role="status">{t("loading")}</p>}
       {!loading && !songs.length && <div className="empty"><div className="empty-icon"><Icon name="music" /></div><h2>{t("noSongs")}</h2><p>{t("noSongsHint")}</p><button className="secondary" type="button" onClick={() => setPage("create")}>{t("create")} <span aria-hidden="true">→</span></button></div>}
       <div className="song-list">{songs.map((song, index) => <article className="song-card" key={song.id}>
-        <div className={`song-art art-${index % 4}`}><Icon name="music" /></div><div className="song-body"><h2>{song.title || song.caption || "Song"}</h2><p className="song-meta">{song.status === "done" ? duration(song) : t(song.status === "queued" ? "queue" : song.status === "running" ? "running" : song.status === "cancelled" ? "cancelled" : "error")}{song.result_meta?.bpm ? ` · ${song.result_meta.bpm} BPM` : ""}</p>{song.status === "error" && song.message && <p className="song-error">{song.message}</p>}</div>
-        <button className={`icon-button star ${song.favorite ? "selected" : ""}`} type="button" aria-label={`${t("favorite")}: ${song.title || "Song"}`} aria-pressed={song.favorite} disabled={Boolean(action)} onClick={() => void favorite(song)}>★</button>
-        <div className="song-actions"><select aria-label={`${t("move")}: ${song.title || "Song"}`} value={song.folder_id || ""} disabled={Boolean(action)} onChange={event => { const value = event.target.value; void run(`move-${song.id}`, async () => { await api.write(`/api/songs/${encodeURIComponent(song.id)}`, "PATCH", { folder_id: value || null }); setRevision(current => current + 1); }); }}><option value="">{t("unsorted")}</option>{folders.folders.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{song.status === "done" && song.url && <><button className="secondary small-button" type="button" disabled={Boolean(action)} onClick={() => void download(song)} aria-label={`${t("download")}: ${song.title || "Song"}`}><Icon name="download" /></button><button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title || "Song"}`}><Icon name="play" /></button></>}</div>
+        <div className={`song-art art-${index % 4}`}><Icon name="music" /></div><div className="song-body"><h2>{song.title}</h2><p className="song-meta">{song.status === "done" ? duration(song.duration) : t(song.status === "queued" ? "queue" : song.status === "running" ? "running" : song.status === "cancelled" ? "cancelled" : "error")}{song.bpm ? ` · ${song.bpm} BPM` : ""}</p>{song.status === "error" && song.message && <p className="song-error">{song.message}</p>}</div>
+        <button className={`icon-button star ${song.favorite ? "selected" : ""}`} type="button" aria-label={`${t("favorite")}: ${song.title}`} aria-pressed={song.favorite} disabled={Boolean(action)} onClick={() => void favorite(song)}>★</button>
+        <div className="song-actions"><select aria-label={`${t("move")}: ${song.title}`} value={song.folder_id || ""} disabled={Boolean(action)} onChange={event => { const value = event.target.value; void run(`move-${song.id}`, async () => { await api.write(`/api/songs/${encodeURIComponent(song.id)}`, "PATCH", { folder_id: value || null }); setRevision(current => current + 1); }); }}><option value="">{t("unsorted")}</option>{folders.folders.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{song.has_audio && <><button className="secondary small-button" type="button" disabled={Boolean(action)} onClick={() => void download(song)} aria-label={`${t("download")}: ${song.title}`}><Icon name="download" /></button><button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title}`}><Icon name="play" /></button></>}</div>
       </article>)}</div>
     </section><div hidden={page !== "create"}><CreateForm api={api} folders={folders.folders} t={t} onQueued={() => { setToast("sent"); setRevision(value => value + 1); }} /></div>
     <details className="connection-details"><summary>{t("connection")}</summary><p className="fine">{window.location.host}</p><label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label><p className="fine">{t("keyTip")}</p>{storageError && <p className="fine" role="status">{t("storageDenied")}</p>}<button className="secondary" type="button" onClick={() => disconnect()}>{t("disconnect")}</button></details>
     <details className="install-details"><summary>{t("installTitle")}</summary><p className="fine">{t("installIos")}</p>{installPrompt && <button className="secondary" type="button" onClick={() => { void installPrompt.prompt().then(() => installPrompt.userChoice).finally(() => setInstallPrompt(null)); }}>{t("install")}</button>}</details>
     <nav className="bottom-nav" aria-label="Music Generator"><button className={page === "library" ? "selected" : ""} type="button" aria-current={page === "library" ? "page" : undefined} onClick={() => setPage("library")}><Icon name="library" />{t("library")}</button><button className={page === "create" ? "selected" : ""} type="button" aria-current={page === "create" ? "page" : undefined} onClick={() => setPage("create")}><Icon name="create" />{t("create")}</button></nav>
   </>;
-  return <><header className="app-header"><a className="brand" href="/mobile/" onClick={event => { event.preventDefault(); setPage("library"); }} aria-label="Music Generator"><span className="brand-icon"><Icon name="music" /></span><span>MUSIC<span className="brand-bottom">GENERATOR <small>{t("remote")}</small></span></span></a><select className="language" aria-label={t("language")} value={language} onChange={event => setLanguage(event.target.value as Language)}><option value="de">DE</option><option value="en">EN</option></select></header><main className={`main ${playing ? "has-player" : ""}`}>{main}</main>{toast && <p className="toast" role="status">{t(toast)}</p>}{playing && <aside className="player" aria-label={t("playing")}><div className="player-title"><span><small>{t("playing")}</small><strong>{playing.title || playing.caption || "Song"}</strong></span><button className="icon-button" type="button" aria-label={t("closePlayer")} onClick={clearMedia}><Icon name="close" /></button></div><audio ref={audio} controls preload="metadata" /></aside>}</>;
+  return <><header className="app-header"><a className="brand" href="/mobile/" onClick={event => { event.preventDefault(); setPage("library"); }} aria-label="Music Generator"><span className="brand-icon"><Icon name="music" /></span><span>MUSIC<span className="brand-bottom">GENERATOR <small>{t("remote")}</small></span></span></a><select className="language" aria-label={t("language")} value={language} onChange={event => setLanguage(event.target.value as Language)}><option value="de">DE</option><option value="en">EN</option></select></header><main className={`main ${playing ? "has-player" : ""}`}>{main}</main>{toast && <p className="toast" role="status">{t(toast)}</p>}{playing && <aside className="player" aria-label={t("playing")}><div className="player-title"><span><small>{t("playing")}</small><strong>{playing.title}</strong></span><button className="icon-button" type="button" aria-label={t("closePlayer")} onClick={clearMedia}><Icon name="close" /></button></div><audio ref={audio} controls preload="metadata" /></aside>}</>;
 }
 
 function NewFolder({ api, t, disabled, onCreated, onError }: { api: RemoteApi; t: Translate; disabled: boolean; onCreated: () => void; onError: (value: string) => void }) {
