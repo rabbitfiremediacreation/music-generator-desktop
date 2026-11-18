@@ -31,7 +31,8 @@ export const mcpKeys = [
   "mcp_token",
   "mcp_show_token",
   "mcp_credentials_failed",
-  "mcp_no_network"
+  "mcp_no_network",
+  "mcp_choose_endpoint"
 ] as const;
 export const mcpTranslations: Record<Language, readonly string[]> = {
   de: [
@@ -64,7 +65,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Zugangsschlüssel",
       "Schlüssel anzeigen",
       "Verbindungsdaten konnten nicht geladen werden.",
-      "Keine Netzwerkadresse gefunden. Verbinde den Rechner mit dem Netzwerk und starte den MCP-Dienst neu."
+      "Keine Netzwerkadresse gefunden. Verbinde den Rechner mit dem Netzwerk und starte den MCP-Dienst neu.",
+      "Adresse wählen, die dein Client erreichen kann"
   ],
   en: [
       "MCP service",
@@ -96,7 +98,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Access key",
       "Show key",
       "Could not load connection credentials.",
-      "No network address found. Connect this computer to the network and restart the MCP service."
+      "No network address found. Connect this computer to the network and restart the MCP service.",
+      "Choose an address your client can reach"
   ],
   es: [
       "Servicio MCP",
@@ -128,7 +131,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Clave de acceso",
       "Mostrar clave",
       "No se pudieron cargar las credenciales de conexión.",
-      "No se encontró una dirección de red. Conecta este equipo a la red y reinicia el servicio MCP."
+      "No se encontró una dirección de red. Conecta este equipo a la red y reinicia el servicio MCP.",
+      "Elige una dirección accesible desde tu cliente"
   ],
   fr: [
       "Service MCP",
@@ -160,7 +164,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Clé d’accès",
       "Afficher la clé",
       "Impossible de charger les identifiants de connexion.",
-      "Aucune adresse réseau trouvée. Connectez cet ordinateur au réseau et redémarrez le service MCP."
+      "Aucune adresse réseau trouvée. Connectez cet ordinateur au réseau et redémarrez le service MCP.",
+      "Choisissez une adresse accessible depuis votre client"
   ],
   it: [
       "Servizio MCP",
@@ -192,7 +197,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Chiave di accesso",
       "Mostra chiave",
       "Impossibile caricare le credenziali di connessione.",
-      "Nessun indirizzo di rete trovato. Collega il computer alla rete e riavvia il servizio MCP."
+      "Nessun indirizzo di rete trovato. Collega il computer alla rete e riavvia il servizio MCP.",
+      "Scegli un indirizzo raggiungibile dal client"
   ],
   pt: [
       "Serviço MCP",
@@ -224,7 +230,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Chave de acesso",
       "Mostrar chave",
       "Não foi possível carregar as credenciais de ligação.",
-      "Não foi encontrado um endereço de rede. Liga este computador à rede e reinicia o serviço MCP."
+      "Não foi encontrado um endereço de rede. Liga este computador à rede e reinicia o serviço MCP.",
+      "Escolhe um endereço acessível a partir do cliente"
   ],
   tr: [
       "MCP hizmeti",
@@ -256,7 +263,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Erişim anahtarı",
       "Anahtarı göster",
       "Bağlantı kimlik bilgileri yüklenemedi.",
-      "Ağ adresi bulunamadı. Bu bilgisayarı ağa bağlayın ve MCP hizmetini yeniden başlatın."
+      "Ağ adresi bulunamadı. Bu bilgisayarı ağa bağlayın ve MCP hizmetini yeniden başlatın.",
+      "İstemcinizin erişebileceği bir adres seçin"
   ],
   pl: [
       "Usługa MCP",
@@ -288,7 +296,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Klucz dostępu",
       "Pokaż klucz",
       "Nie udało się wczytać danych dostępu.",
-      "Nie znaleziono adresu sieciowego. Połącz komputer z siecią i uruchom ponownie usługę MCP."
+      "Nie znaleziono adresu sieciowego. Połącz komputer z siecią i uruchom ponownie usługę MCP.",
+      "Wybierz adres dostępny z Twojego klienta"
   ],
   ru: [
       "Служба MCP",
@@ -320,7 +329,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Ключ доступа",
       "Показать ключ",
       "Не удалось загрузить данные доступа.",
-      "Сетевой адрес не найден. Подключите компьютер к сети и перезапустите службу MCP."
+      "Сетевой адрес не найден. Подключите компьютер к сети и перезапустите службу MCP.",
+      "Выберите адрес, доступный вашему клиенту"
   ],
   uk: [
       "Служба MCP",
@@ -352,7 +362,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "Ключ доступу",
       "Показати ключ",
       "Не вдалося завантажити дані доступу.",
-      "Мережеву адресу не знайдено. Підключіть комп’ютер до мережі й перезапустіть службу MCP."
+      "Мережеву адресу не знайдено. Підключіть комп’ютер до мережі й перезапустіть службу MCP.",
+      "Виберіть адресу, доступну вашому клієнту"
   ],
   ja: [
       "MCPサービス",
@@ -384,7 +395,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "アクセスキー",
       "キーを表示",
       "接続の認証情報を読み込めませんでした。",
-      "ネットワークアドレスが見つかりません。このコンピューターをネットワークに接続してMCPサービスを再起動してください。"
+      "ネットワークアドレスが見つかりません。このコンピューターをネットワークに接続してMCPサービスを再起動してください。",
+      "クライアントから接続できるアドレスを選択"
   ],
   zh: [
       "MCP 服务",
@@ -416,7 +428,8 @@ export const mcpTranslations: Record<Language, readonly string[]> = {
       "访问密钥",
       "显示密钥",
       "无法加载连接凭据。",
-      "未找到网络地址。请将此计算机连接到网络并重启 MCP 服务。"
+      "未找到网络地址。请将此计算机连接到网络并重启 MCP 服务。",
+      "选择客户端可访问的地址"
   ],
 };
 for (const [language, values] of Object.entries(mcpTranslations)) {

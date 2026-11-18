@@ -57,6 +57,7 @@ All bodies are JSON; errors are `{"detail": "…"}`.
 | `PATCH /api/songs/{id}` with any of `favorite`, `title`, `folder_id` (`null` = unsorted) | updated song |
 | `GET /api/songs/{id}/audio` | audio with `Accept-Ranges: bytes`; `Range: bytes=a-b`, `a-` and `-n` answer `206` with `Content-Range`, unsatisfiable ranges `416` |
 | `GET /api/songs/{id}/audio?download=true` | same, as attachment `<title>_<seed>.<ext>`; MP3 when Settings → Export is MP3 (same converter and cache as the studio export) |
+| `GET /api/pwa/library?q=&favorites=true&folder=` | PWA cards and folder counts as `{songs, folders}`, with `ETag`; matching `If-None-Match` returns an empty `304` |
 | `GET /api/folders` | `{folders:[{id,name,count}], all, none}` |
 | `POST /api/folders {name}` | `{id, name}` |
 | `GET /api/queue` | `{running:[{id,status,message,caption}], queued, library:{count,bytes}, active, progress}` |
@@ -64,6 +65,22 @@ All bodies are JSON; errors are `{"detail": "…"}`.
 | `POST /api/analyze`, multipart field `audio` | `{caption, lyrics, bpm, keyscale, timesignature, vocal_language, duration}` |
 
 A song carries the desktop fields (`id, group_id, title, caption, lyrics, status, message, favorite, letter, folder_id, created_at, result_meta, …`) plus `url` (`/api/songs/<id>/audio` for finished songs with audio, otherwise `null`). Local file paths are not sent. In `result_meta`, `duration` and `bpm` are numbers and `keyscale` and `vocal_language` strings, or absent.
+
+The bundled PWA keeps the current filter result and its validator in memory. Each visible five-second refresh also polls `/api/queue` for progress. Library responses use `Cache-Control: private, no-store`. PWA cards contain the display title, status, error message, favorite and folder assignment, duration, BPM and audio availability. Full metadata is available through the native list and song-detail endpoints above.
+
+### PWA library response size
+
+The HTTP regression test seeds 500 songs with the repository's [120-second generation metadata](qa/issue-54/2026-11-07/pipeline/metadata.json), including its caption, lyrics and audio codes. It measures uncompressed response bodies on the same database. HTTP headers and queue responses are outside the measurement.
+
+| Request | HTTP status | Body bytes |
+| --- | ---: | ---: |
+| Previous PWA song request, `GET /api/songs` | 200 | 4,066,001 |
+| First or changed PWA library request, including folder counts | 200 | 91,557 |
+| Unchanged PWA library request with a matching validator | 304 | 0 |
+
+The compact body is 97.7% smaller for this fixture. Issue #98 reported 3,303,001 bytes for its original rows. The regression fixture fixes its own row fields, including copying the reference caption and lyrics into the song columns as well as the result metadata.
+
+After building the frontend, reproduce the measurement with `cargo test --manifest-path src-tauri/Cargo.toml --locked --lib pwa_library_reference_payload_is_compact -- --nocapture`.
 
 ### Generation
 

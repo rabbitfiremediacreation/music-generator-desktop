@@ -71,16 +71,16 @@ fn cancel_never_deletes_completed_audio_and_prevents_late_completion() {
         .db
         .finish(&ids[0], "finished.wav", &json!({}))
         .unwrap();
-    assert!(!state.db.mcp_cancel_song(&ids[0]).unwrap());
+    assert!(!state.db.cancel_song(&ids[0]).unwrap());
     assert_eq!(std::fs::read(&audio).unwrap(), b"retained audio");
     assert_eq!(state.db.song(&ids[0]).unwrap().status, "done");
     state.db.claim_next().unwrap();
-    assert!(state.db.mcp_cancel_song(&ids[1]).unwrap());
+    assert!(state.db.cancel_song(&ids[1]).unwrap());
     assert!(!state.db.finish(&ids[1], "late.wav", &json!({})).unwrap());
-    assert!(!state.db.mcp_cancel_song(&ids[1]).unwrap());
+    assert!(!state.db.cancel_song(&ids[1]).unwrap());
     assert_eq!(state.db.song(&ids[1]).unwrap().status, "cancelled");
-    assert!(state.db.mcp_cancel_song("missing").is_err());
-    state.db.mcp_delete_song(&ids[0]).unwrap();
+    assert!(state.db.cancel_song("missing").is_err());
+    state.db.delete_song(&ids[0]).unwrap();
     assert!(!audio.exists());
 }
 
@@ -88,11 +88,11 @@ fn cancel_never_deletes_completed_audio_and_prevents_late_completion() {
 fn deletion_rejects_pending_work_and_removes_only_explicit_terminal_song() {
     let (_root, state) = fixture();
     let id = enqueue(&state, 1).remove(0);
-    assert!(state.db.mcp_delete_song(&id).is_err());
+    assert!(state.db.delete_song(&id).is_err());
     state.db.claim_next().unwrap();
-    assert!(state.db.mcp_delete_song(&id).is_err());
-    state.db.mcp_cancel_song(&id).unwrap();
-    state.db.mcp_delete_song(&id).unwrap();
+    assert!(state.db.delete_song(&id).is_err());
+    state.db.cancel_song(&id).unwrap();
+    state.db.delete_song(&id).unwrap();
     assert!(state.db.song(&id).is_err());
 }
 
@@ -284,7 +284,7 @@ async fn dispatch_requires_delete_confirmation_and_folder_removal_preserves_song
     let (_root, state) = fixture();
     let app = tauri::test::mock_app();
     let id = enqueue(&state, 1).remove(0);
-    state.db.mcp_cancel_song(&id).unwrap();
+    state.db.cancel_song(&id).unwrap();
     assert!(call(
         "delete_song",
         json!({"id": id}),
