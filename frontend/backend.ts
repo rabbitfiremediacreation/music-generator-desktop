@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
+import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(name, args); }
@@ -60,6 +60,6 @@ export const backend = {
   },
   export: (kind: "audio" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null) => command<void>("export_file", { kind, destination, id, folder }),
   exportDefaultPath: (filename: string) => command<string>("export_default_path", { filename }),
-  checkUpdate: () => command<Update>("check_update"),
+  checkUpdate: (stream: UpdateStream) => command<Update>("check_update", { stream }),
   exit: () => command<void>("exit_app"),
 };

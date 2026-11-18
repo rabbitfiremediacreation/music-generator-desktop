@@ -362,3 +362,21 @@ it("starts a reopened dialog on generation with a fresh settings draft", async (
   expect(screen.queryByText(t("settings_unsaved"))).toBeNull();
   expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
 });
+
+it("checks the selected update stream, clears the previous result and saves the stream", async () => {
+  mocks.checkUpdate.mockResolvedValue({ available: false, current: "0.2.0" });
+  render(view());
+  await screen.findByRole("spinbutton");
+  goTo("about");
+  const select = screen.getByRole<HTMLSelectElement>("combobox", { name: t("upd_stream") });
+  const check = screen.getByRole("button", { name: t("upd_check") });
+  expect(select.value).toBe("stable");
+  fireEvent.change(select, { target: { value: "daily" } });
+  fireEvent.click(check);
+  expect(await screen.findByText(t("upd_no_build"))).toBeTruthy();
+  expect(mocks.checkUpdate).toHaveBeenCalledWith("daily");
+  fireEvent.change(select, { target: { value: "develop" } });
+  expect(screen.queryByText(t("upd_no_build"))).toBeNull();
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ update_stream: "develop" }));
+});

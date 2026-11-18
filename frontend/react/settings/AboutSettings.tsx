@@ -1,16 +1,45 @@
 import { useMutation } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { backend } from "../../backend";
+import type { UpdateStream } from "../../types";
 import { useI18n } from "../i18n";
+import type { useSettingsDraft } from "./useSettingsDraft";
 
-export function AboutSettings({ onError }: { onError: (error: unknown) => void }) {
+export function AboutSettings({ state, onError }: {
+  state: ReturnType<typeof useSettingsDraft>;
+  onError: (error: unknown) => void;
+}) {
   const { t } = useI18n();
-  const update = useMutation({ mutationFn: backend.checkUpdate, retry: false, networkMode: "always" });
+  const stream = state.draft?.update_stream ?? "stable";
+  const update = useMutation({ mutationFn: (selected: UpdateStream) => backend.checkUpdate(selected), retry: false, networkMode: "always" });
+  const result = update.data;
+  const status = update.isPending ? t("upd_search")
+    : update.error ? String(update.error)
+    : result?.available ? `${result.current} → ${result.latest}`
+    : result?.latest ? t("upd_current", result.current)
+    : result ? t("upd_no_build") : "";
+  const url = result?.available ? result.url : undefined;
+
   return <>
     <div className="settings-section">
       <h4>{t("version")}</h4>
-      <div className="upd-row"><button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate()}>{t("upd_check")}</button><span className="small" role="status">{update.isPending ? t("upd_search") : update.error ? String(update.error) : update.data ? update.data.available ? `${update.data.current} → ${update.data.latest}` : t("upd_current", update.data.current) : ""}</span></div>
-      {update.data?.available && update.data.url && <button type="button" className="aktion" onClick={() => void openUrl(update.data!.url!).catch(onError)}>{t("desktop_download_release")}</button>}
+      <div className="field">
+        <label htmlFor="updateStream" className="lbl">{t("upd_stream")}</label>
+        <select id="updateStream" value={stream} aria-describedby="updateStreamHint" onChange={event => {
+          update.reset();
+          state.change({ update_stream: event.target.value as UpdateStream });
+        }}>
+          <option value="stable">Stable</option>
+          <option value="daily">Daily</option>
+          <option value="develop">Develop</option>
+        </select>
+        <span id="updateStreamHint" className="small">{t(`upd_stream_${stream}`)}</span>
+      </div>
+      <div className="upd-row">
+        <button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate(stream)}>{t("upd_check")}</button>
+        <span className="small" role="status">{status}</span>
+        {url && <button type="button" className="aktion" onClick={() => void openUrl(url).catch(onError)}>{t("desktop_download_release")}</button>}
+      </div>
     </div>
     <div className="settings-section">
       <h4>GitHub</h4>

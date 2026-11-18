@@ -1,6 +1,6 @@
 use crate::{
     error::{message, Result},
-    types::Settings,
+    types::{Settings, UpdateStream},
 };
 use std::path::Path;
 
@@ -8,6 +8,7 @@ use std::path::Path;
 #[serde(default)]
 pub struct SettingsPatch {
     pub expert_mode: Option<bool>,
+    pub update_stream: Option<UpdateStream>,
     pub cpu_iteration_behavior: Option<crate::types::CpuIterationBehavior>,
     pub lm_device: Option<String>,
     pub export_format: Option<String>,
@@ -18,7 +19,9 @@ pub struct SettingsPatch {
 
 impl SettingsPatch {
     pub(super) fn preferences_only(&self) -> bool {
-        (self.expert_mode.is_some() || self.cpu_iteration_behavior.is_some())
+        (self.expert_mode.is_some()
+            || self.cpu_iteration_behavior.is_some()
+            || self.update_stream.is_some())
             && self.lm_device.is_none()
             && self.export_format.is_none()
             && self.timeout_minutes.is_none()
@@ -38,6 +41,9 @@ impl SettingsPatch {
         }
         if let Some(behavior) = self.cpu_iteration_behavior {
             settings.cpu_iteration_behavior = behavior;
+        }
+        if let Some(stream) = self.update_stream {
+            settings.update_stream = stream;
         }
         if let Some(device) = self.lm_device {
             settings.lm_device = device;
