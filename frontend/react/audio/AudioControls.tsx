@@ -17,42 +17,52 @@ export function AudioControls({ selection, onAnalysis }: AudioControlsProps) {
   const { t } = useI18n();
   const mounted = useRef(false);
   const analyzing = useRef(false);
-  const choosing = useRef(false);
   const [message, setMessage] = useState<{ key: string; argument?: string; error?: unknown; state?: string }>({ key: "" });
   const [drag, setDrag] = useState(false);
-  const analysis = useMutation({ mutationKey: ["audio", "analyze"], mutationFn: (file: File) => backend.analyze(file, selection || undefined), networkMode: "always", retry: false });
+  const analysis = useMutation({
+    mutationKey: ["audio", "analyze"],
+    mutationFn: (run: () => Promise<Record<string, unknown> | null>) => run(),
+    networkMode: "always",
+    retry: false,
+  });
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (message.state !== "ok") return;
     const timer = setTimeout(() => setMessage({ key: "" }), 4000);
     return () => clearTimeout(timer);
   }, [message]);
-  async function analyze(file?: File, idea?: Melody) {
-    if (!file || analyzing.current) return;
-    analyzing.current = true; setMessage({ key: "analyzing", argument: file.name, state: "busy" });
+  async function analyze(source: File | "dialog" | undefined, idea?: Melody) {
+    if (!source || analyzing.current) return;
+    analyzing.current = true;
+    let name = "";
+    const started = (filename: string) => {
+      name = filename;
+      setMessage({ key: "analyzing", argument: filename, state: "busy" });
+    };
     try {
-      const values = await analysis.mutateAsync(file);
-      if (!mounted.current) return;
+      const values = await analysis.mutateAsync(async () => {
+        if (source === "dialog") {
+          const directory = await dialogDirectory("audio_import");
+          if (!mounted.current) return null;
+          return backend.pickAndAnalyzeAudio(directory, t("dialog_audio_import"), t("dialog_audio_filter"), selection, file => {
+            if (!mounted.current) return;
+            rememberDialogFolder("audio_import", file.directory);
+            started(file.name);
+          });
+        }
+        started(source.name);
+        return backend.analyze(source, selection || undefined);
+      });
+      if (!values || !mounted.current) return;
       onAnalysis(idea ? { ...values, caption: describeIdea(idea, String(values.caption || ""), String(values.keyscale || "")) } : values, Boolean(idea));
-      setMessage({ key: idea ? "idea_ready" : "analyzed", argument: file.name, state: "ok" });
+      setMessage({ key: idea ? "idea_ready" : "analyzed", argument: name, state: "ok" });
     } catch (error) { if (mounted.current) setMessage({ key: "", error, state: "err" }); }
     finally { analyzing.current = false; }
   }
   const recorder = useRecorder(async (file, idea) => analyze(file, idea), key => setMessage({ key, state: key === "an_rec_start" ? "" : "err" }), analysis.isPending);
-  async function choose() {
-    if (choosing.current || analyzing.current || recorder.active || recorder.busy) return;
-    choosing.current = true;
-    try {
-      const chosen = await backend.pickAudioFile(await dialogDirectory("audio_import"), t("dialog_audio_import"), t("dialog_audio_filter"));
-      if (!chosen || !mounted.current) return;
-      rememberDialogFolder("audio_import", chosen.directory);
-      await analyze(new File([new Uint8Array(chosen.data)], chosen.name));
-    } catch (error) { if (mounted.current) setMessage({ key: "", error, state: "err" }); }
-    finally { choosing.current = false; }
-  }
   const text = message.error ? `${t("error")}: ${pathErrorText(modelErrorText(message.error, t))}` : message.key ? t(message.key, message.argument || "") : "";
   return <>
-    <button type="button" id="dropzone" className={`logo-wrap ${drag ? "drag" : ""} ${message.state || ""}`} aria-label={t("drop_aria")} title={t("drop_title")} onClick={() => void choose()}
+    <button type="button" id="dropzone" className={`logo-wrap ${drag ? "drag" : ""} ${message.state || ""}`} aria-label={t("drop_aria")} title={t("drop_title")} onClick={() => { if (!recorder.active && !recorder.busy) void analyze("dialog"); }}
       onDragEnter={event => { event.preventDefault(); setDrag(true); }} onDragOver={event => { event.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDragEnd={() => setDrag(false)}
       onDrop={event => { event.preventDefault(); setDrag(false); if (!recorder.active && !recorder.busy) void analyze(event.dataTransfer.files[0]); }}>
       <svg className="logo" viewBox="0 0 84 84" aria-hidden="true"><defs><linearGradient id="logoGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#434445" /><stop offset="1" stopColor="#2b2c2c" /></linearGradient></defs><rect x="1" y="1" width="82" height="82" rx="14" fill="url(#logoGradient)" stroke="#2a2e38" /><g fill="#ddc8aa">{[12, 28, 44, 24, 36, 16].map((height, index) => <rect key={index} x={16 + index * 9} y={(84 - height) / 2} width="5" height={height} rx="2.5" />)}</g></svg>
