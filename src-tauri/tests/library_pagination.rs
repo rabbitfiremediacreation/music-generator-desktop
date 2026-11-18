@@ -82,10 +82,10 @@ fn studio_pages_return_every_matching_song_once_including_timestamp_ties() {
     for (filter, matches) in [
         (all.clone(), (|_| true) as fn(u32) -> bool),
         (search, |i| i % 5 < 3),
-        (folder, |i| i % 2 == 0),
+        (folder, |i| i.is_multiple_of(2)),
         (favorites, |i| i % 7 < 5),
-        (combined, |i| i % 2 == 0 && i % 5 < 3 && i % 7 < 5),
-        (unfiled, |i| i % 2 == 1),
+        (combined, |i| i.is_multiple_of(2) && i % 5 < 3 && i % 7 < 5),
+        (unfiled, |i| !i.is_multiple_of(2)),
     ] {
         let expected: Vec<_> = ordered.iter().copied().filter(|i| matches(*i)).collect();
         let mut actual = Vec::new();
@@ -98,7 +98,7 @@ fn studio_pages_return_every_matching_song_once_including_timestamp_ties() {
             );
             for song in page.songs {
                 let index: u32 = song.id.parse().unwrap();
-                assert_eq!(song.letter, if index % 2 == 0 { "A" } else { "B" });
+                assert_eq!(song.letter, if index.is_multiple_of(2) { "A" } else { "B" });
                 actual.push(index);
             }
         }
