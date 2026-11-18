@@ -26,7 +26,13 @@ beforeEach(() => {
     if(name === "list_folders") return {folders:[],all:songs.length,none:songs.length};
     if(name === "queue") return {running:[],queued:0,active:false,progress:null,library:{count:songs.length,bytes:1000}};
     if(name === "get_settings") return {export_format:"wav"};
-    if(name === "delete_song") {songs=songs.filter(song=>song.id!==args.id);return {cancelled:false,deleted:true};}
+    if(name === "cancel_song") {
+      const active = songs.find(song => song.id === args.id && (song.status === "queued" || song.status === "running"));
+      if (!active) return false;
+      songs = songs.map(song => song === active ? {...song, status:"cancelled"} : song);
+      return true;
+    }
+    if(name === "delete_song") {songs=songs.filter(song=>song.id!==args.id);return;}
     if(name === "patch_song") {songs = songs.map(song => song.id === args.id ? {...song,...args.patch} : song);return songs[0];}
   });
 });
@@ -140,14 +146,31 @@ it("translates the completion announcement when the interface language changes",
   expect(screen.getByRole("status").textContent).toBe("Fertig: A song A");
 });
 
+it("only invokes cancellation when a running row is stale", async () => {
+  songs[0].status = "running";
+  mount();
+  const cancel = await screen.findByRole("button", {name:"Cancel"});
+  songs[0] = {...songs[0], status:"done", file:"one.wav", path:"/songs/one.wav"};
+
+  fireEvent.click(cancel);
+
+  expect(await screen.findByRole("button", {name:"Play"})).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenCalledWith("cancel_song", {id:"one"});
+  expect(mocks.invoke).not.toHaveBeenCalledWith("delete_song", {id:"one"});
+  expect(screen.getByRole("button", {name:"Delete"})).toBeTruthy();
+});
+
 it("stops playback and clears the player only after a successful confirmed deletion",async()=>{
   songs[0].path="/songs/one.wav";mount(true);
   fireEvent.click(await screen.findByRole("button",{name:"Play"}));
   await waitFor(()=>expect(waveform.play).toHaveBeenCalledOnce());
   fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+  expect(mocks.invoke).not.toHaveBeenCalledWith("delete_song", {id:"one"});
   expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);
   fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
   await waitFor(()=>expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(true));
+  expect(mocks.invoke).toHaveBeenCalledWith("delete_song", {id:"one"});
+  await screen.findByText("Nothing yet");
   expect(document.querySelector("#pTitle")!.textContent).toBe("");
   expect(waveform.destroy).toHaveBeenCalledOnce();
 });

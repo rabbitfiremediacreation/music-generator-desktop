@@ -127,6 +127,7 @@ pub fn run() {
             commands::read_song_audio,
             commands::generate,
             commands::patch_song,
+            commands::cancel_song,
             commands::delete_song,
             commands::retry_song,
             commands::list_folders,

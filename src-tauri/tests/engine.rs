@@ -423,6 +423,77 @@ async fn user_cancellation_cancels_the_engine_job() {
     task.abort();
 }
 
+#[tokio::test]
+async fn cancelling_during_synthesis_download_returns_no_audio() {
+    use axum::{body::Body, response::IntoResponse};
+    use futures_util::{stream, StreamExt};
+    use std::io;
+    use tokio::sync::Notify;
+
+    let opened = Arc::new(Notify::new());
+    let started = opened.clone();
+    let cancelled = Arc::new(AtomicU32::new(0));
+    let count = cancelled.clone();
+    let app = Router::new()
+        .route("/lm", post(|| async { Json(json!({"id":"lm"})) }))
+        .route("/synth", post(|| async { Json(json!({"id":"synth"})) }))
+        .route(
+            "/job",
+            get(
+                move |Query(query): Query<std::collections::HashMap<String, String>>| {
+                    let started = started.clone();
+                    async move {
+                        if !query.contains_key("result") {
+                            return Json(json!({"status":"done"})).into_response();
+                        }
+                        if query["id"] == "lm" {
+                            return Json(json!({"audio_codes":"1,2,3,4,5"})).into_response();
+                        }
+                        let body = stream::once(async move {
+                            started.notify_one();
+                            Ok::<_, io::Error>(
+                                b"--song\r\nContent-Type: audio/wav\r\n\r\nRIFF".as_slice(),
+                            )
+                        })
+                        .chain(stream::pending());
+                        (
+                            [(CONTENT_TYPE, "multipart/mixed; boundary=song")],
+                            Body::from_stream(body),
+                        )
+                            .into_response()
+                    }
+                },
+            )
+            .post(move || {
+                count.fetch_add(1, Ordering::SeqCst);
+                async { Json(json!({"ok":true})) }
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let client = EngineClient::new(base.clone(), base, 0.01, 1.0).unwrap();
+    let cancel = CancellationToken::new();
+    let params = json!({"duration": 1});
+    let (result, ()) = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(
+            client.generate(&params, "lm.gguf", "synth.gguf", &cancel, |_| {}),
+            async {
+                opened.notified().await;
+                cancel.cancel();
+            },
+        )
+    })
+    .await
+    .unwrap();
+    assert!(matches!(
+        result,
+        Err(music_generator::error::Error::Cancelled)
+    ));
+    assert_eq!(cancelled.load(Ordering::SeqCst), 1);
+    server.abort();
+}
+
 #[cfg(unix)]
 #[test]
 fn closing_the_supervisor_pipe_terminates_the_engine() {

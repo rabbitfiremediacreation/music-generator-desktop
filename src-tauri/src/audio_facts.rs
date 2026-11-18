@@ -86,7 +86,7 @@ pub fn enrich_metadata(path: &Path, params: &Value, meta: &mut Value) -> Result<
     }
 }
 
-fn file_duration(path: &Path) -> Result<f64> {
+pub(crate) fn file_duration(path: &Path) -> Result<f64> {
     static CACHE: OnceLock<Mutex<HashMap<PathBuf, Cached>>> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
     let metadata = std::fs::metadata(path)?;
