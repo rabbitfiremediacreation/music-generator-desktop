@@ -309,7 +309,8 @@ async fn lm_shortfall_gets_one_distinct_seed_retry_before_a_single_synthesis() {
     assert!(meta.get("duration_warning").is_none());
     let requests = script.lm.lock().unwrap();
     assert_eq!(requests.len(), 2);
-    assert_ne!(requests[1]["lm_seed"], 4122037654u64);
+    assert_eq!(requests[0]["lm_seed"], 1955703464u64);
+    assert_eq!(requests[1]["lm_seed"], 1955703465u64);
     assert_eq!(requests[0]["caption"], requests[1]["caption"]);
     assert_eq!(requests[0]["duration"], requests[1]["duration"]);
     assert_eq!(meta["lm_seed"], requests[1]["lm_seed"]);
@@ -340,8 +341,8 @@ async fn retry_limit_keeps_the_longer_audio_and_never_changes_music_seed_or_effe
     assert_eq!(meta["effective_inference_steps"], 100);
     assert_eq!(meta["inference_steps"], 100);
     assert_eq!(meta["duration"], 5.6);
-    assert_eq!(meta["lm_seed"], 4122037654u64);
-    assert_eq!(meta["lm_retry_seed"], 4122037655u64);
+    assert_eq!(meta["lm_seed"], 42);
+    assert_eq!(meta["lm_retry_seed"], 43);
     assert_eq!(params["inference_steps"], 120);
 }
 

@@ -91,6 +91,10 @@ impl EngineClient {
                 request[field] = value.clone();
             }
         }
+        // The LM sampler uses the low 32 bits. Keep the full song seed for synthesis.
+        if let Some(seed) = request["seed"].as_u64() {
+            request["lm_seed"] = json!(seed as u32);
+        }
         // The spelled-out name steers the language model's prompt; synthesis and the
         // saved song keep the code the picker produced.
         let language = normalize_vocal_request(&mut request);
@@ -248,6 +252,9 @@ impl EngineClient {
     ) -> Result<Value> {
         let started = Instant::now();
         let mut best = self.language_model(request, cancel, progress).await?;
+        let mut selected_seed = request["lm_seed"]
+            .as_u64()
+            .or_else(|| best["lm_seed"].as_u64());
         let mut count = code_count(&best);
         let mut attempts = 1;
         let remaining = self.timeout.saturating_sub(started.elapsed());
@@ -255,9 +262,8 @@ impl EngineClient {
         let short = count == 0 || silent || !long_enough(count, params);
         if short && !remaining.is_zero() {
             let mut retry = request.clone();
-            let previous = best["lm_seed"].as_u64().map(|seed| seed as u32);
-            let seed = previous
-                .map(|seed| seed.wrapping_add(1))
+            let seed = selected_seed
+                .map(|seed| (seed as u32).wrapping_add(1))
                 .unwrap_or_else(|| uuid::Uuid::new_v4().as_u128() as u32);
             retry["lm_seed"] = json!(seed);
             let mut client = self.clone();
@@ -280,6 +286,7 @@ impl EngineClient {
                             && long_enough(candidate_count, params))
                     {
                         best = candidate;
+                        selected_seed = Some(u64::from(seed));
                         count = candidate_count;
                     }
                 }
@@ -298,6 +305,9 @@ impl EngineClient {
             return Err(message(
                 "Language model returned no audio codes. Run the hardware test again.",
             ));
+        }
+        if let Some(seed) = selected_seed {
+            best["lm_seed"] = json!(seed);
         }
         best["lm_attempts"] = json!(attempts);
         Ok(best)
