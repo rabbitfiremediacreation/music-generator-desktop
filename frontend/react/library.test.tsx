@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -22,8 +23,17 @@ beforeEach(() => {
   songs = [{id:"one",title:"A song",caption:"night",letter:"A",group_id:"g",status:"done",favorite:false,params:{inference_steps:200},result_meta:{duration: 8,duration_source:"wav",inference_steps_limit:200,effective_inference_steps:200},created_at:"2026-01-01",lyrics:"[Instrumental]",finished_at:null,message:null,seed:1,file:null,audio_missing:false,folder_id:null,path:null}];
   mocks.invoke.mockReset().mockImplementation(async (name,args) => {
     if(name === "read_song_audio") return new Uint8Array([82,73,70,70]).buffer;
-    if(name === "list_songs") return songs.filter(song => !args.filter.favorites || song.favorite);
-    if(name === "list_folders") return {folders:[],all:songs.length,none:songs.length};
+    if(name === "list_song_page") {
+      const { filter, offset, limit } = args;
+      const matching = songs.filter(song => (!filter.favorites || song.favorite)
+        && (!filter.folder || song.folder_id === filter.folder)
+        && (!filter.q || song.title?.includes(filter.q)));
+      return { songs: matching.slice(offset, offset + limit), total: matching.length };
+    }
+    if(name === "list_folders") {
+      const count=songs.filter(song=>song.folder_id==="ideas").length;
+      return {folders:count?[{id:"ideas",name:"Ideas",count}]:[],all:songs.length,none:songs.length-count};
+    }
     if(name === "queue") return {running:[],queued:0,active:false,progress:null,library:{count:songs.length,bytes:1000}};
     if(name === "get_settings") return {export_format:"wav"};
     if(name === "delete_song") {songs=songs.filter(song=>song.id!==args.id);return {cancelled:false,deleted:true};}
@@ -33,9 +43,72 @@ beforeEach(() => {
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 function mount(withPlayer=false) {
   const client = createAppQueryClient();
-  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><Library folder="" onFolderChange={() => {}} onReuse={() => {}} selection={null}/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
+  function TestLibrary() {
+    const [folder,setFolder]=useState("");
+    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={null}/>;
+  }
+  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><TestLibrary/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
   return client;
 }
+
+function seedPages(count: number) {
+  const song = songs[0];
+  songs = Array.from({length:count}, (_,index) => ({
+    ...song,
+    id:`song-${index}`,
+    title:`${index%2===0?"Piano":"Drums"} ${index}`,
+    letter:"",
+    favorite:index%2===0,
+    folder_id:index%2===0?"ideas":null,
+  }));
+}
+
+it("navigates both ways and resets the page when search, folder or favorites changes", async () => {
+  seedPages(106);
+  mount();
+  const next=await screen.findByRole("button",{name:"Next"});
+  const previous=screen.getByRole("button",{name:"Previous"});
+  expect(previous).toHaveProperty("disabled",true);
+  expect(screen.getByText("Page 1 of 3")).toBeTruthy();
+  fireEvent.click(next);
+  await screen.findByText("Piano 50");
+  expect(screen.queryByText("Drums 49")).toBeNull();
+  fireEvent.click(next);
+  await screen.findByText("Drums 105");
+  expect(screen.getByText("Page 3 of 3")).toBeTruthy();
+  expect(next).toHaveProperty("disabled",true);
+  fireEvent.click(previous);
+  await screen.findByText("Piano 50");
+
+  fireEvent.change(screen.getByRole("searchbox"),{target:{value:"Piano"}});
+  await waitFor(()=>expect(document.querySelector("#library article:last-child")?.textContent).toContain("Piano 98"));
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 104");
+  fireEvent.click(screen.getByRole("button",{name:"Ideas 53"}));
+  await screen.findByText("Piano 0");
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 104");
+  fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));
+  await screen.findByText("Piano 0");
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("list_song_page",{
+    filter:{q:"Piano",folder:"ideas",favorites:true},offset:0,limit:50,
+  });
+});
+
+it("returns to the remaining page when deletion removes the last page", async () => {
+  seedPages(51);
+  mount();
+  fireEvent.click(await screen.findByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 50");
+  fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+  fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await screen.findByText("Piano 0");
+  expect(screen.queryByRole("navigation",{name:"Library pages"})).toBeNull();
+  expect(screen.queryByText("Piano 50")).toBeNull();
+});
 it("updates the favorite view after mutation and preserves inline edits during a refresh", async () => {
   const client = mount();
   await screen.findByText("A song A");

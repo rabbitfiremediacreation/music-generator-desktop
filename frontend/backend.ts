@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
+import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult, SongPage } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(name, args); }
@@ -29,6 +29,10 @@ export const backend = {
   previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),
   importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
   songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(audioUrl),
+  songPage: async (filter: Filter, offset: number, limit: number) => {
+    const page = await command<SongPage>("list_song_page", { filter, offset, limit });
+    return { ...page, songs: page.songs.map(audioUrl) };
+  },
   song: async (id: string) => audioUrl(await command<Song>("get_song", { id })),
   songAudio: async (id: string): Promise<ArrayBuffer> => {
     // Tauri's postMessage fallback returns a byte array instead of an ArrayBuffer.

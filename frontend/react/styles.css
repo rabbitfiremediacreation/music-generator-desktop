@@ -317,6 +317,7 @@ dialog .col-title { margin-bottom: 16px; }
 .song .actions .txt { font-size: 10px; font-weight: 600; letter-spacing: .06em; }
 .song .actions .txt.on { color: var(--accent2); border-color: var(--accent2); }
 .folderbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+.library-pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin-bottom: 12px; flex-shrink: 0; color: var(--muted); font-size: 12px; }
 .chip.fold b { font-weight: 600; margin-left: 4px; opacity: .7; }
 .chip.fold { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip.on { border-color: var(--accent2); color: var(--accent2); background: var(--gold-tint); }

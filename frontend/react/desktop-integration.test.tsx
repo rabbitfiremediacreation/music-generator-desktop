@@ -42,7 +42,7 @@ beforeEach(() => {
     if (name === "generation_policy") return { backend: "gpu", detected_backend: "metal", cpu_iteration_behavior: "ask", recommended_steps: 80, defaults };
     if (name === "get_generation_form_preferences") return { ...defaults };
     if (name === "save_generation_form_preferences") return mocks.savePreferences(args.values);
-    if (name === "list_songs") return songs;
+    if (name === "list_song_page") return {songs,total:songs.length};
     if (name === "list_folders") return { folders: [], all: 2, none: 2 };
     if (name === "queue") return { running: queueActive ? [{ id: "active", caption: "A song", message: null }] : [], queued: 0, active: queueActive, progress: null, library: { count: 2, bytes: 100 } };
     if (name === "health") return { ok: true, backend_status: backendStatus };

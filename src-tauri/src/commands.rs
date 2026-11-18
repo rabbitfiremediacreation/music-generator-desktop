@@ -3,7 +3,7 @@ use crate::{
     error::{message, Result},
     runtime::OperationKind,
     state::AppState,
-    types::{GenerateRequest, Settings, Song, SongFilter},
+    types::{GenerateRequest, Settings, Song, SongFilter, SongPage},
 };
 use serde_json::{json, Value};
 use std::{path::PathBuf, sync::Arc};
@@ -277,6 +277,19 @@ pub async fn import_library(
 #[tauri::command]
 pub fn list_songs(state: Desktop<'_>, filter: SongFilter) -> Result<Vec<Song>> {
     state.db.songs(&filter)
+}
+
+#[tauri::command]
+pub async fn list_song_page(
+    state: Desktop<'_>,
+    filter: SongFilter,
+    offset: u32,
+    limit: u32,
+) -> Result<SongPage> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || db.song_page(&filter, offset, limit))
+        .await
+        .map_err(|error| message(error.to_string()))?
 }
 
 #[tauri::command]
