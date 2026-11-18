@@ -202,8 +202,15 @@ fn record_iteration_evidence(
 /// The run one seed further sang in every case measured, so another roll is worth
 /// it. The retry below only gets the chance if we notice,
 /// because the code count alone looks healthy.
-fn missing_vocals(request: &Value, result: &Value) -> bool {
-    if request.get("lyrics").is_some() || !request["vocal_language"].is_string() {
+///
+/// The original instrumental flag takes precedence over the language field.
+/// Older callers without a flag can still request vocals with a language.
+fn missing_vocals(request: &Value, instrumental: Option<bool>, result: &Value) -> bool {
+    let wants_vocals = match instrumental {
+        Some(instrumental) => !instrumental,
+        None => request["vocal_language"].is_string(),
+    };
+    if !wants_vocals || request.get("lyrics").is_some() {
         return false;
     }
     // An answer without the field at all says nothing either way; rolling again
@@ -258,7 +265,7 @@ impl EngineClient {
         let mut count = code_count(&best);
         let mut attempts = 1;
         let remaining = self.timeout.saturating_sub(started.elapsed());
-        let silent = missing_vocals(request, &best);
+        let silent = missing_vocals(request, params["instrumental"].as_bool(), &best);
         let short = count == 0 || silent || !long_enough(count, params);
         if short && !remaining.is_zero() {
             let mut retry = request.clone();
@@ -395,36 +402,30 @@ mod tests {
     #[test]
     fn missing_vocals_only_flags_an_unanswered_request_for_singing() {
         let asked = json!({"vocal_language": "German"});
-        assert!(missing_vocals(&asked, &json!({"lyrics": "[Instrumental]"})));
+        let silent = json!({"lyrics": "[Instrumental]"});
+        assert!(missing_vocals(&asked, None, &silent));
+        assert!(missing_vocals(&json!({}), Some(false), &silent));
+        assert!(!missing_vocals(&asked, Some(true), &silent));
         assert!(missing_vocals(
             &asked,
+            None,
             &json!({"lyrics": "[Intro]\n\n[Verse 1]\n[Outro]"})
         ));
         // Without the field there is nothing to judge, so no second pass.
-        assert!(!missing_vocals(&asked, &json!({})));
-        // No vocal language was asked for either, so there is nothing to miss.
-        // Instrumentals arrive this way: the empty value is filtered out before
-        // the request is sent, leaving the field absent.
-        assert!(!missing_vocals(
-            &json!({}),
-            &json!({"lyrics": "[Instrumental]"})
-        ));
+        assert!(!missing_vocals(&asked, Some(false), &json!({})));
+        // Older requests without a flag or a language have no explicit vocal intent.
+        assert!(!missing_vocals(&json!({}), None, &silent));
         assert!(!missing_vocals(
             &asked,
+            Some(false),
             &json!({"lyrics": "[Verse 1]\nLichter blinken kalt im Raum"})
         ));
         // An instrumental was asked for, so silence is the correct answer.
         let instrumental = json!({"lyrics": "[Instrumental]"});
-        assert!(!missing_vocals(
-            &instrumental,
-            &json!({"lyrics": "[Instrumental]"})
-        ));
+        assert!(!missing_vocals(&instrumental, None, &silent));
         // The user wrote the words, so nothing was left to the model.
         let written = json!({"vocal_language": "German", "lyrics": "[Verse]\nWorte"});
-        assert!(!missing_vocals(
-            &written,
-            &json!({"lyrics": "[Instrumental]"})
-        ));
+        assert!(!missing_vocals(&written, Some(false), &silent));
     }
 
     #[test]

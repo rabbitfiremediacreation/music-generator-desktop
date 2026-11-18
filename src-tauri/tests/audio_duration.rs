@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use music_generator::engine::client::EngineClient;
+use music_generator::{db::Database, engine::client::EngineClient, phone_access::PhoneGeneration};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -28,6 +28,7 @@ struct Script {
 
 #[derive(Default)]
 struct Options {
+    silent_first_take: bool,
     pending_retry: bool,
     retry_error: bool,
     malformed_audio: bool,
@@ -122,15 +123,22 @@ async fn server_with(
                         let index: usize = index.parse().unwrap();
                         let count = script.counts[index.min(script.counts.len() - 1)];
                         let request = script.lm.lock().unwrap()[index].clone();
-                        return (
-                            [(CONTENT_TYPE, "application/json")],
-                            serde_json::to_vec(&json!({
-                                "audio_codes":vec!["7";count].join(","), "duration":10,
-                                "lm_seed":request["lm_seed"].as_u64().unwrap_or(4122037654),
+                        let mut result = json!({
+                            "audio_codes":vec!["7";count].join(","), "duration":10,
+                            "lm_seed":request["lm_seed"].as_u64().unwrap_or(4122037654),
                             "inference_steps":999,"seed":999,
                             "effective_inference_steps":200,"inference_steps_limit":200
-                            }))
-                            .unwrap(),
+                        });
+                        if script.options.silent_first_take {
+                            result["lyrics"] = if index == 0 {
+                                json!("[Instrumental]")
+                            } else {
+                                json!("[Verse]\nThe city wakes")
+                            };
+                        }
+                        return (
+                            [(CONTENT_TYPE, "application/json")],
+                            serde_json::to_vec(&result).unwrap(),
                         );
                     }
                     let request = script.synth.lock().unwrap().last().unwrap().clone();
@@ -171,6 +179,59 @@ async fn server_with(
         script,
         task,
     )
+}
+
+fn phone_params(instrumental: bool) -> Value {
+    let phone: PhoneGeneration = serde_json::from_value(json!({
+        "prompt": "quiet piano", "duration": 10, "lyrics": "", "instrumental": instrumental
+    }))
+    .unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let db = Database::open(directory.path()).unwrap();
+    db.enqueue(&phone.request("phone".into()).unwrap()).unwrap();
+    db.claim_next().unwrap().unwrap().1
+}
+
+#[tokio::test]
+async fn full_length_instrumental_answer_retries_only_the_phone_vocal_request() {
+    for (instrumental, attempts, expected_lyrics) in [
+        (false, 2, "[Verse]\nThe city wakes"),
+        (true, 1, "[Instrumental]"),
+    ] {
+        let (client, script, task) = server_with(
+            vec![50, 49],
+            Options {
+                silent_first_take: true,
+                ..Default::default()
+            },
+        )
+        .await;
+        let (_, _, meta) = client
+            .generate(
+                &phone_params(instrumental),
+                "lm.gguf",
+                "sft.gguf",
+                &CancellationToken::new(),
+                |_| {},
+            )
+            .await
+            .unwrap();
+        task.abort();
+        let lm = script.lm.lock().unwrap();
+        assert_eq!(lm.len(), attempts, "instrumental={instrumental}");
+        assert!(lm
+            .iter()
+            .all(|request| request.get("vocal_language").is_none()));
+        if instrumental {
+            assert_eq!(lm[0]["lyrics"], "[Instrumental]");
+        } else {
+            assert!(lm.iter().all(|request| request.get("lyrics").is_none()));
+        }
+        assert_eq!(meta["lm_attempts"], attempts);
+        let synth = script.synth.lock().unwrap();
+        assert_eq!(synth.len(), 1);
+        assert_eq!(synth[0]["lyrics"], expected_lyrics);
+    }
 }
 
 #[tokio::test]
@@ -422,8 +483,9 @@ async fn failed_optional_retry_preserves_the_original_audio_with_an_honest_warni
 #[tokio::test]
 async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() {
     let (client, script, task) = server_with(
-        vec![28, 50],
+        vec![50, 49],
         Options {
+            silent_first_take: true,
             pending_retry: true,
             ..Default::default()
         },
@@ -433,13 +495,7 @@ async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() 
     let signal = token.clone();
     let generation = tokio::spawn(async move {
         client
-            .generate(
-                &json!({"duration":10}),
-                "lm.gguf",
-                "sft.gguf",
-                &token,
-                |_| {},
-            )
+            .generate(&phone_params(false), "lm.gguf", "sft.gguf", &token, |_| {})
             .await
     });
     tokio::time::timeout(std::time::Duration::from_secs(2), async {
@@ -455,6 +511,7 @@ async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() 
         Err(music_generator::error::Error::Cancelled)
     ));
     task.abort();
+    assert_eq!(script.lm.lock().unwrap().len(), 2);
     assert_eq!(script.cancelled.load(Ordering::SeqCst), 1);
     assert!(script.synth.lock().unwrap().is_empty());
 }
@@ -486,18 +543,19 @@ async fn invalid_audio_is_rejected_instead_of_becoming_a_finished_song() {
 #[tokio::test]
 async fn optional_retry_respects_remaining_lm_time_and_cancels_its_timed_out_job() {
     let (mut client, script, task) = server_with(
-        vec![28, 50],
+        vec![50, 49],
         Options {
+            silent_first_take: true,
             pending_retry: true,
             ..Default::default()
         },
     )
     .await;
-    client.timeout = std::time::Duration::from_millis(80);
+    client.timeout = std::time::Duration::from_millis(300);
     let (_, _, meta) = tokio::time::timeout(
         std::time::Duration::from_secs(1),
         client.generate(
-            &json!({"duration":10}),
+            &phone_params(false),
             "lm.gguf",
             "sft.gguf",
             &CancellationToken::new(),
@@ -508,7 +566,9 @@ async fn optional_retry_respects_remaining_lm_time_and_cancels_its_timed_out_job
     .unwrap()
     .unwrap();
     task.abort();
-    assert_eq!(meta["duration"], 5.6);
+    assert_eq!(meta["duration"], 10.0);
+    assert_eq!(meta["lyrics"], "[Instrumental]");
+    assert_eq!(script.lm.lock().unwrap().len(), 2);
     assert!(meta["lm_retry_error"]
         .as_str()
         .unwrap()
