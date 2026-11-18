@@ -140,8 +140,9 @@ it("offers recovery when startup failed and updates labels without losing the dr
   fireEvent.click(apply()); await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 43210, scope: "local" }));
 });
 
-it("persists the LAN scope and chooses an advertised server address", async () => {
-  const lan = { ...active, scope: "network" as const, urls: ["http://192.168.1.40:32123/mcp", active.url!] };
+it("persists the LAN scope and chooses the only advertised LAN address", async () => {
+  const address = "http://192.168.1.40:32123/mcp";
+  const lan = { ...active, scope: "network" as const, urls: [active.url!, address] };
   mocks.saveMcpSettings.mockResolvedValue(lan);
   view(); await screen.findByText(t("mcp_off"));
   fireEvent.click(enable()); fireEvent.change(screen.getByLabelText(t("mcp_scope")), { target: { value: "network" } });
@@ -149,8 +150,29 @@ it("persists the LAN scope and chooses an advertised server address", async () =
   fireEvent.click(apply());
   await screen.findByText(t("mcp_on"));
   expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "network" });
-  expect((screen.getByLabelText(t("mcp_endpoint")) as HTMLSelectElement).value).toBe(lan.urls[0]);
+  expect((screen.getByLabelText(t("mcp_endpoint")) as HTMLSelectElement).value).toBe(address);
   expect(mocks.mcpHttpConnection).not.toHaveBeenCalled();
+});
+
+it("requires a choice with multiple LAN addresses and copies the selected endpoint", async () => {
+  const urls = ["http://10.90.0.1:32123/mcp", "http://192.168.1.40:32123/mcp", active.url!];
+  mocks.mcpSettings.mockResolvedValue({ ...active, scope: "network", urls });
+  const selected = urls[1];
+  const config = { mcpServers: { "music-generator": { url: selected, headers: { Authorization: `Bearer ${credentials.token}` } } } };
+  mocks.mcpHttpConnection.mockResolvedValue({ ...credentials, url: selected, client_config: JSON.stringify(config) });
+
+  view();
+  await screen.findByText(t("mcp_on"));
+  const endpoint = screen.getByRole<HTMLSelectElement>("combobox", { name: t("mcp_endpoint") });
+  const copy = screen.getByRole<HTMLButtonElement>("button", { name: t("mcp_copy") });
+  expect(endpoint.value).toBe("");
+  expect(copy.disabled).toBe(true);
+
+  fireEvent.change(endpoint, { target: { value: selected } });
+  fireEvent.click(copy);
+  await screen.findByText(t("mcp_copied"));
+  expect(mocks.mcpHttpConnection).toHaveBeenCalledExactlyOnceWith(selected);
+  expect(clipboard).toHaveBeenCalledExactlyOnceWith(JSON.stringify(config));
 });
 
 it("retrieves credentials only on request and masks the key and JSON by default", async () => {
@@ -204,4 +226,8 @@ it("explains when LAN mode has no usable non-loopback address", async () => {
   mocks.mcpSettings.mockResolvedValue({ ...active, scope: "network" });
   view(); await screen.findByText(t("mcp_on"));
   expect(screen.getByText(t("mcp_no_network"))).toBeTruthy();
+  expect(screen.getByRole<HTMLSelectElement>("combobox", { name: t("mcp_endpoint") }).value).toBe(active.url);
+  fireEvent.click(screen.getByRole("button", { name: t("mcp_copy") }));
+  await screen.findByText(t("mcp_copied"));
+  expect(mocks.mcpHttpConnection).toHaveBeenCalledExactlyOnceWith(active.url);
 });
