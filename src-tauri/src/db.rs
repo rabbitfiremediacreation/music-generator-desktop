@@ -2,7 +2,7 @@ use crate::{
     error::{message, Result},
     types::{id, now, GenerateRequest, Settings, Song, SongFilter, SongPage},
 };
-use rusqlite::{params, Connection, ToSql};
+use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use std::{
     path::{Path, PathBuf},
@@ -146,7 +146,10 @@ impl Database {
         Ok(SongPage { songs, total })
     }
 
-    fn song_filter_params<'a>(filter: &'a SongFilter, search: &'a String) -> [&'a dyn ToSql; 6] {
+    fn song_filter_params<'a>(
+        filter: &'a SongFilter,
+        search: &'a String,
+    ) -> [&'a dyn rusqlite::ToSql; 6] {
         [
             &filter.q,
             search,
