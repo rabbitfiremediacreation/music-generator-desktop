@@ -54,7 +54,7 @@ pub(super) fn tools() -> Vec<Value> {
         ("lm_temperature", "Omitted values inherit the source song or use the saved studio preference for new music (initially 0.85)."),
         ("instrumental", "Omitted values inherit the source song; new music is instrumental by default."),
         ("keep_caption", "Omitted values inherit the source song; new music preserves the supplied caption by default."),
-        ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A supplied nonnegative seed is reproducible."),
+        ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A nonnegative seed fixes the language-model and synthesis seeds. Audio can vary with the model and compute backend."),
     ] {
         generate["inputSchema"]["properties"][name]["description"] = json!(description);
     }
