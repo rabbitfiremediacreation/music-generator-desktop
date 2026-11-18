@@ -17,7 +17,7 @@ MCP-Änderungen gelten sofort und unabhängig vom allgemeinen **Speichern** oder
 - Auf dem anderen Rechner die angezeigte Netzwerkadresse verwenden. `127.0.0.1` bezeichnet immer den eigenen Rechner.
 - Der gewählte TCP-Port muss in der Firewall des Music-Generator-Rechners erreichbar sein. Die App ändert keine Firewall-Regeln.
 - Der Netzwerkmodus verlangt TLS. Der Client prüft die Zertifikatskette und die IP-Adresse in der URL. Wer den Zugangsschlüssel besitzt, kann Musik erzeugen und die Bibliothek verwalten.
-- Nach einem Netzwerkwechsel den Dienst aus- und wieder einschalten, damit die Adressen neu erkannt werden. Bei mehreren Netzwerkadaptern die vom Client erreichbare Adresse wählen.
+- Nach einem Netzwerkwechsel den Dienst aus- und wieder einschalten, damit die Adressen neu erkannt werden. Die App filtert ungeeignete IPv4-Adressen des Rechners. Gibt es mehrere nutzbare LAN-Adressen, wähle vor dem Kopieren die Adresse, die dein Client erreichen kann. Genau diese Adresse steht in der kopierten HTTPS-Konfiguration.
 
 ### Bestehende LAN-Clients auf HTTPS umstellen
 

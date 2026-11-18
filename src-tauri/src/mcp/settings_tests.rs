@@ -496,14 +496,72 @@ fn legacy_preferences_stay_local_and_generated_token_is_private_and_stable() {
     }
 }
 
+#[test]
+fn lan_address_selection_filters_unsuitable_interfaces_and_deduplicates() {
+    let subnet = |octets: [u8; 4], prefix| sysinfo::IpNetwork {
+        addr: Ipv4Addr::from(octets).into(),
+        prefix,
+    };
+    let unavailable = Ipv4Addr::new(10, 0, 0, 2);
+    let networks = [
+        subnet([192, 168, 1, 40], 24),
+        subnet([10, 0, 0, 0], 24),
+        subnet([10, 0, 0, 2], 24),
+        subnet([10, 0, 0, 255], 24),
+        subnet([10, 0, 1, 0], 23),
+        subnet([192, 168, 1, 40], 24),
+        subnet([10, 0, 2, 0], 31),
+        subnet([10, 0, 3, 0], 32),
+        subnet([127, 0, 0, 1], 8),
+    ];
+    assert_eq!(
+        usable_lan_addresses(networks, |address| address != unavailable),
+        vec![
+            Ipv4Addr::new(10, 0, 1, 0),
+            Ipv4Addr::new(10, 0, 2, 0),
+            Ipv4Addr::new(10, 0, 3, 0),
+            Ipv4Addr::new(192, 168, 1, 40),
+        ]
+    );
+}
+
 #[cfg(unix)]
 fn lan_address() -> Option<Ipv4Addr> {
-    authorities(McpScope::Network, 1)
-        .into_iter()
-        .find_map(|authority| {
-            let address: std::net::SocketAddrV4 = authority.parse().ok()?;
-            (!address.ip().is_loopback()).then_some(*address.ip())
+    use std::net::TcpStream;
+
+    // Qualify the test host independently of MCP discovery and its listener.
+    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let timeout = Duration::from_millis(250);
+    TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port).into(), timeout)
+        .expect("Independent TCP probe must work over loopback");
+    let networks = sysinfo::Networks::new_with_refreshed_list();
+    let candidates: std::collections::BTreeSet<_> = networks
+        .values()
+        .flat_map(|network| network.ip_networks())
+        .filter_map(|network| match network.addr {
+            IpAddr::V4(address)
+                if !address.is_loopback()
+                    && !address.is_unspecified()
+                    && !address.is_multicast()
+                    && !address.is_broadcast() =>
+            {
+                Some(address)
+            }
+            _ => None,
         })
+        .collect();
+    for address in candidates {
+        match TcpStream::connect_timeout(&(address, port).into(), timeout) {
+            Ok(_) => {
+                eprintln!("Independent LAN TCP probe connected to {address}");
+                return Some(address);
+            }
+            Err(error) => eprintln!("Independent LAN TCP probe could not reach {address}: {error}"),
+        }
+    }
+    eprintln!("Skipping LAN integration: no non-loopback IPv4 address reached the independent TCP listener");
+    None
 }
 
 #[cfg(unix)]
@@ -516,7 +574,6 @@ fn initialize_request(client: &reqwest::Client, url: &str, token: &str) -> reqwe
 #[tokio::test]
 async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() {
     let Some(lan) = lan_address() else {
-        eprintln!("No non-loopback IPv4 interface on this runner");
         return;
     };
     let root = tempfile::tempdir().unwrap();
@@ -589,12 +646,24 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
         .add_root_certificate(reqwest::Certificate::from_der(&ca).unwrap())
         .build()
         .unwrap();
-    assert!(initialize_request(&tls_client, &lan_url, &token)
+    let config: serde_json::Value = serde_json::from_str(&connection.client_config).unwrap();
+    let endpoint = &config["mcpServers"]["music-generator"];
+    assert_eq!(endpoint["url"], lan_url);
+    let configured_url = endpoint["url"].as_str().unwrap();
+    let configured_token = endpoint["headers"]["Authorization"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("Bearer ")
+        .unwrap();
+    assert_eq!(configured_token, token);
+    let response = initialize_request(&tls_client, configured_url, configured_token)
         .send()
         .await
-        .unwrap()
-        .status()
-        .is_success());
+        .expect("MCP must accept a connection on the independently verified LAN address");
+    assert!(response.status().is_success());
+    let initialized: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
+    eprintln!("MCP initialized successfully over LAN from the copied HTTPS configuration at {configured_url}");
     assert_eq!(
         initialize_request(&tls_client, &lan_url, "wrong")
             .send()
@@ -660,7 +729,6 @@ async fn network_scope_rebinds_fixed_port_and_authenticates_real_lan_requests() 
 #[tokio::test]
 async fn failed_scope_widening_restores_previous_listener_settings_and_token() {
     let Some(lan) = lan_address() else {
-        eprintln!("No non-loopback IPv4 interface on this runner");
         return;
     };
     let root = tempfile::tempdir().unwrap();

@@ -397,32 +397,41 @@ impl Control {
                 McpScope::Local => Ipv4Addr::LOCALHOST,
                 McpScope::Network => Ipv4Addr::UNSPECIFIED,
             };
+            let mut addresses = if settings.scope == McpScope::Network {
+                let networks = sysinfo::Networks::new_with_refreshed_list();
+                usable_lan_addresses(
+                    networks
+                        .values()
+                        .flat_map(|network| network.ip_networks().iter().copied()),
+                    |address| TcpListener::bind((address, 0)).is_ok(),
+                )
+            } else {
+                Vec::new()
+            };
+            addresses.push(Ipv4Addr::LOCALHOST);
             if settings.scope == McpScope::Network && settings.port != 0 {
                 // BSD may allow a reusable wildcard socket beside another service's
                 // specific-address listener. Detect that conflict before advertising it.
                 let mut probes = Vec::new();
-                for authority in authorities(settings.scope, settings.port) {
-                    let address: std::net::SocketAddrV4 =
-                        authority.parse().expect("IPv4 authority");
-                    probes.push(bind_listener(*address.ip(), address.port())?);
+                for address in &addresses {
+                    probes.push(bind_listener(*address, settings.port)?);
                 }
             }
             let listener = bind_listener(bind, settings.port)?;
             let port = listener.local_addr()?.port();
-            // Freeze the same authorities for the certificate, router and copied URLs.
-            let authorities = authorities(settings.scope, port);
+            // Use one address snapshot for the leaf certificate, Host checks and client URLs.
             let identity = if settings.scope == McpScope::Network {
-                let hosts = authorities.iter().map(|authority| {
-                    authority
-                        .rsplit_once(':')
-                        .expect("IPv4 authority")
-                        .0
-                        .to_owned()
-                });
-                Some(lan_tls::prepare(&self.root.join(TLS_FOLDER), hosts)?)
+                Some(lan_tls::prepare(
+                    &self.root.join(TLS_FOLDER),
+                    addresses.iter().map(ToString::to_string),
+                )?)
             } else {
                 None
             };
+            let authorities = addresses
+                .into_iter()
+                .map(|address| format!("{address}:{port}"))
+                .collect();
             let scheme = if identity.is_some() { "https" } else { "http" };
             let info = ConnectionInfo {
                 url: format!("{scheme}://127.0.0.1:{port}/mcp"),
@@ -498,30 +507,37 @@ impl Control {
     }
 }
 
-fn authorities(scope: McpScope, port: u16) -> Vec<String> {
+fn usable_lan_addresses(
+    networks: impl IntoIterator<Item = sysinfo::IpNetwork>,
+    can_bind: impl Fn(Ipv4Addr) -> bool,
+) -> Vec<Ipv4Addr> {
     let mut addresses = Vec::new();
-    if scope == McpScope::Network {
-        for network in sysinfo::Networks::new_with_refreshed_list().values() {
-            for subnet in network.ip_networks() {
-                if let IpAddr::V4(address) = subnet.addr {
-                    if !address.is_loopback()
-                        && !address.is_unspecified()
-                        && !address.is_multicast()
-                        && !address.is_broadcast()
-                    {
-                        addresses.push(address);
-                    }
-                }
+    for subnet in networks {
+        let IpAddr::V4(address) = subnet.addr else {
+            continue;
+        };
+        if address.is_loopback()
+            || address.is_unspecified()
+            || address.is_multicast()
+            || address.is_broadcast()
+        {
+            continue;
+        }
+        // A reported interface can include subnet identifiers, as on macOS bridges.
+        // Both endpoints of /31 and the single address of /32 can be host addresses.
+        if subnet.prefix < 31 {
+            let host_mask = u32::MAX >> subnet.prefix;
+            let host = u32::from(address) & host_mask;
+            if host == 0 || host == host_mask {
+                continue;
             }
         }
-        addresses.sort_unstable();
-        addresses.dedup();
+        addresses.push(address);
     }
-    addresses.push(Ipv4Addr::LOCALHOST);
+    addresses.sort_unstable();
+    addresses.dedup();
+    addresses.retain(|address| can_bind(*address));
     addresses
-        .into_iter()
-        .map(|address| format!("{address}:{port}"))
-        .collect()
 }
 
 fn bind_listener(address: Ipv4Addr, port: u16) -> Result<TcpListener> {

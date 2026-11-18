@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({ mcpSettings: vi.fn(), saveMcpSettings: vi.fn()
 vi.mock("../../backend", () => ({ backend: mocks }));
 const inactive: McpSettingsStatus = { enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: '{"mcpServers":{"music-generator":{"command":"/app/music-generator","args":["--mcp-stdio","/data/mcp.json"]}}}', managed_by_environment: false, error: null };
 const active: McpSettingsStatus = { ...inactive, enabled: true, running: true, url: "http://127.0.0.1:32123/mcp", urls: ["http://127.0.0.1:32123/mcp"] };
+const networkLoopback = "https://127.0.0.1:32123/mcp";
 const credentials: McpHttpConnection = { url: active.url!, token: "test-access-key-1234567890", client_config: JSON.stringify({mcpServers:{"music-generator":{url:active.url,headers:{Authorization:"Bearer test-access-key-1234567890"}}}}) };
 const busy = vi.fn();
 const clipboard = vi.fn();
@@ -140,9 +141,9 @@ it("offers recovery when startup failed and updates labels without losing the dr
   fireEvent.click(apply()); await waitFor(() => expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 43210, scope: "local" }));
 });
 
-it("persists the LAN scope and copies the advertised HTTPS URL and shows the CA fingerprint", async () => {
+it("selects the only advertised LAN HTTPS address and shows the CA fingerprint", async () => {
   const lanUrl = "https://192.168.1.40:32123/mcp";
-  const lan = { ...active, scope: "network" as const, urls: [lanUrl, "https://127.0.0.1:32123/mcp"], certificate_fingerprint: "A1:B2:C3" };
+  const lan = { ...active, scope: "network" as const, url: networkLoopback, urls: [networkLoopback, lanUrl], certificate_fingerprint: "A1:B2:C3" };
   const lanConfig = credentials.client_config.replace(active.url!, lanUrl);
   mocks.mcpHttpConnection.mockResolvedValue({ ...credentials, url: lanUrl, client_config: lanConfig });
   mocks.saveMcpSettings.mockResolvedValue(lan);
@@ -152,12 +153,33 @@ it("persists the LAN scope and copies the advertised HTTPS URL and shows the CA 
   fireEvent.click(apply());
   await screen.findByText(t("mcp_on"));
   expect(mocks.saveMcpSettings).toHaveBeenCalledWith({ enabled: true, port: 0, scope: "network" });
-  expect((screen.getByLabelText(t("mcp_endpoint")) as HTMLSelectElement).value).toBe(lan.urls[0]);
+  expect((screen.getByLabelText(t("mcp_endpoint")) as HTMLSelectElement).value).toBe(lanUrl);
   expect(screen.getByText(lan.certificate_fingerprint)).toBeTruthy();
   expect(mocks.mcpHttpConnection).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: t("mcp_copy") }));
   await waitFor(() => expect(clipboard).toHaveBeenCalledWith(lanConfig));
   expect(mocks.mcpHttpConnection).toHaveBeenCalledWith(lanUrl);
+});
+
+it("requires a choice with multiple LAN addresses and copies the selected HTTPS endpoint", async () => {
+  const urls = ["https://10.90.0.1:32123/mcp", "https://192.168.1.40:32123/mcp", networkLoopback];
+  mocks.mcpSettings.mockResolvedValue({ ...active, scope: "network", url: networkLoopback, urls });
+  const selected = urls[1];
+  const config = { mcpServers: { "music-generator": { url: selected, headers: { Authorization: `Bearer ${credentials.token}` } } } };
+  mocks.mcpHttpConnection.mockResolvedValue({ ...credentials, url: selected, client_config: JSON.stringify(config) });
+
+  view();
+  await screen.findByText(t("mcp_on"));
+  const endpoint = screen.getByRole<HTMLSelectElement>("combobox", { name: t("mcp_endpoint") });
+  const copy = screen.getByRole<HTMLButtonElement>("button", { name: t("mcp_copy") });
+  expect(endpoint.value).toBe("");
+  expect(copy.disabled).toBe(true);
+
+  fireEvent.change(endpoint, { target: { value: selected } });
+  fireEvent.click(copy);
+  await screen.findByText(t("mcp_copied"));
+  expect(mocks.mcpHttpConnection).toHaveBeenCalledExactlyOnceWith(selected);
+  expect(clipboard).toHaveBeenCalledExactlyOnceWith(JSON.stringify(config));
 });
 
 it("retrieves credentials only on request and masks the key and JSON by default", async () => {
@@ -177,7 +199,7 @@ it("retrieves credentials only on request and masks the key and JSON by default"
 });
 
 it.each(["disable", "address", "unmount"])("discards a late credential result after %s", async change => {
-  const lan = { ...active, scope: "network" as const, urls: ["https://192.168.1.40:32123/mcp", "https://127.0.0.1:32123/mcp"] };
+  const lan = { ...active, scope: "network" as const, url: networkLoopback, urls: ["https://192.168.1.40:32123/mcp", networkLoopback] };
   let finish!: (value: McpHttpConnection) => void;
   mocks.mcpSettings.mockResolvedValue(lan);
   mocks.mcpHttpConnection.mockReturnValue(new Promise<McpHttpConnection>(resolve => { finish = resolve; }));
@@ -208,7 +230,12 @@ it("clears revealed credentials when applying a change and reports credential fa
 });
 
 it("explains when LAN mode has no usable non-loopback address", async () => {
-  mocks.mcpSettings.mockResolvedValue({ ...active, scope: "network" });
+  mocks.mcpSettings.mockResolvedValue({ ...active, scope: "network", url: networkLoopback, urls: [networkLoopback] });
+  mocks.mcpHttpConnection.mockResolvedValue({ ...credentials, url: networkLoopback, client_config: credentials.client_config.replace(active.url!, networkLoopback) });
   view(); await screen.findByText(t("mcp_on"));
   expect(screen.getByText(t("mcp_no_network"))).toBeTruthy();
+  expect(screen.getByRole<HTMLSelectElement>("combobox", { name: t("mcp_endpoint") }).value).toBe(networkLoopback);
+  fireEvent.click(screen.getByRole("button", { name: t("mcp_copy") }));
+  await screen.findByText(t("mcp_copied"));
+  expect(mocks.mcpHttpConnection).toHaveBeenCalledExactlyOnceWith(networkLoopback);
 });

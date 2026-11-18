@@ -3,6 +3,15 @@ import { backend } from "../../backend";
 import type { McpHttpConnection, McpSettings as Preferences, McpSettingsStatus } from "../../types";
 import { useI18n } from "../i18n";
 
+function lanEndpoints(status: McpSettingsStatus) {
+  return status.scope === "network" ? status.urls.filter(address => address !== status.url) : [];
+}
+
+function defaultEndpoint(status: McpSettingsStatus) {
+  const addresses = lanEndpoints(status);
+  return addresses.length > 1 ? "" : addresses[0] ?? status.urls[0] ?? "";
+}
+
 /** MCP changes are applied separately from the rest of the settings draft. */
 export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
   const { t } = useI18n();
@@ -29,7 +38,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
   const accept = useCallback((value: McpSettingsStatus) => {
     setStatusKnown(true);
     setStatus(value); setEnabled(value.enabled); setPort(String(value.port)); setScope(value.scope);
-    setUrl(value.urls[0] ?? ""); clearCredentials();
+    setUrl(defaultEndpoint(value)); clearCredentials();
   }, [clearCredentials]);
   const load = useCallback(async () => {
     const current = ++revision.current;
@@ -51,6 +60,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
   const validPort = /^\d+$/.test(port) && Number(port) <= 65535;
   const changed = status && (enabled !== status.enabled || Number(port) !== status.port || scope !== status.scope || !!status.error || !statusKnown);
   const canConnect = statusKnown && status?.running && !changed && !!url && !saving;
+  const lanAddressCount = status ? lanEndpoints(status).length : 0;
   async function apply() {
     if (!status || loading || submitting.current || status.managed_by_environment || !validPort || !changed) return;
     submitting.current = true; setSaving(true); onBusyChange(true); clearCredentials();
@@ -68,7 +78,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
       // Refresh confirmed state without replacing the user's unsaved draft.
       try {
         const actual = await backend.mcpSettings();
-        if (mounted.current) { setStatus(actual); setStatusKnown(true); setUrl(actual.urls[0] ?? ""); }
+        if (mounted.current) { setStatus(actual); setStatusKnown(true); setUrl(defaultEndpoint(actual)); }
       } catch { /* Keep the service state unknown and credential controls unavailable. */ }
     } finally {
       submitting.current = false;
@@ -129,9 +139,10 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
       {failure === "save" && <p role="alert" className="small err">{t("mcp_save_failed")} {errorDetail}</p>}
       {status.error && failure !== "save" && <p role="alert" className="small err">{status.error}</p>}
       {statusKnown && status.running && <div className="mcp-connection">
-        {status.scope === "network" && !status.urls.some(address => new URL(address).hostname !== "127.0.0.1") && <p className="small">{t("mcp_no_network")}</p>}
+        {status.scope === "network" && lanAddressCount === 0 && <p className="small">{t("mcp_no_network")}</p>}
         <label className="field"><span className="lbl">{t("mcp_endpoint")}</span>
           <select aria-label={t("mcp_endpoint")} value={url} onChange={event => edit(() => setUrl(event.target.value))}>
+            {lanAddressCount > 1 && <option value="" disabled>{t("mcp_choose_endpoint")}</option>}
             {status.urls.map(address => <option key={address} value={address}>{address}</option>)}
           </select>
         </label>
