@@ -107,7 +107,7 @@ export function Player() {
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,[role="button"],dialog,[contenteditable="true"]')) {
+      if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,summary,[role="button"],dialog,[contenteditable="true"]')) {
         event.preventDefault(); if (song) play(song);
       }
     };
@@ -116,7 +116,7 @@ export function Player() {
   }, [active, song, play]);
   return <footer id="player" ref={footer} hidden={!song}>
     <div className="player-in">
-      <button id="playBtn" className="aktion round" aria-label={t("play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>
+      <button id="playBtn" className="aktion round" aria-label={t(playing ? "pause" : "play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>
       <div className="pmeta"><div id="pTitle" title={`Seed ${song?.seed ?? ""}`}>{song?.title || song?.caption}</div><div id="waveform" ref={waveform} /></div>
       <span id="pTime" className="time">{time}</span>
       <div className="vol" id="vol" data-level={muted || volume === 0 ? "off" : volume < .5 ? "low" : "high"} style={{"--v":volume} as CSSProperties}>
