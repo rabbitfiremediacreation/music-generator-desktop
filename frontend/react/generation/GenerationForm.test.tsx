@@ -238,6 +238,66 @@ it.each([true,false])("uses instrumental=%s when rolling an automatic prompt", a
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toMatchObject({ instrumental, prompt: instrumental ? "A marching band in slow motion" : "A marching band in slow motion, with a soft female lead" });
 });
+it.each(["collapsed", "reopened"] as const)("submits custom lyrics and their language with the lyrics panel %s", async state => {
+  const { container } = mount();
+  const generate = screen.getByRole<HTMLButtonElement>("button", { name: "2× GENERIEREN" });
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  const panel = container.querySelector<HTMLDetailsElement>("#lyricsBox")!;
+  const summary = panel.querySelector("summary")!;
+  fireEvent.click(summary);
+  expect(panel.open).toBe(true);
+  const field = screen.getByRole("textbox", { name: "Lyrics" });
+  const lyrics = "[verse]\nSous la pluie, je chante.";
+  fireEvent.focus(field);
+  fireEvent.change(field, { target: { value: lyrics } });
+  fireEvent.change(screen.getByRole("combobox", { name: I18N.de.language_aria }), { target: { value: "fr" } });
+  fireEvent.click(summary);
+  expect(panel.open).toBe(false);
+  if (state === "reopened") {
+    fireEvent.click(summary);
+    expect(panel.open).toBe(true);
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Lyrics" }).value).toBe(lyrics);
+    expect(screen.getByRole<HTMLSelectElement>("combobox", { name: I18N.de.language_aria }).value).toBe("fr");
+  }
+  fireEvent.submit(generate.form!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ instrumental: false, lyrics, vocal_language: "fr" });
+});
+it("submits automatic vocals with empty lyrics after collapsing the lyrics panel", async () => {
+  const { container } = mount();
+  const generate = screen.getByRole<HTMLButtonElement>("button", { name: "2× GENERIEREN" });
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  const panel = container.querySelector<HTMLDetailsElement>("#lyricsBox")!;
+  const summary = panel.querySelector("summary")!;
+  fireEvent.click(summary);
+  const field = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Lyrics" });
+  fireEvent.focus(field);
+  expect(field.value).toBe("");
+  fireEvent.change(screen.getByRole("combobox", { name: I18N.de.language_aria }), { target: { value: "es" } });
+  fireEvent.click(summary);
+  expect(panel.open).toBe(false);
+  fireEvent.submit(generate.form!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ instrumental: false, lyrics: "", vocal_language: "es" });
+});
+it("submits an explicit instrumental selection after collapsing and reopening the lyrics panel", async () => {
+  const { container } = mount();
+  const generate = screen.getByRole<HTMLButtonElement>("button", { name: "2× GENERIEREN" });
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  const summary = container.querySelector("#lyricsBox summary")!;
+  fireEvent.click(summary);
+  const field = screen.getByRole("textbox", { name: "Lyrics" });
+  fireEvent.focus(field);
+  fireEvent.change(field, { target: { value: "[verse]\nI used to sing." } });
+  fireEvent.change(screen.getByRole("combobox", { name: I18N.de.language_aria }), { target: { value: "fr" } });
+  fireEvent.click(screen.getByRole("button", { name: "[instrumental]" }));
+  fireEvent.click(summary);
+  fireEvent.click(summary);
+  expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Lyrics" }).value).toBe("[Instrumental]");
+  fireEvent.submit(generate.form!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ instrumental: true, lyrics: "", vocal_language: "" });
+});
 it("retains the automatic prompt through admission failure and retry", async () => {
   const production = ipc.invoke.getMockImplementation()!;
   let fail = true;
