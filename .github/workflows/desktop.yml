@@ -80,7 +80,8 @@ jobs:
         run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Wrong native runner architecture')"
       - run: npm run build
       - run: npm run lint
-      - run: npm test
+      # Keep DOM-heavy suites from contending for the Intel runner's CPUs.
+      - run: npm test ${{ matrix.name == 'macos-x64' && '-- --maxWorkers=2' || '' }}
       - run: npm run test:desktop
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
