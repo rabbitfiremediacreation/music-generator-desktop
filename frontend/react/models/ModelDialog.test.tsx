@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithNativeProfiles } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -16,9 +16,9 @@ async function open() {
   return screen.findByRole("dialog", { name: "Modelle" });
 }
 
-it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
-  const catalog = catalogWithHeartMuLa();
-  const heartmula = catalog.profiles![0];
+it("shows the YuE2 terms on an unsupported computer without offering acquisition", async () => {
+  const catalog = catalogWithNativeProfiles();
+  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -27,16 +27,36 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   });
   mountControls();
   const dialog = within(await open());
-  fireEvent.click(await dialog.findByRole("button", { name: heartmula.name }));
-  expect(dialog.getByRole("heading", { name: heartmula.name })).toBeTruthy();
-  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
-  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
-  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
-  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  fireEvent.click(await dialog.findByRole("button", { name: yue2.name }));
+  expect(dialog.getByRole("heading", { name: yue2.name })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "m-a-p/YuE2-3B" })).toHaveLength(2);
+  expect(dialog.getByRole("link", { name: "m-a-p/YuE2-Vae" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "CC-BY-NC-4.0" })).toHaveLength(2);
+  expect(dialog.getByRole("link", { name: "Apache-2.0" })).toBeTruthy();
+  expect(dialog.getByText("Dieses Profil ist auf diesem Rechner nicht verfügbar.")).toBeTruthy();
   expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it.each([false, true])("shows the YuE2 creator permission before acquisition (local files: %s)", async present => {
+  const catalog = catalogWithNativeProfiles();
+  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+  yue2.available = true;
+  catalog.hardware.ram_bytes = 64 * 1024 ** 3;
+  catalog.models.forEach(model => { if (model.provider === "yue2") model.present = present; });
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: yue2.name }));
+  expect(dialog.getByRole("link", { name: "Vollständige Gewichtslizenz und Zusatzgenehmigung" }).getAttribute("href")).toBe(yue2.usage.policy_url);
+  expect(dialog.getByText(/Unternehmen brauchen für die kommerzielle Modellnutzung eine separate Lizenz/)).toBeTruthy();
+  expect(dialog.getByText(/Einzelkreative dürfen erzeugte Songs ohne Lizenzgebühren/)).toBeTruthy();
+  expect(dialog.getByText(/Lege beim manuellen Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: present ? "Prüfen und verwenden" : "Herunterladen und verwenden" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

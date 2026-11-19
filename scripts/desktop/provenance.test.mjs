@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { desktopTarget } from "./targets.mjs";
-import { engineRecipeHash, manifest, recordHashes, verifyEngine } from "./common.mjs";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
+import { engineRecipeHash, hash, manifest, recordHashes, root, verifyEngine } from "./common.mjs";
 
 it("rejects a cached engine from the other Linux variant or an older build recipe", async () => {
   const work = await mkdtemp(path.join(tmpdir(), "linux-provenance-test-"));
@@ -42,4 +43,25 @@ it("rejects the old Windows iteration limit even when target and file hashes mat
     });
     await assert.rejects(verifyEngine(work,windows),/iteration limit/);
   } finally { await rm(work,{recursive:true,force:true}); }
+});
+
+it("requires the pinned YuE2 runner in the Apple Silicon bundle", async () => {
+  const work = await mkdtemp(path.join(tmpdir(), "yue2-provenance-test-"));
+  try {
+    const mac = desktopTarget("macos", "arm64");
+    const metadata = {
+      platform: mac.platform, arch: mac.arch, revision: manifest.engines.macos.revision,
+      max_inference_steps: manifest.engines.macos.max_inference_steps,
+      recipe_sha256: await engineRecipeHash(mac),
+      sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
+    };
+    await writeFile(path.join(work, "ace-server"), "test engine");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, mac), /YuE2 runner is missing/);
+    await writeFile(path.join(work, yue2.executable), "test YuE2 runner");
+    await recordHashes(work, { ...metadata, yue2_revision: yue2.revision, yue2_ggml_revision: yue2.ggml_revision });
+    await verifyEngine(work, mac);
+    await writeFile(path.join(work, yue2.executable), "changed runner");
+    await assert.rejects(verifyEngine(work, mac), /failed verification: yue-synth/);
+  } finally { await rm(work, { recursive: true, force: true }); }
 });

@@ -70,7 +70,7 @@ impl WavJob<'_> {
             if elapsed != Some(seconds) {
                 progress(Progress {
                     elapsed_seconds: seconds,
-                    ..Progress::new("generation")
+                    ..Progress::new("synth")
                 });
                 elapsed = Some(seconds);
             }

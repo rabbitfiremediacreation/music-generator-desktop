@@ -162,6 +162,21 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("rounds a duration-limited WAV at the displayed second", async () => {
+  songs[0].params = { duration: 60 };
+  songs[0].result_meta = { duration: 59.998667, duration_source: "wav", duration_limit: 60 };
+  mount();
+  expect(await screen.findByText("1:00")).toBeTruthy();
+});
+
+it("shows the supplied lyrics for a YuE2 song", async () => {
+  songs[0].engine = "yue2";
+  songs[0].lyrics = "[Verse]\nI hear the ocean roar";
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Lyrics" }));
+  expect(screen.getByText(/I hear the ocean roar/)).toBeTruthy();
+});
+
 it("shows the variance with up to two decimals",async()=>{
   songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
   const view=mount();await screen.findByText("A song A");

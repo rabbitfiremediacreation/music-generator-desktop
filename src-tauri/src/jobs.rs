@@ -8,6 +8,9 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio_util::sync::CancellationToken;
 
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod yue2_tests;
+
 fn report_progress<R: Runtime>(
     state: &AppState,
     app: &AppHandle<R>,

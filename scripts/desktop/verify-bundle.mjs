@@ -1,4 +1,5 @@
 import { verifyTitle } from "./prepare-title.mjs";
+import { verifyYue2Binary } from "./prepare-yue2.mjs";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { execFileSync, spawn } from "node:child_process";
@@ -6,7 +7,7 @@ import { chmod, mkdtemp, mkdir, readFile, readdir, readlink, rename, rm, writeFi
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { architecture, exists, files, hash, platform, root, run, target, verifyEngine } from "./common.mjs";
+import { architecture, exists, files, hash, platform, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
@@ -86,6 +87,7 @@ try {
   assert(record, "Bundled engine manifest is missing");
   const engine = path.dirname(record);
   await verifyEngine(engine);
+  if (shipsYue2()) await verifyYue2Binary(engine);
   await verifyTitle(path.join(engine,"title"),false);
   if(platform!=="macos") { const text=execFileSync(path.join(engine,"title",platform==="windows"?"music-title.exe":"music-title"),["--self-test"],{encoding:"utf8",timeout:30000});assert(text.includes("music-title=ready"),"Title runtime did not start"); }
   if(platform==="linux")await verifyLinuxRuntime(engine,target.backend,path.join(work,"squashfs-root"));

@@ -11,7 +11,9 @@ interface ConnectionInfo { secure_addresses: string[]; certificate_url: string; 
 type Translate = (key: Message) => string;
 const noFolders: FolderList = { folders: [], all: 0, none: 0 };
 const duration = (seconds: number | null) => {
-  return seconds ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "";
+  if (!seconds) return "";
+  const rounded = Math.round(seconds);
+  return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 };
 const isAborted = (error: unknown) => error instanceof Error && error.name === "AbortError";
 
@@ -325,7 +327,7 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
       {abilities.instrumental && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
       {!instrumental && <Field title={t("lyrics")}><textarea rows={4} required={abilities.lyrics_required} value={draft.lyrics} onChange={event => setDraft(value => ({ ...value, lyrics: event.target.value }))} /></Field>}
       <div className="field-grid">
-        <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
+        <Field title={t(profile?.selection.provider === "yue2" ? "durationLimit" : "duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
         {abilities.bpm && <Field title={t("bpm")}><input type="number" min={0} max={300} required value={draft.bpm} onChange={event => setDraft(value => ({ ...value, bpm: Number(event.target.value) }))} /></Field>}
         {maxVariants > 1 && <Field title={t("variants")}><input type="number" min={1} max={maxVariants} required value={Math.min(maxVariants, draft.variants)} onChange={event => setDraft(value => ({ ...value, variants: Number(event.target.value) }))} /></Field>}
         {!abilities.advanced && <Field title={t("seed")}><input type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} value={draft.seed} onChange={event => setDraft(value => ({ ...value, seed: event.target.value }))} /></Field>}

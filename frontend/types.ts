@@ -36,6 +36,7 @@ export interface Song {
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
   params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
+  engine?: string | null;
   audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
@@ -98,7 +99,7 @@ export interface CatalogProfile {
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
   available: boolean; unavailable_reason?: string | null;
 }

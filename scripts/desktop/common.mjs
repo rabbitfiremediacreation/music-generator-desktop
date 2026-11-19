@@ -5,12 +5,17 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { desktopTarget } from "./targets.mjs";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 
 export const root = fileURLToPath(new URL("../../", import.meta.url));
 export const manifest = JSON.parse(await readFile(path.join(root, "models/manifest.json"), "utf8"));
 export const platform = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux";
 export const architecture = process.arch;
 export const target = desktopTarget(platform, architecture, process.env.MUSIC_GENERATOR_LINUX_BACKEND || "vulkan");
+
+export function shipsYue2(buildTarget = target) {
+  return buildTarget.platform === yue2.platform && buildTarget.arch === yue2.arch;
+}
 
 export function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -62,6 +67,10 @@ export async function engineRecipeHash(buildTarget = target) {
     digest.update(buildTarget.backend);
     for (const name of ["scripts/desktop/linux-runtime.mjs", "scripts/desktop/prepare-cuda.mjs", "models/cuda-linux.json"]) digest.update(await readFile(path.join(root, name)));
   }
+  if (shipsYue2(buildTarget)) {
+    const yue2Inputs = ["models/yue2-runtime.json", "scripts/desktop/prepare-yue2.mjs", "scripts/desktop/engine-sandbox.mm", "src-tauri/Engine.entitlements"];
+    for (const name of yue2Inputs) digest.update(await readFile(path.join(root, name)));
+  }
   return digest.digest("hex");
 }
 
@@ -75,6 +84,12 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (provenance.recipe_sha256 !== await engineRecipeHash(buildTarget)) throw new Error("Engine build recipe changed");
   const executable = buildPlatform === "windows" ? "ace-server.exe" : "ace-server";
   if (!provenance.files[executable]) throw new Error("Engine executable is missing from checksums");
+  if (shipsYue2(buildTarget)) {
+    const { yue2_revision, yue2_ggml_revision } = provenance;
+    if (yue2_revision !== yue2.revision || yue2_ggml_revision !== yue2.ggml_revision || !provenance.files[yue2.executable]) {
+      throw new Error("YuE2 runner is missing or has a different revision");
+    }
+  }
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
   const actual = (await files(folder)).filter(file => path.basename(file) !== "VERSION.desktop.json").map(file => path.relative(folder, file).split(path.sep).join("/")).sort();
   if (JSON.stringify(actual) !== JSON.stringify(Object.keys(provenance.files).sort())) throw new Error("Engine resource inventory changed");

@@ -48,8 +48,11 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
-  const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
-  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
+  const suppliedLyrics = song.engine === "yue2";
+  const text = suppliedLyrics ? song.lyrics : meta.lyrics;
+  const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof text==="string" && /[^\s\[\]]/.test(text.replace(/\[[^\]]*\]/g,"")) ? text.trim():"";
+  const measuredDuration = duration === null ? null : audioTime(meta.duration_limit ? Math.round(duration) : duration);
+  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,measuredDuration].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
     aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>
@@ -71,7 +74,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
     <div className="actions relative">
       {song.status==="done"&&<button type="button" className={`sek icon ${song.favorite?"on":""}`} aria-label={t("fav")} title={t("fav")} aria-pressed={song.favorite} disabled={change.isPending} onClick={()=>change.mutate(()=>backend.patch(song.id,{favorite:!song.favorite}))}>{song.favorite?"★":"☆"}</button>}
       {song.status==="done"&&!song.audio_missing&&action(t("download"),exportFormat==="mp3"||song.file?.endsWith(".mp3")?"MP3":"WAV",()=>change.mutate(()=>exportSong(song)),"download fmt")}
-      {lyrics&&action(t("show_lyrics"),"TXT",()=>setLyricsOpen(!lyricsOpen),`txt ${lyricsOpen?"on":""}`)}
+      {lyrics&&action(t(suppliedLyrics ? "lyrics" : "show_lyrics"),"TXT",()=>setLyricsOpen(!lyricsOpen),`txt ${lyricsOpen?"on":""}`)}
       {folders.length>0&&<div ref={moveMenu}>{action(t("move"),"▱",()=>setMoving(!moving))}{moving&&<div className="song-move-menu" role="menu" onKeyDown={event=>{if(event.key==="Escape")setMoving(false);}}>{[{id:"none",name:t("f_none"),count:0},...folders].map(folder=><button role="menuitem" key={folder.id} className={(song.folder_id||"none")===folder.id?"on":""} onClick={()=>{setMoving(false);change.mutate(()=>backend.patch(song.id,{folder_id:folder.id==="none"?null:folder.id}));}}>{folder.name}</button>)}</div>}</div>}
       {action(t("more"),"＋",()=>{void more();},"",admission.busy)}
       {action(t("reuse"),"↑",()=>onReuse(song))}

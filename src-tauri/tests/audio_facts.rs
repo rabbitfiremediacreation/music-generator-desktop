@@ -1,4 +1,4 @@
-use music_generator::audio_facts::{duration, enrich_metadata};
+use music_generator::audio_facts::{duration, enrich_metadata, record_duration};
 use serde_json::json;
 #[path = "support/wav.rs"]
 mod wav;
@@ -85,4 +85,16 @@ fn unavailable_audio_never_presents_old_lm_duration_as_measured() {
     assert_eq!(meta["lm_duration"], 85);
     assert_eq!(meta["requested_duration"], 30.0);
     assert_eq!(meta["duration_source"], "unknown");
+}
+
+#[test]
+fn a_song_may_end_before_a_provider_duration_limit() {
+    let params = json!({"duration": 30});
+    let mut meta = json!({"duration_limit": 30});
+    record_duration(24.8, &params, &mut meta);
+    assert_eq!(meta["duration"], 24.8);
+    assert_eq!(meta["requested_duration"], 30.0);
+    assert!(meta.get("duration_warning").is_none());
+    record_duration(34.0, &params, &mut meta);
+    assert_eq!(meta["duration_warning"]["code"], "long_audio");
 }

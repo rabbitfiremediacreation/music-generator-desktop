@@ -68,8 +68,9 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
       {!catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
         <dl className="model-requirements"><div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
-        {manual && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
-        {missingImport && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
+        {metadata && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
+        {metadata?.selection.provider === "yue2" && !selected.verified && <p className="small">{t("yue2_local_import")}</p>}
+        {metadata && selected.models.some(model => !model.present) && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         {selected.allowed && !selected.compatible && <p className="setup-error">{t("picker_low_ram")}</p>}
         {spaceLow && <p className="setup-error">{t("browser_space_low")}</p>}
       <div className="model-download-actions">{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("picker_cancel_download")}</button>}<button type="button" className="aktion" disabled={blocked} onClick={state.apply}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{t(selected.verified ? "picker_use" : manual ? "provider_verify_import" : selected.download ? "picker_download_use" : "picker_verify_use")}{!manual && selected.download > 0 && <span className="model-action-size" aria-hidden="true">{bytes(selected.download)}</span>}</button></div>
