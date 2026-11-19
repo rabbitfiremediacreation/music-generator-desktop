@@ -157,12 +157,7 @@ pub async fn startup_show_main<R: Runtime>(
         .lock()
         .expect("startup deadline poisoned") = Some(deadline);
     startup
-        .present_main(
-            &app,
-            attempt,
-            deadline,
-            presentation::show(&window, attempt),
-        )
+        .present_main(&app, attempt, deadline, presentation::show(&window))
         .await?;
     let _ = window.set_focus();
     tokio::spawn(async move {
@@ -205,6 +200,13 @@ pub async fn startup_complete<R: Runtime>(
         startup.report(&app, attempt, "error", Some("startup_main_timeout".into()));
         return Err(message("startup_main_timeout"));
     }
+    startup
+        .finish_main(&app, attempt, async {
+            #[cfg(windows)]
+            presentation::windows::synchronize(&window, attempt).await?;
+            Ok(())
+        })
+        .await?;
     startup.report(&app, attempt, "ready", None);
     if let Some(splash) = app.get_webview_window("splash") {
         splash.destroy().map_err(|e| message(e.to_string()))?;
