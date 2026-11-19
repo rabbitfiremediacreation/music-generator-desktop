@@ -88,7 +88,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}
               {value === "appearance" && <AppearanceSettings layout={props.layout} onLayoutChange={props.onLayoutChange} />}
               {value === "mcp" && <McpSettings onBusyChange={setMcpSaving} />}
-              {value === "about" && <AboutSettings onError={setPathError} />}
+              {value === "about" && <AboutSettings state={state} onError={setPathError} />}
             </fieldset>}
           </section>)}
         </div>

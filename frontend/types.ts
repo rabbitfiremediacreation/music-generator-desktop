@@ -1,3 +1,4 @@
+export type UpdateStream = "stable" | "daily" | "develop";
 export type CpuIterationBehavior = "ask" | "limit_30" | "continue";
 export interface McpSettings { enabled: boolean; port: number; scope: "local" | "network" }
 export interface McpHttpConnection { url: string; token: string; client_config: string }
@@ -10,6 +11,7 @@ export interface Settings {
   model_provider: string; synthesis_model: string;
   lm_device: "auto" | "cpu"; export_format: "wav" | "mp3"; mp3_available?: boolean;
   expert_mode: boolean;
+  update_stream: UpdateStream;
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_profiles?: ModelSelection[];
   cpu_only?: boolean;
@@ -38,6 +40,7 @@ export interface Song {
 }
 export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
+export interface SongPage { songs: Song[]; total: number }
 export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number } }
 export type BackendReason = "cpu_requested" | "cpu_only" | "lm_selftest_failed" | "cuda_architecture_unsupported" | "cuda_initialization_failed";
 export interface ComponentBackend {
@@ -55,7 +58,7 @@ export interface CudaStatus {
   state: "not_applicable" | "unsupported_build" | "unsupported_gpu" | "check_failed" | "driver_error" | "runtime_missing" | "cuda_failed" | "ready";
   download_bytes: number; details: string | null;
 }
-export interface Update { available: boolean; current: string; latest?: string; url?: string; notes?: string }
+export interface Update { available: boolean; current: string; latest?: string; url?: string | null; notes?: string | null }
 export interface Model { file: string; estimated_bytes: number; sha256: string; kind: string }
 export interface Bootstrap {
   recommended_profiles: ModelSelection[];
@@ -94,7 +97,7 @@ export interface ModelCatalog {
   models_dir: string; busy: boolean;
 }
 
-export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior">>;
+export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior" | "update_stream">>;
 
 export interface ImportRequest { root: string; songs_source: string | null; songs_dir: string; allow_partial: boolean }
 export interface MissingAudio { id: string; title: string; file: string | null }

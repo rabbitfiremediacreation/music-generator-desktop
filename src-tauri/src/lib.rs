@@ -123,6 +123,7 @@ pub fn run() {
             commands::preview_import,
             commands::preview_library_move,
             commands::list_songs,
+            commands::list_song_page,
             commands::get_song,
             commands::read_song_audio,
             commands::generate,

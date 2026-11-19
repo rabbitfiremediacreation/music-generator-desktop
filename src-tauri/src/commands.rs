@@ -3,7 +3,7 @@ use crate::{
     error::{message, Result},
     runtime::OperationKind,
     state::AppState,
-    types::{GenerateRequest, Settings, Song, SongFilter},
+    types::{GenerateRequest, Settings, Song, SongFilter, SongPage},
 };
 use serde_json::{json, Value};
 use std::{path::PathBuf, sync::Arc};
@@ -280,6 +280,19 @@ pub fn list_songs(state: Desktop<'_>, filter: SongFilter) -> Result<Vec<Song>> {
 }
 
 #[tauri::command]
+pub async fn list_song_page(
+    state: Desktop<'_>,
+    filter: SongFilter,
+    offset: u32,
+    limit: u32,
+) -> Result<SongPage> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || db.song_page(&filter, offset, limit))
+        .await
+        .map_err(|error| message(error.to_string()))?
+}
+
+#[tauri::command]
 pub fn get_song(state: Desktop<'_>, id: String) -> Result<Song> {
     state.db.song(&id)
 }
@@ -496,8 +509,15 @@ pub async fn export_file(
 }
 
 #[tauri::command]
-pub async fn check_update() -> Result<Value> {
-    crate::updates::check().await
+pub async fn check_update(
+    state: Desktop<'_>,
+    stream: Option<crate::types::UpdateStream>,
+) -> Result<Value> {
+    let stream = match stream {
+        Some(stream) => stream,
+        None => state.db.settings()?.update_stream,
+    };
+    crate::updates::check(stream).await
 }
 
 #[tauri::command]

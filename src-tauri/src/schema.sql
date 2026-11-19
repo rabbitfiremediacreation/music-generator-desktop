@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS songs (
 );
 CREATE INDEX IF NOT EXISTS idx_songs_status ON songs(status);
 CREATE INDEX IF NOT EXISTS idx_songs_group ON songs(group_id);
+CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS folders (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL);
