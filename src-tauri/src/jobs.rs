@@ -240,3 +240,7 @@ mod tests {
         assert!(matches!(result, Err(Error::Cancelled)));
     }
 }
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+#[path = "jobs/heartmula_hardware.rs"]
+mod heartmula_hardware;

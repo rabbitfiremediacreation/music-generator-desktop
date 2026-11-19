@@ -29,6 +29,98 @@
       "status": "available",
       "adapter": "acestep.cpp",
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
+    },
+    {
+      "id": "heartmula",
+      "name": "HeartMuLa 3B Happy New Year",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/0xShug0/audio.cpp"
+    }
+  ],
+  "profiles": [
+    {
+      "selection": {
+        "provider": "heartmula",
+        "synthesis": "heartmula-oss-3b-hny",
+        "language": ""
+      },
+      "name": "HeartMuLa 3B Happy New Year",
+      "files": [
+        "heartmula/HeartMuLa-oss-3B/config.json",
+        "heartmula/HeartMuLa-oss-3B/model-00001-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00002-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00003-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00004-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model.safetensors.index.json",
+        "heartmula/HeartCodec-oss/config.json",
+        "heartmula/HeartCodec-oss/model-00001-of-00002.safetensors",
+        "heartmula/HeartCodec-oss/model-00002-of-00002.safetensors",
+        "heartmula/HeartCodec-oss/model.safetensors.index.json",
+        "heartmula/gen_config.json",
+        "heartmula/tokenizer.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "heartmula-hny",
+          "role": "weights",
+          "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+          "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B-happy-new-year/blob/41d4faafc5bde6990bf8505daa70840fb3c4a3e7/README.md"
+        },
+        {
+          "id": "heartcodec-20260123",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "heartmula-gen",
+          "role": "tokenizer",
+          "repository": "HeartMuLa/HeartMuLaGen",
+          "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLaGen/blob/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7/README.md"
+        }
+      ],
+      "runtime": {
+        "name": "audio.cpp v0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "usage": {
+        "model_use": "Apache-2.0 permits private and commercial model use.",
+        "redistribution": "When redistributing code or weights, include the Apache-2.0 license and applicable notices, retain any NOTICE, and identify modified files.",
+        "outputs": "The upstream licenses impose no separate noncommercial or attribution condition on generated music. Check rights to the supplied lyrics and to the resulting song separately."
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download"
     }
   ],
   "models": [
@@ -651,6 +743,186 @@
       "estimated_bytes": 337420928,
       "sha256": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
       "recommended_steps": null
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/config.json",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "",
+      "estimated_bytes": 308,
+      "sha256": "a05bf0650f560d235fb3a0c109173d44eb3a9b6231fe599968e12706cd20edf4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00001-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4933188000,
+      "sha256": "4815367cdbddc0192abe3dbe81e2ae6a6e8978a39ad4dd1d26a20e445b3aeea6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00001-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00002-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4932808592,
+      "sha256": "f079416ba4c0570231f7a2830a2e95033336a8b3528d1c033a07923a25f4b5d7",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00002-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00003-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4935901576,
+      "sha256": "b43cd60ff50033fa9a5e08c4eb26edff55d5e95e0a313592804ab026ed3b895d",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00003-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00004-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 950588000,
+      "sha256": "07c5f5820c0c00f0b8ad4544ed8a24ae1888f7d8c8a5d8bb3cdaba418a39cf2f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00004-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model.safetensors.index.json",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "",
+      "estimated_bytes": 22579,
+      "sha256": "a96e28d71e3f767c94a7d25723f7ab77ce2abd06d5495315d9770be0e87e00ca",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model.safetensors.index.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/config.json",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "",
+      "estimated_bytes": 981,
+      "sha256": "b55a505b4cf5cd22bba40aac0d9d5082d560c1c942fe17583aaa95f28e3c08cf",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model-00001-of-00002.safetensors",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "F32",
+      "estimated_bytes": 4930472472,
+      "sha256": "50d2c022468a0e127992d99e02117d2efbad2b10fddc8ceaf09550f154e185d4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model-00001-of-00002.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model-00002-of-00002.safetensors",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "F32",
+      "estimated_bytes": 1707911436,
+      "sha256": "6f319d0f5b31858dfe98bd8fc89d3083cbfff74ac75a0531f1a7b86949197917",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model-00002-of-00002.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model.safetensors.index.json",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "",
+      "estimated_bytes": 83875,
+      "sha256": "d19153a142865e4a90508294f36c7ec5ab07d33bf0e8b01a0717c75b80ce6a63",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model.safetensors.index.json"
+      }
+    },
+    {
+      "file": "heartmula/gen_config.json",
+      "provider": "heartmula",
+      "role": "tokenizer",
+      "family": "heartmula-gen",
+      "precision": "",
+      "estimated_bytes": 101,
+      "sha256": "2fc578fc8d8445fa9d73d1925146d53d25b2e5f5d74b8a19aa5c000e37094f41",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLaGen",
+        "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+        "path": "gen_config.json"
+      }
+    },
+    {
+      "file": "heartmula/tokenizer.json",
+      "provider": "heartmula",
+      "role": "tokenizer",
+      "family": "heartmula-gen",
+      "precision": "",
+      "estimated_bytes": 9085657,
+      "sha256": "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLaGen",
+        "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+        "path": "tokenizer.json"
+      }
     }
   ]
 }

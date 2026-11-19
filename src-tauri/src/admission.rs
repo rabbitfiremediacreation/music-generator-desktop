@@ -135,6 +135,13 @@ pub(crate) fn generation_policy(
         policy
     };
     policy.available = catalog::ensure_runtime(selection, &state.resources).is_ok();
+    if !capabilities.advanced {
+        policy.defaults.duration = policy.defaults.duration.clamp(
+            f64::from(capabilities.min_duration),
+            f64::from(capabilities.max_duration),
+        );
+        policy.defaults.variants = 1;
+    }
     policy.capabilities = Some(capabilities);
     policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
     policy.lm_device = settings.lm_device.clone();

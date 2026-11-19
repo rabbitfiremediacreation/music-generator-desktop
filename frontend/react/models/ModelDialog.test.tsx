@@ -19,6 +19,7 @@ async function open() {
 it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
   const catalog = catalogWithHeartMuLa();
   const heartmula = catalog.profiles![0];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -32,6 +33,7 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
   expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
   expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
   expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
