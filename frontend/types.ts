@@ -30,13 +30,14 @@ export interface Generation {
   timesignature?: string; vocal_language?: string; seed?: number; variants?: number;
   inference_steps?: number; lm_temperature?: number; group_id?: string; folder_id?: string | null;
 }
+export type OutputKind = "audio" | "midi";
 export interface Song {
   id: string; group_id: string; created_at: string; finished_at: string | null;
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
   params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
-  audio_missing: boolean;
+  output_kind?: OutputKind; audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
 export interface Folder { id: string; name: string; count: number }
@@ -76,7 +77,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
 }
 
@@ -86,6 +87,7 @@ export interface ModelAbilities {
   prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
   bpm: boolean; advanced: boolean; analysis: boolean;
   max_seed?: number;
+  output_kind?: OutputKind;
 }
 export interface ProfileSource {
   id: string; role: string; repository: string; revision: string; license: string; license_url: string;
@@ -98,9 +100,10 @@ export interface CatalogProfile {
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
   available: boolean; unavailable_reason?: string | null;
+  install_command?: string;
 }
 export interface ActiveGenerationProfile {
   selection: ModelSelection; name: string; capabilities: ModelAbilities;

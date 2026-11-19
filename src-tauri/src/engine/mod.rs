@@ -5,6 +5,7 @@ mod diagnostics;
 mod generation;
 pub(crate) mod manager;
 pub mod native;
+pub mod text2midi;
 pub mod process;
 pub mod progress;
 mod response;

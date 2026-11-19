@@ -1,4 +1,4 @@
-//! Shared lifecycle for one-shot native WAV generators.
+//! Shared lifecycle for one-shot native generators.
 use super::{process::OwnedProcess, progress::Progress};
 use crate::{
     audio_facts,
@@ -11,7 +11,7 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 
-pub struct WavJob<'a> {
+pub struct NativeJob<'a> {
     pub executable: &'a Path,
     pub model_folder: &'a Path,
     pub data_root: &'a Path,
@@ -20,7 +20,9 @@ pub struct WavJob<'a> {
     pub timeout: Duration,
 }
 
-impl WavJob<'_> {
+pub type WavJob<'a> = NativeJob<'a>;
+
+impl NativeJob<'_> {
     pub async fn run(
         &self,
         params: &Value,
@@ -28,6 +30,22 @@ impl WavJob<'_> {
         progress: impl Fn(Progress),
         arguments: impl FnOnce(&Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, String, Value)> {
+        let (audio, mut meta) = self
+            .run_file("wav", params, cancel, progress, arguments)
+            .await?;
+        let seconds = audio_facts::duration(&audio)?;
+        audio_facts::record_duration(seconds, params, &mut meta);
+        Ok((audio, "wav".into(), meta))
+    }
+
+    pub async fn run_file(
+        &self,
+        extension: &str,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        arguments: impl FnOnce(&Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, Value)> {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -36,7 +54,7 @@ impl WavJob<'_> {
         let work = tempfile::Builder::new()
             .prefix("music-job-")
             .tempdir_in(self.data_root)?;
-        let output = work.path().join("song.wav");
+        let output = work.path().join(format!("song.{extension}"));
         let args = arguments(&output);
         let mut process = OwnedProcess::spawn_with_model_folder(
             self.executable,
@@ -70,7 +88,7 @@ impl WavJob<'_> {
             if elapsed != Some(seconds) {
                 progress(Progress {
                     elapsed_seconds: seconds,
-                    ..Progress::new("generation")
+                    ..Progress::new("synth")
                 });
                 elapsed = Some(seconds);
             }
@@ -79,17 +97,15 @@ impl WavJob<'_> {
                 _ = tokio::time::sleep(Duration::from_millis(200)) => {}
             }
         }
-        let audio = tokio::select! {
+        let bytes = tokio::select! {
             _ = cancel.cancelled() => return Err(Error::Cancelled),
-            audio = tokio::fs::read(&output) => audio?,
+            bytes = tokio::fs::read(&output) => bytes?,
         };
-        let seconds = audio_facts::duration(&audio)?;
-        let mut meta = json!({
+        let meta = json!({
             "runtime_seconds": started.elapsed().as_secs_f64(),
             "backend": self.backend,
             "seed": params["seed"],
         });
-        audio_facts::record_duration(seconds, params, &mut meta);
-        Ok((audio, "wav".into(), meta))
+        Ok((bytes, meta))
     }
 }

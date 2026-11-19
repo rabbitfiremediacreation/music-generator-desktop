@@ -84,6 +84,32 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+it("submits a MIDI composition prompt without audio-only controls", async () => {
+  const midi = { provider: "text2midi", synthesis: "text2midi", language: "flan-t5-base" };
+  currentPolicy = { ...policy, backend: "cpu", available: true, capabilities: {
+    output_kind: "midi", prompt: true, instrumental: true, lyrics: false, lyrics_required: false,
+    bpm: false, analysis: false, advanced: false, min_duration: 0, max_duration: 0, max_variants: 1,
+  } };
+  mount({ selection: midi });
+  const generate = await screen.findByRole("button", { name: "MIDI generieren" }) as HTMLButtonElement;
+  expect(screen.getByRole("heading", { name: "MIDI-Komposition" })).toBeTruthy();
+  expect(generate.disabled).toBe(true);
+  expect(screen.queryByRole("slider")).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Stil" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  const prompt = screen.getByRole("textbox", { name: "Prompt" });
+  fireEvent.change(prompt, { target: { value: "  " } });
+  expect(generate.disabled).toBe(true);
+  fireEvent.change(prompt, { target: { value: "  Slow piano waltz in A minor  " } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "133" } });
+  fireEvent.click(generate);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toEqual({
+    model_selection: midi, prompt: "Slow piano waltz in A minor", seed: 133,
+    title: "", instrumental: true, keep_caption: true, variants: 1, folder_id: null,
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };
   mount();

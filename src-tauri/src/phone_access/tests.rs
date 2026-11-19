@@ -621,6 +621,102 @@ async fn audio_streams_with_ranges_and_downloads_as_attachment() {
 }
 
 #[tokio::test]
+async fn midi_is_downloadable_through_its_own_authenticated_route() {
+    let f = Fixture::new().await;
+    let db = &f.state.db;
+    let id = db
+        .enqueue(&GenerateRequest {
+            model_selection: Some(crate::catalog::Selection {
+                provider: "text2midi".into(),
+                synthesis: "text2midi".into(),
+                language: "flan-t5-base".into(),
+            }),
+            prompt: "A piano melody".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    let endpoint = format!("/api/songs/{id}/midi");
+    let card = async || {
+        let value: Value = f
+            .get("/api/pwa/library")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        value["songs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|song| song["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    let queued = card().await;
+    assert_eq!(queued["output_kind"], "midi");
+    assert_eq!(queued["has_midi"], false);
+    assert_eq!(f.get(&endpoint).send().await.unwrap().status(), 404);
+
+    assert_eq!(db.claim_next().unwrap().unwrap().0, id);
+    let path = Path::new(&db.settings().unwrap().songs_dir).join("composition.mid");
+    std::fs::write(&path, b"MThd fixture").unwrap();
+    assert!(db
+        .finish_output(
+            &id,
+            "composition.mid",
+            &json!({}),
+            "text2midi",
+            OutputKind::Midi
+        )
+        .unwrap());
+    let done = card().await;
+    assert_eq!(done["has_midi"], true);
+    assert_eq!(done["has_audio"], false);
+    assert!(done["duration"].is_null());
+    assert_eq!(
+        f.http
+            .get(format!("{}{endpoint}", f.base))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    let details: Value = f
+        .get(&format!("/api/songs/{id}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(details["midi_url"], endpoint);
+    assert!(details["url"].is_null());
+    assert_eq!(
+        f.get(&format!("/api/songs/{id}/audio?download=true"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let midi = f.get(&endpoint).send().await.unwrap();
+    assert_eq!(midi.status(), 200);
+    assert_eq!(midi.headers()["content-type"], "audio/midi");
+    assert!(midi.headers()[CONTENT_DISPOSITION]
+        .to_str()
+        .unwrap()
+        .ends_with(".mid"));
+    assert_eq!(midi.bytes().await.unwrap().as_ref(), b"MThd fixture");
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(card().await["has_midi"], false);
+    assert_eq!(f.get(&endpoint).send().await.unwrap().status(), 404);
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
 async fn profile_and_generation_cancellation_are_authenticated() {
     let f = Fixture::new().await;
     let profile_path = "/api/generation-profile";

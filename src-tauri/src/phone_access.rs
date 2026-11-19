@@ -3,7 +3,7 @@
 use crate::{
     error::{message, Error, Result},
     state::AppState,
-    types::{GenerateRequest, Song, SongFilter},
+    types::{GenerateRequest, OutputKind, Song, SongFilter},
 };
 use axum::{
     body::{Body, Bytes},
@@ -398,6 +398,7 @@ fn router(remote: Remote) -> Router {
         .route("/api/songs/{id}", get(song).patch(patch_song))
         .route("/api/songs/{id}/cancel", post(cancel_song))
         .route("/api/songs/{id}/audio", get(audio))
+        .route("/api/songs/{id}/midi", get(midi))
         .route("/api/pwa/library", get(pwa_library::get))
         .route("/api/folders", get(folders).post(create_folder))
         .route("/api/queue", get(queue))
@@ -637,12 +638,17 @@ fn flag(value: Option<&String>) -> bool {
 
 /// The phone needs a stream URL and plain metadata types, never local file paths.
 pub fn phone_song(song: &Song) -> Value {
-    let url = (song.status == "done" && song.path.is_some())
+    let url = (song.status == "done" && song.audio_path().is_some())
         .then(|| format!("/api/songs/{}/audio", song.id));
     let mut value = serde_json::to_value(song).unwrap_or_else(|_| json!({}));
     if let Some(object) = value.as_object_mut() {
         object.remove("path");
         object.insert("url".into(), json!(url));
+        if song.output_kind == OutputKind::Midi {
+            let midi_url = (song.status == "done" && song.path.is_some())
+                .then(|| format!("/api/songs/{}/midi", song.id));
+            object.insert("midi_url".into(), json!(midi_url));
+        }
     }
     if let Some(meta) = value.get_mut("result_meta").and_then(Value::as_object_mut) {
         for key in ["duration", "bpm"] {
@@ -975,6 +981,7 @@ fn content_type(path: &Path) -> &'static str {
         Some("flac") => "audio/flac",
         Some("ogg") => "audio/ogg",
         Some("m4a") => "audio/mp4",
+        Some("mid") => "audio/midi",
         _ => "application/octet-stream",
     }
 }
@@ -1015,7 +1022,7 @@ async fn audio(
         Ok(song) => song,
         Err(error) => return failure(error),
     };
-    let Some(source) = song.path.clone().filter(|_| song.status == "done") else {
+    let Some(source) = song.audio_path().filter(|_| song.status == "done") else {
         return detail(StatusCode::NOT_FOUND, "Not Found");
     };
     let download = flag(query.get("download"));
@@ -1040,7 +1047,31 @@ async fn audio(
             }
         }
     }
-    let mut file = match tokio::fs::File::open(&path).await {
+    stream_song(&song, &path, &headers, download).await
+}
+
+async fn midi(
+    State(remote): State<Remote>,
+    UrlPath(id): UrlPath<String>,
+    headers: HeaderMap,
+) -> Response {
+    let db = remote.state.db.clone();
+    let song = match blocking(move || db.song(&id)).await {
+        Ok(song) => song,
+        Err(error) => return failure(error),
+    };
+    let Some(path) = song
+        .path
+        .as_deref()
+        .filter(|_| song.output_kind == OutputKind::Midi && song.status == "done")
+    else {
+        return detail(StatusCode::NOT_FOUND, "Not Found");
+    };
+    stream_song(&song, Path::new(path), &headers, true).await
+}
+
+async fn stream_song(song: &Song, path: &Path, headers: &HeaderMap, download: bool) -> Response {
+    let mut file = match tokio::fs::File::open(path).await {
         Ok(file) => file,
         Err(_) => return detail(StatusCode::NOT_FOUND, "Not Found"),
     };
@@ -1072,7 +1103,7 @@ async fn audio(
     }
     let mut response = Response::builder()
         .status(status)
-        .header(header::CONTENT_TYPE, content_type(&path))
+        .header(header::CONTENT_TYPE, content_type(path))
         .header(header::CONTENT_LENGTH, length)
         .header(header::ACCEPT_RANGES, "bytes");
     if status == StatusCode::PARTIAL_CONTENT {

@@ -133,6 +133,19 @@ it("updates the favorite view after mutation and preserves inline edits during a
   fireEvent.keyDown(input,{key:"Enter"});
   await screen.findByText("still editing A");
 });
+it("shows MIDI results and missing files separately from playable audio", async () => {
+  songs = [
+    ...songs,
+    { ...songs[0], id: "midi", title: "MIDI composition", output_kind: "midi", file: "midi.mid", result_meta: null },
+    { ...songs[0], id: "missing", title: "Missing composition", output_kind: "midi", audio_missing: true, file: "missing.mid", result_meta: null },
+  ];
+  mount(true);
+  expect(await screen.findByRole("button", { name: "Export MIDI" })).toBeTruthy();
+  expect(screen.getAllByText("MIDI (.mid)")).toHaveLength(2);
+  expect(screen.getByText("MIDI file missing")).toBeTruthy();
+  expect(screen.getAllByRole("button", { name: "Play" })).toHaveLength(1);
+  expect(mocks.invoke).not.toHaveBeenCalledWith("read_song_audio", expect.anything());
+});
 
 it.each([
   ["done",120,{effective_inference_steps:60},"60IT"],

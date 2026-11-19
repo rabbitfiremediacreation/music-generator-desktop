@@ -25,7 +25,7 @@ export function profile(catalog: ModelCatalog, selection: ModelSelection) {
     (selection.synthesis.includes("-xl-") ? 4 : 3) * 1024 ** 3;
   const synthesis = models.find(m => m.role === "synthesis");
   return {
-    models, metadata, valid, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
+    models, metadata, valid, allowed: metadata?.available ?? modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
     verified: valid && models.every(m => m.verified),
     download: models.filter(m => !m.present).reduce((n, m) => n + Math.max(0, m.estimated_bytes - m.partial_bytes), 0),
     steps: synthesis?.suggested_steps ?? synthesis?.recommended_steps,

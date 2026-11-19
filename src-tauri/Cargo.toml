@@ -47,6 +47,7 @@ semver = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tempfile = "3"
+midly = { version = "0.5.3", default-features = false, features = ["std", "strict"] }
 rmcp = { version = "3.8.0", default-features = false, features = ["server", "transport-streamable-http-server"] }
 jsonschema = { version = "0.46", default-features = false }
 

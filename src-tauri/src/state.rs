@@ -103,7 +103,7 @@ impl AppState {
         if !operation.belongs_to(&self.runtime) || operation.kind() != OperationKind::Generation {
             return Err(message("Native generation requires a generation operation"));
         }
-        crate::catalog::ensure_runtime(selection, &self.resources)?;
+        crate::catalog::ensure_runtime(selection, &self.resources, &self.db.root)?;
         self.stop_engine();
         let mut verifier = crate::verification::ModelVerifier::open(&self.db.root);
         if !crate::catalog::verify(
@@ -124,15 +124,33 @@ impl AppState {
 
     async fn generate_native(
         &self,
-        _settings: &Settings,
-        _selection: &crate::catalog::Selection,
-        _params: &serde_json::Value,
-        _cancel: &tokio_util::sync::CancellationToken,
-        _progress: impl Fn(crate::engine::progress::Progress),
+        settings: &Settings,
+        selection: &crate::catalog::Selection,
+        params: &serde_json::Value,
+        cancel: &tokio_util::sync::CancellationToken,
+        progress: impl Fn(crate::engine::progress::Progress),
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
-        Err(message(
-            "This model provider has no native generation adapter",
-        ))
+        let catalog = crate::catalog::catalog();
+        let profile = catalog
+            .profile(selection)
+            .ok_or_else(|| message("Unknown native generation profile"))?;
+        match selection.provider.as_str() {
+            "text2midi" => {
+                crate::engine::text2midi::generate(
+                    profile,
+                    &self.resources,
+                    std::path::Path::new(&settings.models_dir),
+                    &self.db.root,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            _ => Err(message(
+                "This model provider has no native generation adapter",
+            )),
+        }
     }
 
     pub fn stop_engine(&self) {

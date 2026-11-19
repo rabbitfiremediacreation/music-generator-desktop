@@ -182,9 +182,11 @@ export function App() {
   }, [playing]);
   async function download(song: SongCard) {
     await run(`download-${song.id}`, async () => {
-      const { blob, filename } = await api.blob(`/api/songs/${encodeURIComponent(song.id)}/audio?download=true`);
+      const midi = song.output_kind === "midi";
+      const format = midi ? "midi" : "audio?download=true";
+      const { blob, filename } = await api.blob(`/api/songs/${encodeURIComponent(song.id)}/${format}`);
       const url = URL.createObjectURL(blob); downloadUrls.current.add(url);
-      const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename || `${song.title || "song"}.wav`; document.body.append(anchor); anchor.click(); anchor.remove();
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename || `${song.title || "song"}.${midi ? "mid" : "wav"}`; document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => { URL.revokeObjectURL(url); downloadUrls.current.delete(url); }, 30000);
       setToast("downloadReady");
     });
@@ -220,9 +222,11 @@ export function App() {
       {loading && <p className="muted" role="status">{t("loading")}</p>}
       {!loading && !songs.length && <div className="empty"><div className="empty-icon"><Icon name="music" /></div><h2>{t("noSongs")}</h2><p>{t("noSongsHint")}</p><button className="secondary" type="button" onClick={() => setPage("create")}>{t("create")} <span aria-hidden="true">→</span></button></div>}
       <div className="song-list">{songs.map((song, index) => <article className="song-card" key={song.id}>
-        <div className={`song-art art-${index % 4}`}><Icon name="music" /></div><div className="song-body"><h2>{song.title}</h2><p className="song-meta">{song.status === "done" ? duration(song.duration) : t(song.status === "queued" ? "queue" : song.status === "running" ? "running" : song.status === "cancelled" ? "cancelled" : "error")}{song.bpm ? ` · ${song.bpm} BPM` : ""}</p>{song.status === "error" && song.message && <p className="song-error">{song.message}</p>}</div>
+        <div className={`song-art art-${index % 4}`}><Icon name="music" /></div><div className="song-body"><h2>{song.title}</h2><p className="song-meta">{song.status === "done" ? song.output_kind === "midi" ? "MIDI (.mid)" : duration(song.duration) : t(song.status === "queued" ? "queue" : song.status === "running" ? "running" : song.status === "cancelled" ? "cancelled" : "error")}{song.bpm ? ` · ${song.bpm} BPM` : ""}</p>{song.status === "error" && song.message && <p className="song-error">{song.message}</p>}</div>
         <button className={`icon-button star ${song.favorite ? "selected" : ""}`} type="button" aria-label={`${t("favorite")}: ${song.title}`} aria-pressed={song.favorite} disabled={Boolean(action)} onClick={() => void favorite(song)}>★</button>
-        <div className="song-actions"><select aria-label={`${t("move")}: ${song.title}`} value={song.folder_id || ""} disabled={Boolean(action)} onChange={event => { const value = event.target.value; void run(`move-${song.id}`, async () => { await api.write(`/api/songs/${encodeURIComponent(song.id)}`, "PATCH", { folder_id: value || null }); setRevision(current => current + 1); }); }}><option value="">{t("unsorted")}</option>{folders.folders.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{song.has_audio && <><button className="secondary small-button" type="button" disabled={Boolean(action)} onClick={() => void download(song)} aria-label={`${t("download")}: ${song.title}`}><Icon name="download" /></button><button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title}`}><Icon name="play" /></button></>}
+        <div className="song-actions"><select aria-label={`${t("move")}: ${song.title}`} value={song.folder_id || ""} disabled={Boolean(action)} onChange={event => { const value = event.target.value; void run(`move-${song.id}`, async () => { await api.write(`/api/songs/${encodeURIComponent(song.id)}`, "PATCH", { folder_id: value || null }); setRevision(current => current + 1); }); }}><option value="">{t("unsorted")}</option>{folders.folders.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          {(song.output_kind === "midi" ? song.has_midi : song.has_audio) && <button className="secondary small-button" type="button" disabled={Boolean(action)} onClick={() => void download(song)} aria-label={`${t(song.output_kind === "midi" ? "midiDownload" : "download")}: ${song.title}`}><Icon name="download" /></button>}
+          {song.has_audio && song.output_kind !== "midi" && <button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title}`}><Icon name="play" /></button>}
           {(song.status === "queued" || song.status === "running") && <button className="secondary" type="button" disabled={Boolean(action)} onClick={() => void cancelSong(song)} aria-label={`${t("cancel")}: ${song.title}`}>{t("cancel")}</button>}
         </div>
       </article>)}</div>
@@ -253,9 +257,11 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
   const [profileError, setProfileError] = useState<string | null>(null), [refresh, setRefresh] = useState(0);
   const profile = snapshot?.api === api ? snapshot.profile : undefined;
   const abilities = profile?.capabilities;
+  const midi = abilities?.output_kind === "midi";
   const maxVariants = Math.min(8, abilities?.max_variants ?? 1);
   const instrumental = !abilities?.lyrics || (abilities.instrumental && draft.instrumental);
-  const incomplete = (!abilities?.prompt && !draft.style.split(",").some(tag => tag.trim())) ||
+  const incomplete = (midi && !draft.prompt.trim()) ||
+    (!abilities?.prompt && !draft.style.split(",").some(tag => tag.trim())) ||
     (abilities?.lyrics_required && (!draft.lyrics.trim() || /^\[instrumental\]$/i.test(draft.lyrics.trim())));
   const file = useRef<HTMLInputElement>(null);
   const durationBounds = useRef("");
@@ -270,7 +276,7 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
         if (!mounted) return;
         const { min_duration, max_duration } = profile.capabilities;
         const bounds = `${min_duration}:${max_duration}`;
-        if (durationBounds.current !== bounds) {
+        if (profile.capabilities.output_kind !== "midi" && durationBounds.current !== bounds) {
           durationBounds.current = bounds;
           setDraft(draft => ({ ...draft, duration: String(boundedDuration(Number(draft.duration) || 90, profile.capabilities)) }));
         }
@@ -290,11 +296,12 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
     event.preventDefault(); if (pending || analyzing || incomplete || profileError || !profile?.available || !abilities) return;
     setPending(true); setError(null); setNotice(false);
     const request: Generation = {
-      model_selection: profile.selection, title: draft.title, style: draft.style, lyrics: instrumental ? "" : draft.lyrics, instrumental,
-      duration: Number(draft.duration), variants: Math.min(maxVariants, draft.variants),
+      model_selection: profile.selection, title: draft.title, instrumental,
+      variants: Math.min(maxVariants, draft.variants),
       folder_id: draft.folder_id || null, keep_caption: true,
     };
-    if (abilities.prompt) request.prompt = draft.prompt;
+    if (!midi) Object.assign(request, { style: draft.style, lyrics: instrumental ? "" : draft.lyrics, duration: Number(draft.duration) });
+    if (abilities.prompt) request.prompt = midi ? draft.prompt.trim() : draft.prompt;
     if (abilities.bpm) request.bpm = draft.bpm;
     if (!abilities.advanced) request.seed = draft.seed === "" ? -1 : Number(draft.seed);
     try { await api.write("/api/generate", "POST", request); onQueued(); }
@@ -320,19 +327,19 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
     {profile?.available === false && <p className="notice" role="status">{t("profileUnavailable")}</p>}
     {abilities && <fieldset disabled={pending || analyzing || Boolean(profileError) || !profile?.available}>
       <Field title={t("title")}><input value={draft.title} placeholder={t("titleHint")} onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} /></Field>
-      {abilities.prompt && <Field title={t("prompt")}><textarea rows={3} value={draft.prompt} placeholder={t("promptHint")} onChange={event => setDraft(value => ({ ...value, prompt: event.target.value }))} /></Field>}
-      <Field title={t(abilities.prompt ? "style" : "styleTags")}><input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} /></Field>
-      {abilities.instrumental && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
+      {abilities.prompt && <Field title={t("prompt")}><textarea rows={3} required={midi} value={draft.prompt} placeholder={t(midi ? "midiPrompt" : "promptHint")} onChange={event => setDraft(value => ({ ...value, prompt: event.target.value }))} /></Field>}
+      {!midi && <Field title={t(abilities.prompt ? "style" : "styleTags")}><input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} /></Field>}
+      {!midi && abilities.instrumental && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
       {!instrumental && <Field title={t("lyrics")}><textarea rows={4} required={abilities.lyrics_required} value={draft.lyrics} onChange={event => setDraft(value => ({ ...value, lyrics: event.target.value }))} /></Field>}
       <div className="field-grid">
-        <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
+        {!midi && <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>}
         {abilities.bpm && <Field title={t("bpm")}><input type="number" min={0} max={300} required value={draft.bpm} onChange={event => setDraft(value => ({ ...value, bpm: Number(event.target.value) }))} /></Field>}
         {maxVariants > 1 && <Field title={t("variants")}><input type="number" min={1} max={maxVariants} required value={Math.min(maxVariants, draft.variants)} onChange={event => setDraft(value => ({ ...value, variants: Number(event.target.value) }))} /></Field>}
         {!abilities.advanced && <Field title={t("seed")}><input type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} value={draft.seed} onChange={event => setDraft(value => ({ ...value, seed: event.target.value }))} /></Field>}
         <Field title={t("folder")}><select value={draft.folder_id} onChange={event => setDraft(value => ({ ...value, folder_id: event.target.value }))}><option value="">{t("unsorted")}</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></Field>
       </div>
       {abilities.analysis && <details className="analyze-details"><summary>{t("analyze")}</summary><p className="fine">{t("analyzeHint")}</p><input ref={file} type="file" accept=".wav,.mp3,.flac,.m4a,.ogg,audio/*" aria-label={t("analyze")} onChange={event => void analyze(event.target.files?.[0])} /></details>}
-      <button className="primary wide generate" type="submit" disabled={pending || analyzing || incomplete}>{pending ? t("loading") : analyzing ? t("analyzeBusy") : t("generate")}<Icon name="create" /></button>
+      <button className="primary wide generate" type="submit" disabled={pending || analyzing || incomplete}>{pending ? t("loading") : analyzing ? t("analyzeBusy") : t(midi ? "midiGenerate" : "generate")}<Icon name="create" /></button>
     </fieldset>}
     <p className="fine">{t("generateHint")}</p>{notice && <p className="notice" role="status">{t("analyzed")}</p>}{error && <Failure t={t}>{error}</Failure>}
   </form></section>;

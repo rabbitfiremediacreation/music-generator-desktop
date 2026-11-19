@@ -28,7 +28,9 @@ export function songValues(song: Song, selection: ModelSelection | null): FormVa
   const sampling = samplingForSong(p, selection ?? undefined);
   return {
     ...INITIAL_VALUES, ...sampling,
-    title: song.title || "", style: p.style ?? p.caption ?? "", prompt: p.prompt ?? "",
+    title: song.title || "",
+    style: song.output_kind === "midi" ? "" : p.style ?? p.caption ?? "",
+    prompt: song.output_kind === "midi" ? p.prompt || p.caption || song.caption : p.prompt ?? "",
     instrumental, lyrics: instrumental ? "" : p.lyrics || "",
     duration: Math.min(600, Math.max(10, p.duration || 90)),
     bpm: !p.bpm || p.bpm <= 50 ? 0 : Math.min(200, p.bpm),

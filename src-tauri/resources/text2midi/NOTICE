@@ -1,0 +1,11 @@
+Text2midi decoder
+Copyright (c) 2024 AMAAI Lab
+Adapted for local inference from https://github.com/AMAAI-Lab/Text2midi
+Source revision f3245ee402b29ba00b86c6eb9813032f3f05954f
+See LICENSE.upstream (MIT).
+
+Text2midi REMI vocabulary
+AMAAI Lab, https://huggingface.co/amaai-lab/text2midi
+Source revision 9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36, vocab_remi.pkl
+Converted to JSON with token order and decoder configuration preserved.
+See LICENSE.vocab (Apache-2.0).

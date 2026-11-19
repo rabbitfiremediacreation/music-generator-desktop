@@ -24,6 +24,13 @@
   },
   "providers": [
     {
+      "id": "text2midi",
+      "name": "Text2midi",
+      "status": "available",
+      "adapter": "text2midi",
+      "source": "https://github.com/AMAAI-Lab/Text2midi"
+    },
+    {
       "id": "ace-step",
       "name": "ACE-Step 1.5",
       "status": "available",
@@ -31,7 +38,156 @@
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
     }
   ],
+  "profiles": [
+    {
+      "selection": {
+        "provider": "text2midi",
+        "synthesis": "text2midi",
+        "language": "flan-t5-base"
+      },
+      "name": "Text2midi",
+      "files": [
+        "text2midi/pytorch_model.bin",
+        "text2midi/flan-t5-base/config.json",
+        "text2midi/flan-t5-base/special_tokens_map.json",
+        "text2midi/flan-t5-base/spiece.model",
+        "text2midi/flan-t5-base/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 0,
+        "max_duration": 0,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295,
+        "output_kind": "midi"
+      },
+      "runtime": {
+        "name": "Text2midi (PyTorch)",
+        "revision": "f3245ee402b29ba00b86c6eb9813032f3f05954f",
+        "source": "https://github.com/AMAAI-Lab/Text2midi",
+        "license": "MIT",
+        "license_url": "https://github.com/AMAAI-Lab/Text2midi/blob/f3245ee402b29ba00b86c6eb9813032f3f05954f/LICENSE",
+        "executable": "text2midi/text2midi.py",
+        "interpreter": "runtimes/text2midi-v1/bin/python3",
+        "installer": "text2midi/install.sh"
+      },
+      "upstream_sources": [
+        {
+          "id": "text2midi",
+          "role": "model",
+          "repository": "amaai-lab/text2midi",
+          "revision": "9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/amaai-lab/text2midi/blob/9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36/README.md"
+        },
+        {
+          "id": "flan-t5-base",
+          "role": "encoder",
+          "repository": "google/flan-t5-base",
+          "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/google/flan-t5-base/blob/7bcac572ce56db69c1ea7c8af255c5d7c9672fc2/README.md"
+        }
+      ],
+      "usage": {
+        "model_use": "text2midi_model_use",
+        "redistribution": "text2midi_redistribution",
+        "outputs": "text2midi_outputs",
+        "policy_url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 8589934592,
+          "minimum_vram_bytes": null
+        }
+      ]
+    }
+  ],
   "models": [
+    {
+      "file": "text2midi/pytorch_model.bin",
+      "provider": "text2midi",
+      "role": "synthesis",
+      "family": "text2midi",
+      "precision": "FP32",
+      "estimated_bytes": 901867614,
+      "sha256": "d94e8d7dda9207ed734268933629d4a4b7a1a6ce84c77299f610d3470448bfc1",
+      "recommended_steps": null,
+      "source": {
+        "repository": "amaai-lab/text2midi",
+        "revision": "9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36",
+        "path": "pytorch_model.bin"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/config.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 1404,
+      "sha256": "7c1853dbfa0e4aac093eb109a358b6ab25fe86b7c15185a91322f0ed26f0f940",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/special_tokens_map.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 2201,
+      "sha256": "5c87151ef0f72a99d1f766a4c418bd2a1f90aaa30a8e22fe5eca9641daebb64f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "special_tokens_map.json"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/spiece.model",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 791656,
+      "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "spiece.model"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/tokenizer_config.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 2537,
+      "sha256": "4c55124402e4ce48c7125d04b9af152a125eda9e7c80829f8f99f2ec69f3f68d",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "tokenizer_config.json"
+      }
+    },
     {
       "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
       "provider": "ace-step",

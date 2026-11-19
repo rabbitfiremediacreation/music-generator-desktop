@@ -1,8 +1,9 @@
 use crate::{
     engine::progress::Progress,
-    error::{Error, Result},
+    error::{message, Error, Result},
     runtime::{Operation, OperationKind},
     state::AppState,
+    types::OutputKind,
 };
 use std::{future::Future, path::PathBuf, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};
@@ -114,17 +115,26 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             } else {
                 None
             };
-            let (audio, ext, mut meta) = state
+            let output_kind = crate::catalog::capabilities(&selection)?.output_kind;
+            let (bytes, ext, mut meta) = state
                 .generate(&operation, &settings, &selection, &params, progress)
                 .await?;
-            if state
-                .db
-                .song(&sid)?
-                .title
-                .as_deref()
-                .unwrap_or("")
-                .trim()
-                .is_empty()
+            let expected_format = match output_kind {
+                OutputKind::Audio => ext != "mid",
+                OutputKind::Midi => ext == "mid",
+            };
+            if !expected_format {
+                return Err(message("The model returned an unexpected file type"));
+            }
+            if output_kind.is_audio()
+                && state
+                    .db
+                    .song(&sid)?
+                    .title
+                    .as_deref()
+                    .unwrap_or("")
+                    .trim()
+                    .is_empty()
             {
                 let title_result = match title_preparation_error {
                     Some(error) => Err(error),
@@ -156,13 +166,18 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                     }
                 }
             }
-            report_progress(&state, &app, &operation, Progress::new("saving"));
+            let saving = if output_kind.is_audio() {
+                "saving"
+            } else {
+                "saving_midi"
+            };
+            report_progress(&state, &app, &operation, Progress::new(saving));
             let dir = PathBuf::from(settings.songs_dir);
             tokio::fs::create_dir_all(&dir).await?;
             let filename = format!("{sid}.{ext}");
             let path = dir.join(&filename);
             let temp = dir.join(format!("{sid}.part"));
-            tokio::fs::write(&temp, audio).await?;
+            tokio::fs::write(&temp, bytes).await?;
             if cancel.is_cancelled() {
                 let _ = tokio::fs::remove_file(temp).await;
                 return Err(Error::Cancelled);
@@ -173,12 +188,13 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             } else {
                 &selection.provider
             };
-            if !state
+            let finish = state
                 .db
-                .finish_with_engine(&sid, &filename, &meta, engine)?
-            {
-                let _ = tokio::fs::remove_file(path).await;
+                .finish_output(&sid, &filename, &meta, engine, output_kind);
+            if !matches!(finish, Ok(true)) {
+                let _ = tokio::fs::remove_file(&path).await;
             }
+            finish?;
             Ok::<_, Error>(())
         }
         .await;
@@ -240,3 +256,6 @@ mod tests {
         assert!(matches!(result, Err(Error::Cancelled)));
     }
 }
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod text2midi_acceptance;

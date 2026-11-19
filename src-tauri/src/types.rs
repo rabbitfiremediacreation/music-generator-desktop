@@ -124,6 +124,37 @@ impl Default for GenerateRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputKind {
+    #[default]
+    Audio,
+    Midi,
+}
+
+impl OutputKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Audio => "audio",
+            Self::Midi => "midi",
+        }
+    }
+
+    pub fn is_audio(&self) -> bool {
+        *self == Self::Audio
+    }
+}
+
+impl rusqlite::types::FromSql for OutputKind {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        match value.as_str()? {
+            "audio" => Ok(Self::Audio),
+            "midi" => Ok(Self::Midi),
+            _ => Err(rusqlite::types::FromSqlError::InvalidType),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Song {
     pub id: String,
@@ -140,12 +171,21 @@ pub struct Song {
     pub params: Value,
     pub result_meta: Option<Value>,
     pub engine: Option<String>,
+    #[serde(default)]
+    pub output_kind: OutputKind,
     pub file: Option<String>,
+    /// The result file was missing when the library was imported.
     pub audio_missing: bool,
     pub favorite: bool,
     pub folder_id: Option<String>,
     pub letter: String,
     pub path: Option<String>,
+}
+
+impl Song {
+    pub fn audio_path(&self) -> Option<&str> {
+        self.path.as_deref().filter(|_| self.output_kind.is_audio())
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

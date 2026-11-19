@@ -24,3 +24,9 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 
 - llama.cpp v0.7.0 (MIT): https://github.com/ggml-org/llama.cpp. The statically linked CPU-only `music-title` helper uses the pinned source revision and archive checksum in `models/title-model.json`. Its runtime checksums and build recipe are in `engine/title/TITLE_RUNTIME.json`; the llama.cpp/ggml and nlohmann/json MIT license texts accompany the helper.
 - Qwen3-0.6B-GGUF (Apache-2.0): https://huggingface.co/Qwen/Qwen3-0.6B-GGUF. Model weights are downloaded separately to the selected model folder, never fetched by the inference helper. The exact Q8 model revision, byte size and SHA-256 are pinned in `models/title-model.json`. Upstream license: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/LICENSE.
+
+## Text2midi
+
+- Text2midi inference code by AMAAI Lab (MIT) is adapted from the pinned [upstream repository](https://github.com/AMAAI-Lab/Text2midi/tree/f3245ee402b29ba00b86c6eb9813032f3f05954f). Its original license accompanies the runtime in `text2midi/LICENSE.upstream`.
+- MIDI file validation uses [midly](https://crates.io/crates/midly), distributed under the Unlicense.
+- The Text2midi checkpoint and Google FLAN-T5 Base configuration and tokenizer (Apache-2.0) are obtained separately at the repository revisions and SHA-256 values in `models/catalog.json`. The bundled REMI vocabulary is a JSON conversion of the original tokenizer. The license and change notice accompany it in `text2midi/LICENSE.vocab` and `text2midi/NOTICE`.

@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithProfile } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -38,6 +38,50 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows pinned Text2midi sources and permits local import in Simple Mode", async () => {
+  const catalog = catalogWithProfile("text2midi", true);
+  const profile = catalog.profiles![0];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => {
+    if (name === "model_catalog") return Promise.resolve(structuredClone(catalog));
+    if (name === "get_settings") return Promise.resolve({ ...saved(), expert_mode: false });
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  for (const source of profile.upstream_sources) {
+    expect(dialog.getByRole("link", { name: source.repository }).getAttribute("href")).toBe(`https://huggingface.co/${source.repository}/tree/${source.revision}`);
+  }
+  expect(dialog.getByText("MIDI (.mid)")).toBeTruthy();
+  expect(dialog.queryByText("Länge")).toBeNull();
+  expect(dialog.getByText(/Apache 2\.0 erlaubt die private und kommerzielle Nutzung/)).toBeTruthy();
+  expect(dialog.getByText(/Lege zum Import die aufgeführten Dateien/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Herunterladen und verwenden" })).toHaveProperty("disabled", false);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  catalog.models = catalog.models.map(model => ({ ...model, present: true }));
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  fireEvent.click(await dialog.findByRole("button", { name: "Importierte Dateien prüfen und verwenden" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: profile.selection }));
+});
+
+it("shows the one-time Text2midi runtime command before enabling the download", async () => {
+  const catalog = catalogWithProfile("text2midi", false);
+  const profile = catalog.profiles![0];
+  profile.unavailable_reason = "text2midi_runtime_required";
+  profile.install_command = "python3.12 '/Applications/Music Generator.app/install.py' '/Users/Test/Music Generator'";
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  const command = dialog.getByRole("textbox", { name: "Einmaliger Terminalbefehl" }) as HTMLTextAreaElement;
+  expect(command.readOnly).toBe(true);
+  expect(command.value).toBe(profile.install_command);
+  expect(dialog.getByText(/Installiere Python 3\.12 für arm64/)).toBeTruthy();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {
