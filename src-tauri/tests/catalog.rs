@@ -44,7 +44,14 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
     let mut files = std::collections::HashSet::new();
     for model in &catalog.models {
         assert!(files.insert(&model.file));
-        assert!(!model.file.contains(['/', '\\']));
+        assert!(!model.file.contains('\\'));
+        assert!(std::path::Path::new(&model.file)
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_))));
+        if model.provider == "ace-step" {
+            assert!(!model.file.contains('/'));
+            assert!(model.source.is_none());
+        }
         assert!(model.estimated_bytes > 0);
         assert_eq!(model.sha256.len(), 64);
         assert!(model.sha256.chars().all(|c| c.is_ascii_hexdigit()));
@@ -270,13 +277,7 @@ fn retired_provider_settings_restore_ace_step_without_rewriting_old_songs_or_fil
 }
 
 #[test]
-fn removed_providers_are_absent_and_cannot_enter_the_queue() {
-    let catalog = catalog::catalog();
-    assert_eq!(catalog.providers.len(), 1);
-    assert!(catalog
-        .models
-        .iter()
-        .all(|model| model.provider == "ace-step"));
+fn removed_profiles_cannot_enter_the_queue() {
     let root = tempfile::tempdir().unwrap();
     let db = Database::open(root.path()).unwrap();
     let request = GenerateRequest {

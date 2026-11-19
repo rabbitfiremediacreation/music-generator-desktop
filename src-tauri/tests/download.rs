@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use music_generator::{
-    download::{download_model, ensure_space, range_total},
+    download::{download_model, download_pinned_model, ensure_space, range_total},
     manifest::Model,
     verification::{ModelVerifier, Verification},
 };
@@ -283,4 +283,69 @@ fn disk_space_query_failures_include_the_destination() {
     let error = ensure_space(&missing, 0).unwrap_err().to_string();
     assert!(error.starts_with("Could not check free disk space"));
     assert!(error.contains(&missing.display().to_string()));
+}
+
+#[tokio::test]
+async fn pinned_files_reject_wrong_remote_size_and_resume_in_nested_folders() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut asset = model();
+    asset.file = "provider/checkpoint/model.gguf".into();
+    let partial = dir.path().join(format!("{}.part", asset.file));
+    std::fs::create_dir_all(partial.parent().unwrap()).unwrap();
+    std::fs::write(&partial, b"abc").unwrap();
+    let cancel = CancellationToken::new();
+    let client = client();
+    let mut verifier = ModelVerifier::open(dir.path());
+
+    let (wrong, wrong_task, _) =
+        server(StatusCode::PARTIAL_CONTENT, Some("bytes 3-5/7"), b"def").await;
+    assert!(download_pinned_model(
+        &client,
+        &wrong,
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {}
+    )
+    .await
+    .unwrap_err()
+    .to_string()
+    .contains("Unexpected download size"));
+    assert_eq!(std::fs::read(&partial).unwrap(), b"abc");
+    wrong_task.abort();
+
+    let (right, right_task, _) =
+        server(StatusCode::PARTIAL_CONTENT, Some("bytes 3-5/6"), b"def").await;
+    let target = download_pinned_model(
+        &client,
+        &right,
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert_eq!(target, dir.path().join(&asset.file));
+    assert!(verifier.is_verified(&target, &asset.sha256));
+    assert!(!partial.exists());
+    right_task.abort();
+
+    // A complete partial from an interruption during hashing can be verified offline.
+    std::fs::rename(&target, &partial).unwrap();
+    download_pinned_model(
+        &client,
+        "http://127.0.0.1:1",
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert!(verifier.is_verified(&target, &asset.sha256));
+    assert!(!partial.exists());
 }

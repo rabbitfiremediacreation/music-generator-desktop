@@ -6,6 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
+import { catalogWithHeartMuLa } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -14,6 +15,32 @@ async function open() {
   fireEvent.click(screen.getByRole("button", { name: "Modelle wählen" }));
   return screen.findByRole("dialog", { name: "Modelle" });
 }
+
+it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
+  const catalog = catalogWithHeartMuLa();
+  const heartmula = catalog.profiles![0];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: heartmula.name }));
+  expect(dialog.getByRole("heading", { name: heartmula.name })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {
   let finish!: (catalog: ModelCatalog) => void;

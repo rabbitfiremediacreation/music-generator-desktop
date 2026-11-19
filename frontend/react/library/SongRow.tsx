@@ -36,7 +36,13 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const more = async (retry=false) => {
     try {
       const params = song.params as Generation & {use_cot_caption?:boolean};
-      await admission.start(retry ? {...params,title:song.title||"",folder_id:song.folder_id} : {...params,model_selection:params.model_selection??selection??undefined,instrumental:false,keep_caption:params.use_cot_caption!==true,title:song.title||"",seed:-1,variants:1,group_id:song.group_id,folder_id:song.folder_id},retry?song.id:undefined);
+      const generation = {...params,title:song.title||"",folder_id:song.folder_id};
+      if (!retry) {
+        generation.model_selection = params.model_selection ?? selection ?? undefined;
+        if (params.model_selection && !params.model_selection.language) delete generation.caption;
+        Object.assign(generation, { instrumental: false, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
+      }
+      await admission.start(generation,retry?song.id:undefined);
     } catch(error){onError(error);}
   };
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} disabled={disabled} onClick={callback}>{children}</button>;

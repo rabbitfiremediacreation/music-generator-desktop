@@ -26,17 +26,18 @@ export function GenerationAdmissionProvider({ children, settingsBlocked = false 
     locked.current = true; setBusy(true);
     try {
       const request = structuredClone(values);
-      if (request.inference_steps || request.model_selection) request.inference_steps = samplingForSong(request).inference_steps;
       const healthBefore = client.getQueryData<Health>(["health"]);
       const current = await client.fetchQuery({ queryKey: ["generation-policy", request.model_selection ?? null], queryFn: () => backend.generationPolicy(request.model_selection, true), staleTime: 0, retry: false, networkMode: "always" }).catch((): GenerationPolicy => ({ backend: "unknown", cpu_iteration_behavior: "ask", legacy_inference_steps: 50, recommended_steps: 30, defaults: DEFAULT_PREFERENCES }));
       if (!mounted.current || blocked.current) return null;
+      const usesIterations = current.capabilities?.advanced ?? (!request.model_selection || Boolean(request.model_selection.language));
+      if (usesIterations && (request.inference_steps || request.model_selection)) request.inference_steps = samplingForSong(request).inference_steps;
       const health = client.getQueryState(["health"])?.status === "error" ? undefined : client.getQueryData<Health>(["health"]);
       const observed = health?.backend_status;
       const confirmed = observed?.state === "running" && observed.synthesis.state === "confirmed" ? observed.synthesis.backend === "cpu" ? "cpu" : ["metal", "cuda", "vulkan"].includes(observed.synthesis.backend) ? "gpu" : undefined : undefined;
       const device = health !== healthBefore ? confirmed ?? current.probed_backend ?? current.backend : current.probed_backend === undefined ? confirmed ?? current.backend : current.backend;
       const steps = request.inference_steps || current.legacy_inference_steps || 50;
       let reduced = false;
-      if (device !== "gpu" && steps > 30) {
+      if (usesIterations && device !== "gpu" && steps > 30) {
         const choice = current.cpu_iteration_behavior === "limit_30" ? "reduce" : current.cpu_iteration_behavior === "continue" ? "continue" : await new Promise<CpuChoice>(resolve => {
           pending.current = resolve;
           setConfirmation({ device, resolve: choice => { pending.current = null; setConfirmation(null); resolve(choice); } });

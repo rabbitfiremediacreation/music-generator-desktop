@@ -85,45 +85,38 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             // Admission checks Expert Mode for new jobs and retries. Already accepted rows
             // keep running after it is disabled, including rows restored after restart.
             // New jobs carry an immutable model snapshot. Legacy rows remain untouched.
-            if let Some(selection) = params.get("model_selection").filter(|v| !v.is_null()) {
-                let selection: crate::catalog::Selection =
-                    serde_json::from_value(selection.clone())?;
-                selection.apply(&mut settings)?;
-            }
-            let selection = crate::catalog::Selection::from_settings(&settings);
+            let selection = crate::admission::profile_for_song(&settings, &params)?;
+            selection.apply(&mut settings)?;
+            crate::admission::validate_saved_profile(&selection, &params)?;
+            let ace_step = selection.provider == "ace-step";
             let progress = |progress: Progress| {
                 report_progress(&state, &app, &operation, progress);
             };
             // Existing installations lazily fetch only this shared model for blank titles.
             // Explicit titles require neither a title download nor title inference.
             let title = state.db.song(&sid)?.title;
-            let title_preparation_error = prepare_title(title.as_deref(), &cancel, || async {
-                report_progress(&state, &app, &operation, Progress::new("title_download"));
-                crate::titles::install(
-                    &state.db.root,
-                    std::path::Path::new(&settings.models_dir),
-                    &cancel,
-                    |p| {
-                        let _ = app.emit("model-download-progress", p);
-                    },
-                )
-                .await?;
-                let _ = app.emit("models-changed", ());
-                Ok(())
-            })
-            .await?;
-            let (audio, ext, mut meta) = {
-                let client = state.start_engine(&operation, &settings).await?;
-                client
-                    .generate(
-                        &params,
-                        &selection.language,
-                        &selection.synthesis,
+            let title_preparation_error = if ace_step {
+                prepare_title(title.as_deref(), &cancel, || async {
+                    report_progress(&state, &app, &operation, Progress::new("title_download"));
+                    crate::titles::install(
+                        &state.db.root,
+                        std::path::Path::new(&settings.models_dir),
                         &cancel,
-                        progress,
+                        |p| {
+                            let _ = app.emit("model-download-progress", p);
+                        },
                     )
-                    .await?
+                    .await?;
+                    let _ = app.emit("models-changed", ());
+                    Ok(())
+                })
+                .await?
+            } else {
+                None
             };
+            let (audio, ext, mut meta) = state
+                .generate(&operation, &settings, &selection, &params, progress)
+                .await?;
             if state
                 .db
                 .song(&sid)?
@@ -175,7 +168,15 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                 return Err(Error::Cancelled);
             }
             tokio::fs::rename(&temp, &path).await?;
-            if !state.db.finish(&sid, &filename, &meta)? {
+            let engine = if ace_step {
+                "acestep_cpp"
+            } else {
+                &selection.provider
+            };
+            if !state
+                .db
+                .finish_with_engine(&sid, &filename, &meta, engine)?
+            {
                 let _ = tokio::fs::remove_file(path).await;
             }
             Ok::<_, Error>(())
@@ -239,3 +240,7 @@ mod tests {
         assert!(matches!(result, Err(Error::Cancelled)));
     }
 }
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+#[path = "jobs/heartmula_hardware.rs"]
+mod heartmula_hardware;

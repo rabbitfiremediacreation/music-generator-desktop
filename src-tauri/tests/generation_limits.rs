@@ -2,6 +2,99 @@ use music_generator::{db::Database, generation_limits::effective_steps, types::G
 use serde_json::json;
 
 #[test]
+fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
+    use music_generator::{catalog::GenerationCapabilities, generation_limits::validate_request};
+    let caps = GenerationCapabilities {
+        min_duration: 5,
+        max_duration: 30,
+        max_variants: 1,
+        prompt: false,
+        lyrics: true,
+        lyrics_required: true,
+        instrumental: false,
+        bpm: false,
+        advanced: false,
+        analysis: false,
+        max_seed: Some(u32::MAX),
+    };
+    let request = GenerateRequest {
+        style: "folk, mellow".into(),
+        lyrics: "[Chorus]\nThe rain runs down the hill".into(),
+        instrumental: false,
+        duration: f64::from(caps.min_duration),
+        seed: i64::from(u32::MAX),
+        ..Default::default()
+    };
+    validate_request(&request, &caps).unwrap();
+    for invalid in [
+        GenerateRequest {
+            duration: f64::from(caps.min_duration) - 0.1,
+            ..request.clone()
+        },
+        GenerateRequest {
+            duration: f64::from(caps.max_duration) + 0.1,
+            ..request.clone()
+        },
+        GenerateRequest {
+            seed: request.seed + 1,
+            ..request.clone()
+        },
+        GenerateRequest {
+            seed: -2,
+            ..request.clone()
+        },
+        GenerateRequest {
+            style: ", ,".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            lyrics: "[Instrumental]".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            lyrics: "lyrics\0after NUL".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            lyrics: "ä".repeat(4096),
+            ..request.clone()
+        },
+        GenerateRequest {
+            instrumental: true,
+            ..request.clone()
+        },
+        GenerateRequest {
+            inference_steps: 8,
+            ..request.clone()
+        },
+        GenerateRequest {
+            lm_temperature: Some(0.7),
+            ..request.clone()
+        },
+        GenerateRequest {
+            bpm: 95,
+            ..request.clone()
+        },
+        GenerateRequest {
+            prompt: "Write a ballad".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            variants: caps.max_variants + 1,
+            ..request.clone()
+        },
+    ] {
+        assert!(validate_request(&invalid, &caps).is_err(), "{invalid:?}");
+    }
+    let random = GenerateRequest {
+        seed: -1,
+        duration: f64::from(caps.max_duration),
+        ..request
+    };
+    validate_request(&random, &caps).unwrap();
+}
+
+#[test]
 fn new_queue_snapshots_use_the_iterations_the_pinned_engine_can_execute() {
     let root = tempfile::tempdir().unwrap();
     let db = Database::open(root.path()).unwrap();

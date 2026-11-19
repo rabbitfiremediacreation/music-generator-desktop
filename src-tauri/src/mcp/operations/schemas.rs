@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 pub(super) fn selection() -> Value {
     json!({"type":"object","additionalProperties":false,
         "properties":{"provider":{"type":"string"},"synthesis":{"type":"string"},"language":{"type":"string"}},
-        "required":["provider","synthesis","language"]})
+        "required":["provider","synthesis"]})
 }
 
 fn import_properties() -> Value {
@@ -23,7 +23,7 @@ pub(super) fn tools() -> Vec<Value> {
             "lm_device":{"enum":["auto","cpu"]},"export_format":{"enum":["wav","mp3"]},
             "timeout_minutes":{"type":"number","minimum":1,"maximum":600},
             "songs_dir":{"type":"string","description":"Absolute accessible directory; empty string restores the default."}}),&[],false,false),
-        tool("get_generation_policy", "Get actual backend evidence, CPU iteration policy and safe recommended generation defaults for the current or specified model combination.",json!({"selection":selection(),"refresh":{"type":"boolean","default":false}}),&[],true,false),
+        tool("get_generation_policy", "Get generation capabilities, runtime availability and defaults for the current or specified model combination.",json!({"selection":selection(),"refresh":{"type":"boolean","default":false}}),&[],true,false),
         tool("list_models", "List supported providers, exact model identifiers, hardware recommendations, estimated downloads and local verification state.",json!({}),&[],true,false),
         tool("select_models", "Activate a verified locally installed model combination. Does not download. Respects Expert Mode and hardware limits.",json!({"selection":selection()}),&["selection"],false,false),
         tool("install_models", "Download and verify a catalog model combination, then activate it. May download many gigabytes. Returns operation_id; poll get_operation and cancel with cancel_operation. Preserves old selection on failure.",json!({"selection":selection()}),&["selection"],false,false),

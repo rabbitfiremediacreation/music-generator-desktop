@@ -4,8 +4,8 @@ import { useI18n } from "../i18n";
 import { VOCAL_LANGUAGES, isInstrumentalLyrics, type FormValues } from "./form-state";
 import { DiceButton } from "./DiceButton";
 
-interface Props { values: FormValues; update: (patch: Partial<FormValues>) => void; open: boolean; setOpen: (open: boolean) => void }
-export function LyricsFields({ values, update, open, setOpen }: Props) {
+interface Props { values: FormValues; update: (patch: Partial<FormValues>) => void; open: boolean; setOpen: (open: boolean) => void; required?: boolean }
+export function LyricsFields({ values, update, open, setOpen, required = false }: Props) {
   const { t } = useI18n(), textarea = useRef<HTMLTextAreaElement>(null);
   const instrumental = values.instrumental || isInstrumentalLyrics(values.lyrics);
   const auto = !instrumental && !values.lyrics.trim();
@@ -16,6 +16,10 @@ export function LyricsFields({ values, update, open, setOpen }: Props) {
     update({ instrumental: false, lyrics: before + insert + lyrics.slice(pos) });
     requestAnimationFrame(() => { field?.focus(); field?.setSelectionRange(pos + insert.length, pos + insert.length); });
   }
+  if (required) return <label className="field">
+    <span className="lbl">{t("lyrics")}</span>
+    <textarea name="lyrics" required rows={7} value={values.lyrics} placeholder={"[verse]\n…\n\n[chorus]\n…"} onChange={event => update({ lyrics: event.target.value })} />
+  </label>;
   return <details id="lyricsBox" open={open} title={t("lyrics_tip")}>
     <summary onClick={event => { event.preventDefault(); setOpen(!open); }}><span>{t("lyrics")} <span id="lyricsHint" className="sumhint">{instrumental ? "[Instrumental]" : auto ? t("auto_lbl") : t("own_lyrics")}</span></span><span className="dice-wrap"><DiceButton id="lyricsDice" label={t("lyrics_dice")} onClick={() => update({ instrumental: false, lyrics: "" })} /></span></summary>
     <label className="field lang"><span className="lbl">{t("language")}</span><select name="vocal_language" aria-label={t("language_aria")} value={values.vocal_language} onChange={event => update({ vocal_language: event.target.value })}>{VOCAL_LANGUAGES.map(language => <option key={language} value={language}>{t(language)}</option>)}</select></label>

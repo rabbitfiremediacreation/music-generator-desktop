@@ -1,6 +1,9 @@
 //! Model-free device detection, isolated from the GUI because GPU drivers can crash or hang.
 use crate::engine::backend_status::Backend as BackendKind;
-use crate::{catalog::Selection, form_preferences::GenerationFormPreferences};
+use crate::{
+    catalog::{GenerationCapabilities, Selection},
+    form_preferences::GenerationFormPreferences,
+};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command, sync::Mutex, time::Duration};
 
@@ -37,6 +40,8 @@ impl Detection {
 
 #[derive(Debug, Serialize)]
 pub struct Policy {
+    pub capabilities: Option<GenerationCapabilities>,
+    pub available: bool,
     pub backend: Backend,
     pub probed_backend: Backend,
     /// Independently probed availability, never an unconfirmed inference observation.
@@ -62,6 +67,8 @@ pub fn policy(backend: Backend, selection: &Selection) -> Policy {
         .unwrap_or(80);
     let recommended_steps = recommended_steps(backend, steps);
     Policy {
+        capabilities: None,
+        available: false,
         backend,
         probed_backend: backend,
         detected_backend: if backend == Backend::Cpu {

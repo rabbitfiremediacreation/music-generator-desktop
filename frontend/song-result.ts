@@ -12,6 +12,7 @@ const positive = (value: unknown): value is number => typeof value === "number" 
 
 /** Locally verified execution wins; an uninitialised old request without a model does not establish its actual steps. */
 export function songIterations(song: ResultSong): number | null {
+  if (song.params.model_selection && !song.params.model_selection.language) return null;
   const unfinished = song.status !== undefined && song.status !== "done";
   const limit = unfinished || song.result_meta?.inference_steps_limit === MAX_INFERENCE_STEPS ? MAX_INFERENCE_STEPS : LEGACY_INFERENCE_STEPS_LIMIT;
   const verified = song.result_meta?.effective_inference_steps;
