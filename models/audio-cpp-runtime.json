@@ -1,0 +1,14 @@
+{
+  "version": "0.9.5",
+  "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+  "macos_arm64_metal": {
+    "url": "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.5/audio-v0.9.5-lib-macos-arm64-metal.tar.gz",
+    "bytes": 15181943,
+    "sha256": "6c66ce9515c3e0bcf298186f6497881a124e97fd9c986afd25e244f43103bd48"
+  },
+  "heartmula_spec": {
+    "path": "model_specs/heartmula.json",
+    "bytes": 9556,
+    "sha256": "0029cb67e67695a9e62db938d95a0269979b6d1e9a156c30a2d1de8d456cf123"
+  }
+}

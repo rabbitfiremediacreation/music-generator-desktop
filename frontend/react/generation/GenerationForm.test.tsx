@@ -56,10 +56,10 @@ it("generates the displayed automatic prompt with saved numeric preferences and 
   fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "A quiet lake" } });
   expect(screen.queryByText("GENERATED")).toBeNull();
 });
-it("submits only the supported YuE2 controls and preserves ACE-Step duration preferences", async () => {
-  const yue2 = catalogWithNativeProfiles().profiles!.find(profile => profile.selection.provider === "yue2")!;
-  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: yue2.capabilities };
-  mount({ selection: yue2.selection });
+it.each([["yue2", "Maximale Dauer"], ["heartmula", "Länge"]])("submits only the supported %s controls and preserves ACE-Step duration preferences", async (provider, durationLabel) => {
+  const nativeProfile = catalogWithNativeProfiles().profiles!.find(profile => profile.selection.provider === provider)!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: nativeProfile.capabilities };
+  mount({ selection: nativeProfile.selection });
   const style = await screen.findByRole("textbox", { name: "Stil-Tags" });
   const lyrics = screen.getByRole("textbox", { name: "Lyrics" });
   expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
@@ -69,15 +69,15 @@ it("submits only the supported YuE2 controls and preserves ACE-Step duration pre
   expect(generate.disabled).toBe(true);
   fireEvent.change(style, { target: { value: "soul, piano" } });
   fireEvent.change(lyrics, { target: { value: "[verse]\nThe rain is falling" } });
-  const duration = screen.getByRole("slider", { name: "Maximale Dauer" }) as HTMLInputElement;
-  expect(Number(duration.min)).toBe(yue2.capabilities.min_duration);
-  expect(Number(duration.max)).toBe(yue2.capabilities.max_duration);
+  const duration = screen.getByRole("slider", { name: durationLabel }) as HTMLInputElement;
+  expect(Number(duration.min)).toBe(nativeProfile.capabilities.min_duration);
+  expect(Number(duration.max)).toBe(nativeProfile.capabilities.max_duration);
   fireEvent.change(duration, { target: { value: duration.min } });
   fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "123" } });
   fireEvent.submit(generate.closest("form")!);
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toEqual({
-    model_selection: yue2.selection, folder_id: null, title: "", style: "soul, piano",
+    model_selection: nativeProfile.selection, folder_id: null, title: "", style: "soul, piano",
     lyrics: "[verse]\nThe rain is falling", duration: Number(duration.min), seed: 123,
     variants: 1, instrumental: false, keep_caption: true,
   });

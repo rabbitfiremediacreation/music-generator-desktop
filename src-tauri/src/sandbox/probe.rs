@@ -57,6 +57,8 @@ pub fn run(forbidden: &Path) -> Result<()> {
         let title = crate::titles::probe(&resources,&CancellationToken::new()).await?;
         if !title.contains("[Desktop Sandbox] Unselected file access denied") || !title.contains("music-title=ready") { return Err(message("Title runtime sandbox enforcement was not confirmed")); }
         println!("App Sandbox: native title runtime starts; unselected file access denied.");
+        #[cfg(target_arch = "aarch64")]
+        verify_audio_cpp(&resources, &root).await?;
         // Optional real-model acceptance; fixture must already be inside this app's container.
         if let Some(model)=std::env::var_os("MUSIC_TITLE_SMOKE_MODEL") {
             let pin=crate::titles::manifest();
@@ -76,6 +78,44 @@ pub fn run(forbidden: &Path) -> Result<()> {
     });
     let _ = std::fs::remove_dir_all(root);
     result
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn verify_audio_cpp(resources: &Path, root: &Path) -> Result<()> {
+    use crate::engine::process::OwnedProcess;
+    use std::time::Duration;
+
+    let launcher = resources.join("engine/providers/audio.cpp/audiocpp_cli");
+    let log = root.join("logs/audio-cpp-probe.log");
+    let mut process = OwnedProcess::spawn_with_model_folder(
+        &launcher,
+        &["--version".into()],
+        false,
+        &log,
+        Some(&root.join("models")),
+    )?;
+    let status = tokio::time::timeout(Duration::from_secs(15), async {
+        loop {
+            if let Some(status) = process.status()? {
+                return Ok::<_, crate::error::Error>(status);
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .map_err(|_| message("audio.cpp sandbox probe timed out"))??;
+    let log = std::fs::read_to_string(log)?;
+    let pin: serde_json::Value =
+        serde_json::from_str(include_str!("../../../models/audio-cpp-runtime.json"))?;
+    let expected = format!("audio.cpp {}", pin["version"].as_str().unwrap_or_default());
+    if !status.success()
+        || !log.contains("[Desktop Sandbox] Unselected file access denied")
+        || !log.lines().any(|line| line == expected)
+    {
+        return Err(message(format!("audio.cpp sandbox probe failed: {log}")));
+    }
+    println!("App Sandbox: native audio.cpp launcher starts; unselected file access denied.");
+    Ok(())
 }
 
 async fn verify_exports(resources: &Path, root: &Path) -> Result<()> {

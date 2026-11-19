@@ -38,15 +38,15 @@ it("includes base dependencies, resumed bytes and verification in download readi
   expect(profile(c, s).verified).toBe(true);
 });
 
-it("shows the pinned YuE2 files but rejects arbitrary model paths and unavailable profiles", () => {
+it.each(["yue2", "heartmula"])("shows the pinned %s files but rejects arbitrary model paths and unavailable profiles", provider => {
   const c = catalog();
   const removed = { provider: "heartmula", synthesis: "heartmula-q8_0.gguf", language: "" };
   expect(profile(c, removed).valid).toBe(false);
   expect(modelOptions(c, removed, "synthesis", false)).toHaveLength(0);
   expect(profile(c, { ...selection(), synthesis: "../model.gguf" }).valid).toBe(false);
-  const yue2 = c.profiles!.find(item => item.selection.provider === "yue2")!;
-  expect(profile(c, yue2.selection).models.map(model => model.file)).toEqual(yue2.files);
-  expect(profile(c, yue2.selection).valid).toBe(false);
+  const nativeProfile = c.profiles!.find(item => item.selection.provider === provider)!;
+  expect(profile(c, nativeProfile.selection).models.map(model => model.file)).toEqual(nativeProfile.files);
+  expect(profile(c, nativeProfile.selection).valid).toBe(false);
 });
 
 it("provides turbo's eight steps without changing the caller's selection", () => {

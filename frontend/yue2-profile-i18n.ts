@@ -1,14 +1,14 @@
 import { I18N } from "./i18n.js";
 
 Object.assign(I18N.en, {
-  provider_usage_policy: "Full model license and additional permissions",
+  yue2_usage_policy: "Full model license and additional permissions",
   yue2_local_import: "For a manual import, place both GGUF files in the yue2 subfolder and choose Verify and use.",
   provider_duration_limit: "Maximum duration",
   provider_duration_limit_hint: "The model can finish the song earlier. The library shows the measured audio length.",
 });
 
 Object.assign(I18N.de, {
-  provider_usage_policy: "Vollständige Gewichtslizenz und Zusatzgenehmigung",
+  yue2_usage_policy: "Vollständige Gewichtslizenz und Zusatzgenehmigung",
   yue2_local_import: "Lege beim manuellen Import beide GGUF-Dateien im Unterordner yue2 ab und wähle Prüfen und verwenden.",
   provider_duration_limit: "Maximale Dauer",
   provider_duration_limit_hint: "Das Modell kann den Song früher beenden. Die Bibliothek zeigt die gemessene Audiodauer an.",

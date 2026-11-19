@@ -133,8 +133,20 @@ impl AppState {
         let catalog = crate::catalog::catalog();
         let profile = catalog
             .profile(selection)
-            .ok_or_else(|| message("Unknown model profile"))?;
+            .ok_or_else(|| message("Unknown native generation profile"))?;
         match selection.provider.as_str() {
+            "heartmula" => {
+                crate::engine::heartmula::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "yue2" => {
                 crate::engine::yue2::generate(
                     &profile.runtime.executable(&self.resources),

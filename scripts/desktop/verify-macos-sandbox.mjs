@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
-import { run, shipsYue2 } from "./common.mjs";
+import { audioCppDirectory, audioCppSupported, run, shipsYue2, target } from "./common.mjs";
 
 export async function verifyMacSandbox(app, engine) {
   const entitlements = file => execFileSync("codesign",["-d","--entitlements",":-","--xml",file],{encoding:"utf8",stdio:["ignore","pipe","pipe"]});
@@ -14,6 +14,7 @@ export async function verifyMacSandbox(app, engine) {
   assert(enabled(parent,"com.apple.security.app-sandbox"), "Main app is not sandboxed");
   assert(!enabled(parent,"com.apple.security.inherit"), "Main app must not use child inheritance");
   const helpers = ["ace-server", "mp3-codec", "title/music-title", ...(shipsYue2() ? [yue2.executable] : [])];
+  if (audioCppSupported(target)) helpers.push(path.join(audioCppDirectory, "audiocpp_cli"));
   for (const file of [path.join(path.dirname(app),"music-engine-supervisor"), ...helpers.map(helper => path.join(engine, helper))]) {
     const child = entitlements(file);
     assert(enabled(child,"com.apple.security.app-sandbox") && enabled(child,"com.apple.security.inherit"), "Engine helper must inherit the app sandbox");

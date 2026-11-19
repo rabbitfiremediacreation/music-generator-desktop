@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
+import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
 import { prepareYue2 } from "./prepare-yue2.mjs";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
@@ -56,6 +57,7 @@ export async function prepareEngine() {
     if (platform === "windows") await copyWindowsCrt();
     if (shipsYue2()) await prepareYue2(engineFolder, work);
     await prepareTitle();
+    await prepareAudioCpp(engineFolder, cache, work);
     if (platform === "linux") {
       if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());
       await relocateLinuxRuntime(engineFolder);

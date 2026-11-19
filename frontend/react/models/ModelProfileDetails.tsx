@@ -19,7 +19,10 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
         <dt>{t(`provider_source_${source.role}`)}</dt>
         <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink></dd>
       </div>)}
-      <div><dt>{t("provider_model_use")}</dt><dd>{usage("model_use")}</dd></div>
+      <div><dt>{t("provider_model_use")}</dt><dd>
+        {usage("model_use")}
+        {profile.usage.policy_url && <> · <ProfileLink url={profile.usage.policy_url}>{t(isYue2 ? "yue2_usage_policy" : "provider_usage_policy")}</ProfileLink></>}
+      </dd></div>
       <div><dt>{t("provider_redistribution")}</dt><dd>{usage("redistribution")}</dd></div>
       <div><dt>{t("provider_outputs")}</dt><dd>{usage("outputs")}</dd></div>
       <div><dt>{t("provider_acquisition")}</dt><dd>{t(profile.acquisition === "manual" ? "provider_manual_hint" : "provider_download_hint")}</dd></div>
@@ -31,7 +34,6 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
         </li>)}</ul> : t("provider_no_tested_platforms")}
       </dd></div>
     </dl>
-    {profile.usage.policy_url && <p className="small"><ProfileLink url={profile.usage.policy_url}>{t("provider_usage_policy")}</ProfileLink></p>}
     {!profile.available && <p className="setup-error" role="status">{t(profile.unavailable_reason || "provider_unavailable")}</p>}
   </section>;
 }

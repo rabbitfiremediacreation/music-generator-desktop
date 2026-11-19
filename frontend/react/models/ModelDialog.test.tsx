@@ -16,9 +16,7 @@ async function open() {
   return screen.findByRole("dialog", { name: "Modelle" });
 }
 
-it("shows the YuE2 terms on an unsupported computer without offering acquisition", async () => {
-  const catalog = catalogWithNativeProfiles();
-  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+async function openUnavailableProfile(catalog: ModelCatalog, name: string) {
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -27,15 +25,35 @@ it("shows the YuE2 terms on an unsupported computer without offering acquisition
   });
   mountControls();
   const dialog = within(await open());
-  fireEvent.click(await dialog.findByRole("button", { name: yue2.name }));
-  expect(dialog.getByRole("heading", { name: yue2.name })).toBeTruthy();
+  fireEvent.click(await dialog.findByRole("button", { name }));
+  expect(dialog.getByRole("heading", { name })).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  return dialog;
+}
+
+it("shows pinned HeartMuLa sources and terms on an unsupported computer", async () => {
+  const catalog = catalogWithNativeProfiles();
+  const heartmula = catalog.profiles!.find(profile => profile.selection.provider === "heartmula")!;
+  heartmula.platforms = [];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
+  const dialog = await openUnavailableProfile(catalog, heartmula.name);
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+});
+
+it("shows the YuE2 terms on an unsupported computer without offering acquisition", async () => {
+  const catalog = catalogWithNativeProfiles();
+  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+  const dialog = await openUnavailableProfile(catalog, yue2.name);
   expect(dialog.getAllByRole("link", { name: "m-a-p/YuE2-3B" })).toHaveLength(2);
   expect(dialog.getByRole("link", { name: "m-a-p/YuE2-Vae" })).toBeTruthy();
   expect(dialog.getAllByRole("link", { name: "CC-BY-NC-4.0" })).toHaveLength(2);
   expect(dialog.getByRole("link", { name: "Apache-2.0" })).toBeTruthy();
   expect(dialog.getByText("Dieses Profil ist auf diesem Rechner nicht verfügbar.")).toBeTruthy();
-  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
-  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
