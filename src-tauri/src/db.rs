@@ -271,6 +271,9 @@ impl Database {
         };
         let capabilities = crate::catalog::capabilities(&selection)?;
         crate::generation_limits::validate_request(req, &capabilities)?;
+        if let Some(reference) = &req.reference_audio {
+            crate::reference_audio::resolve(&self.root, reference)?;
+        }
         if req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
             || req.bpm > 300
             || req.seed.checked_add(req.variants as i64).is_none()

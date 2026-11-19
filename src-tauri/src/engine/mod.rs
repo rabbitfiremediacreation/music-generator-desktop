@@ -5,6 +5,7 @@ mod diagnostics;
 mod generation;
 pub(crate) mod heartmula;
 pub(crate) mod manager;
+pub(crate) mod mulacover;
 pub mod native;
 pub mod process;
 pub mod progress;

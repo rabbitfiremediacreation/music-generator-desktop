@@ -83,6 +83,10 @@ The first-run assistant offers hardware-recommended ACE-Step starter profiles. E
 
 The picker also shows the Qwen3-0.6B Q8 text model, its approximately 640 MB footprint, verification state and a separate download/verify button. This common auxiliary asset is independent of music-provider profiles. Downloading it never switches the provider or changes existing songs or sampling controls. The assistant includes it with the music models; existing installations can fetch it here or lazily for their first blank-title ACE-Step job. Alternate providers use a locally available title model or fall back to a generated placeholder title. It uses the shared resumable, checksum-verified downloader and cancellation control. See [automatic titles](desktop.md#automatic-song-titles) for lyric priority, offline behavior and error handling.
 
+## MuLaCover
+
+Choose **MuLaCover** in **Add model** to review the noncommercial model and output terms, the pinned native checkpoint and the tested platform. The desktop Creator uses a local WAV reference with lyrics and style. [MuLaCover workflow, sources and hardware verification](mulacover.md)
+
 ## Verification
 
 Automated tests cover the 52/8/2 catalog inventory, starter-manifest hash agreement, invalid paths/roles/providers, complete-profile RAM boundaries, persisted selection and immutable queue/retry parameters, checksum failure/cancellation leaving defaults unchanged, successful activation and offline reuse of verified files, plus selected filenames and original audio in analysis multipart requests. Existing downloader tests cover ignored/incorrect Range responses, interruption/resumption, checksum rejection and insufficient disk space.

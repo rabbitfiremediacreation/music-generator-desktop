@@ -23,6 +23,19 @@ pub fn duration(audio: &[u8]) -> Result<f64> {
     wav::duration(&mut Cursor::new(audio))
 }
 
+pub(crate) fn is_reference_wav(audio: &[u8]) -> bool {
+    wav::read(&mut Cursor::new(audio)).is_ok_and(|format| {
+        format.bits == 16
+            && matches!(format.channels, 1 | 2)
+            && (8000..=48000).contains(&format.rate)
+    })
+}
+
+pub(crate) fn is_stereo_48khz_pcm16(audio: &[u8]) -> bool {
+    wav::read(&mut Cursor::new(audio))
+        .is_ok_and(|format| format.bits == 16 && format.channels == 2 && format.rate == 48000)
+}
+
 pub fn tolerance(requested: f64) -> f64 {
     0.4f64.max(requested * 0.02)
 }
@@ -52,7 +65,9 @@ pub fn record_duration(seconds: f64, params: &Value, meta: &mut Value) {
     meta.as_object_mut().unwrap().remove("duration_warning");
     if let Some(requested) = requested_duration(params) {
         meta["requested_duration"] = json!(requested);
-        if (seconds - requested).abs() > tolerance(requested) + 1e-6 {
+        let delta = seconds - requested;
+        let too_short = delta < -tolerance(requested) - 1e-6 && meta["duration_is_limit"] != true;
+        if too_short || delta > tolerance(requested) + 1e-6 {
             meta["duration_warning"] = json!({
                 "code":if seconds < requested { "short_audio" } else { "long_audio" },
                 "requested_seconds":requested,"actual_seconds":seconds

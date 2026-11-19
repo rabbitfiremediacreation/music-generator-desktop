@@ -147,6 +147,18 @@ impl AppState {
                 )
                 .await
             }
+            "mulacover" => {
+                crate::engine::mulacover::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             _ => Err(message(
                 "This model provider has no native generation adapter",
             )),

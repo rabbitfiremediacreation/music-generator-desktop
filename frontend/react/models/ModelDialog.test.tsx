@@ -7,6 +7,7 @@ import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
 import { catalogWithHeartMuLa } from "./model-fixtures";
+import catalogSource from "../../../models/catalog.json";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -39,6 +40,29 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("discloses MuLaCover source pins and noncommercial output terms before acquisition", async () => {
+  const catalog = structuredClone(catalogFixture);
+  const profile = catalogSource.profiles.find(item => item.selection.provider === "mulacover")!;
+  const asset = catalogSource.models.find(model => model.provider === "mulacover")!;
+  catalog.profiles = [{ ...profile, acquisition: "download", available: true }];
+  catalog.models.push({ ...asset, role: "weights", verified: false, present: false, partial_bytes: 0 });
+  catalog.hardware = { ...catalog.hardware, platform: "macos", ram_bytes: 64 * 1024 ** 3 };
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(dialog.queryByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeNull();
+  fireEvent.click(await dialog.findByRole("button", { name: "MuLaCover" }));
+  expect(dialog.getByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeTruthy();
+  for (const source of ["HeartMuLa/MuLaCover", "HeartMuLa/HeartCodec-oss-20260123", "Qwen/Qwen3-Embedding-0.6B"]) {
+    expect(dialog.getByRole("link", { name: source })).toBeTruthy();
+  }
+  expect(dialog.getByRole("link", { name: "mimbres/YourMT3" }).getAttribute("href")).toContain("/spaces/mimbres/YourMT3/");
+  expect(dialog.getByRole("link", { name: "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition" }).getAttribute("href")).toContain("https://github.com/");
+  expect((dialog.getByRole("button", { name: "Herunterladen und verwenden" }) as HTMLButtonElement).disabled).toBe(false);
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

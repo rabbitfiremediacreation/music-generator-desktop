@@ -1,9 +1,12 @@
 #include <audiocpp.h>
 
+#include "audio-cpp-wav.h"
+
 #include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdio>
+#include <dlfcn.h>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -26,6 +29,19 @@ void stage(const char *name) {
 
 void log_message(audiocpp_log_level, const char *text, void *) {
     std::fputs(text, stderr);
+}
+
+const char *load_reference_resampler() {
+    // The native runtime resolves SOXR by its install name. Load the signed sibling first.
+    auto *bundled = dlopen("@loader_path/libsoxr.dylib", RTLD_NOW | RTLD_LOCAL);
+    if (!bundled) throw std::runtime_error("Could not load bundled libsoxr.dylib");
+    auto *resolved = dlopen("libsoxr.dylib", RTLD_NOW | RTLD_NOLOAD);
+    if (resolved != bundled) throw std::runtime_error("Could not resolve the bundled SOXR install name");
+    dlclose(resolved);
+
+    auto version = reinterpret_cast<const char *(*)()>(dlsym(bundled, "soxr_version"));
+    if (!version) throw std::runtime_error("Bundled SOXR did not report its version");
+    return version();
 }
 
 template <typename Integer>
@@ -95,6 +111,10 @@ int main(int argc, char **argv) {
             std::printf("audio.cpp %s\n", audiocpp_build_version());
             return 0;
         }
+        if (argc == 2 && std::string_view(argv[1]) == "--check-soxr") {
+            std::puts(load_reference_resampler());
+            return 0;
+        }
         std::unique_ptr<audiocpp_options, decltype(&audiocpp_options_free)> session_options(
             audiocpp_options_create(), audiocpp_options_free);
         std::unique_ptr<audiocpp_request, decltype(&audiocpp_request_free)> request(
@@ -106,6 +126,7 @@ int main(int argc, char **argv) {
         const char *task = nullptr;
         const char *model_path = nullptr;
         const char *output_path = nullptr;
+        const char *audio_path = nullptr;
         for (int index = 1; index < argc; ++index) {
             const std::string_view flag = argv[index];
             if (flag == "--log") {
@@ -127,11 +148,18 @@ int main(int argc, char **argv) {
             } else if (flag == "--session-option") {
                 set_option(value, [&](auto key, auto val) { return audiocpp_options_set(session_options.get(), key, val); });
             } else if (flag == "--out") output_path = value;
+            else if (flag == "--audio") audio_path = value;
             else throw std::runtime_error("Unsupported option " + std::string(flag));
         }
         if (!task || std::string_view(task) != "gen" || !model_config.family_hint ||
             !model_path || !backend.backend || !output_path) {
             throw std::runtime_error("Expected --task gen, --family, --model, --backend and --out");
+        }
+        if (audio_path) {
+            if (std::string_view(model_config.family_hint) == "mulacover") load_reference_resampler();
+            const auto audio = audio_cpp::read_reference_wav(audio_path);
+            check(audiocpp_request_set_audio(request.get(), audio.samples.data(),
+                audio.samples.size() / audio.channels, audio.sample_rate, audio.channels));
         }
 
         stage("loading");

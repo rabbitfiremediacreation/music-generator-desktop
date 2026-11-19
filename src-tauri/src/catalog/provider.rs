@@ -31,6 +31,8 @@ pub struct UpstreamSource {
     pub revision: String,
     pub license: String,
     pub license_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +47,8 @@ pub struct GenerationCapabilities {
     pub bpm: bool,
     pub advanced: bool,
     pub analysis: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reference_audio: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_seed: Option<u32>,
 }
@@ -62,6 +66,7 @@ impl GenerationCapabilities {
             bpm: true,
             advanced: true,
             analysis: true,
+            reference_audio: false,
             max_seed: None,
         }
     }
@@ -76,6 +81,8 @@ pub struct NativeRuntime {
     pub license_url: String,
     /// Path within the application's resource directory, without the Windows suffix.
     pub executable: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_files: Vec<String>,
 }
 
 impl NativeRuntime {
@@ -154,7 +161,13 @@ impl ProviderProfile {
 
     pub fn ensure_runtime(&self, resources: &Path, hardware: &Hardware) -> Result<()> {
         self.platform(hardware)?;
-        if !self.runtime.executable(resources).is_file() {
+        if !self.runtime.executable(resources).is_file()
+            || self
+                .runtime
+                .required_files
+                .iter()
+                .any(|file| !resources.join(file).is_file())
+        {
             return Err(message(
                 "The native runtime for this model is missing from this app build",
             ));

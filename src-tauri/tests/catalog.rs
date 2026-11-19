@@ -78,6 +78,111 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
 }
 
 #[test]
+fn mulacover_resolves_only_the_pinned_native_package_and_never_becomes_a_starter_model() {
+    let catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "mulacover")
+        .unwrap();
+    let files = catalog.required(&profile.selection).unwrap();
+    let [package] = files.as_slice() else {
+        panic!("The complete native checkpoint is the only separately installed weight file");
+    };
+    assert_eq!(package.file, "mulacover/MuLaCover-Q8_0.gguf");
+    assert_eq!(package.estimated_bytes, 8_220_378_496);
+    assert_eq!(
+        package.sha256,
+        "5daca50ce959c63dcfef3be1e3a7cd855eee753a91cab1a3475da1af781e4518"
+    );
+    assert_eq!(
+        package.source.as_ref().unwrap().url(),
+        "https://huggingface.co/audio-cpp/audio.cpp-gguf/resolve/57de533382ad47d5527e7562d1f80c41f769553b/MuLaCover-GGUF/mulacover-q8_0.gguf"
+    );
+    assert!(profile.capabilities.reference_audio);
+    assert!(profile.capabilities.lyrics_required);
+    assert!(!profile.capabilities.analysis);
+    assert_eq!(profile.usage.outputs, "mulacover_outputs");
+    let codec_source = |profile: &catalog::ProviderProfile| {
+        profile
+            .upstream_sources
+            .iter()
+            .find(|source| source.repository == "HeartMuLa/HeartCodec-oss-20260123")
+            .unwrap()
+            .revision
+            .clone()
+    };
+    let heartmula = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "heartmula")
+        .unwrap();
+    assert_eq!(codec_source(profile), codec_source(heartmula));
+    let mut unsupported = music_generator::hardware::inspect().clone();
+    unsupported.platform = "windows";
+    assert!(!catalog::compatible(&profile.selection, &unsupported).unwrap());
+    unsupported.platform = "macos";
+    unsupported.ram_bytes = 32 * 1024u64.pow(3);
+    assert!(!catalog::compatible(&profile.selection, &unsupported).unwrap());
+    assert!(catalog
+        .recommended_profiles(music_generator::hardware::inspect())
+        .iter()
+        .all(|entry| entry.provider == "ace-step"));
+}
+
+#[tokio::test]
+async fn mulacover_local_import_keeps_the_active_profile_until_verified() {
+    use tokio_util::sync::CancellationToken;
+
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = root.path().to_string_lossy().into();
+    settings.lm_model = selection().language;
+    settings.setup_complete = true;
+    settings.expert_mode = true;
+    db.save_settings(&settings).unwrap();
+    let prior = Selection::from_settings(&settings);
+
+    let mut fixture = catalog::catalog();
+    let chosen = fixture
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "mulacover")
+        .unwrap()
+        .selection
+        .clone();
+    let asset = fixture
+        .models
+        .iter_mut()
+        .find(|asset| asset.provider == "mulacover")
+        .unwrap();
+    asset.estimated_bytes = 3;
+    asset.sha256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into();
+    let imported = root.path().join(&asset.file);
+    std::fs::create_dir_all(imported.parent().unwrap()).unwrap();
+    std::fs::write(&imported, b"bad").unwrap();
+    let cancel = CancellationToken::new();
+    assert!(
+        catalog::install_profile(&fixture, &db, &chosen, &cancel, |_| {})
+            .await
+            .is_err()
+    );
+    assert_eq!(Selection::from_settings(&db.settings().unwrap()), prior);
+
+    std::fs::write(&imported, b"abc").unwrap();
+    catalog::install_profile(&fixture, &db, &chosen, &cancel, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(Selection::from_settings(&db.settings().unwrap()), chosen);
+    catalog::install_profile(&fixture, &db, &chosen, &cancel, |_| {
+        panic!("Unchanged verified imports must reuse their cached proof");
+    })
+    .await
+    .unwrap();
+}
+
+#[test]
 fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_step() {
     let mut s = selection();
     assert_eq!(catalog::required(&s).unwrap().len(), 4);

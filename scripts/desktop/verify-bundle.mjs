@@ -6,7 +6,7 @@ import { chmod, mkdtemp, mkdir, readFile, readdir, readlink, rename, rm, writeFi
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { architecture, exists, files, hash, platform, root, run, target, verifyEngine } from "./common.mjs";
+import { architecture, audioCppDirectory, audioCppSupported, exists, files, hash, platform, root, run, target, verifyEngine } from "./common.mjs";
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
@@ -104,6 +104,7 @@ try {
   }
   if (platform === "macos") {
     assert.equal(startupLocation(app).installation_required, false, "Copied app must start after ejecting the DMG");
+    if (audioCppSupported(target)) await run("codesign", ["--verify", "--strict", path.join(engine, audioCppDirectory, "libsoxr.dylib")]);
     const expectedArch = architecture === "x64" ? "x86_64" : "arm64";
     for (const file of extracted) {
       const bytes = await readFile(file);

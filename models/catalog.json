@@ -36,6 +36,13 @@
       "status": "available",
       "adapter": "audio.cpp",
       "source": "https://github.com/0xShug0/audio.cpp"
+    },
+    {
+      "id": "mulacover",
+      "name": "MuLaCover",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/HeartMuLa/MuLaCover"
     }
   ],
   "profiles": [
@@ -121,6 +128,111 @@
         }
       ],
       "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "mulacover",
+        "synthesis": "mulacover-noncommercial",
+        "language": ""
+      },
+      "name": "MuLaCover",
+      "files": [
+        "mulacover/MuLaCover-Q8_0.gguf"
+      ],
+      "acquisition": "download",
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 180,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "reference_audio": true,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "audio.cpp",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli",
+        "required_files": [
+          "engine/providers/audio.cpp/libaudiocpp.0.dylib",
+          "engine/providers/audio.cpp/libsoxr.dylib"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mulacover",
+          "role": "weights",
+          "repository": "HeartMuLa/MuLaCover",
+          "revision": "0f5ca612a41134738a14a28f95ed80bfa9b52adc",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+        },
+        {
+          "id": "heartcodec",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "qwen3-embedding",
+          "role": "embedding",
+          "repository": "Qwen/Qwen3-Embedding-0.6B",
+          "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md"
+        },
+        {
+          "id": "audio-cpp-mulacover-gguf",
+          "role": "runtime_weights",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/57de533382ad47d5527e7562d1f80c41f769553b/MuLaCover-GGUF/README.md"
+        },
+        {
+          "id": "yourmt3",
+          "role": "transcription",
+          "repository": "mimbres/YourMT3",
+          "revision": "5e66c1ea173a8186e0d20432b841d3180cc015b5",
+          "license": "Apache-2.0 (checkpoint)",
+          "license_url": "https://huggingface.co/spaces/mimbres/YourMT3/blob/5e66c1ea173a8186e0d20432b841d3180cc015b5/README.md",
+          "source_url": "https://huggingface.co/spaces/mimbres/YourMT3/tree/5e66c1ea173a8186e0d20432b841d3180cc015b5"
+        },
+        {
+          "id": "chordnet",
+          "role": "transcription",
+          "repository": "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition",
+          "revision": "481f4ce703f8822b99f4037e9104ba1760e21ea3",
+          "license": "MIT",
+          "license_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/blob/481f4ce703f8822b99f4037e9104ba1760e21ea3/LICENSE",
+          "source_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/tree/481f4ce703f8822b99f4037e9104ba1760e21ea3/cache_data"
+        }
+      ],
+      "usage": {
+        "model_use": "mulacover_model_use",
+        "redistribution": "mulacover_redistribution",
+        "outputs": "mulacover_outputs",
+        "policy_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
     }
   ],
   "models": [
@@ -922,6 +1034,21 @@
         "repository": "HeartMuLa/HeartMuLaGen",
         "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
         "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "mulacover/MuLaCover-Q8_0.gguf",
+      "provider": "mulacover",
+      "role": "weights",
+      "family": "MuLaCover",
+      "precision": "Q8_0",
+      "estimated_bytes": 8220378496,
+      "sha256": "5daca50ce959c63dcfef3be1e3a7cd855eee753a91cab1a3475da1af781e4518",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+        "path": "MuLaCover-GGUF/mulacover-q8_0.gguf"
       }
     }
   ]

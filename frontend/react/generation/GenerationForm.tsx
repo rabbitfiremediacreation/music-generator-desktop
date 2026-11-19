@@ -4,6 +4,8 @@ import { randomPrompt, randomStyle, randomTitle, STYLE_TAGS } from "../../prompt
 import { modelErrorText } from "../../expert-mode";
 import { ACE_STEP_ABILITIES, boundedDuration } from "../../generation-limits";
 import { profileKey } from "../../creator-models";
+import { backend } from "../../backend";
+import { pathErrorText } from "../../path-dialogs";
 import type { Generation, ModelSelection, Song } from "../../types";
 import { healthQuery, queueQuery } from "../data";
 import { useI18n } from "../i18n";
@@ -33,17 +35,21 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
   const [lyricsOpen, setLyricsOpen] = useState(false), [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<unknown>(null), [queued, setQueued] = useState<number | null>(null);
   const [profileDurations, setProfileDurations] = useState<Record<string, number>>({});
+  const [reference, setReference] = useState<{ id: string; name?: string; profile: string }>();
+  const [referenceRights, setReferenceRights] = useState(false), [pickingReference, setPickingReference] = useState(false);
   const queue = useQuery({ ...queueQuery(), enabled: queued !== null, staleTime: 0 });
   const abilities = policy?.capabilities ?? ACE_STEP_ABILITIES;
   const fixedProfile = !abilities.advanced || (selection && !selection.language);
   const maxVariants = fixedProfile ? abilities.max_variants : Math.min(10, abilities.max_variants);
   const durationKey = selection ? profileKey(selection) : "";
+  const currentReference = reference?.profile === durationKey ? reference : undefined;
   const instrumental = !abilities.lyrics || (abilities.instrumental && (values.instrumental || isInstrumentalLyrics(values.lyrics)));
   const duration = boundedDuration(fixedProfile ? profileDurations[durationKey] ?? values.duration : values.duration, abilities);
   const variants = Math.min(values.variants, maxVariants);
   const available = policy?.available !== false && (!fixedProfile || Boolean(policy?.capabilities));
   const incomplete = (!abilities.prompt && !values.style.split(",").some(tag => tag.trim())) ||
-    (abilities.lyrics_required && (!values.lyrics.trim() || isInstrumentalLyrics(values.lyrics)));
+    (abilities.lyrics_required && (!values.lyrics.trim() || isInstrumentalLyrics(values.lyrics))) ||
+    (abilities.reference_audio && (!currentReference || !referenceRights || pickingReference));
   useEffect(() => {
     if (queued !== null && queue.isSuccess && !queue.isFetching && queue.data.queued === 0) setQueued(null);
   }, [queued, queue.isSuccess, queue.isFetching, queue.data]);
@@ -63,6 +69,11 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     if (!reuse || !ready || reused.current === reuse.revision) return;
     reused.current = reuse.revision;
     const savedProfile = reuse.song.params.model_selection;
+    const savedReference = reuse.song.params.reference_audio;
+    setReference(savedProfile && savedReference
+      ? { profile: profileKey(savedProfile), id: savedReference }
+      : undefined);
+    setReferenceRights(false);
     if (savedProfile) onSelectionChange?.(savedProfile);
     const next = songValues(reuse.song, selection);
     if (savedProfile && !savedProfile.language) {
@@ -88,6 +99,21 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     if (fixedProfile) setProfileDurations(current => ({ ...current, [durationKey]: duration }));
     else update({ duration });
   }
+  async function pickReference() {
+    setPickingReference(true);
+    setError(null);
+    try {
+      const chosen = await backend.pickReferenceAudio(t("mulacover_reference_pick"));
+      if (chosen) {
+        setReference({ ...chosen, profile: durationKey });
+        setReferenceRights(false);
+      }
+    } catch (cause) {
+      setError(new Error(pathErrorText(cause)));
+    } finally {
+      setPickingReference(false);
+    }
+  }
   async function submit() {
     if (!ready || !available || incomplete || settingsBlocked || admission.busy || submitting.current) return;
     if (!modelAllowed) { setError(new Error("expert_mode_required")); return; }
@@ -97,6 +123,7 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
       title: values.title, style: values.style, lyrics: instrumental ? "" : values.lyrics, instrumental,
       keep_caption: true, duration, seed: values.seed === "" ? -1 : Number(values.seed), variants,
     };
+    if (abilities.reference_audio && currentReference) request.reference_audio = currentReference.id;
     if (abilities.prompt) {
       request.prompt = values.prompt.trim() ? values.prompt : randomPrompt(instrumental);
       if (!values.prompt.trim()) update({ prompt: request.prompt, generated: true });
@@ -118,15 +145,26 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     document.addEventListener("keydown", hotkey); return () => document.removeEventListener("keydown", hotkey);
   }, [settingsBlocked]);
   const styles = values.style.split(",").map(value => value.trim()).filter(Boolean);
-  const displayedError = error === null ? "" : modelErrorText(error, t);
+  const errorText = error instanceof Error ? error.message : String(error);
+  const displayedError = errorText.startsWith("mulacover_reference_") ? t(errorText) : modelErrorText(error, t);
+  const styleHint = abilities.reference_audio ? "mulacover_style_hint" : abilities.prompt ? "style_tip" : "provider_style_hint";
+  const durationLabel = selection?.provider === "mulacover" ? t("mulacover_maximum_duration") : t("length");
   return <form id="genForm" ref={form} onSubmit={event => { event.preventDefault(); void submit(); }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault(); }} aria-busy={!ready || admission.busy}>
     <fieldset disabled={!ready} className="generation-fields">
       <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-title" title={t("title_tip")}>{t("title")}</label><DiceButton id="titleDice" label={t("title_dice")} onClick={() => update({ title: randomTitle() })} /></div><input id="generation-title" name="title" value={values.title} placeholder={t("title_ph")} onChange={event => update({ title: event.target.value })} /></div>
       {abilities.prompt && <div className="field"><div className="lblrow"><div className="prompt-label"><label className="lbl" htmlFor="generation-prompt" title={t("prompt_tip")}>{t("prompt")}</label>{values.generated && <span id="promptGenerated" className="generated-chip" role="status" title={t("prompt_generated")} aria-label={t("prompt_generated")}>GENERATED</span>}</div><DiceButton id="diceBtn" label={t("prompt_dice")} onClick={() => update({ prompt: randomPrompt(instrumental), generated: true })} /></div><textarea id="generation-prompt" name="prompt" rows={2} value={values.prompt} placeholder={t("prompt_ph")} onChange={event => update({ prompt: event.target.value, generated: values.generated && event.target.value === values.prompt })} /></div>}
-      <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(abilities.prompt ? "style_tip" : "provider_style_hint")}>{t(abilities.prompt ? "style" : "provider_style_tags")}</label><DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} /></div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} /></div>
-      <details><summary>{t("styles")}</summary><div className="chips" id="tagChips">{STYLE_TAGS.map(tag => { const active = styles.some(value => value.toLowerCase() === tag.toLowerCase()); return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>; })}</div></details>
+      {abilities.reference_audio && <div className="field">
+        <button className="sek" type="button" disabled={!available || pickingReference} aria-describedby="generation-reference-hint" onClick={() => void pickReference()}>{t("mulacover_reference_pick")}</button>
+        <span id="generation-reference-hint" className="small">{t("mulacover_reference_hint")}</span>
+        {currentReference && <>
+          <span>{currentReference.name ?? t("mulacover_previous_reference")}</span>
+          <label className="check-row"><input type="checkbox" checked={referenceRights} onChange={event => setReferenceRights(event.target.checked)} />{t("mulacover_reference_rights")}</label>
+        </>}
+      </div>}
+      <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(styleHint)}>{t(abilities.prompt || abilities.reference_audio ? "style" : "provider_style_tags")}</label>{!abilities.reference_audio && <DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} />}</div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} />{abilities.reference_audio && <span className="small">{t(styleHint)}</span>}</div>
+      {!abilities.reference_audio && <details><summary>{t("styles")}</summary><div className="chips" id="tagChips">{STYLE_TAGS.map(tag => { const active = styles.some(value => value.toLowerCase() === tag.toLowerCase()); return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>; })}</div></details>}
       <input name="instrumental" type="checkbox" hidden checked={instrumental} readOnly /><input name="keep_caption" type="checkbox" hidden checked readOnly />
-      <div className="field"><span className="lbl">{t("length")}</span><Slider name="duration" label={t("length")} title={abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />{duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}</div>
+      <div className="field"><span className="lbl">{durationLabel}</span><Slider name="duration" label={durationLabel} title={abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />{duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}</div>
       {abilities.bpm && <div className="field"><span className="lbl" title={t("bpm_tip")}>BPM</span><Slider name="bpm" label="BPM" value={values.bpm} min={50} max={200} format="bpm" onChange={bpm => update({ bpm })} /></div>}
       {abilities.lyrics && <LyricsFields values={values} update={update} open={lyricsOpen} setOpen={setLyricsOpen} required={abilities.lyrics_required} />}
       {abilities.advanced ? <AdvancedFields values={values} update={update} risk={risk} open={advancedOpen} setOpen={setAdvancedOpen} /> :

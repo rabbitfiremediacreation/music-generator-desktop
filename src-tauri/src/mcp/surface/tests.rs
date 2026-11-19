@@ -60,6 +60,15 @@ fn variant_mapping_inherits_omitted_values_and_keeps_cpu_choice_outside_override
 }
 
 #[test]
+fn generation_schema_accepts_only_staged_reference_ids() {
+    let schema =
+        jsonschema::validator_for(&definitions()["generate_music"]["inputSchema"]).unwrap();
+    assert!(schema.is_valid(&json!({"reference_audio": "a".repeat(64)})));
+    assert!(schema.is_valid(&json!({"source_song_id":"song","reference_audio":null})));
+    assert!(!schema.is_valid(&json!({"reference_audio":"/tmp/reference.wav"})));
+}
+
+#[test]
 fn direct_song_poll_is_not_a_timeout_and_waited_shape_is_the_same() {
     let result = json!({"song":{"id":"song","status":"running","lyrics":"words"},"completed":false,"timed_out":true,"progress":{"phase":"synthesis"}});
     let immediate = flatten_song(result.clone(), 0).unwrap();

@@ -75,9 +75,12 @@ fn main() {
         let expected_provider_files: &[&str] = if platform == "macos" && arch == "aarch64" {
             &[
                 "providers/audio.cpp/LICENSE",
+                "providers/audio.cpp/LICENSE.soxr",
                 "providers/audio.cpp/audiocpp_cli",
                 "providers/audio.cpp/libaudiocpp.0.dylib",
+                "providers/audio.cpp/libsoxr.dylib",
                 "providers/audio.cpp/model_specs/heartmula.json",
+                "providers/audio.cpp/soxr-0.1.3-Source.tar.xz",
             ]
         } else {
             &[]

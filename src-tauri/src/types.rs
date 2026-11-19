@@ -78,6 +78,8 @@ impl Settings {
 #[serde(default)]
 pub struct GenerateRequest {
     pub model_selection: Option<crate::catalog::Selection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_audio: Option<String>,
     pub prompt: String,
     pub style: String,
     pub caption: String,
@@ -102,6 +104,7 @@ impl Default for GenerateRequest {
     fn default() -> Self {
         Self {
             model_selection: None,
+            reference_audio: None,
             prompt: String::new(),
             style: String::new(),
             caption: String::new(),
