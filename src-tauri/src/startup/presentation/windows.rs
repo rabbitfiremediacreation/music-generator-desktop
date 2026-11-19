@@ -44,6 +44,10 @@ fn hide(
                 startup.log_diagnostic(attempt, "Native presentation skipped: minimized or hidden");
             return Ok(None);
         }
+        // The hide may have waited in the UI queue since the frame acknowledgement.
+        if !startup.has_recovery_budget(attempt) {
+            return Ok(None);
+        }
         let was_foreground = GetForegroundWindow() == hwnd;
         let activation = focus::handoff(splash, was_foreground);
         let _ = startup.log_diagnostic(attempt, &format!(

@@ -146,6 +146,30 @@ async fn frontend_acknowledgement_waits_for_native_recovery_before_ready() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn late_frames_finish_startup_without_hiding_the_window() {
+    let (temporary, app) = fixture(true);
+    let startup = app.state::<Startup>();
+    startup.initialize_logging().unwrap();
+    let main = app.get_webview_window("main").unwrap();
+    startup_show_main(main.clone(), app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    tokio::time::advance(std::time::Duration::from_millis(14_600)).await;
+    startup
+        .finish_main(app.handle(), 1, async {
+            panic!("a late frame acknowledgement must not dispatch the hide")
+        })
+        .await
+        .unwrap();
+    startup_complete(main, app.state(), app.handle().clone(), 1)
+        .await
+        .unwrap();
+    assert!(startup.is_ready());
+    let log = std::fs::read_to_string(temporary.path().join("data/logs/desktop.log")).unwrap();
+    assert!(log.contains("Native presentation skipped: insufficient time before deadline"));
+}
+
+#[tokio::test(start_paused = true)]
 async fn recovery_uses_the_original_deadline_and_cannot_reshow_after_timeout_or_retry() {
     let (_temporary, app) = fixture(true);
     let startup = app.state::<Startup>();
@@ -153,14 +177,13 @@ async fn recovery_uses_the_original_deadline_and_cannot_reshow_after_timeout_or_
     startup_show_main(main, app.state(), app.handle().clone(), 1)
         .await
         .unwrap();
-    tokio::time::advance(std::time::Duration::from_millis(14_600)).await;
     let error = startup
         .finish_main(
             app.handle(),
             1,
             recovery::cycle(
                 async { startup.with_pending_presentation(1, || Ok(Some(()))) },
-                |()| async { panic!("show callback must not run after the deadline") },
+                |()| std::future::pending(), // The UI thread never acknowledges the show.
             ),
         )
         .await

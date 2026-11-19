@@ -28,6 +28,13 @@ impl Startup {
             attempt,
             "Main frontend frames acknowledged; pixels unverified",
         );
+        #[cfg(any(windows, test))]
+        let recovery = async {
+            if self.has_recovery_budget(attempt) {
+                recovery.await?;
+            }
+            Ok(())
+        };
         let result = tokio::time::timeout_at(deadline, recovery)
             .await
             .unwrap_or_else(|_| Err(message("startup_main_timeout")))

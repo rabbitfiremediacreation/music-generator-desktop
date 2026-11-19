@@ -9,7 +9,14 @@ Alle zwölf Issue-Kommentare einschließlich ihrer Berichtigungen wurden gelesen
 Am 12. November 2026 wurde `main` (`c982d54`) einschließlich seiner
 Frontend-Reload-Unterstützung in den PR integriert. Die Nachkorrektur behandelt
 die im Hardwaretest der Erstfassung gemeldeten Fokus- und Minimierungsregressionen.
-Die Nachkorrektur muss auf dem betroffenen Windows-/GTX-1060-Rechner erneut geprüft werden.
+Im [Nachtest auf der GTX 1060](https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/83#issuecomment-6911783682)
+blieb das Hauptfenster bei 40 von 40 normalen und schnellen bzw. fensterbezogenen
+Starts im Vordergrund. Alle 20 gezielten Minimierungen verliefen ohne Startfehler.
+Bei minimiertem Splash blieb der Explorer fünfmal im Vordergrund.
+Sowohl `6e1ee80e` als auch die Vergleichsversion auf `main` hatten bei jeweils
+70 Starts kein Schwarzbild. Auch die installierte Release blieb bei
+[49 weiteren Starts](https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/53#issuecomment-6941894160)
+unauffällig. Die Wirksamkeit gegen das Schwarzbild bleibt deshalb in #53 offen.
 
 - Der Vergleich von 0.1.2 mit #61 hat zwei Fehler vermischt. Das Rennen um den
   registrierten Startup-Zustand wurde durch #49 behoben. Die korrigierte Reihe
@@ -48,7 +55,11 @@ Der Ablauf bleibt `startup_show_main` → zwei Frontend-Frame-Callbacks →
 `startup_complete`. Erst innerhalb von `startup_complete` wird unter Windows
 höchstens einmal pro Versuch ein nativer Sichtbarkeitszyklus ausgeführt:
 
-1. Auf dem UI-Thread Sichtbarkeit, Minimierung und aktuellen Zustand prüfen.
+1. Vor dem Einreihen des UI-Aufrufs und erneut vor der Fokusübergabe die Restzeit
+   prüfen. Bei weniger als einer Sekunde bleibt das Hauptfenster sichtbar und der
+   Start kann sofort abschließen. Das Zeitbudget umfasst 800 ms Wartezeit und
+   200 ms für die Fensteraufrufe und deren Zustellung.
+   Auf dem UI-Thread Sichtbarkeit und Minimierung prüfen.
    Ein bereits minimiertes oder verborgenes Fenster bleibt unverändert.
 2. Nur wenn das Hauptfenster aktuell im Vordergrund ist, seine Aktivierung mit
    `SetActiveWindow` an das sichtbare eigene Splash übergeben. Danach das
@@ -122,7 +133,8 @@ Native presentation stage=shown ...
 Native presentation completed activation_requested=... activation_succeeded=...; pixels unverified ...
 ```
 
-Bei übersprungener Korrektur steht nach `before_hide`:
+Bei knapper Restzeit erscheint `Native presentation skipped: insufficient time before deadline`.
+Bei übersprungener Korrektur wegen des Fensterzustands steht nach `before_hide`:
 `Native presentation skipped: minimized or hidden`. Bei einer während des
 Verbergens erfolgten Minimierung erscheinen `stage=minimized_during_hide` und
 `Native presentation skipped: minimized during hide`. Alle Einträge enthalten PID,
@@ -227,6 +239,7 @@ Fensterzustand, Fokus und Dauer erfassen. Bei Fehler zuerst Screenshot und Log a
 Vor und nach normalem/maximiertem Start Position, Größe und gespeicherten Zustand
 vergleichen. Ein Song mit Export dient danach als Funktionsprobe.
 
-Die Nachkorrektur bleibt bis zu dieser erneuten Prüfung unbestätigt. Insbesondere sind Wirksamkeit
-auf der GTX 1060, Fokusverhalten bei echter Benutzereingabe, Mehrmonitor/DPI,
-User32-Laufzeittests und Windows-Paketbuild hier noch offen.
+Für den nächsten Vergleich zählt eine Reihe, in der die Kontrollversion das
+Schwarzbild erneut zeigt. Dann unter denselben Bedingungen abwechselnd die
+Kontrollversion und den Build mit Fristprüfung starten. Die bisherigen Ergebnisse
+zur GTX 1060 stehen oben unter „Befund und Stand“.

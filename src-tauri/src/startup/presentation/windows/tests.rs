@@ -87,15 +87,39 @@ impl Drop for NativeWindow {
     }
 }
 
-/// Exercise real User32 placement, not WebView2/GPU painting. Each test owns its HWND.
-#[test]
-fn native_cycle_preserves_normal_and_maximized_placement_and_skips_minimized_windows() {
+fn pending_startup() -> (tempfile::TempDir, Startup) {
     let temporary = tempfile::tempdir().unwrap();
     let startup = Startup::new(
         temporary.path().into(),
         temporary.path().into(),
         std::time::Instant::now(),
     );
+    *startup.main_deadline.lock().unwrap() =
+        Some(tokio::time::Instant::now() + std::time::Duration::from_secs(15));
+    (temporary, startup)
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_delayed_hide_leaves_the_visible_window_and_focus_untouched() {
+    let (_temporary, startup) = pending_startup();
+    let main = NativeWindow::new();
+    let splash = NativeWindow::new();
+    unsafe {
+        let _ = ShowWindow(splash.0, SW_SHOWNA);
+        let _ = ShowWindow(main.0, SW_SHOWNA);
+        let _ = SetActiveWindow(main.0);
+    }
+    assert!(startup.has_recovery_budget(1));
+    tokio::time::advance(std::time::Duration::from_millis(14_600)).await;
+    assert!(hide(main.0, Some(splash.0), &startup, 1).unwrap().is_none());
+    assert!(unsafe { IsWindowVisible(main.0) }.as_bool());
+    assert_eq!(unsafe { GetActiveWindow() }, main.0);
+}
+
+/// Exercise real User32 placement, not WebView2/GPU painting. Each test owns its HWND.
+#[test]
+fn native_cycle_preserves_normal_and_maximized_placement_and_skips_minimized_windows() {
+    let (_temporary, startup) = pending_startup();
     let window = NativeWindow::new();
     assert!(hide(window.0, None, &startup, 1).unwrap().is_none());
     for command in [SW_SHOWNA, SW_SHOWMAXIMIZED] {
@@ -127,12 +151,7 @@ fn native_cycle_preserves_normal_and_maximized_placement_and_skips_minimized_win
 
 #[test]
 fn minimization_during_the_hidden_interval_is_preserved() {
-    let temporary = tempfile::tempdir().unwrap();
-    let startup = Startup::new(
-        temporary.path().into(),
-        temporary.path().into(),
-        std::time::Instant::now(),
-    );
+    let (_temporary, startup) = pending_startup();
     let window = NativeWindow::new();
     unsafe {
         let _ = ShowWindow(window.0, SW_SHOWNA);
@@ -149,12 +168,7 @@ fn minimization_during_the_hidden_interval_is_preserved() {
 
 #[test]
 fn minimization_while_hiding_is_skipped_without_a_startup_error() {
-    let temporary = tempfile::tempdir().unwrap();
-    let startup = Startup::new(
-        temporary.path().into(),
-        temporary.path().into(),
-        std::time::Instant::now(),
-    );
+    let (_temporary, startup) = pending_startup();
     let window = NativeWindow::new();
     unsafe {
         let _ = ShowWindow(window.0, SW_SHOWNA);
