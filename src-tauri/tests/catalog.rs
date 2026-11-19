@@ -21,7 +21,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "synthesis")
+            .filter(|m| m.provider == "ace-step" && m.role == "synthesis")
             .count(),
         52
     );
@@ -29,7 +29,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "language")
+            .filter(|m| m.provider == "ace-step" && m.role == "language")
             .count(),
         8
     );
@@ -37,7 +37,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "dependency")
+            .filter(|m| m.provider == "ace-step" && m.role == "dependency")
             .count(),
         2
     );
@@ -55,7 +55,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         assert!(model.estimated_bytes > 0);
         assert_eq!(model.sha256.len(), 64);
         assert!(model.sha256.chars().all(|c| c.is_ascii_hexdigit()));
-        if model.role == "synthesis" {
+        if model.provider == "ace-step" && model.role == "synthesis" {
             assert_eq!(
                 model.recommended_steps,
                 Some(if model.family.contains("turbo") {
@@ -92,6 +92,50 @@ fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_ste
     let before = serde_json::to_value(&settings).unwrap();
     assert!(s.apply(&mut settings).is_err());
     assert_eq!(serde_json::to_value(settings).unwrap(), before);
+}
+
+#[test]
+fn mimetic_catalog_pins_the_complete_runtime_inputs_to_both_publishers() {
+    let catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "mimetic-a0")
+        .unwrap();
+    let files = catalog.required(&profile.selection).unwrap();
+    assert!(profile.selection.language.is_empty());
+    assert_eq!(files.len(), 5);
+    assert_eq!(
+        profile.capabilities.bars.as_deref(),
+        Some([1, 2, 4].as_slice())
+    );
+    assert_eq!(
+        files.iter().map(|file| file.estimated_bytes).sum::<u64>(),
+        1_914_701_826
+    );
+    for asset in files {
+        let source = asset.source.as_ref().unwrap();
+        let upstream = profile
+            .upstream_sources
+            .iter()
+            .find(|upstream| upstream.repository == source.repository)
+            .unwrap();
+        assert_eq!(source.revision, upstream.revision);
+        assert_eq!(source.revision.len(), 40);
+        assert_eq!(
+            source.url(),
+            format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                upstream.repository, upstream.revision, source.path
+            )
+        );
+    }
+    let snapshot = catalog::generation_profile(&profile.selection).unwrap();
+    assert_eq!(
+        snapshot.model_revision,
+        profile.upstream_sources[0].revision
+    );
+    assert_eq!(snapshot.runtime_revision, profile.runtime.revision);
 }
 
 #[test]

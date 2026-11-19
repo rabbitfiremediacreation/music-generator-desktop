@@ -19,8 +19,25 @@ struct Cached {
     seconds: f64,
 }
 
+pub(crate) struct WavFormat {
+    pub sample_rate: u32,
+    pub channels: u32,
+    pub bits: u32,
+    pub frames: u64,
+}
+
+impl WavFormat {
+    fn seconds(&self) -> f64 {
+        self.frames as f64 / f64::from(self.sample_rate)
+    }
+}
+
+pub(crate) fn wav_format(audio: &[u8]) -> Result<WavFormat> {
+    wav::inspect(&mut Cursor::new(audio))
+}
+
 pub fn duration(audio: &[u8]) -> Result<f64> {
-    wav::duration(&mut Cursor::new(audio))
+    Ok(wav_format(audio)?.seconds())
 }
 
 pub fn tolerance(requested: f64) -> f64 {
@@ -103,7 +120,7 @@ pub(crate) fn file_duration(path: &Path) -> Result<f64> {
     let seconds = if let Some(seconds) = cached {
         seconds
     } else {
-        let seconds = wav::duration(&mut std::fs::File::open(path)?)?;
+        let seconds = wav::inspect(&mut std::fs::File::open(path)?)?.seconds();
         let mut cache = cache.lock().unwrap();
         if cache.len() >= 1024 {
             cache.clear();

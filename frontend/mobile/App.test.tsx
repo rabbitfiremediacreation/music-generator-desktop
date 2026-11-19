@@ -75,6 +75,44 @@ it("limits HeartMuLa generation to lyrics, style tags, seed and its profile dura
   });
 });
 
+it("sends the metered clip controls and validates the same length limit as Studio", async () => {
+  const clip: ActiveGenerationProfile = {
+    selection: { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" },
+    name: "Mimetic A0", available: true,
+    capabilities: { prompt: true, lyrics: false, lyrics_required: false, instrumental: true, bpm: true,
+      advanced: false, analysis: false, min_duration: 0, max_duration: 16, max_variants: 1, bars: [1, 2, 4] },
+  };
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/generation-profile" ? Response.json(clip) : original(path, options));
+  render(<App />);
+  await screen.findByRole("heading", { name: "Rain song" });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  const description = await screen.findByRole("textbox", { name: "Description" });
+  const generate = screen.getByRole<HTMLButtonElement>("button", { name: "Generate on computer" });
+  expect(generate.disabled).toBe(true);
+  expect(screen.queryByRole("spinbutton", { name: "Length (seconds)" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  const bars = screen.getByRole("combobox", { name: "Bars (4/4)" });
+  const bpm = screen.getByRole("spinbutton", { name: "BPM" });
+  fireEvent.change(description, { target: { value: "analog synth melody" } });
+  fireEvent.change(bars, { target: { value: "4" } });
+  fireEvent.change(bpm, { target: { value: "59" } });
+  expect(screen.getByText(/to stay within 16 seconds/)).toBeTruthy();
+  expect(generate.disabled).toBe(true);
+  fireEvent.submit(generate.closest("form")!);
+  expect(request.mock.calls.some(([path]) => path === "/api/generate")).toBe(false);
+  fireEvent.change(bpm, { target: { value: "124" } });
+  expect(screen.getByText("7.742 s")).toBeTruthy();
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "42" } });
+  fireEvent.click(generate);
+  await screen.findByText("Your song is in the queue.");
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toEqual({
+    model_selection: clip.selection, title: "", prompt: "analog synth melody", lyrics: "",
+    bars: 4, bpm: 124, duration: 960 / 124, seed: 42, variants: 1, instrumental: true, folder_id: null, keep_caption: true,
+  });
+});
+
 it("cancels a queued song through the same authenticated computer", async () => {
   const original = request.getMockImplementation()!;
   let cancelled = false;

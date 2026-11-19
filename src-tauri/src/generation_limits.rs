@@ -9,11 +9,11 @@ pub const MAX_INFERENCE_STEPS: u32 = 200;
 pub(crate) const LEGACY_INFERENCE_STEPS_LIMIT: u32 = 100;
 const MAX_NATIVE_TEXT_BYTES: usize = 8 * 1024;
 
-/// Validate the profile-specific request shape before saving or resubmitting a job.
+/// Validate the profile-specific request shape and return the duration to store with the job.
 pub fn validate_request(
     request: &GenerateRequest,
     capabilities: &GenerationCapabilities,
-) -> Result<()> {
+) -> Result<f64> {
     if request.variants == 0 || request.variants > capabilities.max_variants {
         return Err(message(format!(
             "This model supports 1 to {} variants",
@@ -30,12 +30,35 @@ pub fn validate_request(
             )));
         }
     }
+    let duration = match (&capabilities.bars, request.bars) {
+        (Some(choices), Some(bars)) if choices.contains(&bars) => {
+            if !(1..=300).contains(&request.bpm) {
+                return Err(message("Enter a whole-number BPM from 1 to 300"));
+            }
+            if request.prompt.trim().trim_matches(',').trim().is_empty() {
+                return Err(message("Enter a short-clip description"));
+            }
+            if !request.instrumental {
+                return Err(message("This model supports instrumental clips"));
+            }
+            240.0 * f64::from(bars) / f64::from(request.bpm)
+        }
+        (Some(_), _) => return Err(message("Choose a supported number of bars")),
+        (None, Some(_)) => return Err(message("This model does not support bar counts")),
+        (None, None) => request.duration,
+    };
     let minimum = if capabilities.advanced {
         0
     } else {
         capabilities.min_duration
     };
-    if !(f64::from(minimum)..=f64::from(capabilities.max_duration)).contains(&request.duration) {
+    if !(f64::from(minimum)..=f64::from(capabilities.max_duration)).contains(&duration) {
+        if capabilities.bars.is_some() {
+            return Err(message(format!(
+                "The selected BPM and bar count exceed this model's {}-second limit",
+                capabilities.max_duration
+            )));
+        }
         return Err(message(format!(
             "This model supports durations between {minimum} and {} seconds",
             capabilities.max_duration
@@ -77,18 +100,17 @@ pub fn validate_request(
         ));
     }
     if !capabilities.advanced {
-        if request.style.len() + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+        let native_text = [&request.style, &request.lyrics, &request.prompt];
+        if native_text.iter().map(|text| text.len()).sum::<usize>() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Style tags and lyrics must total at most 8 KiB of UTF-8 text",
+                "Generation text must total at most 8 KiB of UTF-8 text",
             ));
         }
-        if request.style.contains('\0') || request.lyrics.contains('\0') {
-            return Err(message(
-                "Style tags and lyrics cannot contain NUL characters",
-            ));
+        if native_text.iter().any(|text| text.contains('\0')) {
+            return Err(message("Generation text cannot contain NUL characters"));
         }
     }
-    Ok(())
+    Ok(duration)
 }
 
 /// Resolve legacy engine defaults before applying the same limit to every execution path.

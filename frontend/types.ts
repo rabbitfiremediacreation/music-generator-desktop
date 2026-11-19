@@ -26,7 +26,7 @@ export interface GenerationFormPreferences {
 export interface Generation {
   model_selection?: ModelSelection;
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;
-  keep_caption?: boolean; title?: string; duration?: number; bpm?: number; keyscale?: string;
+  keep_caption?: boolean; title?: string; duration?: number; bpm?: number; bars?: number; keyscale?: string;
   timesignature?: string; vocal_language?: string; seed?: number; variants?: number;
   inference_steps?: number; lm_temperature?: number; group_id?: string; folder_id?: string | null;
 }
@@ -76,7 +76,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "generation" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
 }
 
@@ -86,6 +86,7 @@ export interface ModelAbilities {
   prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
   bpm: boolean; advanced: boolean; analysis: boolean;
   max_seed?: number;
+  bars?: number[];
 }
 export interface ProfileSource {
   id: string; role: string; repository: string; revision: string; license: string; license_url: string;
@@ -98,7 +99,7 @@ export interface CatalogProfile {
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
   available: boolean; unavailable_reason?: string | null;
 }

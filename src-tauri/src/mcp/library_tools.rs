@@ -19,7 +19,8 @@ fn generation() -> Value {
         "instrumental": {"type": "boolean", "default": true},
         "keep_caption": {"type": "boolean", "default": true},
         "duration": {"type": "number", "minimum": 5, "maximum": 600, "description": "Requested seconds within the selected profile's limits from get_generation_policy."},
-        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "0 selects automatic tempo."},
+        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "Metered profiles require a positive tempo. For ACE-Step, 0 selects automatic tempo."},
+        "bars": {"type": "integer", "enum": [1, 2, 4], "description": "Required by metered short-clip profiles. BPM and 4/4 bars determine the duration."},
         "keyscale": text(100), "timesignature": text(100), "vocal_language": text(100),
         "seed": {"type": "integer", "minimum": -1, "maximum": 9007199254740991_i64, "default": -1},
         "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Omitted values use the saved studio preference, initially 2."},
@@ -38,7 +39,7 @@ pub(super) fn tools() -> Vec<Value> {
     let mut generate = generation();
     generate["cpu_iteration_decision"] = cpu_choice();
     vec![
-        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. For ACE-Step, supply prompt, style or caption. For HeartMuLa supply comma-separated style tags and lyrics along with optional duration and seed. Setup and verified models are required. Poll get_song/get_queue or wait_song for results.", generate, &[], false, false),
+        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. For ACE-Step, supply prompt, style or caption. For HeartMuLa, supply comma-separated style tags and lyrics. For Mimetic A0, supply a prompt, BPM and 1, 2 or 4 bars. Setup and verified models are required. Poll get_song/get_queue or wait_song for results.", generate, &[], false, false),
         super::super::tool("create_variants", "Queue new variants from a song's stored generation settings with random seeds, preserving its group, current title and folder. Overrides replace individual parameters. Existing audio remains unchanged.", json!({"id": id(), "variants": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1}, "overrides": {"type": "object", "properties": generation(), "additionalProperties": false}, "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("retry_song", "Retry a failed or cancelled song, honoring current model admission and saved CPU behavior. Reducing high CPU iterations creates a new song and preserves the original request.", json!({"id": id(), "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("cancel_song", "Cancel queued or running generation. Safe to repeat; a completed song and its audio are never deleted.", json!({"id": id()}), &["id"], false, false),

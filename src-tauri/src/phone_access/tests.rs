@@ -753,6 +753,18 @@ fn phone_requests_map_onto_desktop_generation() {
     }
     .request("g".into())
     .is_err());
+
+    let clip: PhoneGeneration =
+        serde_json::from_value(json!({"prompt":"drums","bars":2,"bpm":124})).unwrap();
+    let clip = clip.request("g".into()).unwrap();
+    assert_eq!((clip.bars, clip.bpm), (Some(2), 124));
+    assert!(PhoneGeneration {
+        bars: Some(2),
+        bpm: 124.2,
+        ..Default::default()
+    }
+    .request("g".into())
+    .is_err());
 }
 
 #[test]

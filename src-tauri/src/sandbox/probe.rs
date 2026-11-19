@@ -57,6 +57,8 @@ pub fn run(forbidden: &Path) -> Result<()> {
         let title = crate::titles::probe(&resources,&CancellationToken::new()).await?;
         if !title.contains("[Desktop Sandbox] Unselected file access denied") || !title.contains("music-title=ready") { return Err(message("Title runtime sandbox enforcement was not confirmed")); }
         println!("App Sandbox: native title runtime starts; unselected file access denied.");
+        #[cfg(target_arch = "aarch64")]
+        verify_mimetic(&resources).await?;
         // Optional real-model acceptance; fixture must already be inside this app's container.
         if let Some(model)=std::env::var_os("MUSIC_TITLE_SMOKE_MODEL") {
             let pin=crate::titles::manifest();
@@ -76,6 +78,31 @@ pub fn run(forbidden: &Path) -> Result<()> {
     });
     let _ = std::fs::remove_dir_all(root);
     result
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn verify_mimetic(resources: &Path) -> Result<()> {
+    let mut command = tokio::process::Command::new(resources.join("engine/mimetic-synth"));
+    command.arg("--self-test").kill_on_drop(true);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(600), command.output())
+        .await
+        .map_err(|_| message("Mimetic A0 runtime test timed out"))??;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success()
+        || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
+    {
+        return Err(message(format!(
+            "Mimetic A0 sandbox probe failed: {stderr}"
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let result: serde_json::Value =
+        serde_json::from_str(stdout.lines().last().unwrap_or_default())?;
+    if result["runtime"] != "mimetic-a0" {
+        return Err(message("Mimetic A0 runtime did not complete its self-test"));
+    }
+    println!("App Sandbox: Mimetic A0 starts with bundled Python; unselected file access denied.");
+    Ok(())
 }
 
 async fn verify_exports(resources: &Path, root: &Path) -> Result<()> {

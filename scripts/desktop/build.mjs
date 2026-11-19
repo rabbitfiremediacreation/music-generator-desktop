@@ -28,11 +28,11 @@ if (platform === "macos") {
   const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
   await cp(path.join(target,"music-engine-supervisor"),helper);
   const bundledEngine = path.join(app,"Contents/Resources/engine");
-  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true});
+  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true,verbatimSymlinks:true});
   for (const file of await files(bundledEngine)) {
     const bytes = await readFile(file);
     if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const entitlements = ["ace-server", "mp3-codec", "music-title", "mimetic-synth"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));

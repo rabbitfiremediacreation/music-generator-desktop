@@ -124,15 +124,33 @@ impl AppState {
 
     async fn generate_native(
         &self,
-        _settings: &Settings,
-        _selection: &crate::catalog::Selection,
-        _params: &serde_json::Value,
-        _cancel: &tokio_util::sync::CancellationToken,
-        _progress: impl Fn(crate::engine::progress::Progress),
+        settings: &Settings,
+        selection: &crate::catalog::Selection,
+        params: &serde_json::Value,
+        cancel: &tokio_util::sync::CancellationToken,
+        progress: impl Fn(crate::engine::progress::Progress),
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
-        Err(message(
-            "This model provider has no native generation adapter",
-        ))
+        let catalog = crate::catalog::catalog();
+        let profile = catalog
+            .profile(selection)
+            .ok_or_else(|| message("Unknown model profile"))?;
+        match selection.provider.as_str() {
+            "mimetic-a0" => {
+                crate::engine::mimetic::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            _ => Err(message(
+                "This model provider has no native generation adapter",
+            )),
+        }
     }
 
     pub fn stop_engine(&self) {

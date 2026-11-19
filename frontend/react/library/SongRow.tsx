@@ -16,7 +16,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
   armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormat:string;
 }) {
-  const { t } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
+  const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
   const [editing,setEditing] = useState(false), [title,setTitle] = useState(""), [lyricsOpen,setLyricsOpen] = useState(false), [moving,setMoving] = useState(false);
   const [dragAllowed,setDragAllowed] = useState(true);
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
@@ -40,16 +40,17 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       if (!retry) {
         generation.model_selection = params.model_selection ?? selection ?? undefined;
         if (params.model_selection && !params.model_selection.language) delete generation.caption;
-        Object.assign(generation, { instrumental: false, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
+        Object.assign(generation, { instrumental: params.bars !== undefined, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
       }
       await admission.start(generation,retry?song.id:undefined);
     } catch(error){onError(error);}
   };
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
+  const durationText = duration && (song.params.bars === undefined ? audioTime(duration) : `${duration.toLocaleString(language, { maximumFractionDigits: 3 })} s`);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
-  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
+  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,durationText].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
     aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>

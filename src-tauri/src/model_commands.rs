@@ -54,7 +54,7 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     result["model_profiles"] = json!(settings.model_profiles);
     result["expert_mode"] = json!(settings.expert_mode);
     let hardware = crate::hardware::inspect();
-    result["recommended_profiles"] = json!(catalog.recommended_profiles(hardware));
+    result["recommended_profiles"] = json!(catalog.selectable_profiles(hardware, &state.resources));
     result["profiles"] = Value::Array(
         catalog
             .profiles

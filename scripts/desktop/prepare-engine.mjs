@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
+import { prepareMimetic } from "./prepare-mimetic.mjs";
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
 import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
 import { checkoutEngineSource } from "./engine-source.mjs";
@@ -53,6 +54,7 @@ export async function prepareEngine() {
     if (platform === "macos") await relocateMac();
     if (platform === "windows") await copyWindowsCrt();
     await prepareTitle();
+    await prepareMimetic(engineFolder);
     if (platform === "linux") {
       if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());
       await relocateLinuxRuntime(engineFolder);

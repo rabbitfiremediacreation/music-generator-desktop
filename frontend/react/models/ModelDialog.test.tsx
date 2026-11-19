@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMimetic } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -37,6 +37,33 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows Mimetic sources and terms, then refreshes locally imported files for verification", async () => {
+  const initial = catalogWithMimetic();
+  const profile = initial.profiles![0];
+  let catalog = initial;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles: catalog.recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expect(dialog.getByText("1 / 2 / 4 Takte im 4/4-Takt, bis zu 16 Sekunden")).toBeTruthy();
+  for (const { repository, revision } of profile.upstream_sources) {
+    expect(dialog.getByRole("link", { name: repository }).getAttribute("href")).toBe(`https://huggingface.co/${repository}/tree/${revision}`);
+  }
+  expect(dialog.getByRole("link", { name: "Hinweise des Herausgebers lesen" }).getAttribute("href")).toBe(profile.usage.policy_url);
+  expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.getByText(/Lege zum Import die Dateien mit den unten angegebenen Namen/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Herunterladen und verwenden" })).toBeTruthy();
+  catalog = { ...catalog, models: catalog.models.map(model => ({ ...model, present: true })) };
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  expect(await dialog.findByRole("button", { name: "Prüfen und verwenden" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

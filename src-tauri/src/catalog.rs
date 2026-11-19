@@ -151,7 +151,7 @@ impl Catalog {
         Ok(())
     }
 
-    /// Pick one supported language model per synthesis profile within the existing RAM estimate.
+    /// Pick one supported language model per ACE-Step starter profile.
     pub fn recommended_profiles(&self, hardware: &Hardware) -> Vec<Selection> {
         let recommended = crate::manifest::lm_file(&hardware.recommended_lm);
         let Some(limit) = self
@@ -184,6 +184,17 @@ impl Catalog {
                     })
             })
             .collect()
+    }
+
+    pub fn selectable_profiles(&self, hardware: &Hardware, resources: &Path) -> Vec<Selection> {
+        let mut profiles = self.recommended_profiles(hardware);
+        profiles.extend(
+            self.profiles
+                .iter()
+                .filter(|profile| profile.ensure_runtime(resources, hardware).is_ok())
+                .map(|profile| profile.selection.clone()),
+        );
+        profiles
     }
 
     pub fn required(&self, selection: &Selection) -> Result<Vec<Asset>> {

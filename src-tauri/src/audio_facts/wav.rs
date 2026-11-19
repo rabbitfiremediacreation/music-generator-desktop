@@ -6,7 +6,7 @@ fn invalid() -> crate::error::Error {
 }
 
 /// Read chunk headers only; validate PCM frame boundaries against the complete container length.
-pub(super) fn duration(input: &mut (impl Read + Seek)) -> Result<f64> {
+pub(super) fn inspect(input: &mut (impl Read + Seek)) -> Result<super::WavFormat> {
     let file_size = input.seek(SeekFrom::End(0))?;
     input.seek(SeekFrom::Start(0))?;
     let mut header = [0u8; 12];
@@ -58,15 +58,20 @@ pub(super) fn duration(input: &mut (impl Read + Seek)) -> Result<f64> {
             {
                 return Err(invalid());
             }
-            format = Some((rate, align));
+            format = Some((rate, align, channels, bits));
         } else if &chunk[..4] == b"data" {
             audio_bytes = audio_bytes.checked_add(size).ok_or_else(invalid)?;
         }
         position = next;
     }
-    let (rate, align) = format.ok_or_else(invalid)?;
+    let (sample_rate, align, channels, bits) = format.ok_or_else(invalid)?;
     if audio_bytes == 0 || !audio_bytes.is_multiple_of(u64::from(align)) {
         return Err(invalid());
     }
-    Ok((audio_bytes / u64::from(align)) as f64 / f64::from(rate))
+    Ok(super::WavFormat {
+        sample_rate,
+        channels,
+        bits,
+        frames: audio_bytes / u64::from(align),
+    })
 }

@@ -8,9 +8,10 @@ export function ProfileLink({ url, children }: { url: string; children: string }
 
 export function ModelProfileDetails({ profile, bytes, total }: { profile: CatalogProfile; bytes: (value: number) => string; total: number }) {
   const { t } = useI18n();
+  const { bars, min_duration, max_duration } = profile.capabilities;
   return <section className="model-summary-card model-profile-details" aria-label={t("provider_license_usage")}>
     <dl>
-      <div><dt>{t("length")}</dt><dd>{t("provider_duration_hint", profile.capabilities.min_duration, profile.capabilities.max_duration)}</dd></div>
+      <div><dt>{t("length")}</dt><dd>{bars?.length ? t("clip_duration_hint", bars.join(" / "), max_duration) : t("provider_duration_hint", min_duration, max_duration)}</dd></div>
       <div><dt>{t("provider_runtime")}</dt><dd><ProfileLink url={profile.runtime.source}>{profile.runtime.name}</ProfileLink>{" "}<code>{profile.runtime.revision}</code> · <ProfileLink url={profile.runtime.license_url}>{profile.runtime.license}</ProfileLink></dd></div>
       {profile.upstream_sources.map(source => <div key={source.id}>
         <dt>{t(`provider_source_${source.role}`)}</dt>
@@ -19,6 +20,7 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
       <div><dt>{t("provider_model_use")}</dt><dd>{t(profile.usage.model_use)}</dd></div>
       <div><dt>{t("provider_redistribution")}</dt><dd>{t(profile.usage.redistribution)}</dd></div>
       <div><dt>{t("provider_outputs")}</dt><dd>{t(profile.usage.outputs)}</dd></div>
+      {profile.usage.policy_url && <div><dt>{t("provider_publisher_policy")}</dt><dd><ProfileLink url={profile.usage.policy_url}>{t("provider_read_publisher_policy")}</ProfileLink></dd></div>}
       <div><dt>{t("provider_acquisition")}</dt><dd>{t(profile.acquisition === "manual" ? "provider_manual_hint" : "provider_download_hint")}</dd></div>
       {total > 0 && <div><dt>{t(profile.acquisition === "manual" ? "browser_size" : "provider_total_download")}</dt><dd>{bytes(total)}</dd></div>}
       <div><dt>{t("provider_tested_platforms")}</dt><dd>

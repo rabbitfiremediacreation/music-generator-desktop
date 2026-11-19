@@ -392,7 +392,7 @@ pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     let hardware = crate::hardware::inspect();
     result["cpu_only"] = json!(hardware.cpu_only);
     result["recommended_profiles"] =
-        json!(crate::catalog::catalog().recommended_profiles(hardware));
+        json!(crate::catalog::catalog().selectable_profiles(hardware, &state.resources));
     result["dit_xl_available"] = json!(PathBuf::from(settings.models_dir)
         .join("acestep-v15-xl-sft-Q8_0.gguf")
         .is_file());

@@ -119,8 +119,9 @@ fn all_families_and_precisions_require_expert_mode_except_hardware_recommendatio
     for gib in [8, 16, 32] {
         let hw = hardware(gib);
         let recommendations = catalog.recommended_profiles(&hw);
-        for synthesis in catalog.models.iter().filter(|m| m.role == "synthesis") {
-            for language in catalog.models.iter().filter(|m| m.role == "language") {
+        let ace_step = catalog.models.iter().filter(|m| m.provider == "ace-step");
+        for synthesis in ace_step.clone().filter(|m| m.role == "synthesis") {
+            for language in ace_step.clone().filter(|m| m.role == "language") {
                 let selection = Selection {
                     provider: "ace-step".into(),
                     synthesis: synthesis.file.clone(),

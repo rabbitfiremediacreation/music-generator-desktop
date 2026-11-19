@@ -29,9 +29,168 @@
       "status": "available",
       "adapter": "acestep.cpp",
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
+    },
+    {
+      "id": "mimetic-a0",
+      "name": "Mimetic A0",
+      "status": "available",
+      "adapter": "mimetic-a0",
+      "source": "https://github.com/micknoise/mimetic-a0"
+    }
+  ],
+  "profiles": [
+    {
+      "selection": {
+        "provider": "mimetic-a0",
+        "synthesis": "mimetic-a0-model.fp16.safetensors",
+        "language": ""
+      },
+      "name": "Mimetic A0 · Short Clips",
+      "files": [
+        "mimetic-a0-model.fp16.safetensors",
+        "mimetic-a0-model_config.json",
+        "mimetic-a0-t5-model.safetensors",
+        "mimetic-a0-t5-config.json",
+        "mimetic-a0-t5-tokenizer.json"
+      ],
+      "capabilities": {
+        "min_duration": 0,
+        "max_duration": 16,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": true,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295,
+        "bars": [
+          1,
+          2,
+          4
+        ]
+      },
+      "runtime": {
+        "name": "mimetic-a0 + stable-audio-tools",
+        "revision": "c4331b95f2db653c6268973a3096c8f0a77a4a61",
+        "source": "https://github.com/micknoise/mimetic-a0/tree/c4331b95f2db653c6268973a3096c8f0a77a4a61",
+        "license": "MIT",
+        "license_url": "https://github.com/micknoise/mimetic-a0/blob/c4331b95f2db653c6268973a3096c8f0a77a4a61/LICENSE",
+        "executable": "engine/mimetic-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "mimetic-a0",
+          "role": "mimetic_weights_vae",
+          "repository": "micknoisemachine/mimetic-a0",
+          "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+          "license": "MIT",
+          "license_url": "https://huggingface.co/micknoisemachine/mimetic-a0/blob/5f21e1807517cda2e6d72051cdb81dafc3931077/LICENSE"
+        },
+        {
+          "id": "t5-base",
+          "role": "t5_encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/google-research/text-to-text-transfer-transformer/blob/42909aa15d1fbd16c69333aa474a00ae8ed9fde4/LICENSE"
+        }
+      ],
+      "usage": {
+        "model_use": "mimetic_model_use",
+        "redistribution": "mimetic_redistribution",
+        "outputs": "mimetic_outputs",
+        "policy_url": "https://huggingface.co/micknoisemachine/mimetic-a0/blob/5f21e1807517cda2e6d72051cdb81dafc3931077/NOTICE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 17179869184,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "download"
     }
   ],
   "models": [
+    {
+      "file": "mimetic-a0-model.fp16.safetensors",
+      "provider": "mimetic-a0",
+      "role": "synthesis",
+      "family": "mimetic-a0",
+      "precision": "FP16",
+      "estimated_bytes": 1021661156,
+      "sha256": "e3e255e27a45d41327156b1b2d4d88b7c2a3029550206b669695650391dd8491",
+      "recommended_steps": 50,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model.fp16.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-model_config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "mimetic-a0",
+      "precision": "JSON",
+      "estimated_bytes": 3719,
+      "sha256": "6f7da1c3ae1a5ccf77fdfa714befc5d800137e9cf736335c38a007bb3cfc1709",
+      "recommended_steps": null,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-model.safetensors",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-tokenizer.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1389353,
+      "sha256": "d2acde0d8d71dd30a711834b07781b9c89feaac33fd332f60507699282740066",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "tokenizer.json"
+      }
+    },
     {
       "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
       "provider": "ace-step",
