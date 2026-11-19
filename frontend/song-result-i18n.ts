@@ -20,3 +20,19 @@ const messages: Record<Language, readonly [Message, Message]> = {
 for (const [language, values] of Object.entries(messages)) {
   Object.assign(I18N[language as Language], { duration_short_audio: values[0], duration_long_audio: values[1] });
 }
+
+Object.assign(I18N.en, {
+  stream_first_audio: (seconds: string) => `First audio after ${seconds} s`,
+  stream_underruns: (blocks: string) => `${blocks} underrun blocks`,
+  stream_peak_ram: (gib: string) => `Peak resident RAM ${gib} GiB`,
+  stream_realtime_met: "Real-time capture verified",
+  stream_realtime_missed: "Real-time capture fell behind",
+});
+
+Object.assign(I18N.de, {
+  stream_first_audio: (seconds: string) => `Erstes Audio nach ${seconds} s`,
+  stream_underruns: (blocks: string) => `${blocks} Aussetzerblöcke`,
+  stream_peak_ram: (gib: string) => `Maximaler residenter RAM ${gib} GiB`,
+  stream_realtime_met: "Echtzeitaufnahme bestätigt",
+  stream_realtime_missed: "Echtzeitaufnahme blieb zurück",
+});

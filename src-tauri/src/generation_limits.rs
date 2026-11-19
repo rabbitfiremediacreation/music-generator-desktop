@@ -54,6 +54,9 @@ pub fn validate_request(
     if request.instrumental && !capabilities.instrumental {
         return Err(message("This model requires a vocal song"));
     }
+    if !capabilities.lyrics && !request.instrumental {
+        return Err(message("This model generates instrumental music"));
+    }
     if !capabilities.lyrics && !request.lyrics.trim().is_empty() {
         return Err(message("This model does not support lyrics"));
     }
@@ -77,15 +80,25 @@ pub fn validate_request(
         ));
     }
     if !capabilities.advanced {
-        if request.style.len() + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+        let text = [
+            &request.style,
+            &request.lyrics,
+            &request.prompt,
+            &request.caption,
+        ];
+        let conditioning_bytes =
+            if request.style.trim().is_empty() && request.prompt.trim().is_empty() {
+                request.caption.len()
+            } else {
+                request.style.len() + request.prompt.len()
+            };
+        if conditioning_bytes + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Style tags and lyrics must total at most 8 KiB of UTF-8 text",
+                "Generation text must total at most 8 KiB of UTF-8 text",
             ));
         }
-        if request.style.contains('\0') || request.lyrics.contains('\0') {
-            return Err(message(
-                "Style tags and lyrics cannot contain NUL characters",
-            ));
+        if text.iter().any(|value| value.contains('\0')) {
+            return Err(message("Generation text cannot contain NUL characters"));
         }
     }
     Ok(())

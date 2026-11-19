@@ -124,15 +124,34 @@ impl AppState {
 
     async fn generate_native(
         &self,
-        _settings: &Settings,
-        _selection: &crate::catalog::Selection,
-        _params: &serde_json::Value,
-        _cancel: &tokio_util::sync::CancellationToken,
-        _progress: impl Fn(crate::engine::progress::Progress),
+        settings: &Settings,
+        selection: &crate::catalog::Selection,
+        params: &serde_json::Value,
+        cancel: &tokio_util::sync::CancellationToken,
+        progress: impl Fn(crate::engine::progress::Progress),
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
-        Err(message(
-            "This model provider has no native generation adapter",
-        ))
+        let catalog = crate::catalog::catalog();
+        let profile = catalog
+            .profile(selection)
+            .ok_or_else(|| message("Unknown model profile"))?;
+        let executable = profile.runtime.executable(&self.resources);
+        let models = std::path::Path::new(&settings.models_dir);
+        match selection.provider.as_str() {
+            "magenta-realtime-2" => {
+                crate::engine::magenta::generate(
+                    &executable,
+                    models,
+                    &self.db.root,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            _ => Err(message(
+                "This model provider has no native generation adapter",
+            )),
+        }
     }
 
     pub fn stop_engine(&self) {

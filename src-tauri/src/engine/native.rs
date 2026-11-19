@@ -28,6 +28,33 @@ impl WavJob<'_> {
         progress: impl Fn(Progress),
         arguments: impl FnOnce(&Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, String, Value)> {
+        let (audio, extension, metadata, _) = self
+            .run_job(params, cancel, progress, false, |output, _| {
+                arguments(output)
+            })
+            .await?;
+        Ok((audio, extension, metadata))
+    }
+
+    pub async fn run_with_report(
+        &self,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, String, Value, Vec<u8>)> {
+        self.run_job(params, cancel, progress, true, arguments)
+            .await
+    }
+
+    async fn run_job(
+        &self,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        with_report: bool,
+        arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, String, Value, Vec<u8>)> {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -37,7 +64,9 @@ impl WavJob<'_> {
             .prefix("music-job-")
             .tempdir_in(self.data_root)?;
         let output = work.path().join("song.wav");
-        let args = arguments(&output);
+        let report = work.path().join("report.json");
+        let args = arguments(&output, &report);
+        let started = Instant::now();
         let mut process = OwnedProcess::spawn_with_model_folder(
             self.executable,
             &args,
@@ -45,7 +74,6 @@ impl WavJob<'_> {
             &logs.join(self.log_name),
             Some(self.model_folder),
         )?;
-        let started = Instant::now();
         let mut elapsed = None;
         loop {
             if cancel.is_cancelled() {
@@ -79,17 +107,23 @@ impl WavJob<'_> {
                 _ = tokio::time::sleep(Duration::from_millis(200)) => {}
             }
         }
-        let audio = tokio::select! {
+        let runtime_seconds = started.elapsed().as_secs_f64();
+        let (audio, report) = tokio::select! {
+            biased;
             _ = cancel.cancelled() => return Err(Error::Cancelled),
-            audio = tokio::fs::read(&output) => audio?,
+            output = async {
+                let audio = tokio::fs::read(output).await?;
+                let report = if with_report { tokio::fs::read(report).await? } else { Vec::new() };
+                std::io::Result::Ok((audio, report))
+            } => output?,
         };
         let seconds = audio_facts::duration(&audio)?;
         let mut meta = json!({
-            "runtime_seconds": started.elapsed().as_secs_f64(),
+            "runtime_seconds": runtime_seconds,
             "backend": self.backend,
             "seed": params["seed"],
         });
         audio_facts::record_duration(seconds, params, &mut meta);
-        Ok((audio, "wav".into(), meta))
+        Ok((audio, "wav".into(), meta, report))
     }
 }

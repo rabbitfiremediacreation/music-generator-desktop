@@ -28,6 +28,14 @@ export function songDuration(song: ResultSong): number | null {
   return meta?.duration_source === "wav" && positive(meta.duration) ? meta.duration : null;
 }
 
+export function songStreamMetrics(song: ResultSong) {
+  const value = song.result_meta?.stream_metrics;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { first_audio_ms, underrun_blocks, peak_rss_bytes, realtime } = value as Record<string, unknown>;
+  if (!positive(first_audio_ms) || typeof underrun_blocks !== "number" || !Number.isSafeInteger(underrun_blocks) || underrun_blocks < 0 || !positive(peak_rss_bytes) || typeof realtime !== "boolean") return null;
+  return { first_audio_ms, underrun_blocks, peak_rss_bytes, realtime };
+}
+
 export function audioTime(seconds: number): string {
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;

@@ -21,7 +21,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "synthesis")
+            .filter(|m| m.provider == "ace-step" && m.role == "synthesis")
             .count(),
         52
     );
@@ -29,7 +29,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "language")
+            .filter(|m| m.provider == "ace-step" && m.role == "language")
             .count(),
         8
     );
@@ -37,7 +37,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         catalog
             .models
             .iter()
-            .filter(|m| m.role == "dependency")
+            .filter(|m| m.provider == "ace-step" && m.role == "dependency")
             .count(),
         2
     );
@@ -55,7 +55,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
         assert!(model.estimated_bytes > 0);
         assert_eq!(model.sha256.len(), 64);
         assert!(model.sha256.chars().all(|c| c.is_ascii_hexdigit()));
-        if model.role == "synthesis" {
+        if model.provider == "ace-step" && model.role == "synthesis" {
             assert_eq!(
                 model.recommended_steps,
                 Some(if model.family.contains("turbo") {

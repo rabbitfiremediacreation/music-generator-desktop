@@ -3,8 +3,11 @@ import type { ModelSelection, Settings, SettingsPatch } from "./types";
 
 // Both views use the backend's complete hardware-aware recommendations.
 export function modelAllowed(selection: ModelSelection | undefined, expertMode: boolean, recommendations: readonly ModelSelection[]): boolean {
-  return !selection || expertMode || recommendations.some(profile =>
-    profile.provider === selection.provider && profile.synthesis === selection.synthesis && profile.language === selection.language);
+  if (!selection || expertMode) return true;
+  const matches = (profile: ModelSelection) => profile.provider === selection.provider &&
+    profile.synthesis === selection.synthesis && profile.language === selection.language;
+  const profiles = (source as { profiles?: { selection: ModelSelection }[] }).profiles;
+  return recommendations.some(matches) || profiles?.some(profile => matches(profile.selection)) === true;
 }
 
 export function modelLabel(file: string, expertMode: boolean): string {

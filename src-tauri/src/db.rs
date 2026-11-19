@@ -314,7 +314,7 @@ impl Database {
             params["use_cot_caption"] = json!(!req.keep_caption);
         }
         params["caption"] = json!(caption);
-        params["lyrics"] = json!(lyrics);
+        params["lyrics"] = json!(if capabilities.lyrics { lyrics } else { "" });
         let mut con = self.lock();
         let tx = con.transaction()?;
         let folder = req.folder_id.as_ref().filter(|f| {

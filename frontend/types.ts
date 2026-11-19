@@ -35,7 +35,7 @@ export interface Song {
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
-  params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
+  params: Generation & { generation_profile?: { capabilities: ModelAbilities } }; result_meta: Record<string, unknown> | null; file: string | null;
   audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
@@ -76,7 +76,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
 }
 
@@ -98,8 +98,9 @@ export interface CatalogProfile {
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
+  runtime_note?: string;
   available: boolean; unavailable_reason?: string | null;
 }
 export interface ActiveGenerationProfile {

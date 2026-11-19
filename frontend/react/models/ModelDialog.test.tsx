@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMagenta } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -37,6 +37,29 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("discloses the Magenta weight license, attribution, output terms and import path before acquisition", async () => {
+  const catalog = catalogWithMagenta(true);
+  const profile = catalog.profiles![0];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expect(dialog.getByRole("link", { name: "google/magenta-realtime-2" }).getAttribute("href")).toContain(profile.upstream_sources[0].revision);
+  expect(dialog.getByRole("link", { name: "CC BY 4.0" })).toBeTruthy();
+  expect(dialog.getByText(/Bei Weitergabe der Gewichte oder Änderungen Google LLC nennen/)).toBeTruthy();
+  expect(dialog.getByText(/Google beansprucht keine Rechte an erzeugter Musik/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen des Herausgebers" }).getAttribute("href")).toBe(profile.usage.policy_url);
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("note").textContent).toMatch(/Lücken in der Aufnahme/);
+  expect((dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement).disabled).toBe(false);
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

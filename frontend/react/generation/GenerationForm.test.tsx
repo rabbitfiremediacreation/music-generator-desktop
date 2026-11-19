@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa } from "../models/model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMagenta } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -83,6 +83,23 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+it("queues a timed instrumental Magenta recording with a text prompt", async () => {
+  const magenta = catalogWithMagenta(true).profiles![0];
+  currentPolicy = { ...policy, available: true, capabilities: magenta.capabilities };
+  mount({ selection: magenta.selection });
+  const duration = await screen.findByRole("slider", { name: "Aufnahmedauer" }) as HTMLInputElement;
+  await waitFor(() => expect(duration.max).toBe("120"));
+  expect(duration.min).toBe("10");
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "Iterationen" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Sparse jazz piano, soft brushing" } });
+  fireEvent.change(duration, { target: { value: "18" } });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" });
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ model_selection: magenta.selection, prompt: "Sparse jazz piano, soft brushing", duration: 18, instrumental: true, lyrics: "", variants: 1 });
 });
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };

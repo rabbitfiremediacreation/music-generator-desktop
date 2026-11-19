@@ -29,6 +29,13 @@
       "status": "available",
       "adapter": "acestep.cpp",
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
+    },
+    {
+      "id": "magenta-realtime-2",
+      "name": "Magenta RealTime 2",
+      "status": "available",
+      "adapter": "magenta-realtime-cpp",
+      "source": "https://huggingface.co/google/magenta-realtime-2"
     }
   ],
   "models": [
@@ -651,6 +658,211 @@
       "estimated_bytes": 337420928,
       "sha256": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
       "recommended_steps": null
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "MLX",
+      "estimated_bytes": 455654550,
+      "sha256": "1a70b0de30b3e6ad054fe6a61a7765408f01127628e6362c1abc328809a3c422",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small.mlxfn"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "Safetensors",
+      "estimated_bytes": 8676998,
+      "sha256": "23f1e05a6beea306fe39970bd61193f2d3e5fbd8f08af93570bda4ca9ec33255",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small_state.safetensors"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/spm.model",
+      "provider": "magenta-realtime-2",
+      "role": "tokenizer",
+      "family": "MusicCoCa",
+      "precision": "SentencePiece",
+      "estimated_bytes": 517448,
+      "sha256": "ff325a99b61ba5726cf6437cde6eefbb633dbaa363a684f7a97ed99b55202cca",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/spm.model"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 418674324,
+      "sha256": "e1222e3418cbe8cc2623939571bae8e9ab6f0d511404b0d83da69f4e6e11b272",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/text_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 72422108,
+      "sha256": "7a8a19e2119ad405818eae84a331a970f1a582b3389d4bfd27814f75b455a444",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/pretrained_vector_quantizer.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 86166664,
+      "sha256": "2f9743cc8f121a588b69c7f4d79a2a4111ce81864cbde8830054cd5e97f3d717",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/mapper.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 8729640,
+      "sha256": "656ca4c358451c2b85932e66efcfd2ba62492f4435953d775bfc1d3c08329a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/audio_preprocessor.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 370935584,
+      "sha256": "0d4501af799834e383d904c34ee826c61eb53c69682bf15a981a46c1bb32793a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/music_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "codec",
+      "family": "SpectroStream",
+      "precision": "MLX",
+      "estimated_bytes": 104319983,
+      "sha256": "887c25b21aa1714d19907fc96963c6440d5911f11571054cd5acf7306c260905",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/spectrostream/spectrostream_encoder.mlxfn"
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "selection": {
+        "provider": "magenta-realtime-2",
+        "synthesis": "mrt2_small",
+        "language": ""
+      },
+      "name": "Magenta RealTime 2 Small",
+      "files": [
+        "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+        "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+        "magenta-realtime-2/resources/musiccoca/spm.model",
+        "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+        "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+        "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+        "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+        "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+        "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 1000000000
+      },
+      "runtime": {
+        "name": "Magenta RealTime 2 C++/MLX",
+        "revision": "694a545e4ba0b88bf1150137b129582166d3e07f",
+        "source": "https://github.com/magenta/magenta-realtime/tree/694a545e4ba0b88bf1150137b129582166d3e07f",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/magenta/magenta-realtime/blob/694a545e4ba0b88bf1150137b129582166d3e07f/LICENSE",
+        "executable": "engine/magenta/mrt2-record",
+        "required_files": ["engine/magenta/mlx.metallib", "engine/magenta/MAGENTA_RUNTIME.json"]
+      },
+      "upstream_sources": [
+        {
+          "id": "mrt2-small",
+          "role": "weights",
+          "repository": "google/magenta-realtime-2",
+          "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "usage": {
+        "model_use": "provider_magenta_model_use",
+        "redistribution": "provider_magenta_redistribution",
+        "outputs": "provider_magenta_outputs",
+        "policy_url": "https://huggingface.co/google/magenta-realtime-2/blob/010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc/README.md#terms-of-use"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "mlx",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "runtime_note": "provider_magenta_capture_status",
+      "acquisition": "download"
     }
   ]
 }

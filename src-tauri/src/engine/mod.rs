@@ -3,6 +3,7 @@ pub mod client;
 pub mod device;
 mod diagnostics;
 mod generation;
+pub mod magenta;
 pub(crate) mod manager;
 pub mod native;
 pub mod process;

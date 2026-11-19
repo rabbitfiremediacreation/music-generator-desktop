@@ -4,8 +4,8 @@ import { backend } from "../../backend";
 import { exportSong } from "../../exports";
 import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
-import { audioTime, songDuration, songDurationWarning, songIterations } from "../../song-result";
-import type { Folder, Generation, JobProgress, ModelSelection, Song } from "../../types";
+import { audioTime, songDuration, songDurationWarning, songIterations, songStreamMetrics } from "../../song-result";
+import type { Folder, JobProgress, ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
 import { usePlayer } from "../player";
@@ -16,7 +16,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
   armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormat:string;
 }) {
-  const { t } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
+  const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
   const [editing,setEditing] = useState(false), [title,setTitle] = useState(""), [lyricsOpen,setLyricsOpen] = useState(false), [moving,setMoving] = useState(false);
   const [dragAllowed,setDragAllowed] = useState(true);
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
@@ -35,18 +35,21 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const commit = () => {if(!editing)return;setEditing(false);if(title.trim() !== (song.title||""))change.mutate(()=>backend.patch(song.id,{title:title.trim()}));};
   const more = async (retry=false) => {
     try {
-      const params = song.params as Generation & {use_cot_caption?:boolean};
+      const params = song.params as typeof song.params & {use_cot_caption?:boolean};
       const generation = {...params,title:song.title||"",folder_id:song.folder_id};
       if (!retry) {
         generation.model_selection = params.model_selection ?? selection ?? undefined;
-        if (params.model_selection && !params.model_selection.language) delete generation.caption;
-        Object.assign(generation, { instrumental: false, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
+        if (params.model_selection?.language === "" && params.generation_profile?.capabilities.prompt !== true) delete generation.caption;
+        const instrumental = params.model_selection?.language === "" ? params.instrumental : false;
+        Object.assign(generation, { instrumental, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
       }
       await admission.start(generation,retry?song.id:undefined);
     } catch(error){onError(error);}
   };
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
+  const stream = song.status === "done" ? songStreamMetrics(song) : null;
+  const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
   const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
@@ -64,6 +67,12 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       {song.status==="cancelled"&&<div className="s">{t("cancelled")}</div>}
       {song.status==="error"&&<div className="s err" title={song.message??undefined}>{t("error")} · {t(songErrorKey(song.message||""))}</div>}
       {song.status==="done"&&!player.played.has(song.id)&&took!==null&&<div className="s took">{t("created_in")} {audioTime(took)}</div>}
+      {stream && <div className="s stream-metrics">
+        <span>{t("stream_first_audio", formatMetric(stream.first_audio_ms / 1000))}</span>
+        <span>{t("stream_underruns", formatMetric(stream.underrun_blocks))}</span>
+        <span>{t("stream_peak_ram", formatMetric(stream.peak_rss_bytes / 1024 ** 3))}</span>
+        <span>{t(stream.realtime ? "stream_realtime_met" : "stream_realtime_missed")}</span>
+      </div>}
       {song.status==="done"&&Boolean(meta.title_generation_error)&&<div className="s err" title={String(meta.title_generation_error)}>{t("title_failed")}</div>}
       {song.audio_missing&&<div className="s err">{t("import_audio_missing")}</div>}
       {warning&&!song.audio_missing&&<div className="s duration-warning" role="note">{t(`duration_${warning.code}`,audioTime(warning.actual_seconds),audioTime(warning.requested_seconds))}</div>}

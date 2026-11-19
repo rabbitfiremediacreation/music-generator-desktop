@@ -162,6 +162,19 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("shows each Magenta recording observation separately from the WAV duration", async () => {
+  songs[0].result_meta = {
+    duration: 12, duration_source: "wav",
+    stream_metrics: { first_audio_ms: 750, underrun_blocks: 0, peak_rss_bytes: 2 ** 30, realtime: true },
+  };
+  mount();
+  expect(await screen.findByText("First audio after 0.75 s")).toBeTruthy();
+  expect(screen.getByText("0 underrun blocks")).toBeTruthy();
+  expect(screen.getByText("Peak resident RAM 1 GiB")).toBeTruthy();
+  expect(screen.getByText("Real-time capture verified")).toBeTruthy();
+  expect(screen.getByText(/0:12/)).toBeTruthy();
+});
+
 it("shows the variance with up to two decimals",async()=>{
   songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
   const view=mount();await screen.findByText("A song A");

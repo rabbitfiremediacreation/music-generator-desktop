@@ -2,7 +2,7 @@
 import { expect, it } from "vitest";
 import { I18N, setLang, t } from "./i18n.js";
 import { LANGS } from "./locales";
-import { audioTime, songDuration, songDurationWarning, songIterations } from "./song-result";
+import { audioTime, songDuration, songDurationWarning, songIterations, songStreamMetrics } from "./song-result";
 import "./song-result-i18n";
 
 it("uses locally verified effective steps and bounds only the requested fallback without changing stored history", () => {
@@ -65,4 +65,12 @@ it("explains short and long audio clearly in every registered language", () => {
     }
   }
   setLang("de");
+});
+
+it("reads recorded stream observations, including zero underruns and missed real-time capture", () => {
+  const stream_metrics = { first_audio_ms: 500, underrun_blocks: 0, peak_rss_bytes: 3_000_000_000, realtime: false };
+  const song = { params: {}, result_meta: { stream_metrics } };
+  expect(songStreamMetrics(song)).toEqual(stream_metrics);
+  expect(songStreamMetrics({ ...song, result_meta: { stream_metrics: { ...stream_metrics, underrun_blocks: -1 } } })).toBeNull();
+  expect(songStreamMetrics({ ...song, result_meta: {} })).toBeNull();
 });

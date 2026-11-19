@@ -22,7 +22,7 @@ fn generation() -> Value {
         "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "0 selects automatic tempo."},
         "keyscale": text(100), "timesignature": text(100), "vocal_language": text(100),
         "seed": {"type": "integer", "minimum": -1, "maximum": 9007199254740991_i64, "default": -1},
-        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Omitted values use the saved studio preference, initially 2."},
+        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Use the selected profile's limits from get_generation_policy. ACE-Step uses the saved studio preference when omitted."},
         "inference_steps": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Omitted values use the saved studio preference or device/model recommendation."},
         "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 0.85."},
         "group_id": id(), "folder_id": {"type": ["string", "null"], "maxLength": 200},
@@ -38,7 +38,7 @@ pub(super) fn tools() -> Vec<Value> {
     let mut generate = generation();
     generate["cpu_iteration_decision"] = cpu_choice();
     vec![
-        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. For ACE-Step, supply prompt, style or caption. For HeartMuLa supply comma-separated style tags and lyrics along with optional duration and seed. Setup and verified models are required. Poll get_song/get_queue or wait_song for results.", generate, &[], false, false),
+        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. ACE-Step takes a prompt, style or caption. Magenta RealTime 2 takes a text prompt or style and uses duration as the recording time. Tag-based vocal models take comma-separated style tags and lyrics. Setup and verified models are required. Poll get_song, get_queue or wait_song for results.", generate, &[], false, false),
         super::super::tool("create_variants", "Queue new variants from a song's stored generation settings with random seeds, preserving its group, current title and folder. Overrides replace individual parameters. Existing audio remains unchanged.", json!({"id": id(), "variants": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1}, "overrides": {"type": "object", "properties": generation(), "additionalProperties": false}, "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("retry_song", "Retry a failed or cancelled song, honoring current model admission and saved CPU behavior. Reducing high CPU iterations creates a new song and preserves the original request.", json!({"id": id(), "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("cancel_song", "Cancel queued or running generation. Safe to repeat; a completed song and its audio are never deleted.", json!({"id": id()}), &["id"], false, false),
