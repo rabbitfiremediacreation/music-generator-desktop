@@ -138,11 +138,20 @@ pub struct ProviderProfile {
     pub upstream_sources: Vec<UpstreamSource>,
     pub usage: Usage,
     pub platforms: Vec<TestedPlatform>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_hold: Option<String>,
     #[serde(default)]
     pub acquisition: Acquisition,
 }
 
 impl ProviderProfile {
+    pub(super) fn ensure_released(&self) -> Result<()> {
+        if let Some(reason) = &self.release_hold {
+            return Err(message(reason.clone()));
+        }
+        Ok(())
+    }
+
     pub fn platform(&self, hardware: &Hardware) -> Result<&TestedPlatform> {
         self.platforms
             .iter()
@@ -153,6 +162,7 @@ impl ProviderProfile {
     }
 
     pub fn ensure_runtime(&self, resources: &Path, hardware: &Hardware) -> Result<()> {
+        self.ensure_released()?;
         self.platform(hardware)?;
         if !self.runtime.executable(resources).is_file() {
             return Err(message(

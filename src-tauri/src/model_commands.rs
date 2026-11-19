@@ -104,6 +104,28 @@ pub async fn use_models(
     outcome
 }
 
+#[tauri::command]
+pub async fn verify_model_import(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    selection: Selection,
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let outcome = catalog::verify_imported_models(
+        &catalog::catalog(),
+        &state.db,
+        &selection,
+        &operation.cancellation(),
+        |progress| {
+            let _ = app.emit("model-download-progress", progress);
+        },
+    )
+    .await;
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    outcome
+}
+
 /// Creator drop-down: only activate an already verified local profile, without downloads.
 #[tauri::command]
 pub fn select_models(

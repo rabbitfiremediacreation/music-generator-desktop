@@ -98,7 +98,7 @@ export interface CatalogProfile {
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
   available: boolean; unavailable_reason?: string | null;
 }
@@ -107,7 +107,7 @@ export interface ActiveGenerationProfile {
   available: boolean; unavailable_reason?: string | null;
 }
 export interface CatalogModel {
-  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer"; family: string;
+  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer" | "config" | "license"; family: string;
   precision: string; estimated_bytes: number; sha256: string; recommended_steps: number | null; suggested_steps?: number | null;
   verified: boolean; present: boolean; partial_bytes: number;
   source?: { repository: string; revision: string; path: string } | null;
@@ -120,7 +120,7 @@ export interface ModelCatalog {
   basic_models: { synthesis: string[]; language: string[] };
   recommended_profiles: ModelSelection[];
   profiles?: CatalogProfile[];
-  providers: { id: string; name: string; status: "available" | "planned"; adapter: string | null; source: string }[];
+  providers: { id: string; name: string; status: "available" | "planned" | "preview"; adapter: string | null; source: string }[];
   selection: ModelSelection; hardware: Bootstrap["hardware"]; free_bytes: number | null;
   model_profiles?: Record<string, ModelSelection>;
   models_dir: string; busy: boolean;

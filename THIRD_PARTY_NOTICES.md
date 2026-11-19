@@ -24,3 +24,8 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 
 - llama.cpp v0.7.0 (MIT): https://github.com/ggml-org/llama.cpp. The statically linked CPU-only `music-title` helper uses the pinned source revision and archive checksum in `models/title-model.json`. Its runtime checksums and build recipe are in `engine/title/TITLE_RUNTIME.json`; the llama.cpp/ggml and nlohmann/json MIT license texts accompany the helper.
 - Qwen3-0.6B-GGUF (Apache-2.0): https://huggingface.co/Qwen/Qwen3-0.6B-GGUF. Model weights are downloaded separately to the selected model folder, never fetched by the inference helper. The exact Q8 model revision, byte size and SHA-256 are pinned in `models/title-model.json`. Upstream license: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/LICENSE.
+
+## MiniMax-Music3 development profile
+
+- The local adapter targets audio.cpp v0.9.4 by ShugoAI LLC under Apache-2.0. [Runtime release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4) · [Runtime license](https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE)
+- The separately acquired MiniMax-Music3 GGUF weights retain the MiniMax-Music3 Community License and Acceptable Use Policy. The publisher's `LICENSE` accompanies the verified model set. The third-party release decision is pending. [Pinned GGUF weights](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/tree/46fe77f8bb395ccdbe797d784225f7b84866e7ce) · [Model license](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/blob/46fe77f8bb395ccdbe797d784225f7b84866e7ce/LICENSE) · [Distribution notes](docs/qa/issue-129/README.md)

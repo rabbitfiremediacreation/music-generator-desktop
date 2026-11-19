@@ -138,6 +138,7 @@ impl Catalog {
     ) -> Result<()> {
         self.required(selection)?;
         if let Some(profile) = self.profile(selection) {
+            profile.ensure_released()?;
             if let Some(hardware) = hardware {
                 profile.platform(hardware)?;
             }
@@ -191,7 +192,7 @@ impl Catalog {
             if profile.files.is_empty()
                 || !self.providers.iter().any(|provider| {
                     provider.id == selection.provider
-                        && provider.status == "available"
+                        && matches!(provider.status.as_str(), "available" | "preview")
                         && provider.adapter.is_some()
                 })
             {
@@ -301,14 +302,81 @@ pub async fn install_profile(
     let manual = catalog
         .profile(selection)
         .is_some_and(|profile| profile.acquisition == Acquisition::Manual);
-    if manual && models.iter().any(|model| !root.join(&model.file).is_file()) {
+    if manual {
+        verify_imported_files(root, &db.root, models, cancel, progress).await?;
+    } else {
+        download_profile_models(catalog, db, root, models, cancel, progress).await?;
+    }
+    if cancel.is_cancelled() {
+        return Err(crate::error::Error::Cancelled);
+    }
+    selection.apply(&mut settings)?;
+    db.save_settings(&settings)
+}
+
+/// Verify a manually acquired profile without changing the active selection or using the network.
+pub async fn verify_imported_models(
+    catalog: &Catalog,
+    db: &crate::db::Database,
+    selection: &Selection,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
+    if !catalog
+        .profile(selection)
+        .is_some_and(|profile| profile.acquisition == Acquisition::Manual)
+    {
+        return Err(message("This profile does not use manual acquisition"));
+    }
+    let settings = db.settings()?;
+    verify_imported_files(
+        Path::new(&settings.models_dir),
+        &db.root,
+        catalog.required(selection)?,
+        cancel,
+        progress,
+    )
+    .await
+}
+
+async fn verify_imported_files(
+    root: &Path,
+    data_root: &Path,
+    models: Vec<Asset>,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
+    if cancel.is_cancelled() {
+        return Err(crate::error::Error::Cancelled);
+    }
+    if models.iter().any(|model| !root.join(&model.file).is_file()) {
         return Err(message(
             "Place all imported model files in the model folder before verifying",
         ));
     }
-    if !manual {
-        tokio::fs::create_dir_all(root).await?;
+    let mut verifier = ModelVerifier::open(data_root);
+    for model in models {
+        crate::download::verify_model(
+            &root.join(&model.file),
+            &model.download(),
+            &mut verifier,
+            cancel,
+            &progress,
+        )
+        .await?;
     }
+    Ok(())
+}
+
+async fn download_profile_models(
+    catalog: &Catalog,
+    db: &crate::db::Database,
+    root: &Path,
+    models: Vec<Asset>,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
+    tokio::fs::create_dir_all(root).await?;
     let missing: u64 = models
         .iter()
         .filter(|m| !root.join(&m.file).is_file())
@@ -331,16 +399,7 @@ pub async fn install_profile(
     let mut verifier = ModelVerifier::open(&db.root);
     for model in models {
         let pinned = model.download();
-        if manual {
-            crate::download::verify_model(
-                &root.join(&model.file),
-                &pinned,
-                &mut verifier,
-                cancel,
-                &progress,
-            )
-            .await?;
-        } else if let Some(source) = &model.source {
+        if let Some(source) = &model.source {
             crate::download::download_pinned_model(
                 &client,
                 &source.url(),
@@ -364,11 +423,7 @@ pub async fn install_profile(
             .await?;
         }
     }
-    if cancel.is_cancelled() {
-        return Err(crate::error::Error::Cancelled);
-    }
-    selection.apply(&mut settings)?;
-    db.save_settings(&settings)
+    Ok(())
 }
 
 /// Conservative weight footprint plus runtime/OS headroom; duration can require more.

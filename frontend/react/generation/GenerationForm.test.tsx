@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa } from "../models/model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMiniMax } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -83,6 +83,27 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+it("passes the MiniMax description and lyrics through and labels its duration control", async () => {
+  const minimax = catalogWithMiniMax().profiles![0];
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: minimax.capabilities };
+  mount({ selection: minimax.selection });
+  const description = await screen.findByRole("textbox", { name: "Strukturierte Beschreibung" });
+  expect(screen.getByText("MiniMax-Music3")).toBeTruthy();
+  const prompt = "Global Metadata: folk\nVocal Details: warm\nArrangement: strings";
+  const lyrics = "[Verse]\nWe follow starlight";
+  fireEvent.change(description, { target: { value: prompt } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: lyrics } });
+  const duration = screen.getByRole("slider", { name: "Länge" });
+  expect(duration.getAttribute("title")).toContain("Generierungsbudget");
+  fireEvent.change(duration, { target: { value: "180" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "314159" } });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(false);
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ prompt, lyrics, duration: 180, seed: 314159, variants: 1, instrumental: false, model_selection: minimax.selection });
+  expect(requests[0].inference_steps).toBeUndefined();
 });
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };

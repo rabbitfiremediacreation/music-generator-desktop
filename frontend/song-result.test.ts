@@ -2,7 +2,7 @@
 import { expect, it } from "vitest";
 import { I18N, setLang, t } from "./i18n.js";
 import { LANGS } from "./locales";
-import { audioTime, songDuration, songDurationWarning, songIterations } from "./song-result";
+import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songWavFormat } from "./song-result";
 import "./song-result-i18n";
 
 it("uses locally verified effective steps and bounds only the requested fallback without changing stored history", () => {
@@ -42,6 +42,20 @@ it("uses whole-second player formatting while retaining exact measured audio dur
   expect(songDuration(song)).toBe(29.8);
   expect(audioTime(songDuration(song)!)).toBe("0:29");
   expect(audioTime(59.8)).toBe("0:59");
+});
+
+it("uses measured WAV parameters without filling in missing or malformed values", () => {
+  const format = { container: "wav", encoding: "pcm", sample_rate_hz: 44100, channels: 2, bits_per_sample: 16 };
+  expect(songWavFormat({ result_meta: { audio_format: format } })).toEqual({ sampleRateHz: 44100, channels: 2, bitsPerSample: 16 });
+  for (const value of [null, [], { ...format, encoding: "unknown" }, { ...format, sample_rate_hz: "44100" }, { ...format, channels: 0 }, { ...format, bits_per_sample: 16.5 }]) {
+    expect(songWavFormat({ result_meta: { audio_format: value } })).toBeNull();
+  }
+});
+
+it("labels songs from recorded generation provenance", () => {
+  expect(songMachineGeneratedBy({ result_meta: { machine_generated: true, generated_by: "MiniMax-Music3" } })).toBe("MiniMax-Music3");
+  expect(songMachineGeneratedBy({ result_meta: { generated_by: "MiniMax-Music3" } })).toBeNull();
+  expect(songMachineGeneratedBy({ result_meta: { machine_generated: true, generated_by: "   " } })).toBeNull();
 });
 
 it("renders only valid backend warnings coherent with measured audio, without adding its own materiality threshold", () => {

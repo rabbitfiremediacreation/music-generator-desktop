@@ -8,6 +8,7 @@ use std::{
     time::SystemTime,
 };
 mod wav;
+pub(crate) use wav::WavFacts;
 
 #[derive(PartialEq, Eq)]
 struct Signature {
@@ -20,7 +21,11 @@ struct Cached {
 }
 
 pub fn duration(audio: &[u8]) -> Result<f64> {
-    wav::duration(&mut Cursor::new(audio))
+    Ok(wav_facts(audio)?.duration_seconds)
+}
+
+pub(crate) fn wav_facts(audio: &[u8]) -> Result<WavFacts> {
+    wav::facts(&mut Cursor::new(audio))
 }
 
 pub fn tolerance(requested: f64) -> f64 {
@@ -103,7 +108,7 @@ pub(crate) fn file_duration(path: &Path) -> Result<f64> {
     let seconds = if let Some(seconds) = cached {
         seconds
     } else {
-        let seconds = wav::duration(&mut std::fs::File::open(path)?)?;
+        let seconds = wav::facts(&mut std::fs::File::open(path)?)?.duration_seconds;
         let mut cache = cache.lock().unwrap();
         if cache.len() >= 1024 {
             cache.clear();

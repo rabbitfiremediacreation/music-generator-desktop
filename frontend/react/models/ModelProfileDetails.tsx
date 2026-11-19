@@ -16,7 +16,10 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
         <dt>{t(`provider_source_${source.role}`)}</dt>
         <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink></dd>
       </div>)}
-      <div><dt>{t("provider_model_use")}</dt><dd>{t(profile.usage.model_use)}</dd></div>
+      <div><dt>{t("provider_model_use")}</dt><dd>
+        {t(profile.usage.model_use)}
+        {profile.usage.policy_url && <> · <ProfileLink url={profile.usage.policy_url}>{t("provider_usage_policy")}</ProfileLink></>}
+      </dd></div>
       <div><dt>{t("provider_redistribution")}</dt><dd>{t(profile.usage.redistribution)}</dd></div>
       <div><dt>{t("provider_outputs")}</dt><dd>{t(profile.usage.outputs)}</dd></div>
       <div><dt>{t("provider_acquisition")}</dt><dd>{t(profile.acquisition === "manual" ? "provider_manual_hint" : "provider_download_hint")}</dd></div>
