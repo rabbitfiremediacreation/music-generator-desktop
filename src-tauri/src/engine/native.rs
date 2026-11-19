@@ -47,7 +47,7 @@ impl WavJob<'_> {
         )?;
         let started = Instant::now();
         let mut elapsed = None;
-        loop {
+        let runtime_seconds = loop {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
@@ -64,13 +64,13 @@ impl WavJob<'_> {
                         self.log_name
                     )));
                 }
-                break;
+                break started.elapsed().as_secs_f64();
             }
             let seconds = started.elapsed().as_secs();
             if elapsed != Some(seconds) {
                 progress(Progress {
                     elapsed_seconds: seconds,
-                    ..Progress::new("generation")
+                    ..Progress::new("synth")
                 });
                 elapsed = Some(seconds);
             }
@@ -78,14 +78,14 @@ impl WavJob<'_> {
                 _ = cancel.cancelled() => return Err(Error::Cancelled),
                 _ = tokio::time::sleep(Duration::from_millis(200)) => {}
             }
-        }
+        };
         let audio = tokio::select! {
             _ = cancel.cancelled() => return Err(Error::Cancelled),
             audio = tokio::fs::read(&output) => audio?,
         };
         let seconds = audio_facts::duration(&audio)?;
         let mut meta = json!({
-            "runtime_seconds": started.elapsed().as_secs_f64(),
+            "runtime_seconds": runtime_seconds,
             "backend": self.backend,
             "seed": params["seed"],
         });

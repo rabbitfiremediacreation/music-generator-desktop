@@ -84,6 +84,7 @@ export interface ModelSelection { provider: string; synthesis: string; language:
 export interface ModelAbilities {
   min_duration: number; max_duration: number; max_variants: number;
   prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
+  style_description?: boolean;
   bpm: boolean; advanced: boolean; analysis: boolean;
   max_seed?: number;
 }
@@ -93,13 +94,15 @@ export interface ProfileSource {
 export interface ProfilePlatform {
   os: string; arch: string; backend: string; minimum_ram_bytes: number; minimum_vram_bytes?: number | null;
 }
+interface ProfileRuntimeComponent { name: string; revision: string; source: string; license: string; license_url: string }
 export interface CatalogProfile {
   selection: ModelSelection; name: string; files: string[]; capabilities: ModelAbilities;
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
-  runtime: { name: string; revision: string; source: string; license: string; license_url: string };
-  usage: { model_use: string; redistribution: string; outputs: string };
+  runtime: ProfileRuntimeComponent & { components?: ProfileRuntimeComponent[] };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string; noncommercial_evaluation?: boolean };
   platforms: ProfilePlatform[];
+  evaluation_platforms?: ProfilePlatform[];
   available: boolean; unavailable_reason?: string | null;
 }
 export interface ActiveGenerationProfile {

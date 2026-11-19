@@ -2,10 +2,10 @@ import { expect, it } from "vitest";
 import title from "../models/title-model.json";
 import { modelOptions, profile } from "./model-options";
 import type { ModelCatalog, ModelSelection } from "./types";
-import { catalogWithHeartMuLa } from "./react/models/model-fixtures";
+import { catalogWithDiffRhythm2 } from "./react/models/model-fixtures";
 
 function catalog(): ModelCatalog {
-  const data = catalogWithHeartMuLa();
+  const data = catalogWithDiffRhythm2();
   return { ...data, title_model: {...title.model,verified:false,present:false,partial_bytes:0}, recommended_profiles: [selection()], models: data.models.map(m => ({ ...m, present: false, verified: false, partial_bytes: 0 })), selection: selection(), hardware: { ram_bytes: 8 * 1024 ** 3, gpu: "CPU", vram_bytes: null, recommended_lm: "0.6B", vae_chunk: 256, platform: "macos", cpu_only: true }, free_bytes: 50 * 1024 ** 3 };
 }
 function selection(): ModelSelection { return { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "acestep-5Hz-lm-0.6B-Q8_0.gguf" }; }
@@ -38,15 +38,15 @@ it("includes base dependencies, resumed bytes and verification in download readi
   expect(profile(c, s).verified).toBe(true);
 });
 
-it("shows the pinned HeartMuLa files but rejects arbitrary model paths and unavailable profiles", () => {
+it("shows the pinned DiffRhythm files while keeping unavailable profiles and arbitrary paths inactive", () => {
   const c = catalog();
   const removed = { provider: "heartmula", synthesis: "heartmula-q8_0.gguf", language: "" };
   expect(profile(c, removed).valid).toBe(false);
   expect(modelOptions(c, removed, "synthesis", false)).toHaveLength(0);
   expect(profile(c, { ...selection(), synthesis: "../model.gguf" }).valid).toBe(false);
-  const heartmula = c.profiles!.find(item => item.selection.provider === "heartmula")!;
-  expect(profile(c, heartmula.selection).models.map(model => model.file)).toEqual(heartmula.files);
-  expect(profile(c, heartmula.selection).valid).toBe(false);
+  const diffrhythm = c.profiles!.find(item => item.selection.provider === "diffrhythm2")!;
+  expect(profile(c, diffrhythm.selection).models.map(model => model.file)).toEqual(diffrhythm.files);
+  expect(profile(c, diffrhythm.selection).valid).toBe(false);
 });
 
 it("provides turbo's eight steps without changing the caller's selection", () => {

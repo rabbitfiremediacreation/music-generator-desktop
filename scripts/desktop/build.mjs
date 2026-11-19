@@ -4,8 +4,10 @@ import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
 import { recordTitle } from "./prepare-title.mjs";
+import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, prepareDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
+const experimental = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, desktop);
 await prepareEngine(); await verifyEngine(engineFolder);
 const output = path.join(root, "release"); await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await (await import("node:fs/promises")).readFile(path.join(root,"package.json"),"utf8"));
@@ -84,11 +86,17 @@ if (platform === "macos") {
   await run("tar.exe",["-a","-cf",artifact,"-C",output,path.basename(portable)]);
   await rm(portable,{recursive:true,force:true});
 } else {
-  await run(process.execPath,[cli,"build","--bundles","appimage"]);
-  const folder = path.join(target,"bundle/appimage"); const file = (await readdir(folder)).find(n=>n.endsWith(".AppImage"));
-  if (!file) throw new Error("AppImage was not generated");
-  artifact = path.join(output,`${name}-${desktop.artifactSuffix}`);
-  await finalizeLinux(path.join(folder,file), artifact, engineFolder);
+  const runtime = experimental ? await prepareDiffRhythm2() : undefined;
+  try {
+    await run(process.execPath,[cli,"build","--bundles","appimage"]);
+    const folder = path.join(target,"bundle/appimage"); const file = (await readdir(folder)).find(n=>n.endsWith(".AppImage"));
+    if (!file) throw new Error("AppImage was not generated");
+    const suffix = experimental ? diffrhythm2ArtifactSuffix : desktop.artifactSuffix;
+    artifact = path.join(output,`${name}-${suffix}`);
+    await finalizeLinux(path.join(folder,file), artifact, engineFolder, runtime?.folder);
+  } finally {
+    await runtime?.cleanup();
+  }
 }
 artifacts.push(artifact);
 for (const file of artifacts) {

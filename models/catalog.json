@@ -29,6 +29,13 @@
       "status": "available",
       "adapter": "acestep.cpp",
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
+    },
+    {
+      "id": "diffrhythm2",
+      "name": "DiffRhythm 2",
+      "status": "available",
+      "adapter": "diffrhythm2",
+      "source": "https://github.com/ASLP-lab/DiffRhythm2"
     }
   ],
   "models": [
@@ -651,6 +658,307 @@
       "estimated_bytes": 337420928,
       "sha256": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
       "recommended_steps": null
+    },
+    {
+      "file": "diffrhythm2/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "diffrhythm2",
+      "precision": "F32",
+      "estimated_bytes": 4545024856,
+      "sha256": "a3745f77199eef0615e3ec21288663f9c6b3234078b62c9be8ad040061fc921e",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "diffrhythm2",
+      "precision": "JSON",
+      "estimated_bytes": 262,
+      "sha256": "606d6392fdd00398d36373574b4990199580ec7dcc0bd82903a1ff00de82c249",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/decoder.bin",
+      "provider": "diffrhythm2",
+      "role": "codec",
+      "family": "diffrhythm2",
+      "precision": "PyTorch",
+      "estimated_bytes": 523071584,
+      "sha256": "9ec403c3e8b9ef59f4adbb6d4e4a930f2a1c2d88ff488329fed74e04f15d1cfb",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "decoder.bin"
+      }
+    },
+    {
+      "file": "diffrhythm2/decoder.json",
+      "provider": "diffrhythm2",
+      "role": "codec",
+      "family": "diffrhythm2",
+      "precision": "JSON",
+      "estimated_bytes": 544,
+      "sha256": "3d96454939a75879b2a8911826ab7371f91e7245d01de858250e92c90520a3b5",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "decoder.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/mulan/pytorch_model.bin",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq-mulan-large",
+      "precision": "PyTorch",
+      "estimated_bytes": 2653954401,
+      "sha256": "d42ae3f7cb9b66759ee0089ddc70e2f28b130c2d8ba621457358272d32dd0444",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-MuLan-large",
+        "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+        "path": "pytorch_model.bin"
+      }
+    },
+    {
+      "file": "diffrhythm2/mulan/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq-mulan-large",
+      "precision": "JSON",
+      "estimated_bytes": 847,
+      "sha256": "8fefc545ef87ecd9bcde7417dd03464370c48c321f36dcff20266a752079e468",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-MuLan-large",
+        "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/muq/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq",
+      "precision": "JSON",
+      "estimated_bytes": 3133,
+      "sha256": "237335ee27d8fb951ce778701a12a79e06c51ae636dd786f97e45f51ce532543",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-large-msd-iter",
+        "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/muq/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq",
+      "precision": "F32",
+      "estimated_bytes": 1333825096,
+      "sha256": "273febab2be02872c37d2c37e48a9d6c52c1c9392f3eeeabd498efa281ccb7a6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-large-msd-iter",
+        "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 615,
+      "sha256": "d66ed8cd4f2a93b358c245e50736fa389ed4f35c0bae7aad0b32abb20c62b579",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "xlm-roberta",
+      "precision": "F32",
+      "estimated_bytes": 1115567652,
+      "sha256": "6fd4797bc397c3b8b55d6bb5740366b57e6a3ce91c04c77f22aafc0c128e6feb",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/tokenizer.json",
+      "provider": "diffrhythm2",
+      "role": "tokenizer",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 9096718,
+      "sha256": "a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/tokenizer_config.json",
+      "provider": "diffrhythm2",
+      "role": "tokenizer",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 25,
+      "sha256": "994f46754c5bf4014f1aa92d34b1374319c3a6b3f702105cd5b742beaecd18ce",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "tokenizer_config.json"
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "selection": {
+        "provider": "diffrhythm2",
+        "synthesis": "diffrhythm2/model.safetensors",
+        "language": ""
+      },
+      "name": "DiffRhythm 2",
+      "files": [
+        "diffrhythm2/model.safetensors",
+        "diffrhythm2/config.json",
+        "diffrhythm2/decoder.bin",
+        "diffrhythm2/decoder.json",
+        "diffrhythm2/mulan/pytorch_model.bin",
+        "diffrhythm2/mulan/config.json",
+        "diffrhythm2/muq/config.json",
+        "diffrhythm2/muq/model.safetensors",
+        "diffrhythm2/xlm-roberta/config.json",
+        "diffrhythm2/xlm-roberta/model.safetensors",
+        "diffrhythm2/xlm-roberta/tokenizer.json",
+        "diffrhythm2/xlm-roberta/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 210,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "style_description": true,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "DiffRhythm 2 (PyTorch CUDA)",
+        "revision": "7804f821b797b4f276090e1a9dcd37e97d9915d5",
+        "source": "https://github.com/ASLP-lab/DiffRhythm2/tree/7804f821b797b4f276090e1a9dcd37e97d9915d5",
+        "license": "Apache-2.0",
+        "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "executable": "engine/diffrhythm2/diffrhythm2-synth",
+        "components": [
+          {
+            "name": "eSpeak NG",
+            "revision": "1.52.0",
+            "source": "https://github.com/espeak-ng/espeak-ng/tree/4870adfa25b1a32b4361592f1be8a40337c58d6c",
+            "license": "GPL-3.0-or-later",
+            "license_url": "https://www.gnu.org/licenses/gpl-3.0.html"
+          },
+          {
+            "name": "phonemizer",
+            "revision": "3.3.0",
+            "source": "https://github.com/bootphon/phonemizer/tree/v3.3.0",
+            "license": "GPL-3.0-or-later",
+            "license_url": "https://www.gnu.org/licenses/gpl-3.0.html"
+          },
+          {
+            "name": "PyTorch CUDA 12.6",
+            "revision": "2.7.0",
+            "source": "https://github.com/pytorch/pytorch/tree/v2.7.0",
+            "license": "BSD-3-Clause",
+            "license_url": "https://github.com/pytorch/pytorch/blob/v2.7.0/LICENSE"
+          }
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "diffrhythm2",
+          "role": "weights",
+          "repository": "ASLP-lab/DiffRhythm2",
+          "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        {
+          "id": "muq-mulan-large",
+          "role": "dependency",
+          "repository": "OpenMuQ/MuQ-MuLan-large",
+          "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+        },
+        {
+          "id": "muq",
+          "role": "dependency",
+          "repository": "OpenMuQ/MuQ-large-msd-iter",
+          "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+        },
+        {
+          "id": "xlm-roberta",
+          "role": "dependency",
+          "repository": "FacebookAI/xlm-roberta-base",
+          "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+          "license": "MIT",
+          "license_url": "https://opensource.org/license/mit"
+        }
+      ],
+      "usage": {
+        "model_use": "Experimental local profile for noncommercial evaluation. Use English or Mandarin lyrics and a style description. The files are publicly available from Hugging Face.",
+        "redistribution": "Preserve the Apache-2.0 notices. Share the OpenMuQ weights only noncommercially, with attribution and the CC BY-NC 4.0 terms.",
+        "outputs": "Mono WAV. Check musical originality, disclose AI involvement, and obtain permission to adapt protected styles as requested by the publisher.",
+        "noncommercial_evaluation": true,
+        "policy_url": "https://huggingface.co/ASLP-lab/DiffRhythm2/blob/9aa15742e4889c0eb2e198db6fdab1facf1b6761/README.md#license--disclaimer"
+      },
+      "platforms": [],
+      "acquisition": "download",
+      "evaluation_platforms": [
+        {
+          "os": "linux",
+          "arch": "x86_64",
+          "backend": "cuda",
+          "minimum_ram_bytes": 0,
+          "minimum_vram_bytes": null
+        }
+      ]
     }
   ]
 }

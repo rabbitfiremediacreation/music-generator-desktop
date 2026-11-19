@@ -43,12 +43,18 @@ pub fn validate_request(
     }
     if !capabilities.prompt {
         if !request.prompt.trim().is_empty() || !request.caption.trim().is_empty() {
-            return Err(message(
-                "This model accepts style tags instead of prompts or captions",
-            ));
+            return Err(message(if capabilities.style_description {
+                "This model accepts a style description in the Style field"
+            } else {
+                "This model accepts style tags instead of prompts or captions"
+            }));
         }
         if !request.style.split(',').any(|tag| !tag.trim().is_empty()) {
-            return Err(message("Enter at least one style tag"));
+            return Err(message(if capabilities.style_description {
+                "Enter a style description for this model"
+            } else {
+                "Enter at least one style tag"
+            }));
         }
     }
     if request.instrumental && !capabilities.instrumental {
@@ -79,13 +85,11 @@ pub fn validate_request(
     if !capabilities.advanced {
         if request.style.len() + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Style tags and lyrics must total at most 8 KiB of UTF-8 text",
+                "Style and lyrics must total at most 8 KiB of UTF-8 text",
             ));
         }
         if request.style.contains('\0') || request.lyrics.contains('\0') {
-            return Err(message(
-                "Style tags and lyrics cannot contain NUL characters",
-            ));
+            return Err(message("Style and lyrics cannot contain NUL characters"));
         }
     }
     Ok(())

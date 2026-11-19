@@ -13,11 +13,12 @@ export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, reco
   models: source.models.filter(model => model.provider === "ace-step").map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: true, present: true, partial_bytes: 0 })),
 };
 
-export function catalogWithHeartMuLa(): ModelCatalog {
+export function catalogWithDiffRhythm2(): ModelCatalog {
   return {
     ...structuredClone(catalogFixture),
     providers: source.providers.map(provider => ({ ...provider, status: "available" })),
-    profiles: source.profiles.map(profile => ({ ...profile, platforms: [], available: false, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    profiles: source.profiles.filter(profile => profile.selection.provider === "diffrhythm2")
+      .map(profile => ({ ...profile, available: false, acquisition: "download" })),
     models: source.models.map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }
