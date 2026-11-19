@@ -11,6 +11,15 @@ pub enum CpuIterationBehavior {
     Continue,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateStream {
+    #[default]
+    Stable,
+    Daily,
+    Develop,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -23,6 +32,7 @@ pub struct Settings {
     pub dit: String,
     pub lm_device: String,
     pub export_format: String,
+    pub update_stream: UpdateStream,
     pub expert_mode: bool,
     pub cpu_iteration_behavior: CpuIterationBehavior,
     pub poll_interval: f64,
@@ -45,6 +55,7 @@ impl Default for Settings {
             dit: "standard".into(),
             lm_device: "auto".into(),
             export_format: "wav".into(),
+            update_stream: UpdateStream::Stable,
             expert_mode: false,
             cpu_iteration_behavior: CpuIterationBehavior::Ask,
             poll_interval: 1.5,

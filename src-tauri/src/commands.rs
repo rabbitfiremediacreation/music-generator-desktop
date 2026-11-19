@@ -519,8 +519,15 @@ pub async fn export_file(
 }
 
 #[tauri::command]
-pub async fn check_update() -> Result<Value> {
-    crate::updates::check().await
+pub async fn check_update(
+    state: Desktop<'_>,
+    stream: Option<crate::types::UpdateStream>,
+) -> Result<Value> {
+    let stream = match stream {
+        Some(stream) => stream,
+        None => state.db.settings()?.update_stream,
+    };
+    crate::updates::check(stream).await
 }
 
 #[tauri::command]

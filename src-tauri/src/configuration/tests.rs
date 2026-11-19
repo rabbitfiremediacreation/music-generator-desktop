@@ -704,3 +704,42 @@ async fn cpu_decision_can_be_saved_together_with_regular_settings() {
         "limit_30"
     );
 }
+
+#[tokio::test]
+async fn update_stream_defaults_to_stable_and_survives_reopening() {
+    use crate::types::UpdateStream;
+
+    let library = Library::new();
+    library
+        .db
+        .lock()
+        .execute("DELETE FROM settings WHERE key = 'update_stream'", [])
+        .unwrap();
+    assert_eq!(
+        library.db.settings().unwrap().update_stream,
+        UpdateStream::Stable
+    );
+
+    let operation = library
+        .state
+        .runtime
+        .try_begin(OperationKind::Generation)
+        .unwrap();
+    let result = save(
+        library.state.clone(),
+        SettingsPatch {
+            update_stream: Some(UpdateStream::Daily),
+            ..Default::default()
+        },
+        |_| panic!("Changing the update stream needs no folder authorization"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.update_stream, UpdateStream::Daily);
+    drop(operation);
+    let reopened = Database::open(library.root.path()).unwrap();
+    assert_eq!(
+        reopened.settings().unwrap().update_stream,
+        UpdateStream::Daily
+    );
+}
