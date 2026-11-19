@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa } from "../models/model-fixtures";
+import { catalogWithHeartMuLa, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -83,6 +83,26 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it.each([120, 380])("submits a Stable Audio prompt and a duration limited to %s seconds", async max => {
+  const profile = catalogWithStableAudio().profiles!.find(item => item.capabilities.max_duration === max)!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };
+  mount({ selection: profile.selection });
+  const generate = await screen.findByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
+  const duration = screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement;
+  expect(duration.max).toBe(String(max));
+  fireEvent.change(duration, { target: { value: String(max) } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Slow jazz piano" } });
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({
+    model_selection: profile.selection, duration: max, prompt: "Slow jazz piano",
+    instrumental: true, lyrics: "", variants: 1,
+  });
 });
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };

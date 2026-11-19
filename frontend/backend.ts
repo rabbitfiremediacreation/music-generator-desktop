@@ -25,6 +25,7 @@ export const backend = {
   downloadTitleModel: () => command<void>("download_title_model"),
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),
+  verifyImportedModels: (selection: ModelSelection) => command<void>("verify_imported_models", { selection }),
   cancelModelDownload: () => command<void>("cancel_model_download"),
   previewImport: (request: ImportRequest) => command<ImportPreview>("preview_import", { request }),
   previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),

@@ -13,9 +13,19 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
   const invalidate = () => invalidateModels(client);
   const install = useMutation({
     mutationKey: ["models", "install"], networkMode: "always",
-    mutationFn: async ({ next }: { next: ModelSelection; before: number }) => backend.useModels(next),
+    mutationFn: async ({ next, verifyOnly }: { next: ModelSelection; before: number; verifyOnly: boolean }) => {
+      if (verifyOnly) {
+        await backend.verifyImportedModels(next);
+        return null;
+      }
+      return backend.useModels(next);
+    },
     onMutate: () => { setMessage(""); client.setQueryData(["models", "progress"], null); },
-    onSuccess: async (selected, { before }) => { onUse(selected, before); setMessage("picker_selected"); await invalidate(); },
+    onSuccess: async (selected, { before }) => {
+      if (selected) onUse(selected, before);
+      setMessage(selected ? "picker_selected" : "provider_import_verified");
+      await invalidate();
+    },
     onError: invalidate,
   });
   const title = useMutation({
@@ -24,9 +34,9 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
     onSuccess: async () => { setMessage("picker_selected"); await invalidate(); }, onError: invalidate,
   });
   const cancel = useMutation({ mutationFn: backend.cancelModelDownload, networkMode: "always" });
-  function apply() {
+  function apply(verifyOnly: boolean) {
     const next = draft || catalog.data?.selection;
-    if (next && !busy) install.mutate({ next, before: selectionRevision });
+    if (next && !busy) install.mutate({ next, before: selectionRevision, verifyOnly });
   }
   return { catalog, settings, draft: draft || catalog.data?.selection, setDraft, busy, install, title, cancel, apply, message, setMessage };
 }

@@ -9,6 +9,7 @@ pub mod native;
 pub mod process;
 pub mod progress;
 mod response;
+pub(crate) mod stable_audio;
 use crate::{
     error::{message, Error, Result},
     types::Settings,

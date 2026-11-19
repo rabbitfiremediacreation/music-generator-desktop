@@ -147,6 +147,18 @@ impl AppState {
                 )
                 .await
             }
+            "stable-audio-3" => {
+                crate::engine::stable_audio::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             _ => Err(message(
                 "This model provider has no native generation adapter",
             )),

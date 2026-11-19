@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithStableAudio } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -40,6 +40,58 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows the Stable Audio conditions and verifies imported files without activating an untested profile", async () => {
+  const catalog = catalogWithStableAudio();
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    if (name === "verify_imported_models") {
+      for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.verified = true;
+      return;
+    }
+    return invoke(name, args);
+  });
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expect(dialog.getByText(/Stimme den Bedingungen auf der offiziellen Hugging-Face-Modellseite zu/)).toBeTruthy();
+  expect(dialog.getByText(/Powered by Stability AI/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Bezugsbedingungen auf Hugging Face prüfen" }).getAttribute("href")).toBe("https://huggingface.co/stabilityai/stable-audio-3-small-music");
+  expect(dialog.getByRole("link", { name: "Gemma Terms of Use" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "stabilityai/stable-audio-3-optimized" })).toBeTruthy();
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Importierte Dateien prüfen" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection: small.selection }));
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("refreshes locally imported Stable Audio files and activates the supported profile in basic mode", async () => {
+  const catalog = catalogWithStableAudio(true);
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  catalog.hardware.ram_bytes = small.platforms[0].minimum_ram_bytes;
+  const recommended_profiles = [standard, small.selection];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  const activate = dialog.getByRole("button", { name: "Importierte Dateien prüfen und verwenden" }) as HTMLButtonElement;
+  expect(activate.disabled).toBe(true);
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(activate.disabled).toBe(false));
+  fireEvent.click(activate);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: small.selection }));
+  await waitFor(() => expect(screen.getByLabelText("selection").textContent).toBe(small.selection.synthesis));
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {
