@@ -124,12 +124,24 @@ impl AppState {
 
     async fn generate_native(
         &self,
-        _settings: &Settings,
-        _selection: &crate::catalog::Selection,
-        _params: &serde_json::Value,
-        _cancel: &tokio_util::sync::CancellationToken,
-        _progress: impl Fn(crate::engine::progress::Progress),
+        settings: &Settings,
+        selection: &crate::catalog::Selection,
+        params: &serde_json::Value,
+        cancel: &tokio_util::sync::CancellationToken,
+        progress: impl Fn(crate::engine::progress::Progress),
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
+        if selection.provider == "audiocraft" {
+            return crate::engine::audiocraft::generate(
+                &self.resources,
+                &self.db.root,
+                settings,
+                selection,
+                params,
+                cancel,
+                progress,
+            )
+            .await;
+        }
         Err(message(
             "This model provider has no native generation adapter",
         ))

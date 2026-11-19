@@ -9,6 +9,21 @@ pub const MAX_INFERENCE_STEPS: u32 = 200;
 pub(crate) const LEGACY_INFERENCE_STEPS_LIMIT: u32 = 100;
 const MAX_NATIVE_TEXT_BYTES: usize = 8 * 1024;
 
+pub(crate) fn caption(request: &GenerateRequest) -> String {
+    let parts = [request.style.as_str(), request.prompt.as_str()];
+    let caption = parts
+        .into_iter()
+        .map(|text| text.trim().trim_matches(','))
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if caption.is_empty() {
+        request.caption.trim().into()
+    } else {
+        caption
+    }
+}
+
 /// Validate the profile-specific request shape before saving or resubmitting a job.
 pub fn validate_request(
     request: &GenerateRequest,
@@ -52,7 +67,11 @@ pub fn validate_request(
         }
     }
     if request.instrumental && !capabilities.instrumental {
-        return Err(message("This model requires a vocal song"));
+        return Err(message(if capabilities.lyrics_required {
+            "This model requires a vocal song"
+        } else {
+            "This model does not support the instrumental control"
+        }));
     }
     if !capabilities.lyrics && !request.lyrics.trim().is_empty() {
         return Err(message("This model does not support lyrics"));
@@ -77,15 +96,19 @@ pub fn validate_request(
         ));
     }
     if !capabilities.advanced {
-        if request.style.len() + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+        let caption = caption(request);
+        let text = if capabilities.prompt {
+            [caption.as_str(), ""]
+        } else {
+            [request.style.as_str(), request.lyrics.as_str()]
+        };
+        if text.iter().map(|field| field.len()).sum::<usize>() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Style tags and lyrics must total at most 8 KiB of UTF-8 text",
+                "Generation text must total at most 8 KiB of UTF-8 text",
             ));
         }
-        if request.style.contains('\0') || request.lyrics.contains('\0') {
-            return Err(message(
-                "Style tags and lyrics cannot contain NUL characters",
-            ));
+        if text.iter().any(|field| field.contains('\0')) {
+            return Err(message("Generation text cannot contain NUL characters"));
         }
     }
     Ok(())

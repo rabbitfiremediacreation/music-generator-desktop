@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import source from "../../../models/catalog.json";
 import { I18nProvider } from "../i18n";
 import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
@@ -83,6 +84,20 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+it("submits a MAGNeT prompt at the checkpoint's fixed duration", async () => {
+  const profile = source.profiles.find(item => item.selection.synthesis === "magnet-small-30secs")!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };
+  mount({ selection: profile.selection });
+  await screen.findByText("30 Sekunden");
+  expect(screen.queryByRole("slider", { name: "Länge" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "instrumental funk" } });
+  fireEvent.submit(screen.getByRole("button", { name: "GENERIEREN" }).closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ model_selection: profile.selection, prompt: "instrumental funk",
+    duration: 30, variants: 1, lyrics: "", instrumental: false });
+  expect(requests[0].inference_steps).toBeUndefined();
 });
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };

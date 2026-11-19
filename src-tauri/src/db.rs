@@ -280,19 +280,7 @@ impl Database {
         {
             return Err(message("Invalid generation parameters"));
         }
-        let caption = [
-            req.style.trim().trim_matches(','),
-            req.prompt.trim().trim_matches(','),
-        ]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(", ");
-        let caption = if caption.is_empty() {
-            req.caption.trim().to_string()
-        } else {
-            caption
-        };
+        let caption = crate::generation_limits::caption(req);
         if caption.is_empty() {
             return Err(message("Please enter a prompt or style"));
         }

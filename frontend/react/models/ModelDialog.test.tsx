@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import source from "../../../models/catalog.json";
 import { setLang } from "../../i18n.js";
 import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
@@ -38,6 +39,36 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("lists both AudioCraft NC profiles and downloads only the one explicitly confirmed", async () => {
+  const catalog = structuredClone(catalogFixture);
+  catalog.providers.push(...source.providers.filter(provider => provider.id === "audiocraft")
+    .map(provider => ({ ...provider, status: "available" as const })));
+  const profiles = source.profiles.filter(profile => profile.selection.provider === "audiocraft");
+  const magnet = profiles.find(profile => profile.selection.synthesis === "magnet-small-30secs")!;
+  catalog.profiles = profiles.map(profile => ({ ...profile, platforms: [], available: true }));
+  catalog.models.push(...source.models.filter(model => model.provider === "audiocraft").map(model => ({
+    ...model, role: model.role as ModelCatalog["models"][number]["role"],
+    verified: false, present: false, partial_bytes: 0,
+  })));
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(await dialog.findByRole("button", { name: "MusicGen Small · CC BY-NC 4.0" })).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "MAGNeT Small 30s · CC BY-NC 4.0" }));
+  expect(dialog.getByRole("link", { name: "facebook/magnet-small-30secs" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "google-t5/t5-base" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen des Herausgebers" }).getAttribute("href")).toBe(magnet.usage.policy_url);
+  expect(dialog.getByText(/nichtkommerzielle Nutzung mit Namensnennung/)).toBeTruthy();
+  expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.queryByRole("link", { name: "facebook/musicgen-small" })).toBeNull();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  fireEvent.click(dialog.getByRole("button", { name: /Herunterladen und verwenden/i }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", {
+    selection: { provider: "audiocraft", synthesis: "magnet-small-30secs", language: "" },
+  }));
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {
