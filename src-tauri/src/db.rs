@@ -1,6 +1,6 @@
 use crate::{
     error::{message, Result},
-    types::{id, now, GenerateRequest, Settings, Song, SongFilter},
+    types::{id, now, GenerateRequest, Settings, Song, SongFilter, SongPage},
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
@@ -13,6 +13,11 @@ pub struct Database {
     connection: Mutex<Connection>,
     pub root: PathBuf,
 }
+
+const SONG_FILTER: &str = "FROM songs WHERE (?1='' OR title LIKE ?2 OR caption LIKE ?2 OR lyrics LIKE ?2)
+    AND (?3=0 OR favorite=1) AND (?4='' OR group_id=?4)
+    AND (?5='' OR (?5='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders))) OR folder_id=?5)
+    AND (?6='' OR id=?6)";
 
 impl Database {
     pub fn open(root: &Path) -> Result<Self> {
@@ -113,17 +118,65 @@ impl Database {
 
     pub fn songs(&self, filter: &SongFilter) -> Result<Vec<Song>> {
         let songs_dir = self.settings()?.songs_dir;
-        let con = self.lock();
-        let mut stmt = con.prepare("SELECT *, (SELECT COUNT(*) FROM songs older WHERE older.group_id=songs.group_id AND older.rowid<songs.rowid) AS variant_index, (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count FROM songs WHERE (?1='' OR title LIKE ?2 OR caption LIKE ?2 OR lyrics LIKE ?2) AND (?3=0 OR favorite=1) AND (?4='' OR group_id=?4) AND (?5='' OR (?5='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders))) OR folder_id=?5) AND (?6='' OR id=?6) ORDER BY created_at DESC,rowid DESC LIMIT 500")?;
+        let mut songs = Self::read_songs(&self.lock(), filter, &songs_dir, 500, 0)?;
+        Self::enrich_songs(&mut songs);
+        Ok(songs)
+    }
+
+    /// Count and read a page from the same snapshot, including when the offset is past the end.
+    pub fn song_page(&self, filter: &SongFilter, offset: u32, limit: u32) -> Result<SongPage> {
+        if !(1..=100).contains(&limit) {
+            return Err(message("Song page size must be between 1 and 100"));
+        }
+        let songs_dir = self.settings()?.songs_dir;
+        let (total, mut songs) = {
+            let mut con = self.lock();
+            let tx = con.transaction()?;
+            let search = format!("%{}%", filter.q);
+            let total = tx.query_row(
+                &format!("SELECT COUNT(*) {SONG_FILTER}"),
+                Self::song_filter_params(filter, &search),
+                |row| row.get(0),
+            )?;
+            let songs = Self::read_songs(&tx, filter, &songs_dir, limit, offset)?;
+            tx.commit()?;
+            (total, songs)
+        };
+        Self::enrich_songs(&mut songs);
+        Ok(SongPage { songs, total })
+    }
+
+    fn song_filter_params<'a>(
+        filter: &'a SongFilter,
+        search: &'a dyn rusqlite::ToSql,
+    ) -> [&'a dyn rusqlite::ToSql; 6] {
+        [
+            &filter.q,
+            search,
+            &filter.favorites,
+            &filter.group,
+            &filter.folder,
+            &filter.id,
+        ]
+    }
+
+    fn read_songs(
+        con: &Connection,
+        filter: &SongFilter,
+        songs_dir: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<Song>> {
+        let mut stmt = con.prepare_cached(&format!(
+            "SELECT *,
+                (SELECT COUNT(*) FROM songs older WHERE older.group_id=songs.group_id AND older.rowid<songs.rowid) AS variant_index,
+                (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count
+             {SONG_FILTER} ORDER BY created_at DESC,rowid DESC LIMIT ?7 OFFSET ?8"
+        ))?;
+        let search = format!("%{}%", filter.q);
+        let [q, pattern, favorites, group, folder, id] = Self::song_filter_params(filter, &search);
         let rows = stmt.query_map(
-            params![
-                filter.q,
-                format!("%{}%", filter.q),
-                filter.favorites,
-                filter.group,
-                filter.folder,
-                filter.id
-            ],
+            params![q, pattern, favorites, group, folder, id, limit, offset],
             |row| {
                 let file: Option<String> = row.get("file")?;
                 let audio_missing: bool = row.get("audio_missing")?;
@@ -148,7 +201,7 @@ impl Database {
                     path: file
                         .as_ref()
                         .filter(|_| !audio_missing)
-                        .and_then(|f| safe_song_path(Path::new(&songs_dir), f).ok())
+                        .and_then(|f| safe_song_path(Path::new(songs_dir), f).ok())
                         .map(|p| p.to_string_lossy().into()),
                     audio_missing,
                     file,
@@ -162,10 +215,11 @@ impl Database {
                 })
             },
         )?;
-        let mut songs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
-        drop(stmt);
-        drop(con);
-        for song in &mut songs {
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
+    fn enrich_songs(songs: &mut [Song]) {
+        for song in songs {
             if song.status != "done" {
                 continue;
             }
@@ -184,7 +238,6 @@ impl Database {
             }
             song.result_meta = Some(metadata);
         }
-        Ok(songs)
     }
 
     pub fn song(&self, sid: &str) -> Result<Song> {

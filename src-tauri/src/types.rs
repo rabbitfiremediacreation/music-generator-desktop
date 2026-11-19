@@ -147,6 +147,12 @@ pub struct SongFilter {
     pub folder: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SongPage {
+    pub songs: Vec<Song>,
+    pub total: u64,
+}
+
 pub fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }

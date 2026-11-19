@@ -28,7 +28,7 @@ beforeEach(()=>{
     if(name==="setup_estimate")return {missing_bytes:0,free_bytes:1000000};
     if(name==="setup_models")return {ok:true,mode:"single",backend_status:measuredBackend};
     if(name==="model_catalog")return {...source,selection:standard,expert_mode:false,recommended_profiles:[standard],hardware:setupFixture.hardware,free_bytes:null,models_dir:"/models",busy:false,title_model:{...setupFixture.title_model,verified:true,present:true,partial_bytes:0},models:source.models.map(model=>({...model,verified:true,present:true,partial_bytes:0}))};
-    if(name==="list_songs")return [];
+    if(name==="list_song_page")return {songs:[],total:0};
     if(name==="list_folders")return {folders:[],all:0,none:0};
     if(name==="queue")return {running:[],queued:0,active:false,progress:null,library:{count:0,bytes:0}};
     if(name==="health")return {ok:true};
@@ -51,11 +51,11 @@ async function mount(path="/"){
 it("keeps startup pending until the first library and saved form values are ready",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
   let finishPreferences!:(value:unknown)=>void,finishSongs!:(value:unknown)=>void;
-  mocks.invoke.mockImplementation((name,args)=>name==="get_generation_form_preferences"?new Promise(resolve=>{finishPreferences=resolve;}):name==="list_songs"?new Promise(resolve=>{finishSongs=resolve;}):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="get_generation_form_preferences"?new Promise(resolve=>{finishPreferences=resolve;}):name==="list_song_page"?new Promise(resolve=>{finishSongs=resolve;}):original(name,args));
   await mount();
   await waitFor(()=>expect(finishSongs).toBeTypeOf("function"));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
-  finishSongs([]);
+  finishSongs({songs:[],total:0});
   await screen.findByText("Nothing yet");
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
   finishPreferences({duration:60,bpm:0,inference_steps:30,lm_temperature:1.2,variants:1});
@@ -64,7 +64,7 @@ it("keeps startup pending until the first library and saved form values are read
 });
 it("reports a failed initial library snapshot without completing startup",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
-  mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.reject(new Error("database busy")):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="list_song_page"?Promise.reject(new Error("database busy")):original(name,args));
   await mount();await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_error",{attempt:1,error:"database busy"}));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
 });
@@ -171,7 +171,7 @@ it.each(["pending", "failed"])("keeps setup reachable when the model catalog is 
 it("can reapply the same song twice even when the system clock has not advanced",async()=>{
   firstRun=false;
   const original=mocks.invoke.getMockImplementation()!;
-  mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.resolve([{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}]):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="list_song_page"?Promise.resolve({songs:[{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}],total:1}):original(name,args));
   await mount();
   const reuse=await screen.findByRole("button",{name:"Copy settings to the form"});
   vi.spyOn(Date,"now").mockReturnValue(Date.now());

@@ -29,6 +29,10 @@ export const backend = {
   previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),
   importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
   songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(audioUrl),
+  songPage: async (filter: Filter, offset: number, limit: number) => {
+    const page = await command<import("./types").SongPage>("list_song_page", { filter, offset, limit });
+    return { ...page, songs: page.songs.map(audioUrl) };
+  },
   song: async (id: string) => audioUrl(await command<Song>("get_song", { id })),
   songAudio: async (id: string): Promise<ArrayBuffer> => {
     // Tauri's postMessage fallback returns a byte array instead of an ArrayBuffer.
