@@ -72,7 +72,7 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
       <label className="field"><span className="lbl">{t("picker_title")}</span><select id="creatorModel" value={chosen ? profileKey(chosen) : ""} disabled={settings.isPending || downloadBusy || !options.some(option => !option.disabled)} aria-describedby={recommendations.some(profile => profile.synthesis.includes("-xl-")) ? "currentModels" : "currentModels creatorXlRamHint"} onChange={event => choose(event.target.value)}>
         {!options.length && <option value="">{t("expert_no_recommendation")}</option>}{options.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select></label>
-      <span id="currentModels" className="small" role="status">{chosen ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
+      <span id="currentModels" className="small" role="status">{chosen?.language ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
       <button type="button" className="sek" onClick={() => onOpenManager ? onOpenManager(pending || chosen || null) : setOpen(true)}>{t("picker_choose")}</button>
     </div>
     {!recommendations.some(profile => profile.synthesis.includes("-xl-")) && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}

@@ -621,6 +621,57 @@ async fn audio_streams_with_ranges_and_downloads_as_attachment() {
 }
 
 #[tokio::test]
+async fn profile_and_generation_cancellation_are_authenticated() {
+    let f = Fixture::new().await;
+    let profile_path = "/api/generation-profile";
+    let unauthorized = f
+        .http
+        .get(format!("{}{profile_path}", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), 401);
+    let profile = f.get(profile_path).send().await.unwrap();
+    assert_eq!(profile.status(), 200);
+    let profile: Value = profile.json().await.unwrap();
+    assert_eq!(profile["selection"]["provider"], "ace-step");
+    assert_eq!(profile["capabilities"]["analysis"], true);
+    assert_eq!(profile["available"], false);
+    let pending = f
+        .state
+        .db
+        .songs(&SongFilter::default())
+        .unwrap()
+        .into_iter()
+        .find(|song| song.id != f.song)
+        .unwrap();
+    let cancel_path = format!("/api/songs/{}/cancel", pending.id);
+    let unauthorized = f
+        .http
+        .post(format!("{}{cancel_path}", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), 401);
+    for expected in [true, false] {
+        let response = f
+            .send(reqwest::Method::POST, &cancel_path)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            response.json::<Value>().await.unwrap()["cancelled"],
+            expected
+        );
+    }
+    assert_eq!(f.state.db.song(&pending.id).unwrap().status, "cancelled");
+    assert_eq!(f.state.db.song(&f.song).unwrap().status, "done");
+    assert_eq!(f.changes.load(Ordering::SeqCst), 1);
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
 async fn generation_and_analysis_report_desktop_errors_as_json() {
     let f = Fixture::new().await;
     // Model setup is incomplete in the fixture, so admission refuses with the desktop message.

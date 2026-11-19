@@ -42,15 +42,7 @@ pub async fn generation_policy(
     tauri::async_runtime::spawn_blocking(move || {
         let settings = state.db.settings()?;
         let selection = selection.unwrap_or(crate::catalog::Selection::from_settings(&settings));
-        let mut policy =
-            state
-                .synthesis_probe
-                .session_policy(&state.resources, &selection, refresh, || {
-                    state.backend_status()
-                });
-        policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
-        policy.lm_device = settings.lm_device;
-        Ok(policy)
+        crate::admission::generation_policy(&state, &settings, &selection, refresh)
     })
     .await
     .map_err(|e| message(e.to_string()))?

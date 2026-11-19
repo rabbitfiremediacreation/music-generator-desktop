@@ -8,7 +8,17 @@ export const saved = (selection = standard): Settings => ({ ...setupFixture.sett
 export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, recommended_profiles: [standard, xl], selection: standard,
   hardware: setupFixture.hardware, free_bytes: null, models_dir: "/models", busy: false,
   title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 },
-  providers: source.providers.map(provider => ({ ...provider, status: provider.status as "planned" | "available" })),
-  models: source.models.map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: true, present: true, partial_bytes: 0 })),
+  providers: source.providers.filter(provider => provider.id === "ace-step").map(provider => ({ ...provider, status: "available" })),
+  profiles: [],
+  models: source.models.filter(model => model.provider === "ace-step").map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: true, present: true, partial_bytes: 0 })),
 };
+
+export function catalogWithHeartMuLa(): ModelCatalog {
+  return {
+    ...structuredClone(catalogFixture),
+    providers: source.providers.map(provider => ({ ...provider, status: "available" })),
+    profiles: source.profiles.map(profile => ({ ...profile, platforms: [], available: false, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    models: source.models.map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
+  };
+}
 

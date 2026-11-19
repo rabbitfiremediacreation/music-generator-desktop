@@ -4,6 +4,7 @@ pub mod device;
 mod diagnostics;
 mod generation;
 pub(crate) mod manager;
+pub mod native;
 pub mod process;
 pub mod progress;
 mod response;

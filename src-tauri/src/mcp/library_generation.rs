@@ -10,16 +10,8 @@ use std::sync::Arc;
 
 async fn policy(state: Arc<AppState>, selection: Selection) -> Result<Policy> {
     tokio::task::spawn_blocking(move || {
-        let mut policy =
-            state
-                .synthesis_probe
-                .session_policy(&state.resources, &selection, true, || {
-                    state.backend_status()
-                });
         let settings = state.db.settings()?;
-        policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
-        policy.lm_device = settings.lm_device;
-        Ok(policy)
+        crate::admission::generation_policy(&state, &settings, &selection, true)
     })
     .await
     .map_err(|error| message(error.to_string()))?
@@ -31,7 +23,13 @@ fn apply_cpu_policy(
     policy: &Policy,
     choice: Option<&str>,
 ) -> Result<bool> {
-    if policy.backend == Backend::Gpu || request.inference_steps <= 30 {
+    if policy
+        .capabilities
+        .as_ref()
+        .is_some_and(|caps| !caps.advanced)
+        || policy.backend == Backend::Gpu
+        || request.inference_steps <= 30
+    {
         return Ok(false);
     }
     let behavior = match policy.cpu_iteration_behavior {
@@ -76,11 +74,22 @@ fn overlay(target: &mut Value, values: &Value) {
 pub(super) async fn generate(state: Arc<AppState>, args: Value) -> Result<Value> {
     let selection = selection(&state, &args)?;
     let policy = policy(state.clone(), selection.clone()).await?;
-    let preferences = state
-        .db
-        .generation_form_preferences_with_defaults(&policy.defaults)?;
-    let mut values = serde_json::to_value(GenerateRequest::default())?;
-    overlay(&mut values, &serde_json::to_value(preferences)?);
+    let capabilities = policy
+        .capabilities
+        .as_ref()
+        .expect("generation policy includes capabilities");
+    let defaults = GenerateRequest {
+        duration: policy.defaults.duration,
+        instrumental: capabilities.instrumental && !capabilities.lyrics_required,
+        ..Default::default()
+    };
+    let mut values = serde_json::to_value(defaults)?;
+    if capabilities.advanced {
+        let preferences = state
+            .db
+            .generation_form_preferences_with_defaults(&policy.defaults)?;
+        overlay(&mut values, &serde_json::to_value(preferences)?);
+    }
     overlay(&mut values, &args);
     values["model_selection"] = json!(selection);
     let mut request: GenerateRequest = serde_json::from_value(values)?;
@@ -92,8 +101,10 @@ pub(super) async fn generate(state: Arc<AppState>, args: Value) -> Result<Value>
     enqueue(&state, request, reduced)
 }
 
-fn from_song(song: &Song) -> Result<GenerateRequest> {
+fn from_song(state: &AppState, song: &Song) -> Result<GenerateRequest> {
     let mut request: GenerateRequest = serde_json::from_value(song.params.clone())?;
+    let selection = crate::admission::profile_for_song(&state.db.settings()?, &song.params)?;
+    let capabilities = crate::catalog::capabilities(&selection)?;
     if song.params.get("lyrics").is_none() {
         request.lyrics = song.lyrics.clone().unwrap_or_default();
     }
@@ -103,26 +114,33 @@ fn from_song(song: &Song) -> Result<GenerateRequest> {
     if song.params.get("keep_caption").is_none() {
         request.keep_caption = song.params["use_cot_caption"] != true;
     }
-    request.caption = song.caption.clone();
+    request.caption = if capabilities.prompt {
+        song.caption.clone()
+    } else {
+        String::new()
+    };
     request.title = song.title.clone().unwrap_or_default();
     request.folder_id = song.folder_id.clone();
-    request.inference_steps = crate::generation_limits::effective_steps(
-        Some(u64::from(request.inference_steps)),
-        request
-            .model_selection
-            .as_ref()
-            .map(|s| s.synthesis.as_str())
-            .unwrap_or_default(),
-    );
-    if request.duration == 0.0 {
-        request.duration = 90.0;
+    if capabilities.advanced {
+        request.inference_steps = crate::generation_limits::effective_steps(
+            Some(u64::from(request.inference_steps)),
+            request
+                .model_selection
+                .as_ref()
+                .map(|s| s.synthesis.as_str())
+                .unwrap_or_default(),
+        );
+        if request.duration == 0.0 {
+            request.duration = 90.0;
+        }
     }
+    request.model_selection = Some(selection);
     Ok(request)
 }
 
 pub(super) async fn variants(state: Arc<AppState>, args: Value) -> Result<Value> {
     let song = state.db.song(super::string(&args, "id")?)?;
-    let mut request = from_song(&song)?;
+    let mut request = from_song(&state, &song)?;
     request.group_id = Some(song.group_id);
     request.variants = args["variants"].as_u64().unwrap_or(1) as u32;
     request.seed = -1;
@@ -146,7 +164,7 @@ pub(super) async fn retry(state: Arc<AppState>, args: Value) -> Result<Value> {
     if !matches!(song.status.as_str(), "error" | "cancelled") {
         return Err(message("Only failed or cancelled songs can be retried"));
     }
-    let mut request = from_song(&song)?;
+    let mut request = from_song(&state, &song)?;
     let selection = selection(&state, &serde_json::to_value(&request)?)?;
     let policy = policy(state.clone(), selection.clone()).await?;
     request.model_selection = Some(selection);
@@ -170,7 +188,11 @@ pub(super) async fn retry(state: Arc<AppState>, args: Value) -> Result<Value> {
 fn enqueue(state: &AppState, request: GenerateRequest, reduced: bool) -> Result<Value> {
     let steps = request.inference_steps;
     let ids = crate::admission::generate(state, request)?;
-    Ok(json!({"ids": ids, "inference_steps": steps, "cpu_iterations_limited": reduced}))
+    let mut result = json!({"ids": ids, "cpu_iterations_limited": reduced});
+    if steps > 0 {
+        result["inference_steps"] = json!(steps);
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

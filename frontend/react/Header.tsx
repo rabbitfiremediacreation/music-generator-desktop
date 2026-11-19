@@ -20,9 +20,12 @@ export function Header({selection,onAnalysis,onSettings}:{selection:ModelSelecti
   const name=names[detected];
   const evidence=synthesis?t("backend_observed"):detected!=="unknown"?t("backend_ready"):"";
   const lmMode=policy.data?.lm_device!==undefined&&policy.dataUpdatedAt>=settings.dataUpdatedAt?policy.data.lm_device:settings.data?.lm_device??"auto";
-  const description=`${t("backend_synthesis")}: ${name}${synthesis?.device&&synthesis.device!==name?` · ${synthesis.device}`:""}${evidence?` · ${evidence}`:""}${synthesis?.reason?` · ${t(`backend_${synthesis.reason}`)}`:""}\n${t("backend_language_model")}: ${t(`lm_dev_${lmMode}`)}${lm?` · ${names[lm.backend]}${lm.device&&lm.device!==names[lm.backend]?` · ${lm.device}`:""} · ${t("backend_observed")}${lm.reason?` · ${t(`backend_${lm.reason}`)}`:""}`:""}`;
+  const hasLanguageModel = policy.data?.capabilities?.advanced ?? (selection === null || Boolean(selection.language));
+  const synthesisDescription=`${t("backend_synthesis")}: ${name}${synthesis?.device&&synthesis.device!==name?` · ${synthesis.device}`:""}${evidence?` · ${evidence}`:""}${synthesis?.reason?` · ${t(`backend_${synthesis.reason}`)}`:""}`;
+  const languageDescription=`${t("backend_language_model")}: ${t(`lm_dev_${lmMode}`)}${lm?` · ${names[lm.backend]}${lm.device&&lm.device!==names[lm.backend]?` · ${lm.device}`:""} · ${t("backend_observed")}${lm.reason?` · ${t(`backend_${lm.reason}`)}`:""}`:""}`;
+  const description=hasLanguageModel ? `${synthesisDescription}\n${languageDescription}` : synthesisDescription;
   return <header className="top">
-    <AudioControls selection={selection} onAnalysis={onAnalysis}/>
+    {(policy.data?.capabilities?.analysis ?? hasLanguageModel) && <AudioControls selection={selection} onAnalysis={onAnalysis}/>}
     <a className="brand-link" href="https://alphatester.rabbitfire.de/" title={t("brand_title")} onClick={event=>{event.preventDefault();void openUrl(event.currentTarget.href);}}><img className="brand" src="/alphatester.png" alt="Alphatester"/></a>
     <div className="divider"/><h1 className="title"><span>MUSIC</span><span>GENERATOR</span></h1>
     <div className="top-right"><div className="header-context">

@@ -396,10 +396,12 @@ fn router(remote: Remote) -> Router {
         .route("/api/health", get(health))
         .route("/api/songs", get(songs))
         .route("/api/songs/{id}", get(song).patch(patch_song))
+        .route("/api/songs/{id}/cancel", post(cancel_song))
         .route("/api/songs/{id}/audio", get(audio))
         .route("/api/pwa/library", get(pwa_library::get))
         .route("/api/folders", get(folders).post(create_folder))
         .route("/api/queue", get(queue))
+        .route("/api/generation-profile", get(generation_profile))
         .route("/api/generate", post(generate))
         .route(
             "/api/analyze",
@@ -734,6 +736,19 @@ async fn patch_song(
     }
 }
 
+async fn cancel_song(State(remote): State<Remote>, UrlPath(id): UrlPath<String>) -> Response {
+    let state = remote.state.clone();
+    match blocking(move || state.runtime.cancel_song(&id, || state.db.cancel_song(&id))).await {
+        Ok(cancelled) => {
+            if cancelled {
+                (remote.changed)();
+            }
+            Json(json!({"cancelled": cancelled})).into_response()
+        }
+        Err(error) => failure(error),
+    }
+}
+
 async fn folders(State(remote): State<Remote>) -> Response {
     let db = remote.state.db.clone();
     match blocking(move || db.folders()).await {
@@ -770,10 +785,18 @@ async fn queue(State(remote): State<Remote>) -> Response {
     }
 }
 
+async fn generation_profile(State(remote): State<Remote>) -> Response {
+    match blocking(move || crate::admission::active_profile(&remote.state)).await {
+        Ok(profile) => ([(header::CACHE_CONTROL, "no-store")], Json(profile)).into_response(),
+        Err(error) => failure(error),
+    }
+}
+
 /// The web app's request shape, with the number types its iPhone client sends.
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct PhoneGeneration {
+    pub model_selection: Option<crate::catalog::Selection>,
     pub prompt: String,
     pub style: String,
     pub caption: String,
@@ -796,6 +819,7 @@ pub struct PhoneGeneration {
 impl Default for PhoneGeneration {
     fn default() -> Self {
         Self {
+            model_selection: None,
             prompt: String::new(),
             style: String::new(),
             caption: String::new(),
@@ -826,7 +850,7 @@ impl PhoneGeneration {
                 .ok_or_else(|| message("Invalid generation parameters"))
         };
         Ok(GenerateRequest {
-            model_selection: None,
+            model_selection: self.model_selection,
             prompt: self.prompt,
             style: self.style,
             caption: self.caption,
@@ -885,19 +909,17 @@ async fn generate(State(remote): State<Remote>, body: Bytes) -> Response {
         let mut request = request;
         let settings = state.db.settings()?;
         let selection = crate::catalog::Selection::from_settings(&settings);
-        let policy =
-            state
-                .synthesis_probe
-                .session_policy(&state.resources, &selection, false, || {
-                    state.backend_status()
-                });
-        request.inference_steps = cpu_steps(
-            policy.backend,
-            settings.cpu_iteration_behavior,
-            request.inference_steps,
-            policy.legacy_inference_steps,
-        );
-        crate::admission::generate(&state, request)
+        let requested = request.model_selection.get_or_insert(selection);
+        if crate::catalog::capabilities(requested)?.advanced {
+            let policy = crate::admission::generation_policy(&state, &settings, requested, false)?;
+            request.inference_steps = cpu_steps(
+                policy.backend,
+                settings.cpu_iteration_behavior,
+                request.inference_steps,
+                policy.legacy_inference_steps,
+            );
+        }
+        crate::admission::generate_for_current_profile(&state, request)
     })
     .await;
     match result {

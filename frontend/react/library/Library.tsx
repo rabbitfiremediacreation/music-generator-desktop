@@ -51,6 +51,12 @@ export function Library({folder,onFolderChange,onReuse,selection,onReady,onError
   },[armed]);
   const arm=(key:string)=>{if(armed===key){setArmed("");return true;}setArmed(key);setAnnouncement({key:"an_armed"});return false;};
   const current=folders.data?.folders.find(value=>value.id===folder),library=queue.data?.library;
+  const rememberedAce = selection && !selection.language
+    ? settings.data?.model_profiles?.["ace-step"] ?? settings.data?.recommended_profiles?.find(profile => profile.provider === "ace-step")
+    : undefined;
+  function restore(song: Song) {
+    onReuse(rememberedAce && !song.params.model_selection ? { ...song, params: { ...song.params, model_selection: rememberedAce } } : song);
+  }
   const chip=(id:string,name:string,count:number)=><button key={id} type="button" className={`chip fold ${id===folder?"on":""}`} aria-pressed={id===folder} title={name} onClick={()=>onFolderChange(id)}
     onDragOver={event=>{if(id&&event.dataTransfer.types.includes("text/song"))event.preventDefault();}}
     onDrop={event=>{if(!id)return;event.preventDefault();const songId=event.dataTransfer.getData("text/song");if(songId)mutate.mutate(()=>backend.patch(songId,{folder_id:id==="none"?null:id}));}}>{name} <b>{count}</b></button>;
@@ -75,7 +81,7 @@ export function Library({folder,onFolderChange,onReuse,selection,onReady,onError
     </nav>}
     <div className="sr-only" role="status" aria-live="polite">{announcement&&t(announcement.key,announcement.title??"")}</div>
     {(error||songs.error||folders.error||queue.error)&&<ErrorState error={error||songs.error||folders.error||queue.error} retry={()=>{setError(null);void invalidateLibrary(client);}}/>}
-    <div id="library" ref={list} aria-busy={songs.isPending||songs.isPlaceholderData}>{songs.isPending||songs.isPlaceholderData?<LoadingState/>:!songs.data?.songs.length?<div className="empty">{t("empty")}</div>:songs.data.songs.map((song,index)=><SongRow key={song.id} song={song} folders={folders.data?.folders??[]} selection={selection} onReuse={onReuse} armed={armed===`song:${song.id}`} onArm={()=>arm(`song:${song.id}`)} onError={setError} newGroup={index>0&&songs.data.songs[index-1].group_id!==song.group_id} exportFormat={settings.data?.export_format??"wav"}/>)}</div>
+    <div id="library" ref={list} aria-busy={songs.isPending||songs.isPlaceholderData}>{songs.isPending||songs.isPlaceholderData?<LoadingState/>:!songs.data?.songs.length?<div className="empty">{t("empty")}</div>:songs.data.songs.map((song,index)=><SongRow key={song.id} song={song} folders={folders.data?.folders??[]} selection={rememberedAce??selection} onReuse={restore} armed={armed===`song:${song.id}`} onArm={()=>arm(`song:${song.id}`)} onError={setError} newGroup={index>0&&songs.data.songs[index-1].group_id!==song.group_id} exportFormat={settings.data?.export_format??"wav"}/>)}</div>
     <Dialog open={nameDialog!==null} title={t("f_name_q")} busy={mutate.isPending} onClose={()=>setNameDialog(null)}><form onSubmit={event=>{event.preventDefault();if(!nameDialog?.name.trim()||mutate.isPending)return;const value=nameDialog;mutate.mutate(async()=>{const next=await backend.saveFolder(value.name,value.id);setNameDialog(null);if(!value.id)onFolderChange(next.id);});}}>
       <label className="field">{t("f_name_q")}<input autoFocus maxLength={60} value={nameDialog?.name??""} onChange={event=>setNameDialog(previous=>previous?{...previous,name:event.target.value}:null)}/></label>
       <div className="submit"><button type="button" className="sek" disabled={mutate.isPending} onClick={()=>setNameDialog(null)}>{t("cancel")}</button><button className="aktion" disabled={mutate.isPending}>{t("save")}</button></div>

@@ -9,6 +9,7 @@ export interface McpSettingsStatus extends McpSettings {
 export interface Settings {
   models_dir: string; songs_dir: string; lm_model: string; dit: "standard" | "xl";
   model_provider: string; synthesis_model: string;
+  model_profiles?: Record<string, ModelSelection>;
   lm_device: "auto" | "cpu"; export_format: "wav" | "mp3"; mp3_available?: boolean;
   expert_mode: boolean;
   update_stream: UpdateStream;
@@ -80,10 +81,36 @@ export interface JobProgress {
 }
 
 export interface ModelSelection { provider: string; synthesis: string; language: string }
+export interface ModelAbilities {
+  min_duration: number; max_duration: number; max_variants: number;
+  prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
+  bpm: boolean; advanced: boolean; analysis: boolean;
+  max_seed?: number;
+}
+export interface ProfileSource {
+  id: string; role: string; repository: string; revision: string; license: string; license_url: string;
+}
+export interface ProfilePlatform {
+  os: string; arch: string; backend: string; minimum_ram_bytes: number; minimum_vram_bytes?: number | null;
+}
+export interface CatalogProfile {
+  selection: ModelSelection; name: string; files: string[]; capabilities: ModelAbilities;
+  acquisition?: "download" | "manual";
+  upstream_sources: ProfileSource[];
+  runtime: { name: string; revision: string; source: string; license: string; license_url: string };
+  usage: { model_use: string; redistribution: string; outputs: string };
+  platforms: ProfilePlatform[];
+  available: boolean; unavailable_reason?: string | null;
+}
+export interface ActiveGenerationProfile {
+  selection: ModelSelection; name: string; capabilities: ModelAbilities;
+  available: boolean; unavailable_reason?: string | null;
+}
 export interface CatalogModel {
-  file: string; provider: string; role: "synthesis" | "language" | "dependency"; family: string;
+  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer"; family: string;
   precision: string; estimated_bytes: number; sha256: string; recommended_steps: number | null; suggested_steps?: number | null;
   verified: boolean; present: boolean; partial_bytes: number;
+  source?: { repository: string; revision: string; path: string } | null;
 }
 export interface TitleModel extends Model { verified: boolean; present: boolean; partial_bytes: number }
 export interface ModelCatalog {
@@ -92,8 +119,10 @@ export interface ModelCatalog {
   expert_mode: boolean; expert_families: string[];
   basic_models: { synthesis: string[]; language: string[] };
   recommended_profiles: ModelSelection[];
+  profiles?: CatalogProfile[];
   providers: { id: string; name: string; status: "available" | "planned"; adapter: string | null; source: string }[];
   selection: ModelSelection; hardware: Bootstrap["hardware"]; free_bytes: number | null;
+  model_profiles?: Record<string, ModelSelection>;
   models_dir: string; busy: boolean;
 }
 
@@ -119,6 +148,9 @@ export interface GenerationPolicy {
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_steps: number;
   defaults: GenerationFormPreferences;
+  capabilities?: ModelAbilities;
+  available?: boolean;
+  unavailable_reason?: string | null;
 }
 
 /** Shared access switch for the native app and the HTTPS web app. */

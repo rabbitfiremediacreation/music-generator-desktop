@@ -97,7 +97,7 @@ function DesktopShell(){
   },[studio,libraryReady,formReady,modelsReady]);
   useEffect(()=>{
     if(!studio)return;
-    const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const selector=event.code==="KeyB"?"#libHeading":event.code==="KeyN"?'#genForm [name="prompt"]':null;if(selector){event.preventDefault();document.querySelector<HTMLElement>(selector)?.focus();}};
+    const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const target=event.code==="KeyB"?document.querySelector<HTMLElement>("#libHeading"):event.code==="KeyN"?document.querySelector<HTMLElement>('#genForm [name="prompt"]')??document.querySelector<HTMLElement>('#genForm [name="style"]'):null;if(target){event.preventDefault();target.focus();}};
     document.addEventListener("keydown",keyboard);return()=>document.removeEventListener("keydown",keyboard);
   },[studio]);
   const allowed=modelAllowed(selection??undefined,settings.data?.expert_mode??false,settings.data?.recommended_profiles??bootstrap.recommended_profiles);

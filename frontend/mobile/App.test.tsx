@@ -3,10 +3,18 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App, secureConnectionUrl } from "./App";
 import { connectionKey } from "./client";
+import { ACE_STEP_ABILITIES } from "../generation-limits";
+import type { ActiveGenerationProfile } from "../types";
 
 const request = vi.fn();
 const song = { id: "one", title: "Rain song", status: "done", favorite: false, folder_id: null, duration: 90, bpm: 80, has_audio: true, message: null };
 const library = { songs: [song], folders: { folders: [], all: 1, none: 1 } };
+const ace: ActiveGenerationProfile = { selection: { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "lm.gguf" }, name: "ACE-Step 1.5", capabilities: ACE_STEP_ABILITIES, available: true };
+const heartmula: ActiveGenerationProfile = {
+  selection: { provider: "heartmula", synthesis: "heartmula-oss-3b-hny", language: "" },
+  name: "HeartMuLa 3B HNY", available: true,
+  capabilities: { prompt: false, lyrics: true, lyrics_required: true, instrumental: false, bpm: false, advanced: false, analysis: false, min_duration: 5, max_duration: 30, max_variants: 1, max_seed: 4294967295 },
+};
 beforeEach(() => {
   window.localStorage.clear(); window.history.replaceState(null, "", "/mobile/#token=paired-key");
   vi.stubGlobal("isSecureContext", true);
@@ -17,7 +25,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", request);
   request.mockReset();
   request.mockImplementation(async (path: string) => {
-    const value = path.startsWith("/api/pwa/library?") ? library : path === "/api/queue" ? { running: [], queued: 0, active: false, progress: null } : path === "/api/generate" ? { ids: ["new"], group_id: "g" } : {};
+    const value = path.startsWith("/api/pwa/library?") ? library : path === "/api/queue" ? { running: [], queued: 0, active: false, progress: null } : path === "/api/generate" ? { ids: ["new"], group_id: "g" } : path === "/api/generation-profile" ? ace : {};
     return new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
   });
 });
@@ -31,12 +39,56 @@ it("pairs from the QR fragment, shows the library and submits a generation to th
   fireEvent.click(screen.getByRole("button", { name: "Favorite: Rain song" }));
   await waitFor(() => expect(request).toHaveBeenCalledWith("/api/songs/one", expect.objectContaining({ method: "PATCH", body: '{"favorite":true}' })));
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Your idea" }), { target: { value: "warm piano" } });
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your idea" }), { target: { value: "warm piano" } });
   fireEvent.click(screen.getByRole("button", { name: "Generate on computer" }));
   await screen.findByText("Your song is in the queue.");
   const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
   expect(call[1].headers.get("Authorization")).toBe("Bearer paired-key");
   expect(JSON.parse(call[1].body)).toMatchObject({ prompt: "warm piano", instrumental: true, duration: 90, variants: 1, folder_id: null });
+});
+
+it("limits HeartMuLa generation to lyrics, style tags, seed and its profile duration", async () => {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/generation-profile" ? Response.json(heartmula) : original(path, options));
+  render(<App />);
+  await screen.findByRole("heading", { name: "Rain song" });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  const style = await screen.findByRole("textbox", { name: "Style tags" });
+  expect(screen.queryByRole("textbox", { name: "Your idea" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByText("Use an audio idea")).toBeNull();
+  const generate = screen.getByRole("button", { name: "Generate on computer" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(true);
+  fireEvent.change(style, { target: { value: "jazz, keys" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: "[chorus]\nThe road is clear" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "42" } });
+  const duration = screen.getByRole("spinbutton", { name: "Length (seconds)" }) as HTMLInputElement;
+  expect(duration.min).toBe("5");
+  expect(duration.max).toBe("30");
+  expect(duration.value).toBe("30");
+  fireEvent.click(generate);
+  await screen.findByText("Your song is in the queue.");
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toEqual({
+    model_selection: heartmula.selection, style: "jazz, keys", lyrics: "[chorus]\nThe road is clear",
+    seed: 42, duration: 30, title: "", variants: 1, instrumental: false, folder_id: null, keep_caption: true,
+  });
+});
+
+it("cancels a queued song through the same authenticated computer", async () => {
+  const original = request.getMockImplementation()!;
+  let cancelled = false;
+  request.mockImplementation((path, options) => {
+    if (path.startsWith("/api/pwa/library?")) return Response.json({ ...library, songs: [{ ...song, status: cancelled ? "cancelled" : "queued", has_audio: false }] });
+    if (path === "/api/songs/one/cancel") { cancelled = true; return Response.json({ cancelled }); }
+    return original(path, options);
+  });
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Cancel: Rain song" }));
+  await screen.findByText(/^Cancelled/);
+  const call = request.mock.calls.find(([path]) => path === "/api/songs/one/cancel")!;
+  expect(call[1].method).toBe("POST");
+  expect(call[1].headers.get("Authorization")).toBe("Bearer paired-key");
 });
 
 it("keeps cards on two 304 polls, updates queue progress and refreshes the changed library", async () => {
@@ -139,7 +191,7 @@ it("keeps a generation submission pending when navigating between tabs", async (
   render(<App />);
   await screen.findByRole("heading", { name: "Rain song" });
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Your idea" }), { target: { value: "only one song" } });
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your idea" }), { target: { value: "only one song" } });
   const form = screen.getByRole("button", { name: "Generate on computer" }).closest("form")!;
   fireEvent.submit(form);
   await waitFor(() => expect(finish).toBeTypeOf("function"));

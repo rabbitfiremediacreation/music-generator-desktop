@@ -17,8 +17,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 const settings = { ...setupFixture.settings, lm_device: "auto", cpu_iteration_behavior: "ask", timeout_minutes: 60, songs_dir: "/songs", export_format: "wav", expert_mode: false, mp3_available: true, recommended_profiles: [standard] } as Settings;
 const catalog = { ...source, expert_mode: false, recommended_profiles: [standard], selection: standard, hardware: { ...setupFixture.hardware, ram_bytes: 64 * 1024 ** 3 }, free_bytes: null, models_dir: "/models", busy: false,
+  profiles: [],
   title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 },
-  models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
+  models: source.models.filter(model => model.provider === "ace-step").map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
 } as ModelCatalog;
 const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
 const modelCallbacks = { onUse: vi.fn(), onManage: vi.fn(), onRecommendedSteps: vi.fn() };

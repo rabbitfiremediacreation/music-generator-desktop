@@ -78,6 +78,63 @@ impl AppState {
             .await
     }
 
+    pub(crate) async fn generate(
+        &self,
+        operation: &Operation,
+        settings: &Settings,
+        selection: &crate::catalog::Selection,
+        params: &serde_json::Value,
+        progress: impl Fn(crate::engine::progress::Progress),
+    ) -> Result<(Vec<u8>, String, serde_json::Value)> {
+        let cancel = operation.cancellation();
+        if selection.provider == "ace-step" {
+            return self
+                .start_engine(operation, settings)
+                .await?
+                .generate(
+                    params,
+                    &selection.language,
+                    &selection.synthesis,
+                    &cancel,
+                    progress,
+                )
+                .await;
+        }
+        if !operation.belongs_to(&self.runtime) || operation.kind() != OperationKind::Generation {
+            return Err(message("Native generation requires a generation operation"));
+        }
+        crate::catalog::ensure_runtime(selection, &self.resources)?;
+        self.stop_engine();
+        let mut verifier = crate::verification::ModelVerifier::open(&self.db.root);
+        if !crate::catalog::verify(
+            selection,
+            std::path::Path::new(&settings.models_dir),
+            &mut verifier,
+            &cancel,
+        )
+        .await?
+        {
+            return Err(message(
+                "Models are missing or invalid. Open the ModelPicker to verify the selected files",
+            ));
+        }
+        self.generate_native(settings, selection, params, &cancel, progress)
+            .await
+    }
+
+    async fn generate_native(
+        &self,
+        _settings: &Settings,
+        _selection: &crate::catalog::Selection,
+        _params: &serde_json::Value,
+        _cancel: &tokio_util::sync::CancellationToken,
+        _progress: impl Fn(crate::engine::progress::Progress),
+    ) -> Result<(Vec<u8>, String, serde_json::Value)> {
+        Err(message(
+            "This model provider has no native generation adapter",
+        ))
+    }
+
     pub fn stop_engine(&self) {
         self.engine.stop();
     }

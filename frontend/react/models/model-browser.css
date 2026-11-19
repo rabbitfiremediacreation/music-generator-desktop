@@ -45,6 +45,11 @@
 .model-detail-heading p { margin: 0 0 4px; color: var(--model-muted); font-size: 11px; }
 .model-detail-heading h4, #settingsDlg .model-browser .model-detail-heading h4 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .model-summary-card { padding: 16px; border-radius: 10px; background: var(--model-panel); }
+.model-profile-details dl { display: grid; gap: 12px; margin: 0; font-size: 12px; }
+.model-profile-details dt { color: var(--model-muted); }
+.model-profile-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.model-profile-details ul { margin: 0; padding-left: 18px; }
+.model-profile-details a, .model-files-card a { color: #c0b7ff; }
 .model-description { margin: 0 0 16px; color: #b4aaff; font-size: 12px; line-height: 1.65; }
 .model-metadata { display: flex; flex-wrap: wrap; gap: 12px 20px; padding-top: 14px; border-top: 1px solid var(--model-line); }
 .model-metadata > span { display: flex; align-items: baseline; gap: 6px; }

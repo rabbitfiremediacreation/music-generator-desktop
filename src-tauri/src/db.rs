@@ -253,13 +253,25 @@ impl Database {
     }
 
     pub fn enqueue(&self, req: &GenerateRequest) -> Result<Vec<String>> {
+        self.enqueue_with_profile(req, None)
+    }
+
+    pub(crate) fn enqueue_with_profile(
+        &self,
+        req: &GenerateRequest,
+        profile: Option<&crate::catalog::GenerationProfile>,
+    ) -> Result<Vec<String>> {
         if let Some(selection) = &req.model_selection {
             crate::catalog::required(selection)?;
         }
-        if !(1..=50).contains(&req.variants)
-            || !req.duration.is_finite()
-            || !(0.0..=600.0).contains(&req.duration)
-            || req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
+        let selection = if let Some(selection) = &req.model_selection {
+            selection.clone()
+        } else {
+            crate::catalog::Selection::from_settings(&self.settings()?)
+        };
+        let capabilities = crate::catalog::capabilities(&selection)?;
+        crate::generation_limits::validate_request(req, &capabilities)?;
+        if req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
             || req.bpm > 300
             || req.seed.checked_add(req.variants as i64).is_none()
             || req
@@ -290,15 +302,19 @@ impl Database {
         } else {
             req.lyrics.trim()
         };
-        let selection = if let Some(selection) = &req.model_selection {
-            selection.clone()
-        } else {
-            crate::catalog::Selection::from_settings(&self.settings()?)
-        };
-        let steps = crate::generation_limits::effective_steps(
-            Some(u64::from(req.inference_steps)),
-            &selection.synthesis,
-        );
+        let mut params = serde_json::to_value(req)?;
+        if let Some(profile) = profile {
+            params["generation_profile"] = serde_json::to_value(profile)?;
+        }
+        if capabilities.advanced {
+            params["inference_steps"] = json!(crate::generation_limits::effective_steps(
+                Some(u64::from(req.inference_steps)),
+                &selection.synthesis,
+            ));
+            params["use_cot_caption"] = json!(!req.keep_caption);
+        }
+        params["caption"] = json!(caption);
+        params["lyrics"] = json!(lyrics);
         let mut con = self.lock();
         let tx = con.transaction()?;
         let folder = req.folder_id.as_ref().filter(|f| {
@@ -309,20 +325,18 @@ impl Database {
                 > 0
         });
         let mut ids = Vec::new();
+        let random_seed_range = capabilities
+            .max_seed
+            .map_or(i32::MAX as u128, |maximum| u128::from(maximum) + 1);
         for i in 0..req.variants {
             let sid = id();
             let seed = if req.seed < 0 {
-                (uuid::Uuid::new_v4().as_u128() % (i32::MAX as u128)) as i64
+                (uuid::Uuid::new_v4().as_u128() % random_seed_range) as i64
             } else {
                 req.seed + i as i64
             };
-            let mut p = serde_json::to_value(req)?;
-            p["inference_steps"] = json!(steps);
-            p["caption"] = json!(caption);
-            p["lyrics"] = json!(lyrics);
-            p["seed"] = json!(seed);
-            p["use_cot_caption"] = json!(!req.keep_caption);
-            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,p.to_string(),folder])?;
+            params["seed"] = json!(seed);
+            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,params.to_string(),folder])?;
             ids.push(sid);
         }
         tx.commit()?;
@@ -366,7 +380,16 @@ impl Database {
     }
 
     pub fn finish(&self, sid: &str, file: &str, meta: &Value) -> Result<bool> {
-        let engine = "acestep_cpp";
+        self.finish_with_engine(sid, file, meta, "acestep_cpp")
+    }
+
+    pub fn finish_with_engine(
+        &self,
+        sid: &str,
+        file: &str,
+        meta: &Value,
+        engine: &str,
+    ) -> Result<bool> {
         let mut meta = meta.clone();
         if meta["generated_title"]
             .as_str()
