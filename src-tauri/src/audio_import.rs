@@ -1,12 +1,14 @@
 use crate::error::{message, Result};
-use std::{io::Read, path::Path};
-use tauri::Manager;
+use crate::{catalog::Selection, commands::analyze_audio, state::AppState};
+use serde_json::Value;
+use std::{io::Read, path::Path, sync::Arc};
+use tauri::{ipc::Channel, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-const MAX_AUDIO_BYTES: u64 = 60 * 1024 * 1024;
+pub(crate) const MAX_AUDIO_BYTES: usize = 60 * 1024 * 1024;
 pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "mp3", "flac", "m4a", "ogg"];
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug)]
 pub struct AudioSelection {
     pub name: String,
     pub directory: String,
@@ -34,14 +36,14 @@ pub fn read_selection(path: &Path) -> Result<AudioSelection> {
     if !metadata.is_file() {
         return Err(message("audio_type"));
     }
-    if metadata.len() > MAX_AUDIO_BYTES {
+    if metadata.len() > MAX_AUDIO_BYTES as u64 {
         return Err(message("audio_size"));
     }
     let mut data = Vec::new();
-    file.take(MAX_AUDIO_BYTES + 1)
+    file.take(MAX_AUDIO_BYTES as u64 + 1)
         .read_to_end(&mut data)
         .map_err(|_| message("audio_read"))?;
-    if data.len() as u64 > MAX_AUDIO_BYTES {
+    if data.len() > MAX_AUDIO_BYTES {
         return Err(message("audio_size"));
     }
     Ok(AudioSelection {
@@ -59,14 +61,23 @@ pub fn read_selection(path: &Path) -> Result<AudioSelection> {
     })
 }
 
+#[derive(serde::Serialize)]
+pub struct AudioSelectionInfo {
+    name: String,
+    directory: String,
+}
+
 #[tauri::command]
-pub async fn pick_audio_file(
+pub async fn pick_and_analyze_audio(
     app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
     directory: String,
     title: String,
     filter_name: String,
-) -> Result<Option<AudioSelection>> {
-    tauri::async_runtime::spawn_blocking(move || {
+    selection: Option<Selection>,
+    on_selected: Channel<AudioSelectionInfo>,
+) -> Result<Option<Value>> {
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
         let mut dialog = app
             .dialog()
             .file()
@@ -83,7 +94,20 @@ pub async fn pick_audio_file(
         read_selection(&path).map(Some)
     })
     .await
-    .map_err(|_| message("dialog_failed"))?
+    .map_err(|_| message("dialog_failed"))??;
+    let Some(AudioSelection {
+        name,
+        directory,
+        data,
+    }) = chosen
+    else {
+        return Ok(None);
+    };
+    let _ = on_selected.send(AudioSelectionInfo {
+        name: name.clone(),
+        directory,
+    });
+    analyze_audio(&state, data, name, selection).await.map(Some)
 }
 
 #[cfg(test)]

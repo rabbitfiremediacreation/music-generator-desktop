@@ -435,16 +435,6 @@ fn authorize_songs(app: &AppHandle, songs: &std::path::Path) -> Result<()> {
         .map_err(|e| message(e.to_string()))
 }
 
-#[tauri::command]
-pub async fn analyze(
-    state: Desktop<'_>,
-    data: Vec<u8>,
-    filename: String,
-    selection: Option<crate::catalog::Selection>,
-) -> Result<Value> {
-    analyze_audio(&state, data, filename, selection).await
-}
-
 /// Shared by the studio and phone access.
 pub(crate) async fn analyze_audio(
     state: &AppState,
@@ -452,7 +442,7 @@ pub(crate) async fn analyze_audio(
     filename: String,
     selection: Option<crate::catalog::Selection>,
 ) -> Result<Value> {
-    if data.len() > 60 * 1024 * 1024 {
+    if data.len() > crate::audio_import::MAX_AUDIO_BYTES {
         return Err(message("audio_size"));
     }
     let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();

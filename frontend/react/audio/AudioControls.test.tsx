@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n";
 import { t } from "../../i18n.js";
 import { AudioControls } from "./AudioControls";
-const mocks = vi.hoisted(() => ({ pickAudioFile: vi.fn(), analyze: vi.fn(), dialogDirectory: vi.fn(), remember: vi.fn() }));
+const mocks = vi.hoisted(() => ({ pickAndAnalyzeAudio: vi.fn(), analyze: vi.fn(), dialogDirectory: vi.fn(), remember: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../path-dialogs", () => ({ dialogDirectory: mocks.dialogDirectory, rememberDialogFolder: mocks.remember, pathErrorText: (error: unknown) => String(error) }));
 function mount(onAnalysis = vi.fn()) {
@@ -15,14 +15,16 @@ function mount(onAnalysis = vi.fn()) {
 beforeEach(() => { vi.clearAllMocks(); mocks.dialogDirectory.mockResolvedValue("/audio"); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it("uses the native audio selection and applies its analysis once", async () => {
-  mocks.pickAudioFile.mockResolvedValue({ name: "idea.wav", directory: "/chosen", data: [1, 2, 3] });
-  mocks.analyze.mockResolvedValue({ caption: "A calm song", bpm: 90 });
+  mocks.pickAndAnalyzeAudio.mockImplementation(async (_dir, _title, _filter, _selection, onSelected) => {
+    onSelected({ name: "idea.wav", directory: "/chosen" });
+    return { caption: "A calm song", bpm: 90 };
+  });
   const { onAnalysis } = mount();
   const upload = screen.getByRole("button", { name: t("drop_aria") });
   fireEvent.click(upload); fireEvent.click(upload);
   await waitFor(() => expect(onAnalysis).toHaveBeenCalledWith({ caption: "A calm song", bpm: 90 }, false));
-  expect(mocks.pickAudioFile).toHaveBeenCalledTimes(1);
-  expect(mocks.analyze).toHaveBeenCalledTimes(1);
+  expect(mocks.pickAndAnalyzeAudio).toHaveBeenCalledTimes(1);
+  expect(mocks.analyze).not.toHaveBeenCalled();
   expect(mocks.remember).toHaveBeenCalledWith("audio_import", "/chosen");
 });
 it("closes a microphone stream arriving after the user has released the button", async () => {
@@ -85,5 +87,6 @@ it("stops automatically at thirty seconds and applies a microphone analysis", as
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(stopTrack).toHaveBeenCalled();
   expect(microphone.getAttribute("aria-pressed")).toBe("false");
+  expect(mocks.analyze).toHaveBeenCalledWith(expect.objectContaining({ type: "audio/wav" }), undefined);
   expect(onAnalysis).toHaveBeenCalledWith(expect.objectContaining({ bpm: 80, caption: expect.stringContaining("melody") }), true);
 });

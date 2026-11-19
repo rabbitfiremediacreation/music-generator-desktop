@@ -2,6 +2,7 @@ pub mod admission;
 pub mod audio_export;
 pub mod audio_facts;
 pub mod audio_import;
+mod audio_upload;
 pub mod catalog;
 mod commands;
 pub mod configuration;
@@ -48,6 +49,7 @@ pub fn run() {
     #[cfg(windows)]
     windows::configure_runtime();
     let app = tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("audio-analysis", audio_upload::handle)
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app
                 .get_webview_window("splash")
@@ -144,7 +146,6 @@ pub fn run() {
             commands::get_generation_form_preferences,
             commands::generation_policy,
             commands::save_generation_form_preferences,
-            commands::analyze,
             commands::health,
             commands::export_file,
             commands::check_update,
@@ -153,7 +154,7 @@ pub fn run() {
             paths::dialog_directory,
             phone_access::phone_access_status,
             phone_access::set_phone_access,
-            audio_import::pick_audio_file,
+            audio_import::pick_and_analyze_audio,
             model_commands::model_catalog,
             model_commands::use_models,
             model_commands::select_models,

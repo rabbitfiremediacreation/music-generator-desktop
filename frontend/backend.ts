@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -14,7 +14,8 @@ export const backend = {
   cudaStatus: () => command<import("./types").CudaStatus>("cuda_status"),
   installCuda: () => command<import("./types").CudaStatus>("install_cuda_runtime"),
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
-  pickAudioFile: (directory: string, title: string, filterName: string) => command<{ name: string; directory: string; data: number[] } | null>("pick_audio_file", { directory, title, filterName }),
+  pickAndAnalyzeAudio: (directory: string, title: string, filterName: string, selection: ModelSelection | null, onSelected: (file: { name: string; directory: string }) => void) =>
+    command<Record<string, unknown> | null>("pick_and_analyze_audio", { directory, title, filterName, selection, onSelected: new Channel(onSelected) }),
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),
   bootstrap: (attempt: number) => command<Bootstrap>("bootstrap", { attempt }),
   setup: (request: SetupRequest) => command<SetupResult>("setup_models", { request }),
@@ -61,7 +62,14 @@ export const backend = {
   analyze: async (file: File, selection?: ModelSelection) => {
     if (file.size > 60 * 1024 * 1024) throw new Error("audio_size");
     const filename = /\.(wav|mp3|flac|m4a|ogg)$/i.test(file.name) ? file.name : `${file.name}.wav`;
-    return command<Record<string, unknown>>("analyze", { data: Array.from(new Uint8Array(await file.arrayBuffer())), filename, selection });
+    const query = new URLSearchParams({ filename });
+    if (selection) query.set("selection", JSON.stringify(selection));
+    const url = `${convertFileSrc("analyze", "audio-analysis")}?${query}`;
+    const body = await file.arrayBuffer();
+    const response = await fetch(url, { method: "POST", body }).catch(() => { throw new Error("audio_read"); });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result === "string" ? result : "audio_read");
+    return result as Record<string, unknown>;
   },
   export: (kind: "audio" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null) => command<void>("export_file", { kind, destination, id, folder }),
   exportDefaultPath: (filename: string) => command<string>("export_default_path", { filename }),
