@@ -45,8 +45,8 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
   const spaceLow = !manual && !!selected && catalog?.free_bytes !== null && catalog?.free_bytes !== undefined && selected.download > 0 && selected.download + 512 * 1024 ** 2 > catalog.free_bytes;
   const missingImport = manual && selected?.models.some(model => !model.present);
   const blocked = disabled || !selected || busy || missingImport ||
-    (verifyOnly ? selected.models.length === 0 || selected.models.length !== metadata?.files.length :
-      !selected.allowed || !selected.valid || (!selected.compatible && !existing) || spaceLow);
+    (verifyOnly ? !selected.complete || selected.filesVerified :
+      !selected.valid || !selected.allowed || (!selected.compatible && !existing) || spaceLow);
   async function recommendedSteps() {
     if (!draft || !currentSelection || currentSelection.synthesis !== draft.synthesis || currentSelection.provider !== draft.provider) { setError(new Error(t("picker_select_first"))); return; }
     const request = ++recommendation.current;
@@ -59,6 +59,9 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
     finally { if (mounted.current) setLoadingSteps(false); }
   }
   const failure = error || state.install.error || state.title.error || state.cancel.error;
+  let actionLabel = selected?.verified ? "picker_use" : selected?.download ? "picker_download_use" : "picker_verify_use";
+  if (manual && !selected?.verified) actionLabel = "provider_verify_import";
+  if (verifyOnly) actionLabel = selected?.filesVerified ? "provider_import_verified" : "provider_verify_only";
   return <section className="model-manager" aria-label={t("picker_title")}>
     {state.catalog.isPending && <p role="status">{t("desktop_checking")}</p>}
     {state.catalog.error && <div><p role="alert" className="setup-error">{modelErrorText(state.catalog.error, t)}</p><button type="button" className="sek" onClick={() => void state.catalog.refetch()}>{t("settings_retry")}</button></div>}
@@ -69,14 +72,14 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
       {!metadata && <ModelSelectFields catalog={catalog} draft={draft} onChange={state.setDraft} compatibleOnly={compatible} busy={busy || disabled} />}
       {!verifyOnly && !selected.allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p>{catalog.recommended_profiles.length > 0 && <button type="button" className="sek" disabled={busy} onClick={() => state.setDraft(catalog.recommended_profiles.find(item => item.synthesis === draft.synthesis) || catalog.recommended_profiles[0])}>{t("expert_use_recommended")}</button>}{onOpenSettings && <button type="button" className="sek" onClick={onOpenSettings}>{t("expert_settings")}</button>}</div>}
       {!verifyOnly && !catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
-        {!verifyOnly && <dl className="model-requirements"><div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>}
+        <dl className="model-requirements">{!verifyOnly && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
         {manual && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
         {missingImport && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         {!verifyOnly && selected.allowed && !selected.compatible && <p className="setup-error">{t("picker_low_ram")}</p>}
         {spaceLow && <p className="setup-error">{t("browser_space_low")}</p>}
-      <div className="model-download-actions">{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t(verifyOnly ? "cancel" : "picker_cancel_download")}</button>}<button type="button" className="aktion" disabled={blocked} onClick={() => state.apply(verifyOnly)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{t(verifyOnly ? "provider_verify_files" : selected.verified ? "picker_use" : manual ? "provider_verify_import" : selected.download ? "picker_download_use" : "picker_verify_use")}{!manual && selected.download > 0 && <span className="model-action-size" aria-hidden="true">{bytes(selected.download)}</span>}</button></div>
-      <ModelDownloadProgress busy={busy} message={state.message ? t(state.message) : ""} />
+      <div className="model-download-actions">{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t(manual ? "provider_cancel_verification" : "picker_cancel_download")}</button>}<button type="button" className="aktion" disabled={blocked} onClick={() => state.apply(verifyOnly)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{t(actionLabel)}{!manual && selected.download > 0 && <span className="model-action-size" aria-hidden="true">{bytes(selected.download)}</span>}</button></div>
+      <ModelDownloadProgress busy={busy} message={state.message === "picker_selected" || state.message === "provider_import_verified" ? t(state.message) : state.message} />
       {failure && <p className="setup-error" role="alert">{modelErrorText(failure, t)}</p>}
       </section>}
       {selected.models.length > 0 && <ModelProfileFiles selected={selected} />}

@@ -39,9 +39,9 @@ pub(super) fn tools() -> Vec<Value> {
     });
 
     let mut generate = originals["generate_music"].clone();
-    generate["description"] = json!("Queue music and return durable song IDs immediately. For new music supply prompt, style or caption; omitted sampling values use saved studio preferences. With source_song_id, inherit that song's parameters, current title, folder and group, use random seeds and default to one variant; supplied flat parameters override inherited values. Setup and verified models are required. Blank titles may download the local title model. Poll get_song, optionally with wait_seconds, or get_context sections=[queue].");
+    generate["description"] = json!("Queue music and return durable song IDs. Read get_context sections=[policy] for the selected profile's supported inputs and limits. Stable Audio 3 accepts an instrumental prompt and duration; HeartMuLa accepts style tags and lyrics. ACE-Step uses saved sampling preferences and may download the title model for a blank title. Other profiles use the local title cache or a fallback title. With source_song_id, inherit that song's parameters, current title, folder and group, use random seeds and default to one variant. Supplied flat parameters override inherited values. Setup and verified models are required. Poll get_song with optional wait_seconds or get_context sections=[queue].");
     generate["inputSchema"]["properties"]["source_song_id"] = id();
-    generate["inputSchema"]["properties"]["variants"]["description"] = json!("Number of versions: omitted means one for source_song_id, otherwise the saved studio preference (initially two).");
+    generate["inputSchema"]["properties"]["variants"]["description"] = json!("Number of versions within the selected profile's limit. Omit for one when reusing a song or using a fixed profile. New ACE-Step requests use the saved preference.");
     for name in ["instrumental", "keep_caption", "seed"] {
         generate["inputSchema"]["properties"][name]
             .as_object_mut()
@@ -49,10 +49,10 @@ pub(super) fn tools() -> Vec<Value> {
             .remove("default");
     }
     for (name, description) in [
-        ("duration", "Requested seconds; omitted values inherit the source song or use the saved studio preference for new music (initially 90)."),
-        ("inference_steps", "Omitted values inherit the source song or use saved studio/device/model defaults for new music. CPU iteration policy still applies."),
-        ("lm_temperature", "Omitted values inherit the source song or use the saved studio preference for new music (initially 0.85)."),
-        ("instrumental", "Omitted values inherit the source song; new music is instrumental by default."),
+        ("duration", "Requested seconds within the profile's limits. Omit to inherit the source song or use the selected profile's default."),
+        ("inference_steps", "ACE-Step sampling control. Omit to inherit the source song or use the saved studio or device default. CPU iteration policy still applies."),
+        ("lm_temperature", "ACE-Step language-model control. Omit to inherit the source song or use the saved studio preference."),
+        ("instrumental", "Omit to inherit the source song or use the selected profile's default. Stable Audio 3 generates instrumentals. Vocal tag-based profiles require lyrics."),
         ("keep_caption", "Omitted values inherit the source song; new music preserves the supplied caption by default."),
         ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A nonnegative seed fixes the language-model and synthesis seeds. Audio can vary with the model and compute backend."),
     ] {
@@ -68,7 +68,7 @@ pub(super) fn tools() -> Vec<Value> {
 
     let mut models = originals["select_models"].clone();
     models["name"] = json!("set_models");
-    models["description"] = json!("Set the active catalog model combination. By default, require verified local files and return the selected profile without downloading. Set download_missing=true to download/verify missing assets (potentially many gigabytes), then activate; this branch returns operation_id for get_operations. Existing selection survives download failure. Respects Expert Mode and hardware limits.");
+    models["description"] = json!("Set the active catalog model combination. By default, use verified local files. Set download_missing=true to download any catalog-managed files or verify files placed in the model folder for manual-import profiles, then activate. This returns operation_id for get_operations. Stable Audio 3 requires an external download from the publisher and local import. Existing selection survives failure. Respects Expert Mode and hardware limits.");
     models["inputSchema"]["properties"]["download_missing"] =
         json!({"type":"boolean","default":false});
     models["annotations"]["destructiveHint"] = true.into();

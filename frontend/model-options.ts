@@ -16,17 +16,19 @@ export function profileModels(catalog: ModelCatalog, selection: ModelSelection):
 export function profile(catalog: ModelCatalog, selection: ModelSelection) {
   const models = profileModels(catalog, selection);
   const metadata = modelProfile(catalog, selection);
-  const valid = metadata ? metadata.available && metadata.files.length > 0 && models.length === metadata.files.length :
+  const complete = metadata ? metadata.files.length > 0 && models.length === metadata.files.length :
     catalog.providers.some(p => p.id === selection.provider && p.status === "available") &&
     models.some(m => m.role === "synthesis" && m.file === selection.synthesis) &&
     models.some(m => m.role === "language" && m.file === selection.language);
+  const valid = complete && (metadata?.available ?? true);
+  const filesVerified = complete && models.every(m => m.verified);
   const platforms = metadata?.platforms.filter(platform => platform.os === catalog.hardware.platform) ?? [];
   const memory = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : models.reduce((n, m) => n + m.estimated_bytes, 0) +
     (selection.synthesis.includes("-xl-") ? 4 : 3) * 1024 ** 3;
   const synthesis = models.find(m => m.role === "synthesis");
   return {
-    models, metadata, valid, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
-    verified: valid && models.every(m => m.verified),
+    models, metadata, complete, valid, filesVerified, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
+    verified: valid && filesVerified,
     download: models.filter(m => !m.present).reduce((n, m) => n + Math.max(0, m.estimated_bytes - m.partial_bytes), 0),
     steps: synthesis?.suggested_steps ?? synthesis?.recommended_steps,
   };

@@ -14,9 +14,11 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
   const install = useMutation({
     mutationKey: ["models", "install"], networkMode: "always",
     mutationFn: async ({ next, verifyOnly }: { next: ModelSelection; before: number; verifyOnly: boolean }) => {
-      if (!verifyOnly) return backend.useModels(next);
-      await backend.verifyModelImport(next);
-      return null;
+      if (verifyOnly) {
+        await backend.verifyImportedModels(next);
+        return null;
+      }
+      return backend.useModels(next);
     },
     onMutate: () => { setMessage(""); client.setQueryData(["models", "progress"], null); },
     onSuccess: async (selected, { before }) => {

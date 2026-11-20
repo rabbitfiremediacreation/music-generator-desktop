@@ -65,6 +65,9 @@ it("requires only the pinned audio.cpp runtime resources in Apple Silicon bundle
 
     await writeFile(path.join(runtime, "model_specs/heartmula.json"), "test resource");
     await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
+    await recordHashes(work, metadata);
     await verifyEngine(work, macos);
 
     await writeFile(path.join(runtime, "weights.gguf"), "test weights");

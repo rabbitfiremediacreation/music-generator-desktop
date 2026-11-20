@@ -25,6 +25,11 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 - llama.cpp v0.7.0 (MIT): https://github.com/ggml-org/llama.cpp. The statically linked CPU-only `music-title` helper uses the pinned source revision and archive checksum in `models/title-model.json`. Its runtime checksums and build recipe are in `engine/title/TITLE_RUNTIME.json`; the llama.cpp/ggml and nlohmann/json MIT license texts accompany the helper.
 - Qwen3-0.6B-GGUF (Apache-2.0): https://huggingface.co/Qwen/Qwen3-0.6B-GGUF. Model weights are downloaded separately to the selected model folder, never fetched by the inference helper. The exact Q8 model revision, byte size and SHA-256 are pinned in `models/title-model.json`. Upstream license: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/LICENSE.
 
+## Optional HeartMuLa profile
+
+- audio.cpp v0.9.5 by 0xShug0 and contributors (Apache-2.0). The Apple Silicon package includes the upstream C ABI library and its license under `engine/providers/audio.cpp/`. The app supplies the launcher and uses the sandbox bookmark bridge described above. [Pinned runtime source and license](https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535) · [SDK archive and spec pins](models/audio-cpp-runtime.json)
+- HeartMuLa HNY, HeartCodec 20260123 and HeartMuLaGen (Apache-2.0). These files are acquired separately through the ModelPicker. [Model revisions and licenses](docs/model-picker.md#heartmula-3b-happy-new-year)
+
 ## MiniMax-Music3 development profile
 
 - The local adapter targets audio.cpp v0.9.4 by ShugoAI LLC under Apache-2.0. [Runtime release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4) · [Runtime license](https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE)

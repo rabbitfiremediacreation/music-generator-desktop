@@ -1,5 +1,5 @@
 use music_generator::{
-    catalog::{self, Acquisition, Catalog, Selection},
+    catalog::{self, Acquisition, Catalog, Selection, TestedPlatform},
     db::Database,
     generation_limits::validate_request,
     types::GenerateRequest,
@@ -23,10 +23,10 @@ fn profile() -> (Catalog, Selection) {
 
 #[test]
 fn catalog_pins_the_balanced_package_and_license_while_release_is_held() {
-    let (catalog, selection) = profile();
+    let (mut catalog, selection) = profile();
     let profile = catalog.profile(&selection).unwrap();
     assert_eq!(profile.acquisition, Acquisition::Manual);
-    assert_eq!(profile.platforms.len(), 0);
+    assert!(profile.platforms.is_empty());
     assert_eq!(
         profile.runtime.revision,
         "f7ac446fb75e594a6913c846bea6c85b637f6ac0"
@@ -75,6 +75,22 @@ fn catalog_pins_the_balanced_package_and_license_while_release_is_held() {
         profile.upstream_sources[0].revision
     );
     assert_eq!(snapshot.files.len(), files.len());
+
+    let hardware = music_generator::hardware::inspect();
+    let profile = catalog
+        .profiles
+        .iter_mut()
+        .find(|profile| profile.selection == selection)
+        .unwrap();
+    profile.platforms.push(TestedPlatform {
+        os: hardware.platform.into(),
+        arch: std::env::consts::ARCH.into(),
+        backend: "metal".into(),
+        minimum_ram_bytes: 0,
+        minimum_vram_bytes: None,
+    });
+    assert!(profile.platform(hardware).is_ok());
+    assert!(!catalog.recommended_profiles(hardware).contains(&selection));
 }
 
 #[tokio::test]
@@ -103,18 +119,18 @@ async fn manual_import_checks_every_file_without_activating_a_held_profile() {
         }
     }
     assert!(
-        catalog::verify_imported_models(&catalog, &db, &selection, &cancel, |_| {})
+        catalog::verify_manual_profile(&catalog, &db, &selection, &cancel, |_| {})
             .await
             .is_err()
     );
     let license = models_dir.join("MiniMax-Music3-GGUF/LICENSE");
     std::fs::write(&license, b"bad").unwrap();
-    let failure = catalog::verify_imported_models(&catalog, &db, &selection, &cancel, |_| {})
+    let failure = catalog::verify_manual_profile(&catalog, &db, &selection, &cancel, |_| {})
         .await
         .unwrap_err();
     assert!(failure.to_string().contains("LICENSE failed verification"));
     std::fs::write(&license, b"abc").unwrap();
-    catalog::verify_imported_models(&catalog, &db, &selection, &cancel, |_| {})
+    catalog::verify_manual_profile(&catalog, &db, &selection, &cancel, |_| {})
         .await
         .unwrap();
     let cache = ModelVerifier::open(&db.root);
@@ -127,7 +143,7 @@ async fn manual_import_checks_every_file_without_activating_a_held_profile() {
 
     cancel.cancel();
     assert!(matches!(
-        catalog::verify_imported_models(&catalog, &db, &selection, &cancel, |_| {}).await,
+        catalog::verify_manual_profile(&catalog, &db, &selection, &cancel, |_| {}).await,
         Err(music_generator::error::Error::Cancelled)
     ));
 }
@@ -185,7 +201,7 @@ async fn verifies_the_real_imported_package() {
     let mut settings = db.settings().unwrap();
     settings.models_dir = std::env::var("MINIMAX_TEST_MODELS_DIR").unwrap();
     db.save_settings(&settings).unwrap();
-    catalog::verify_imported_models(&catalog, &db, &selection, &CancellationToken::new(), |_| {})
+    catalog::verify_manual_profile(&catalog, &db, &selection, &CancellationToken::new(), |_| {})
         .await
         .unwrap();
 }

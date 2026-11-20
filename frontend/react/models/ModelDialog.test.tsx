@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa, catalogWithMiniMax } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMiniMax, catalogWithStableAudio } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -19,6 +19,7 @@ async function open() {
 it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
   const catalog = catalogWithHeartMuLa();
   const heartmula = catalog.profiles![0];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -32,6 +33,7 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
   expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
   expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
   expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
@@ -40,16 +42,71 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 
+it("shows the Stable Audio conditions and verifies imported files without activating an untested profile", async () => {
+  const catalog = catalogWithStableAudio();
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    if (name === "verify_imported_models") {
+      for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.verified = true;
+      return;
+    }
+    return invoke(name, args);
+  });
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expect(dialog.getByText(/Stimme den Bedingungen auf der offiziellen Hugging-Face-Modellseite zu/)).toBeTruthy();
+  expect(dialog.getByText(/Powered by Stability AI/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Bezugsbedingungen auf Hugging Face prüfen" }).getAttribute("href")).toBe("https://huggingface.co/stabilityai/stable-audio-3-small-music");
+  expect(dialog.getByRole("link", { name: "Gemma Terms of Use" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "stabilityai/stable-audio-3-optimized" })).toBeTruthy();
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Importierte Dateien prüfen" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection: small.selection }));
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("refreshes locally imported Stable Audio files and activates the supported profile in basic mode", async () => {
+  const catalog = catalogWithStableAudio(true);
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  catalog.hardware.ram_bytes = small.platforms[0].minimum_ram_bytes;
+  const recommended_profiles = [standard, small.selection];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  const activate = dialog.getByRole("button", { name: "Importierte Dateien prüfen und verwenden" }) as HTMLButtonElement;
+  expect(activate.disabled).toBe(true);
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(activate.disabled).toBe(false));
+  fireEvent.click(activate);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: small.selection }));
+  await waitFor(() => expect(screen.getByLabelText("selection").textContent).toBe(small.selection.synthesis));
+});
+
 it("verifies the pinned MiniMax import with the license visible and keeps the active model", async () => {
   let catalog = catalogWithMiniMax();
   const { selection } = catalog.profiles![0];
   const license = catalog.models.find(model => model.provider === selection.provider && model.role === "license")!;
-  license.present = false;
+  for (const file of catalog.models.filter(model => model.provider === selection.provider)) {
+    file.present = file !== license;
+  }
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
-    if (name === "verify_model_import") {
+    if (name === "verify_imported_models") {
       expect(args.selection).toEqual(selection);
+      catalog = { ...catalog, models: catalog.models.map(model => model.provider === selection.provider ? { ...model, verified: true } : model) };
       return;
     }
     return invoke(name, args);
@@ -68,8 +125,8 @@ it("verifies the pinned MiniMax import with the license visible and keeps the ac
   fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
   await waitFor(() => expect(verify.disabled).toBe(false));
   fireEvent.click(verify);
-  expect(await dialog.findByText("Importierte Dateien geprüft.")).toBeTruthy();
-  expect(ipc.invoke).toHaveBeenCalledWith("verify_model_import", { selection });
+  await waitFor(() => expect(verify.textContent).toBe("Importierte Dateien geprüft"));
+  expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection });
   expect(ipc.invoke.mock.calls.some(([name]) => name === "use_models")).toBe(false);
   expect(screen.getByLabelText("selection").textContent).toBe(standard.synthesis);
 });

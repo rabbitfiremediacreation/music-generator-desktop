@@ -11,8 +11,9 @@
       { "url": "https://github.com/**" },
       { "url": "https://alphatester.rabbitfire.de/**" },
       { "url": "https://www.nvidia.com/Download/index.aspx" },
-      { "url": "https://huggingface.co/MiniMaxAI/MiniMax-Music3/**" },
-      { "url": "https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/**" }
+      { "url": "https://huggingface.co/**" },
+      { "url": "https://ai.google.dev/gemma/terms" },
+      { "url": "https://stability.ai/use-policy" }
     ] }
   ]
 }

@@ -5,7 +5,7 @@ import { exportSong } from "../../exports";
 import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
 import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songWavFormat } from "../../song-result";
-import type { Folder, Generation, JobProgress, ModelSelection, Song } from "../../types";
+import type { Folder, Generation, JobProgress, ModelAbilities, ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
 import { usePlayer } from "../player";
@@ -36,12 +36,14 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const commit = () => {if(!editing)return;setEditing(false);if(title.trim() !== (song.title||""))change.mutate(()=>backend.patch(song.id,{title:title.trim()}));};
   const more = async (retry=false) => {
     try {
-      const params = song.params as Generation & { use_cot_caption?: boolean; generation_profile?: { capabilities?: { prompt?: boolean } } };
+      const params = song.params as Generation & { use_cot_caption?: boolean; generation_profile?: { capabilities?: Partial<ModelAbilities> } };
       const generation = {...params,title:song.title||"",folder_id:song.folder_id};
       if (!retry) {
+        const capabilities = params.generation_profile?.capabilities;
         generation.model_selection = params.model_selection ?? selection ?? undefined;
-        if (params.generation_profile?.capabilities?.prompt === false) delete generation.caption;
-        Object.assign(generation, { instrumental: false, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
+        if (capabilities?.prompt === false) delete generation.caption;
+        const instrumental = capabilities?.instrumental === true && capabilities.lyrics === false;
+        Object.assign(generation, { instrumental, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
       }
       await admission.start(generation,retry?song.id:undefined);
     } catch(error){onError(error);}

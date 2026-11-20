@@ -14,44 +14,23 @@ export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, reco
 };
 
 export function catalogWithHeartMuLa(): ModelCatalog {
-  // The shared UI tests also run before the HeartMuLa provider catalog lands.
-  const selection = { provider: "heartmula", synthesis: "heartmula-fixture", language: "" };
-  const name = "HeartMuLa 3B";
-  const repositories = ["HeartMuLa/HeartMuLa-oss-3B-happy-new-year", "HeartMuLa/HeartCodec-oss-20260123"];
-  const files = ["heartmula-fixture/weights.gguf", "heartmula-fixture/codec.gguf"];
-  const catalog = structuredClone(catalogFixture);
-  return {
-    ...catalog,
-    providers: [...catalog.providers, { id: selection.provider, name, status: "available", adapter: "audio.cpp", source: "https://github.com/0xShug0/audio.cpp" }],
-    profiles: [{
-      selection, name, files, available: false, platforms: [], acquisition: "download",
-      capabilities: { min_duration: 10, max_duration: 240, max_variants: 1, prompt: false, lyrics: true, lyrics_required: true, instrumental: false, bpm: false, advanced: false, analysis: false },
-      runtime: { name: "audio.cpp", revision: "test-runtime", source: "https://github.com/0xShug0/audio.cpp", license: "Apache-2.0", license_url: "https://github.com/0xShug0/audio.cpp/blob/main/LICENSE" },
-      upstream_sources: repositories.map((repository, index) => ({
-        id: repository, repository, revision: "test-revision", role: index ? "codec" : "weights", license: "Apache-2.0",
-        license_url: `https://huggingface.co/${repository}/blob/main/LICENSE`,
-      })),
-      usage: { model_use: "", redistribution: "", outputs: "" },
-    }],
-    models: [...catalog.models, ...files.map((file, index): CatalogModel => ({
-      file, provider: selection.provider, role: index ? "codec" : "weights", family: name,
-      precision: "GGUF", estimated_bytes: 1024, sha256: "a".repeat(64), recommended_steps: null,
-      verified: false, present: false, partial_bytes: 0,
-    }))],
-  };
+  return catalogWithProvider("heartmula");
+}
+
+export function catalogWithStableAudio(available = false): ModelCatalog {
+  return catalogWithProvider("stable-audio-3", available);
 }
 
 export function catalogWithMiniMax(): ModelCatalog {
-  const provider = source.providers.find(item => item.id === "minimax-music3")!;
-  const profile = source.profiles.find(item => item.selection.provider === provider.id)!;
-  const catalog = structuredClone(catalogFixture);
+  return catalogWithProvider("minimax-music3");
+}
+
+function catalogWithProvider(id: string, available = false): ModelCatalog {
   return {
-    ...catalog,
-    providers: [...catalog.providers, { ...provider, status: "preview" }],
-    profiles: [{ ...profile, acquisition: "manual", available: false, unavailable_reason: profile.release_hold }],
-    models: [...catalog.models, ...source.models.filter(model => model.provider === provider.id).map(model => ({
-      ...model, role: model.role as CatalogModel["role"], present: true, verified: false, partial_bytes: 0,
-    }))],
+    ...structuredClone(catalogFixture),
+    providers: source.providers.filter(provider => provider.id === "ace-step" || provider.id === id).map(provider => ({ ...provider, status: provider.status === "preview" ? "preview" : "available" })),
+    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({ ...profile, platforms: available ? profile.platforms : [], available, unavailable_reason: profile.release_hold, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }
 

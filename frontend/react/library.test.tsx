@@ -179,12 +179,17 @@ it("shows measured MiniMax audio, runtime provenance and the publication reminde
   expect(screen.getByRole("button", { name: "Download" }).getAttribute("aria-describedby")).toBe(note.id);
 });
 
-it.each([true, false])("uses the saved prompt capability (%s) when requesting another variant", async prompt => {
+it.each([
+  ["minimax-music3", { prompt: true, lyrics: true, instrumental: false }],
+  ["heartmula", { prompt: false, lyrics: true, instrumental: false }],
+  ["stable-audio-3", { prompt: true, lyrics: false, instrumental: true }],
+] as const)("uses the saved %s capabilities when requesting another variant", async (provider, capabilities) => {
   const caption = "Global Metadata: pop\nVocal Details: warm\nArrangement: keys";
+  const { prompt, lyrics, instrumental } = capabilities;
   const params = {
-    caption, duration: 27, lyrics: "[Verse]\nAt dawn", style: prompt ? "" : "synth pop",
-    model_selection: { provider: prompt ? "minimax-music3" : "heartmula", synthesis: "fixed-profile", language: "" },
-    generation_profile: { capabilities: { prompt } },
+    caption, duration: 27, lyrics: lyrics ? "[Verse]\nAt dawn" : "", style: prompt ? "" : "synth pop",
+    model_selection: { provider, synthesis: "fixed-profile", language: "" },
+    generation_profile: { capabilities },
   };
   songs[0].params = params;
   const original = mocks.invoke.getMockImplementation()!;
@@ -199,6 +204,7 @@ it.each([true, false])("uses the saved prompt capability (%s) when requesting an
   const request = mocks.invoke.mock.calls.find(([name]) => name === "generate")?.[1].request;
   if (prompt) expect(request).toHaveProperty("caption", caption);
   else expect(request).not.toHaveProperty("caption");
+  expect(request).toHaveProperty("instrumental", instrumental);
 });
 
 it("shows the variance with up to two decimals",async()=>{

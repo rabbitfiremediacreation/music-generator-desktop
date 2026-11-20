@@ -130,29 +130,55 @@ impl AppState {
         cancel: &tokio_util::sync::CancellationToken,
         progress: impl Fn(crate::engine::progress::Progress),
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
-        if selection.provider == "minimax-music3" {
-            let catalog = crate::catalog::catalog();
-            let profile = catalog
-                .profile(selection)
-                .ok_or_else(|| message("Unknown model profile"))?;
-            let platform = profile.platform(crate::hardware::inspect())?;
-            let job = crate::engine::native::WavJob {
-                executable: &profile.runtime.executable(&self.resources),
-                model_folder: &PathBuf::from(&settings.models_dir).join("MiniMax-Music3-GGUF"),
-                data_root: &self.db.root,
-                log_name: "minimax-music3.log",
-                backend: &platform.backend,
-                timeout: std::time::Duration::from_secs_f64(settings.timeout_minutes * 60.0),
-            };
-            let (audio, extension, mut metadata) =
-                crate::engine::minimax_music3::generate(&job, params, cancel, progress).await?;
-            metadata["runtime"] = profile.runtime.name.clone().into();
-            metadata["runtime_revision"] = profile.runtime.revision.clone().into();
-            return Ok((audio, extension, metadata));
+        let catalog = crate::catalog::catalog();
+        let profile = catalog
+            .profile(selection)
+            .ok_or_else(|| message("Unknown native generation profile"))?;
+        match selection.provider.as_str() {
+            "heartmula" => {
+                crate::engine::heartmula::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            "stable-audio-3" => {
+                crate::engine::stable_audio::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            "minimax-music3" => {
+                let platform = profile.platform(crate::hardware::inspect())?;
+                let job = crate::engine::native::WavJob {
+                    executable: &profile.runtime.executable(&self.resources),
+                    model_folder: &PathBuf::from(&settings.models_dir).join("MiniMax-Music3-GGUF"),
+                    data_root: &self.db.root,
+                    log_name: "minimax-music3.log",
+                    backend: &platform.backend,
+                    timeout: std::time::Duration::from_secs_f64(settings.timeout_minutes * 60.0),
+                };
+                let (audio, extension, mut metadata) =
+                    crate::engine::minimax_music3::generate(&job, params, cancel, progress).await?;
+                metadata["runtime"] = profile.runtime.name.clone().into();
+                metadata["runtime_revision"] = profile.runtime.revision.clone().into();
+                Ok((audio, extension, metadata))
+            }
+            _ => Err(message(
+                "This model provider has no native generation adapter",
+            )),
         }
-        Err(message(
-            "This model provider has no native generation adapter",
-        ))
     }
 
     pub fn stop_engine(&self) {

@@ -105,19 +105,19 @@ pub async fn use_models(
 }
 
 #[tauri::command]
-pub async fn verify_model_import(
+pub async fn verify_imported_models(
     state: State<'_, Arc<AppState>>,
     app: AppHandle,
     selection: Selection,
 ) -> Result<()> {
     let operation = state.runtime.try_begin(OperationKind::Models)?;
-    let outcome = catalog::verify_imported_models(
+    let outcome = catalog::verify_manual_profile(
         &catalog::catalog(),
         &state.db,
         &selection,
         &operation.cancellation(),
-        |progress| {
-            let _ = app.emit("model-download-progress", progress);
+        |p| {
+            let _ = app.emit("model-download-progress", p);
         },
     )
     .await;
