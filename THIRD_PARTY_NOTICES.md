@@ -11,6 +11,7 @@ Music Generator is distributed under the MIT license; see LICENSE.
 - React/React DOM, TanStack Router/Query and their bundled JavaScript dependencies, and Tailwind CSS: license texts are included in `static/vendor/frontend-dependencies.LICENSE.txt` (shipped as `vendor/frontend-dependencies.LICENSE.txt`). Exact versions are recorded in package-lock.json.
 - Microsoft WebView2 Fixed Version Runtime, Windows only: https://developer.microsoft.com/microsoft-edge/webview2/ — distributed under Microsoft's WebView2 Runtime terms. Its runtime license files remain inside the WebView2 directory. The exact download and SHA-256 are in models/webview2.json. It is not installed globally.
 - Microsoft Visual C++ runtime DLLs, Windows only: redistributed app-locally from the Visual Studio build tools' redistributable directory under Microsoft's redistribution terms.
+- Magenta RealTime 2 by Google LLC (Apache-2.0) can be bundled as the optional Apple Silicon recorder. It uses MLX, TensorFlow Lite and SentencePiece. The runtime licenses and file checksums accompany the recorder under `engine/magenta/`. The separately acquired Google model files are licensed under CC BY 4.0. See [model sources and usage](docs/magenta-realtime-2.md#license-and-attribution).
 
 The GGUF models are downloaded separately from the pinned Hugging Face revision in models/manifest.json. Model cards and license information: https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF. Models are not included in the application download.
 

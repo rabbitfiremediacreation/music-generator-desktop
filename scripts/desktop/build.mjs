@@ -4,6 +4,7 @@ import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
 import { recordTitle } from "./prepare-title.mjs";
+import { recordMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
 await prepareEngine(); await verifyEngine(engineFolder);
@@ -32,10 +33,15 @@ if (platform === "macos") {
   for (const file of await files(bundledEngine)) {
     const bytes = await readFile(file);
     if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));
+  const magenta = path.join(bundledEngine, "magenta");
+  if (await exists(magenta)) {
+    await recordMagenta(magenta);
+    await verifyMagenta(magenta);
+  }
   const { files: preparedFiles, ...provenance } = await verifyEngine(engineFolder);
   await recordHashes(bundledEngine,{...provenance,prepared_files:preparedFiles});
   await run("codesign",["--force","--sign",identity,"--entitlements",path.join(root,"src-tauri/Engine.entitlements"),helper]);

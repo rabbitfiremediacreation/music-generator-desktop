@@ -25,6 +25,16 @@ export function catalogWithMiniMax(): ModelCatalog {
   return catalogWithProvider("minimax-music3");
 }
 
+export function catalogWithMagenta(available = false): ModelCatalog {
+  const catalog = catalogWithProvider("magenta-realtime-2", available);
+  if (available) {
+    const profile = catalog.profiles![0];
+    catalog.hardware = { ...catalog.hardware, ram_bytes: profile.platforms[0].minimum_ram_bytes };
+    catalog.recommended_profiles.push(profile.selection);
+  }
+  return catalog;
+}
+
 function catalogWithProvider(id: string, available = false): ModelCatalog {
   return {
     ...structuredClone(catalogFixture),

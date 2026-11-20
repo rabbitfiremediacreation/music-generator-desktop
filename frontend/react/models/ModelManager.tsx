@@ -74,7 +74,8 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
       {!verifyOnly && !catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
         <dl className="model-requirements">{!verifyOnly && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
-        {manual && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
+        {metadata && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
+        {metadata && !manual && <p className="small">{t("provider_download_import_hint")}</p>}
         {missingImport && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         {!verifyOnly && selected.allowed && !selected.compatible && <p className="setup-error">{t("picker_low_ram")}</p>}
         {spaceLow && <p className="setup-error">{t("browser_space_low")}</p>}

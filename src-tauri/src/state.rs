@@ -159,6 +159,19 @@ impl AppState {
                 )
                 .await
             }
+            "magenta-realtime-2" => {
+                let executable = profile.runtime.executable(&self.resources);
+                let models = std::path::Path::new(&settings.models_dir);
+                crate::engine::magenta::generate(
+                    &executable,
+                    models,
+                    &self.db.root,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "minimax-music3" => {
                 let platform = profile.platform(crate::hardware::inspect())?;
                 let job = crate::engine::native::WavJob {

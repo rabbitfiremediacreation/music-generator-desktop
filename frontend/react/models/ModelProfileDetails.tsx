@@ -33,6 +33,7 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
         </li>)}</ul> : t("provider_no_tested_platforms")}
       </dd></div>
     </dl>
+    {profile.runtime_note && <p className="small" role="note">{t(profile.runtime_note)}</p>}
     {!profile.available && <p className="setup-error" role="status">{t(profile.unavailable_reason || "provider_unavailable")}</p>}
   </section>;
 }

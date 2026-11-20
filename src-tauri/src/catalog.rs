@@ -191,6 +191,21 @@ impl Catalog {
         ace_step.chain(native).collect()
     }
 
+    /// Keep hardware-compatible profiles discoverable while limiting recommendations to this build's runtimes.
+    pub fn recommendations_for_build(
+        &self,
+        hardware: &Hardware,
+        resources: &Path,
+    ) -> Vec<Selection> {
+        self.recommended_profiles(hardware)
+            .into_iter()
+            .filter(|selection| {
+                self.profile(selection)
+                    .is_none_or(|profile| profile.ensure_runtime(resources, hardware).is_ok())
+            })
+            .collect()
+    }
+
     pub fn required(&self, selection: &Selection) -> Result<Vec<Asset>> {
         if let Some(profile) = self.profile(selection) {
             if profile.files.is_empty()

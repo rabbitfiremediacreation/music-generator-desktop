@@ -270,6 +270,7 @@ button.armed, .sek.armed { color: var(--error) !important; border-color: var(--e
 .song .s.run { color: var(--accent2); }
 .song .s.err { color: var(--error); }
 .song .s.took { color: var(--muted); }
+.song .stream-metrics { display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .song .slot { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); font-size: 13px; }
 .song .slot.run { border-color: var(--accent2); color: var(--accent2); }
 .song .slot.err { border-color: var(--error); color: var(--error); cursor: help; }

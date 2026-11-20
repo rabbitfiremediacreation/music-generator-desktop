@@ -162,6 +162,19 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("shows each Magenta recording observation separately from the WAV duration", async () => {
+  songs[0].result_meta = {
+    duration: 12, duration_source: "wav",
+    stream_metrics: { first_audio_ms: 750, underrun_blocks: 0, peak_rss_bytes: 2 ** 30, realtime: true },
+  };
+  mount();
+  expect(await screen.findByText("First audio after 0.75 s")).toBeTruthy();
+  expect(screen.getByText("0 underrun blocks")).toBeTruthy();
+  expect(screen.getByText("Peak resident RAM 1 GiB")).toBeTruthy();
+  expect(screen.getByText("Real-time capture verified")).toBeTruthy();
+  expect(screen.getByText(/0:12/)).toBeTruthy();
+});
+
 it("shows measured MiniMax audio, runtime provenance and the publication reminder", async () => {
   songs[0].params = { model_selection: { provider: "minimax-music3", synthesis: "fixed-profile", language: "" } };
   songs[0].result_meta = {
@@ -183,6 +196,7 @@ it.each([
   ["minimax-music3", { prompt: true, lyrics: true, instrumental: false }],
   ["heartmula", { prompt: false, lyrics: true, instrumental: false }],
   ["stable-audio-3", { prompt: true, lyrics: false, instrumental: true }],
+  ["magenta-realtime-2", { prompt: true, lyrics: false, instrumental: true }],
 ] as const)("uses the saved %s capabilities when requesting another variant", async (provider, capabilities) => {
   const caption = "Global Metadata: pop\nVocal Details: warm\nArrangement: keys";
   const { prompt, lyrics, instrumental } = capabilities;

@@ -4,8 +4,8 @@ import { backend } from "../../backend";
 import { exportSong } from "../../exports";
 import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
-import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songWavFormat } from "../../song-result";
-import type { Folder, Generation, JobProgress, ModelAbilities, ModelSelection, Song } from "../../types";
+import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songStreamMetrics, songWavFormat } from "../../song-result";
+import type { Folder, JobProgress, ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
 import { usePlayer } from "../player";
@@ -36,7 +36,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const commit = () => {if(!editing)return;setEditing(false);if(title.trim() !== (song.title||""))change.mutate(()=>backend.patch(song.id,{title:title.trim()}));};
   const more = async (retry=false) => {
     try {
-      const params = song.params as Generation & { use_cot_caption?: boolean; generation_profile?: { capabilities?: Partial<ModelAbilities> } };
+      const params = song.params as typeof song.params & { use_cot_caption?: boolean };
       const generation = {...params,title:song.title||"",folder_id:song.folder_id};
       if (!retry) {
         const capabilities = params.generation_profile?.capabilities;
@@ -56,6 +56,8 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const revision = typeof meta.runtime_revision === "string" ? meta.runtime_revision : null;
   const generatedBy = songMachineGeneratedBy(song);
   const canExport = song.status === "done" && !song.audio_missing;
+  const stream = song.status === "done" ? songStreamMetrics(song) : null;
+  const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
   const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
@@ -75,6 +77,12 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       {song.status==="cancelled"&&<div className="s">{t("cancelled")}</div>}
       {song.status==="error"&&<div className="s err" title={song.message??undefined}>{t("error")} · {t(songErrorKey(song.message||""))}</div>}
       {song.status==="done"&&!player.played.has(song.id)&&took!==null&&<div className="s took">{t("created_in")} {audioTime(took)}</div>}
+      {stream && <div className="s stream-metrics">
+        <span>{t("stream_first_audio", formatMetric(stream.first_audio_ms / 1000))}</span>
+        <span>{t("stream_underruns", formatMetric(stream.underrun_blocks))}</span>
+        <span>{t("stream_peak_ram", formatMetric(stream.peak_rss_bytes / 1024 ** 3))}</span>
+        <span>{t(stream.realtime ? "stream_realtime_met" : "stream_realtime_missed")}</span>
+      </div>}
       {song.status==="done"&&Boolean(meta.title_generation_error)&&<div className="s err" title={String(meta.title_generation_error)}>{t("title_failed")}</div>}
       {song.audio_missing&&<div className="s err">{t("import_audio_missing")}</div>}
       {warning&&!song.audio_missing&&<div className="s duration-warning" role="note">{t(`duration_${warning.code}`,audioTime(warning.actual_seconds),audioTime(warning.requested_seconds))}</div>}
