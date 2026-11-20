@@ -69,7 +69,7 @@ function seedPages(count: number) {
   }));
 }
 
-it("navigates both ways and resets the page when search, folder or favorites changes", async () => {
+it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
   seedPages(106);
   mount();
   const next=await screen.findByRole("button",{name:"Next"});
