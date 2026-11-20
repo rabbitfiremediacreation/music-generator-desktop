@@ -40,11 +40,11 @@ impl Clip<'_> {
     }
 
     fn check_output(&self, wav: &[u8]) -> Result<()> {
-        let format = audio_facts::wav_format(wav)?;
+        let format = audio_facts::wav_facts(wav)?;
         let frames = u64::from(self.bars) * 240 * u64::from(SAMPLE_RATE) / u64::from(self.bpm);
-        if format.sample_rate != SAMPLE_RATE
+        if format.sample_rate_hz != SAMPLE_RATE
             || format.channels != 2
-            || format.bits != 24
+            || format.bits_per_sample != 24
             || format.frames != frames
         {
             return Err(message(format!(

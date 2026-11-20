@@ -297,7 +297,7 @@ impl Database {
             return Err(message("Please enter a prompt or style"));
         }
         let group = req.group_id.clone().unwrap_or_else(id);
-        let lyrics = if req.instrumental {
+        let lyrics = if req.instrumental && capabilities.lyrics {
             "[Instrumental]"
         } else {
             req.lyrics.trim()
@@ -315,9 +315,7 @@ impl Database {
             params["use_cot_caption"] = json!(!req.keep_caption);
         }
         params["caption"] = json!(caption);
-        if capabilities.lyrics {
-            params["lyrics"] = json!(lyrics);
-        }
+        params["lyrics"] = json!(lyrics);
         let mut con = self.lock();
         let tx = con.transaction()?;
         let folder = req.folder_id.as_ref().filter(|f| {

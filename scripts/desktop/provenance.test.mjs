@@ -44,26 +44,40 @@ it("rejects the old Windows iteration limit even when target and file hashes mat
   } finally { await rm(work,{recursive:true,force:true}); }
 });
 
-it("rejects an Apple Silicon engine cache missing the Mimetic runtime", async () => {
-  const work = await mkdtemp(path.join(tmpdir(), "macos-mimetic-provenance-"));
+it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon bundles", async () => {
+  const work = await mkdtemp(path.join(tmpdir(), "macos-provider-provenance-test-"));
   try {
-    const mac = desktopTarget("macos", "arm64");
+    const macos = desktopTarget("macos", "arm64");
     const metadata = {
-      platform: "macos",
-      arch: "arm64",
-      revision: manifest.engines.macos.revision,
+      platform: "macos", arch: "arm64", revision: manifest.engines.macos.revision,
       max_inference_steps: manifest.engines.macos.max_inference_steps,
       sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
-      recipe_sha256: await engineRecipeHash(mac),
+      recipe_sha256: await engineRecipeHash(macos),
     };
     await writeFile(path.join(work, "ace-server"), "test engine");
     await recordHashes(work, metadata);
-    await assert.rejects(verifyEngine(work, mac), /Mimetic A0 runtime is missing/);
-
+    await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
     await writeFile(path.join(work, "mimetic-synth"), "test launcher");
     await mkdir(path.join(work, "mimetic-python"));
     await writeFile(path.join(work, "mimetic-python/MIMETIC_RUNTIME.json"), "test runtime receipt");
+
+    const runtime = path.join(work, "providers/audio.cpp");
+    await mkdir(path.join(runtime, "model_specs"), { recursive: true });
+    for (const file of ["audiocpp_cli", "libaudiocpp.0.dylib", "LICENSE"]) {
+      await writeFile(path.join(runtime, file), "test resource");
+    }
     await recordHashes(work, metadata);
-    await verifyEngine(work, mac);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+
+    await writeFile(path.join(runtime, "model_specs/heartmula.json"), "test resource");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
+    await recordHashes(work, metadata);
+    await verifyEngine(work, macos);
+
+    await writeFile(path.join(runtime, "weights.gguf"), "test weights");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
   } finally { await rm(work, { recursive: true, force: true }); }
 });

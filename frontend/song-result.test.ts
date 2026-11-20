@@ -2,7 +2,7 @@
 import { expect, it } from "vitest";
 import { I18N, setLang, t } from "./i18n.js";
 import { LANGS } from "./locales";
-import { audioTime, songDuration, songDurationWarning, songIterations } from "./song-result";
+import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songStreamMetrics, songWavFormat } from "./song-result";
 import "./song-result-i18n";
 
 it("uses locally verified effective steps and bounds only the requested fallback without changing stored history", () => {
@@ -44,6 +44,20 @@ it("uses whole-second player formatting while retaining exact measured audio dur
   expect(audioTime(59.8)).toBe("0:59");
 });
 
+it("uses measured WAV parameters without filling in missing or malformed values", () => {
+  const format = { container: "wav", encoding: "pcm", sample_rate_hz: 44100, channels: 2, bits_per_sample: 16 };
+  expect(songWavFormat({ result_meta: { audio_format: format } })).toEqual({ sampleRateHz: 44100, channels: 2, bitsPerSample: 16 });
+  for (const value of [null, [], { ...format, encoding: "unknown" }, { ...format, sample_rate_hz: "44100" }, { ...format, channels: 0 }, { ...format, bits_per_sample: 16.5 }]) {
+    expect(songWavFormat({ result_meta: { audio_format: value } })).toBeNull();
+  }
+});
+
+it("labels songs from recorded generation provenance", () => {
+  expect(songMachineGeneratedBy({ result_meta: { machine_generated: true, generated_by: "MiniMax-Music3" } })).toBe("MiniMax-Music3");
+  expect(songMachineGeneratedBy({ result_meta: { generated_by: "MiniMax-Music3" } })).toBeNull();
+  expect(songMachineGeneratedBy({ result_meta: { machine_generated: true, generated_by: "   " } })).toBeNull();
+});
+
 it("renders only valid backend warnings coherent with measured audio, without adding its own materiality threshold", () => {
   const warning = { code: "short_audio", requested_seconds: 30, actual_seconds: 22 };
   const song = { params: { duration: 30 }, result_meta: { duration: 22, duration_source: "wav", duration_warning: warning } };
@@ -65,4 +79,12 @@ it("explains short and long audio clearly in every registered language", () => {
     }
   }
   setLang("de");
+});
+
+it("reads recorded stream observations, including zero underruns and missed real-time capture", () => {
+  const stream_metrics = { first_audio_ms: 500, underrun_blocks: 0, peak_rss_bytes: 3_000_000_000, realtime: false };
+  const song = { params: {}, result_meta: { stream_metrics } };
+  expect(songStreamMetrics(song)).toEqual(stream_metrics);
+  expect(songStreamMetrics({ ...song, result_meta: { stream_metrics: { ...stream_metrics, underrun_blocks: -1 } } })).toBeNull();
+  expect(songStreamMetrics({ ...song, result_meta: {} })).toBeNull();
 });

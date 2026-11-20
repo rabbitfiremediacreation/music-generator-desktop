@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { exists, run } from "./common.mjs";
+import { audioCppDirectory, audioCppSupported, exists, run, target } from "./common.mjs";
 
 export async function verifyMacSandbox(app, engine) {
   const entitlements = file => execFileSync("codesign",["-d","--entitlements",":-","--xml",file],{encoding:"utf8",stdio:["ignore","pipe","pipe"]});
@@ -12,8 +12,12 @@ export async function verifyMacSandbox(app, engine) {
   assert(enabled(parent,"com.apple.security.app-sandbox"), "Main app is not sandboxed");
   assert(!enabled(parent,"com.apple.security.inherit"), "Main app must not use child inheritance");
   const helpers = [path.join(path.dirname(app),"music-engine-supervisor"),path.join(engine,"ace-server"),path.join(engine,"mp3-codec"),path.join(engine,"title/music-title")];
-  const mimetic = path.join(engine,"mimetic-synth");
-  if (await exists(mimetic)) helpers.push(mimetic);
+  if (audioCppSupported(target)) helpers.push(path.join(engine, audioCppDirectory, "audiocpp_cli"));
+  const magenta = path.join(engine, "magenta");
+  if (await exists(magenta)) helpers.push(path.join(magenta, "mrt2-record"));
+  const audioCraft = path.join(engine, "audiocraft", "audiocraft-synth");
+  if (await exists(audioCraft)) helpers.push(audioCraft);
+  if (target.arch === "arm64") helpers.push(path.join(engine, "mimetic-synth"));
   for (const file of helpers) {
     const child = entitlements(file);
     assert(enabled(child,"com.apple.security.app-sandbox") && enabled(child,"com.apple.security.inherit"), "Engine helper must inherit the app sandbox");

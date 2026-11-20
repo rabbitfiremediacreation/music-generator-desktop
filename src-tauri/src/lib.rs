@@ -97,7 +97,11 @@ pub fn run() {
                 .map(std::path::PathBuf::from)
                 .unwrap_or(root);
             let resources = if cfg!(debug_assertions) {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+                std::env::var_os("MUSIC_GENERATOR_DEV_RESOURCES_DIR")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| {
+                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+                    })
             } else {
                 app.path().resource_dir()?
             };
@@ -157,6 +161,7 @@ pub fn run() {
             audio_import::pick_and_analyze_audio,
             model_commands::model_catalog,
             model_commands::use_models,
+            model_commands::verify_imported_models,
             model_commands::select_models,
             model_commands::download_title_model,
             model_commands::cancel_model_download

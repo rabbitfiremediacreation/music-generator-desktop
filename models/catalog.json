@@ -31,6 +31,41 @@
       "source": "https://github.com/ServeurpersoCom/acestep.cpp"
     },
     {
+      "id": "heartmula",
+      "name": "HeartMuLa 3B Happy New Year",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/0xShug0/audio.cpp"
+    },
+    {
+      "id": "stable-audio-3",
+      "name": "Stable Audio 3",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/Stability-AI/stable-audio-3"
+    },
+    {
+      "id": "minimax-music3",
+      "name": "MiniMax-Music3",
+      "status": "preview",
+      "adapter": "audio.cpp",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-Music3"
+    },
+    {
+      "id": "magenta-realtime-2",
+      "name": "Magenta RealTime 2",
+      "status": "available",
+      "adapter": "magenta-realtime-cpp",
+      "source": "https://huggingface.co/google/magenta-realtime-2"
+    },
+    {
+      "id": "audiocraft",
+      "name": "AudioCraft",
+      "status": "available",
+      "adapter": "audiocraft",
+      "source": "https://github.com/facebookresearch/audiocraft"
+    },
+    {
       "id": "mimetic-a0",
       "name": "Mimetic A0",
       "status": "available",
@@ -39,6 +74,534 @@
     }
   ],
   "profiles": [
+    {
+      "selection": {
+        "provider": "heartmula",
+        "synthesis": "heartmula-oss-3b-hny",
+        "language": ""
+      },
+      "name": "HeartMuLa 3B Happy New Year",
+      "files": [
+        "heartmula/HeartMuLa-oss-3B/config.json",
+        "heartmula/HeartMuLa-oss-3B/model-00001-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00002-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00003-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model-00004-of-00004.safetensors",
+        "heartmula/HeartMuLa-oss-3B/model.safetensors.index.json",
+        "heartmula/HeartCodec-oss/config.json",
+        "heartmula/HeartCodec-oss/model-00001-of-00002.safetensors",
+        "heartmula/HeartCodec-oss/model-00002-of-00002.safetensors",
+        "heartmula/HeartCodec-oss/model.safetensors.index.json",
+        "heartmula/gen_config.json",
+        "heartmula/tokenizer.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "heartmula-hny",
+          "role": "weights",
+          "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+          "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B-happy-new-year/blob/41d4faafc5bde6990bf8505daa70840fb3c4a3e7/README.md"
+        },
+        {
+          "id": "heartcodec-20260123",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "heartmula-gen",
+          "role": "tokenizer",
+          "repository": "HeartMuLa/HeartMuLaGen",
+          "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLaGen/blob/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7/README.md"
+        }
+      ],
+      "runtime": {
+        "name": "audio.cpp v0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "usage": {
+        "model_use": "Apache-2.0 permits private and commercial model use.",
+        "redistribution": "When redistributing code or weights, include the Apache-2.0 license and applicable notices, retain any NOTICE, and identify modified files.",
+        "outputs": "The upstream licenses impose no separate noncommercial or attribution condition on generated music. Check rights to the supplied lyrics and to the resulting song separately."
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-music",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small Music",
+      "files": [
+        "stable-audio-3-small-music/model.safetensors",
+        "stable-audio-3-small-music/model_config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-medium",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Medium",
+      "files": [
+        "stable-audio-3-medium/model.safetensors",
+        "stable-audio-3-medium/model_config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 380,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "minimax-music3",
+        "synthesis": "q4-0-q8-0-q4-0",
+        "language": ""
+      },
+      "name": "MiniMax-Music3",
+      "files": [
+        "MiniMax-Music3-GGUF/language_model_q4_0.gguf",
+        "MiniMax-Music3-GGUF/config.json",
+        "MiniMax-Music3-GGUF/config/language_model.json",
+        "MiniMax-Music3-GGUF/config/rvq_depth_decoder.json",
+        "MiniMax-Music3-GGUF/config/condition_encoder.json",
+        "MiniMax-Music3-GGUF/config/transformer.json",
+        "MiniMax-Music3-GGUF/config/vocoder.json",
+        "MiniMax-Music3-GGUF/tokenizer/tokenizer.json",
+        "MiniMax-Music3-GGUF/tokenizer/tokenizer_config.json",
+        "MiniMax-Music3-GGUF/rvq_depth_decoder_q8_0.gguf",
+        "MiniMax-Music3-GGUF/condition_encoder.gguf",
+        "MiniMax-Music3-GGUF/transformer_q4_0.gguf",
+        "MiniMax-Music3-GGUF/vocoder.gguf",
+        "MiniMax-Music3-GGUF/LICENSE"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 300,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "audio.cpp",
+        "revision": "f7ac446fb75e594a6913c846bea6c85b637f6ac0",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE",
+        "executable": "engine/minimax-music3/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "minimax-music3-gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/MiniMax-Music3-GGUF",
+          "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+          "license": "MiniMax-Music3 Community License",
+          "license_url": "https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/blob/46fe77f8bb395ccdbe797d784225f7b84866e7ce/LICENSE"
+        },
+        {
+          "id": "minimax-music3-original",
+          "role": "official",
+          "repository": "MiniMaxAI/MiniMax-Music3",
+          "revision": "1b525ccb685ae809f33027c51c351eeb5833cf72",
+          "license": "MiniMax-Music3 Community License",
+          "license_url": "https://huggingface.co/MiniMaxAI/MiniMax-Music3/blob/1b525ccb685ae809f33027c51c351eeb5833cf72/LICENSE"
+        }
+      ],
+      "usage": {
+        "model_use": "minimax_music3_usage",
+        "redistribution": "minimax_music3_redistribution",
+        "outputs": "minimax_music3_outputs",
+        "policy_url": "https://huggingface.co/MiniMaxAI/MiniMax-Music3/blob/1b525ccb685ae809f33027c51c351eeb5833cf72/LICENSE"
+      },
+      "platforms": [],
+      "release_hold": "MiniMax-Music3 release is pending license safeguards and offline CUDA validation",
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "magenta-realtime-2",
+        "synthesis": "mrt2_small",
+        "language": ""
+      },
+      "name": "Magenta RealTime 2 Small",
+      "files": [
+        "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+        "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+        "magenta-realtime-2/resources/musiccoca/spm.model",
+        "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+        "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+        "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+        "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+        "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+        "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 1000000000
+      },
+      "runtime": {
+        "name": "Magenta RealTime 2 C++/MLX",
+        "revision": "694a545e4ba0b88bf1150137b129582166d3e07f",
+        "source": "https://github.com/magenta/magenta-realtime/tree/694a545e4ba0b88bf1150137b129582166d3e07f",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/magenta/magenta-realtime/blob/694a545e4ba0b88bf1150137b129582166d3e07f/LICENSE",
+        "executable": "engine/magenta/mrt2-record",
+        "required_files": [
+          "engine/magenta/mlx.metallib",
+          "engine/magenta/MAGENTA_RUNTIME.json"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mrt2-small",
+          "role": "weights",
+          "repository": "google/magenta-realtime-2",
+          "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "usage": {
+        "model_use": "provider_magenta_model_use",
+        "redistribution": "provider_magenta_redistribution",
+        "outputs": "provider_magenta_outputs",
+        "policy_url": "https://huggingface.co/google/magenta-realtime-2/blob/010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc/README.md#terms-of-use"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "mlx",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "runtime_note": "provider_magenta_capture_status",
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "musicgen-small",
+        "language": ""
+      },
+      "name": "MusicGen Small · CC BY-NC 4.0",
+      "expert_only": true,
+      "files": [
+        "audiocraft/musicgen-small/state_dict.bin",
+        "audiocraft/musicgen-small/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 1,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "musicgen-small",
+          "role": "weights_codec",
+          "repository": "facebook/musicgen-small",
+          "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/musicgen-small/blob/4c8334b02c6ec4e8664a91979669a501ec497792/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "magnet-small-30secs",
+        "language": ""
+      },
+      "name": "MAGNeT Small 30s · CC BY-NC 4.0",
+      "expert_only": true,
+      "files": [
+        "audiocraft/magnet-small-30secs/state_dict.bin",
+        "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 30,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "magnet-small-30secs",
+          "role": "weights_codec",
+          "repository": "facebook/magnet-small-30secs",
+          "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/magnet-small-30secs/blob/7d62a3ef839d51abb5f087ac72732d6f45301460/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
     {
       "selection": {
         "provider": "mimetic-a0",
@@ -77,7 +640,10 @@
         "source": "https://github.com/micknoise/mimetic-a0/tree/c4331b95f2db653c6268973a3096c8f0a77a4a61",
         "license": "MIT",
         "license_url": "https://github.com/micknoise/mimetic-a0/blob/c4331b95f2db653c6268973a3096c8f0a77a4a61/LICENSE",
-        "executable": "engine/mimetic-synth"
+        "executable": "engine/mimetic-synth",
+        "required_files": [
+          "engine/mimetic-python/MIMETIC_RUNTIME.json"
+        ]
       },
       "upstream_sources": [
         {
@@ -116,81 +682,6 @@
     }
   ],
   "models": [
-    {
-      "file": "mimetic-a0-model.fp16.safetensors",
-      "provider": "mimetic-a0",
-      "role": "synthesis",
-      "family": "mimetic-a0",
-      "precision": "FP16",
-      "estimated_bytes": 1021661156,
-      "sha256": "e3e255e27a45d41327156b1b2d4d88b7c2a3029550206b669695650391dd8491",
-      "recommended_steps": 50,
-      "source": {
-        "repository": "micknoisemachine/mimetic-a0",
-        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
-        "path": "model.fp16.safetensors"
-      }
-    },
-    {
-      "file": "mimetic-a0-model_config.json",
-      "provider": "mimetic-a0",
-      "role": "dependency",
-      "family": "mimetic-a0",
-      "precision": "JSON",
-      "estimated_bytes": 3719,
-      "sha256": "6f7da1c3ae1a5ccf77fdfa714befc5d800137e9cf736335c38a007bb3cfc1709",
-      "recommended_steps": null,
-      "source": {
-        "repository": "micknoisemachine/mimetic-a0",
-        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
-        "path": "model_config.json"
-      }
-    },
-    {
-      "file": "mimetic-a0-t5-model.safetensors",
-      "provider": "mimetic-a0",
-      "role": "dependency",
-      "family": "t5-base",
-      "precision": "FP32",
-      "estimated_bytes": 891646390,
-      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
-      "recommended_steps": null,
-      "source": {
-        "repository": "google-t5/t5-base",
-        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
-        "path": "model.safetensors"
-      }
-    },
-    {
-      "file": "mimetic-a0-t5-config.json",
-      "provider": "mimetic-a0",
-      "role": "dependency",
-      "family": "t5-base",
-      "precision": "JSON",
-      "estimated_bytes": 1208,
-      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
-      "recommended_steps": null,
-      "source": {
-        "repository": "google-t5/t5-base",
-        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
-        "path": "config.json"
-      }
-    },
-    {
-      "file": "mimetic-a0-t5-tokenizer.json",
-      "provider": "mimetic-a0",
-      "role": "dependency",
-      "family": "t5-base",
-      "precision": "JSON",
-      "estimated_bytes": 1389353,
-      "sha256": "d2acde0d8d71dd30a711834b07781b9c89feaac33fd332f60507699282740066",
-      "recommended_steps": null,
-      "source": {
-        "repository": "google-t5/t5-base",
-        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
-        "path": "tokenizer.json"
-      }
-    },
     {
       "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
       "provider": "ace-step",
@@ -810,6 +1301,921 @@
       "estimated_bytes": 337420928,
       "sha256": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8",
       "recommended_steps": null
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/config.json",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "",
+      "estimated_bytes": 308,
+      "sha256": "a05bf0650f560d235fb3a0c109173d44eb3a9b6231fe599968e12706cd20edf4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00001-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4933188000,
+      "sha256": "4815367cdbddc0192abe3dbe81e2ae6a6e8978a39ad4dd1d26a20e445b3aeea6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00001-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00002-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4932808592,
+      "sha256": "f079416ba4c0570231f7a2830a2e95033336a8b3528d1c033a07923a25f4b5d7",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00002-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00003-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 4935901576,
+      "sha256": "b43cd60ff50033fa9a5e08c4eb26edff55d5e95e0a313592804ab026ed3b895d",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00003-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model-00004-of-00004.safetensors",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "F32",
+      "estimated_bytes": 950588000,
+      "sha256": "07c5f5820c0c00f0b8ad4544ed8a24ae1888f7d8c8a5d8bb3cdaba418a39cf2f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model-00004-of-00004.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartMuLa-oss-3B/model.safetensors.index.json",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "",
+      "estimated_bytes": 22579,
+      "sha256": "a96e28d71e3f767c94a7d25723f7ab77ce2abd06d5495315d9770be0e87e00ca",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+        "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+        "path": "model.safetensors.index.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/config.json",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "",
+      "estimated_bytes": 981,
+      "sha256": "b55a505b4cf5cd22bba40aac0d9d5082d560c1c942fe17583aaa95f28e3c08cf",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model-00001-of-00002.safetensors",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "F32",
+      "estimated_bytes": 4930472472,
+      "sha256": "50d2c022468a0e127992d99e02117d2efbad2b10fddc8ceaf09550f154e185d4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model-00001-of-00002.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model-00002-of-00002.safetensors",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "F32",
+      "estimated_bytes": 1707911436,
+      "sha256": "6f319d0f5b31858dfe98bd8fc89d3083cbfff74ac75a0531f1a7b86949197917",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model-00002-of-00002.safetensors"
+      }
+    },
+    {
+      "file": "heartmula/HeartCodec-oss/model.safetensors.index.json",
+      "provider": "heartmula",
+      "role": "codec",
+      "family": "heartcodec-20260123",
+      "precision": "",
+      "estimated_bytes": 83875,
+      "sha256": "d19153a142865e4a90508294f36c7ec5ab07d33bf0e8b01a0717c75b80ce6a63",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartCodec-oss-20260123",
+        "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+        "path": "model.safetensors.index.json"
+      }
+    },
+    {
+      "file": "heartmula/gen_config.json",
+      "provider": "heartmula",
+      "role": "tokenizer",
+      "family": "heartmula-gen",
+      "precision": "",
+      "estimated_bytes": 101,
+      "sha256": "2fc578fc8d8445fa9d73d1925146d53d25b2e5f5d74b8a19aa5c000e37094f41",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLaGen",
+        "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+        "path": "gen_config.json"
+      }
+    },
+    {
+      "file": "heartmula/tokenizer.json",
+      "provider": "heartmula",
+      "role": "tokenizer",
+      "family": "heartmula-gen",
+      "precision": "",
+      "estimated_bytes": 9085657,
+      "sha256": "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "HeartMuLa/HeartMuLaGen",
+        "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+        "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 2270384940,
+      "sha256": "da85866b11b01d0694d990785f6abbd79c8064df1b0e6f8aea52935e0ef84b64",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 10341,
+      "sha256": "100776f25af5aa83f70e0c6b384de6690cb4e5ad01c24f7cfbb6524d18765f06",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 9222116660,
+      "sha256": "48d9c65e290e7bcd5194e0633bfc2424a59ee9683f5c2d58762d997b7d8ce0b5",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 10360,
+      "sha256": "4f8846649df59167e1792d134acb6fc2bb7105227c5455300bad6cb107e20c88",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 107,
+      "sha256": "1ffcff67d916d5519d1ef9a36853232ee6bcb7e14a936623c4e85559f5dce106",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/language_model.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 1596,
+      "sha256": "34ded58fcd5e8181557f1417e76af9f3e95109a5ce113a4771fd16f8625b53c0",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/language_model.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/rvq_depth_decoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 274,
+      "sha256": "b38c7f72d4b2fa8667442071f9e4a63ca5a7b5d0859e5e64ee7f79c4bc64520c",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/rvq_depth_decoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/condition_encoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 292,
+      "sha256": "1cdea3f36506719128ae4a29cdfff74b1134e607eb4a504ce6d810568fac8263",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/condition_encoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/transformer.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 294,
+      "sha256": "f60856be934127a8b8223510aff2e38a9efd8bbdbc230c3d3339b96e2cb12f00",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/transformer.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/vocoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 251,
+      "sha256": "4161afd07ba7d5b949e29c8a7a005592259fba73e9110b6ece9dfd38d3489eac",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/vocoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/tokenizer/tokenizer.json",
+      "provider": "minimax-music3",
+      "role": "tokenizer",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 11423801,
+      "sha256": "b1537fa9e59a537276ecbc2e12d0438edff635a1f4a4948e679774b5feb3e610",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "tokenizer/tokenizer.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/tokenizer/tokenizer_config.json",
+      "provider": "minimax-music3",
+      "role": "tokenizer",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 377,
+      "sha256": "1689852cc9c45010de040c8302a8acdc0d2c4c6c740dd7e9dd0a8c704e16eada",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "tokenizer/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/language_model_q4_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q4_0",
+      "estimated_bytes": 6006866496,
+      "sha256": "6f621dd636320403c03e9f755b3e2047f5754d055e0fcc6c0c444ae52ffbfa90",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "language_model_q4_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/rvq_depth_decoder_q8_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q8_0",
+      "estimated_bytes": 714028960,
+      "sha256": "d5b7495fb1a7845abfeab13df829510de442fd4ea0fd55467fe9895fe8ec5db6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "rvq_depth_decoder_q8_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/condition_encoder.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "GGUF",
+      "estimated_bytes": 100678368,
+      "sha256": "ae4be8b6154645b0717d1928f5c195359bdee8fd025099c49954ed302257cd20",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "condition_encoder.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/transformer_q4_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q4_0",
+      "estimated_bytes": 1396392768,
+      "sha256": "18d3b2461a2988f59e197ccf05dc3931663099290b42443baa2a30e4fd15e506",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "transformer_q4_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/vocoder.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "GGUF",
+      "estimated_bytes": 216705376,
+      "sha256": "5d40e6d52349d50d2aeaaaf6ba934afbf490e4cbc1ba5bb715c3133ea45cdca4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "vocoder.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/LICENSE",
+      "provider": "minimax-music3",
+      "role": "license",
+      "family": "MiniMax-Music3",
+      "precision": "text",
+      "estimated_bytes": 7373,
+      "sha256": "b21d12df2adae59dad3fcf80c1d81492654c662342f497d9a9770198c9317e58",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "LICENSE"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "MLX",
+      "estimated_bytes": 455654550,
+      "sha256": "1a70b0de30b3e6ad054fe6a61a7765408f01127628e6362c1abc328809a3c422",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small.mlxfn"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "Safetensors",
+      "estimated_bytes": 8676998,
+      "sha256": "23f1e05a6beea306fe39970bd61193f2d3e5fbd8f08af93570bda4ca9ec33255",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small_state.safetensors"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/spm.model",
+      "provider": "magenta-realtime-2",
+      "role": "tokenizer",
+      "family": "MusicCoCa",
+      "precision": "SentencePiece",
+      "estimated_bytes": 517448,
+      "sha256": "ff325a99b61ba5726cf6437cde6eefbb633dbaa363a684f7a97ed99b55202cca",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/spm.model"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 418674324,
+      "sha256": "e1222e3418cbe8cc2623939571bae8e9ab6f0d511404b0d83da69f4e6e11b272",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/text_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 72422108,
+      "sha256": "7a8a19e2119ad405818eae84a331a970f1a582b3389d4bfd27814f75b455a444",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/pretrained_vector_quantizer.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 86166664,
+      "sha256": "2f9743cc8f121a588b69c7f4d79a2a4111ce81864cbde8830054cd5e97f3d717",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/mapper.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 8729640,
+      "sha256": "656ca4c358451c2b85932e66efcfd2ba62492f4435953d775bfc1d3c08329a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/audio_preprocessor.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 370935584,
+      "sha256": "0d4501af799834e383d904c34ee826c61eb53c69682bf15a981a46c1bb32793a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/music_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "codec",
+      "family": "SpectroStream",
+      "precision": "MLX",
+      "estimated_bytes": 104319983,
+      "sha256": "887c25b21aa1714d19907fc96963c6440d5911f11571054cd5acf7306c260905",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/spectrostream/spectrostream_encoder.mlxfn"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/config.json",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/spiece.model",
+      "provider": "audiocraft",
+      "role": "tokenizer",
+      "family": "T5-base",
+      "precision": "SentencePiece",
+      "estimated_bytes": 791656,
+      "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "spiece.model"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/model.safetensors",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "musicgen-small",
+      "precision": "PyTorch",
+      "estimated_bytes": 840843863,
+      "sha256": "830fe5771e2835cbd305f3ffdda22d3ff38718fbbe8274bd19dc203265de7244",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236001935,
+      "sha256": "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "compression_state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "magnet-small-30secs",
+      "precision": "PyTorch",
+      "estimated_bytes": 840844851,
+      "sha256": "965b4d537d691483918ccc6d97e738c0177191900c2e2cd3272d29fa3c9a44d0",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236003715,
+      "sha256": "91598c7da3d183eb8e0cc19cbbdc4f64f2d0c53069f9c8aa84185d0e33873c67",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "compression_state_dict.bin"
+      }
+    },
+    {
+      "file": "mimetic-a0-model.fp16.safetensors",
+      "provider": "mimetic-a0",
+      "role": "synthesis",
+      "family": "mimetic-a0",
+      "precision": "FP16",
+      "estimated_bytes": 1021661156,
+      "sha256": "e3e255e27a45d41327156b1b2d4d88b7c2a3029550206b669695650391dd8491",
+      "recommended_steps": 50,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model.fp16.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-model_config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "mimetic-a0",
+      "precision": "JSON",
+      "estimated_bytes": 3719,
+      "sha256": "6f7da1c3ae1a5ccf77fdfa714befc5d800137e9cf736335c38a007bb3cfc1709",
+      "recommended_steps": null,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-model.safetensors",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-tokenizer.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1389353,
+      "sha256": "d2acde0d8d71dd30a711834b07781b9c89feaac33fd332f60507699282740066",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "tokenizer.json"
+      }
     }
   ]
 }

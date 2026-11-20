@@ -150,7 +150,11 @@ fn recommendations_use_complete_profile_ram_and_recommended_language_size() {
     let catalog = catalog::catalog();
     for (gib, lm, count) in [(8, "0.6B", 1), (16, "1.7B", 2), (32, "4B", 2)] {
         let hw = hardware(gib);
-        let profiles = catalog.recommended_profiles(&hw);
+        let profiles: Vec<_> = catalog
+            .recommended_profiles(&hw)
+            .into_iter()
+            .filter(|profile| profile.provider == "ace-step")
+            .collect();
         assert_eq!(profiles.len(), count);
         assert!(profiles
             .iter()

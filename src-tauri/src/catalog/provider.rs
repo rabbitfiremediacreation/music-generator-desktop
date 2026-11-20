@@ -31,6 +31,8 @@ pub struct UpstreamSource {
     pub revision: String,
     pub license: String,
     pub license_url: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +82,8 @@ pub struct NativeRuntime {
     pub license_url: String,
     /// Path within the application's resource directory, without the Windows suffix.
     pub executable: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_files: Vec<String>,
 }
 
 impl NativeRuntime {
@@ -142,11 +146,24 @@ pub struct ProviderProfile {
     pub upstream_sources: Vec<UpstreamSource>,
     pub usage: Usage,
     pub platforms: Vec<TestedPlatform>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_hold: Option<String>,
     #[serde(default)]
     pub acquisition: Acquisition,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub expert_only: bool,
 }
 
 impl ProviderProfile {
+    pub(super) fn ensure_released(&self) -> Result<()> {
+        if let Some(reason) = &self.release_hold {
+            return Err(message(reason.clone()));
+        }
+        Ok(())
+    }
+
     pub fn platform(&self, hardware: &Hardware) -> Result<&TestedPlatform> {
         self.platforms
             .iter()
@@ -157,8 +174,15 @@ impl ProviderProfile {
     }
 
     pub fn ensure_runtime(&self, resources: &Path, hardware: &Hardware) -> Result<()> {
+        self.ensure_released()?;
         self.platform(hardware)?;
-        if !self.runtime.executable(resources).is_file() {
+        if !self.runtime.executable(resources).is_file()
+            || self
+                .runtime
+                .required_files
+                .iter()
+                .any(|file| !resources.join(file).is_file())
+        {
             return Err(message(
                 "The native runtime for this model is missing from this app build",
             ));

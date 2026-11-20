@@ -65,6 +65,7 @@ fn public_generation_accepts_metered_clip_inputs_without_duration() {
     let schema = jsonschema::validator_for(&tools["generate_music"]["inputSchema"]).unwrap();
     let clip = json!({"prompt":"house drums","bpm":124,"bars":2,"seed":42});
     assert!(schema.is_valid(&clip));
+    assert!(schema.is_valid(&json!({"prompt":"drums","bpm":300,"bars":1,"duration":0.8})));
     assert!(!schema.is_valid(&json!({"prompt":"house drums","bpm":124,"bars":3})));
     assert_eq!(
         generation_request(clip.clone()).unwrap(),

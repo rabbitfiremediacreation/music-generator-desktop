@@ -66,6 +66,38 @@ fn main() {
             files.keys().all(|file| !file.starts_with("heartmula/")),
             "Retired provider resources must not be bundled"
         );
+        let mut provider_files: Vec<_> = files
+            .keys()
+            .filter(|file| file.starts_with("providers/audio.cpp/"))
+            .map(String::as_str)
+            .collect();
+        provider_files.sort_unstable();
+        let mut expected_provider_files = Vec::new();
+        if platform == "macos" && arch == "aarch64" {
+            assert!(
+                files.contains_key("mimetic-synth")
+                    && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),
+                "Mimetic A0 runtime is missing: run npm run engine:prepare"
+            );
+            let pin: serde_json::Value =
+                serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))
+                    .expect("Invalid audio.cpp runtime pin");
+            expected_provider_files.extend(
+                ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib"]
+                    .into_iter()
+                    .chain(
+                        pin["model_specs"].as_array().unwrap().iter().map(|spec| {
+                            spec["path"].as_str().expect("Missing audio.cpp spec path")
+                        }),
+                    )
+                    .map(|path| format!("providers/audio.cpp/{path}")),
+            );
+            expected_provider_files.sort_unstable();
+        }
+        assert_eq!(
+            provider_files, expected_provider_files,
+            "Unexpected audio.cpp runtime inventory: run npm run engine:prepare"
+        );
         assert!(
             files.contains_key(executable),
             "Engine executable missing from manifest"

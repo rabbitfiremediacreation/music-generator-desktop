@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa } from "../models/model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -136,6 +136,81 @@ it("restores the saved clip meter and seed from a library item", async () => {
   expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value).toBe("123");
   expect(screen.getByText("Länge: 5,053 s")).toBeTruthy();
 });
+
+it("submits a MAGNeT prompt at the checkpoint's fixed duration", async () => {
+  const profile = catalogWithAudioCraft(true).profiles!.find(item => item.selection.synthesis === "magnet-small-30secs")!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };
+  mount({ selection: profile.selection });
+  await screen.findByText("30 Sekunden");
+  expect(screen.queryByRole("slider", { name: "Länge" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "instrumental funk" } });
+  fireEvent.submit(screen.getByRole("button", { name: "GENERIEREN" }).closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ model_selection: profile.selection, prompt: "instrumental funk",
+    duration: 30, variants: 1, lyrics: "", instrumental: false });
+  expect(requests[0].inference_steps).toBeUndefined();
+});
+
+it("queues a timed instrumental Magenta recording with a text prompt", async () => {
+  const magenta = catalogWithMagenta(true).profiles![0];
+  currentPolicy = { ...policy, available: true, capabilities: magenta.capabilities };
+  mount({ selection: magenta.selection });
+  const duration = await screen.findByRole("slider", { name: "Aufnahmedauer" }) as HTMLInputElement;
+  await waitFor(() => expect(duration.max).toBe("120"));
+  expect(duration.min).toBe("10");
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "Iterationen" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Sparse jazz piano, soft brushing" } });
+  fireEvent.change(duration, { target: { value: "18" } });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" });
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ model_selection: magenta.selection, prompt: "Sparse jazz piano, soft brushing", duration: 18, instrumental: true, lyrics: "", variants: 1 });
+});
+
+it.each([120, 380])("submits a Stable Audio prompt and a duration limited to %s seconds", async max => {
+  const profile = catalogWithStableAudio().profiles!.find(item => item.capabilities.max_duration === max)!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };
+  mount({ selection: profile.selection });
+  const generate = await screen.findByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
+  const duration = screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement;
+  expect(duration.max).toBe(String(max));
+  fireEvent.change(duration, { target: { value: String(max) } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Slow jazz piano" } });
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({
+    model_selection: profile.selection, duration: max, prompt: "Slow jazz piano",
+    instrumental: true, lyrics: "", variants: 1,
+  });
+});
+it("passes the MiniMax description and lyrics through and labels its duration control", async () => {
+  const minimax = catalogWithMiniMax().profiles![0];
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: minimax.capabilities };
+  mount({ selection: minimax.selection });
+  const description = await screen.findByRole("textbox", { name: "Strukturierte Beschreibung" });
+  expect(screen.getByText("MiniMax-Music3")).toBeTruthy();
+  const prompt = "Global Metadata: folk\nVocal Details: warm\nArrangement: strings";
+  const lyrics = "[Verse]\nWe follow starlight";
+  fireEvent.change(description, { target: { value: prompt } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: lyrics } });
+  const duration = screen.getByRole("slider", { name: "Länge" });
+  expect(duration.getAttribute("title")).toContain("Generierungsbudget");
+  fireEvent.change(duration, { target: { value: "180" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "314159" } });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(false);
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ prompt, lyrics, duration: 180, seed: 314159, variants: 1, instrumental: false, model_selection: minimax.selection });
+  expect(requests[0].inference_steps).toBeUndefined();
+});
+
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };
   mount();

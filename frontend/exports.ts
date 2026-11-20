@@ -1,5 +1,6 @@
 import { saveExport } from "./path-dialogs";
 import { backend } from "./backend";
+import { songMachineGeneratedBy } from "./song-result";
 import type { Song } from "./types";
 import { t } from "./i18n.js";
 
@@ -8,7 +9,8 @@ function safeName(name: string): string { return name.replace(/[\\/:*?"<>|]/g, "
 export async function exportSong(song: Song, lyrics = false): Promise<void> {
   const format = lyrics ? null : (await backend.settings()).export_format;
   const ext = lyrics ? "txt" : format === "mp3" ? "mp3" : song.file?.split(".").pop() || "wav";
-  const path = await saveExport(lyrics ? "export_lyrics" : "export_audio", `${safeName(song.title || song.caption)}.${ext}`, ext);
+  const purpose = lyrics ? "export_lyrics" : songMachineGeneratedBy(song) ? "export_generated_audio" : "export_audio";
+  const path = await saveExport(purpose, `${safeName(song.title || song.caption)}.${ext}`, ext);
   if (path) await performExport(lyrics ? "lyrics" : "audio", path, song.id);
 }
 

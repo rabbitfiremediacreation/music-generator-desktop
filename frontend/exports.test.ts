@@ -18,6 +18,15 @@ it("keeps lyrics as text regardless of the audio setting", async () => {
   expect(mocks.save.mock.calls[0][0].defaultPath).toBe("/Downloads/Rain.txt");
 });
 
+it("shows the publication disclosure during native export of generated audio", async () => {
+  const generated = { ...song, result_meta: { generated_by: "MiniMax-Music3", machine_generated: true } };
+  await exportSong(generated);
+  expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ title: "translated:dialog_export_generated_audio" }));
+  expect(mocks.export).toHaveBeenCalledWith("audio", "/exports/Rain.mp3", "one", null);
+  await exportSong(generated, true);
+  expect(mocks.save).toHaveBeenLastCalledWith(expect.objectContaining({ title: "translated:dialog_export_lyrics" }));
+});
+
 it("keeps the export destination unchanged when the save dialog is cancelled", async () => {
   mocks.save.mockResolvedValue(null);
   await exportSong(song); await exportSong(song, true); await exportFolder("favorites");
