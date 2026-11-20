@@ -48,6 +48,7 @@
 .model-profile-details dl { display: grid; gap: 12px; margin: 0; font-size: 12px; }
 .model-profile-details dt { color: var(--model-muted); }
 .model-profile-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.model-profile-details .model-runtime-command { width: 100%; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .model-profile-details ul { margin: 0; padding-left: 18px; }
 .model-profile-details a, .model-files-card a { color: #c0b7ff; }
 .model-description { margin: 0 0 16px; color: #b4aaff; font-size: 12px; line-height: 1.65; }

@@ -1,6 +1,7 @@
 use crate::{
     db::Database,
     error::{message, Result},
+    types::OutputKind,
 };
 use rusqlite::OptionalExtension;
 use std::{
@@ -58,8 +59,10 @@ impl Database {
 
     pub fn export_audio(&self, sid: &str, destination: &Path) -> Result<()> {
         let song = self.song(sid)?;
-        let path = song.path.ok_or_else(|| message("Song has no audio file"))?;
-        if Path::new(&path).canonicalize()? == destination.canonicalize().unwrap_or_default() {
+        let path = song
+            .audio_path()
+            .ok_or_else(|| message("Song has no audio file"))?;
+        if Path::new(path).canonicalize()? == destination.canonicalize().unwrap_or_default() {
             return Err(message(
                 "Choose a destination outside the source audio file",
             ));
@@ -68,8 +71,34 @@ impl Database {
         Ok(())
     }
 
+    pub fn export_midi(&self, sid: &str, destination: &Path) -> Result<()> {
+        if !destination
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("mid"))
+        {
+            return Err(message("Destination must have the .mid extension"));
+        }
+        if destination.is_dir() {
+            return Err(message("Export destination is a directory"));
+        }
+        let song = self.song(sid)?;
+        let path = song
+            .path
+            .filter(|_| song.output_kind == OutputKind::Midi && song.status == "done")
+            .ok_or_else(|| message("Song has no MIDI file"))?;
+        if Path::new(&path).canonicalize()? == destination.canonicalize().unwrap_or_default() {
+            return Err(message("Choose a destination outside the source MIDI file"));
+        }
+        let temp = staging::StagedExport::new(destination)?;
+        std::fs::copy(path, temp.path())?;
+        temp.commit(destination)
+    }
+
     pub fn export_lyrics(&self, sid: &str, destination: &Path) -> Result<()> {
         let song = self.song(sid)?;
+        if !song.output_kind.is_audio() {
+            return Err(message("Song has no lyrics"));
+        }
         let lyrics = song
             .result_meta
             .as_ref()
@@ -192,17 +221,20 @@ pub(crate) async fn export_contents(
         };
         for id in ids {
             let song = db.song(&id)?;
-            let path = song.path.ok_or_else(|| message("Song has no audio file"))?;
-            if std::path::Path::new(&path).canonicalize()?
-                == destination.canonicalize().unwrap_or_default()
-            {
+            if kind == "zip" && !song.output_kind.is_audio() {
+                continue;
+            }
+            let path = song
+                .audio_path()
+                .ok_or_else(|| message("Song has no audio file"))?;
+            if Path::new(path).canonicalize()? == destination.canonicalize().unwrap_or_default() {
                 return Err(message(
                     "Choose a destination outside the source audio file",
                 ));
             }
             sources.insert(
                 id.clone(),
-                crate::audio_export::mp3(&resources, &db.root, &id, Path::new(&path), &cancel)
+                crate::audio_export::mp3(&resources, &db.root, &id, Path::new(path), &cancel)
                     .await?,
             );
         }
@@ -221,6 +253,10 @@ pub(crate) async fn export_contents(
             }
         }
         "lyrics" => db.export_lyrics(
+            sid.as_deref().ok_or_else(|| message("Missing song"))?,
+            &destination,
+        ),
+        "midi" => db.export_midi(
             sid.as_deref().ok_or_else(|| message("Missing song"))?,
             &destination,
         ),

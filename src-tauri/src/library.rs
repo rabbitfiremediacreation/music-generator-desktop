@@ -11,7 +11,7 @@ impl Database {
     pub fn read_song_audio(&self, id: &str) -> Result<Vec<u8>> {
         let song = self.song(id)?;
         let path = song
-            .path
+            .audio_path()
             .ok_or_else(|| message("Song audio is unavailable"))?;
         let bytes = std::fs::read(path)
             .map_err(|error| message(format!("Cannot read song audio: {error}")))?;
@@ -72,7 +72,7 @@ impl Database {
         )
     }
 
-    pub(crate) fn audio_files(&self) -> Result<Vec<String>> {
+    pub(crate) fn result_files(&self) -> Result<Vec<String>> {
         let con = self.lock();
         let mut stmt = con.prepare(
             "SELECT DISTINCT file FROM songs WHERE file IS NOT NULL AND audio_missing=0 ORDER BY file",

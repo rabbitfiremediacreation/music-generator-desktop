@@ -4,11 +4,12 @@ export const connectionKey = "music-generator-mobile-token";
 
 export interface Connection { token: string; remembered: boolean }
 export interface FolderList { folders: Folder[]; all: number; none: number }
-export interface SongCard extends Pick<Song, "id" | "status" | "message" | "favorite" | "folder_id"> {
+export interface SongCard extends Pick<Song, "id" | "status" | "message" | "favorite" | "folder_id" | "output_kind"> {
   title: string;
   duration: number | null;
   bpm: number | null;
   has_audio: boolean;
+  has_midi?: boolean;
 }
 interface Library { songs: SongCard[]; folders: FolderList }
 

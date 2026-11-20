@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithNativeProfiles } from "./model-fixtures";
+import { catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -16,7 +16,45 @@ async function open() {
   return screen.findByRole("dialog", { name: "Modelle" });
 }
 
-async function openUnavailableProfile(catalog: ModelCatalog, name: string) {
+it.each([false, true])("shows DiffRhythm terms before download (evaluation runner available: %s)", async available => {
+  const catalog = catalogWithDiffRhythm2();
+  const diffrhythm = catalog.profiles![0];
+  diffrhythm.available = available;
+  catalog.hardware = { ...catalog.hardware, platform: "linux", ram_bytes: 32 * 1024 ** 3, vram_bytes: 24 * 1024 ** 3 };
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return saved();
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: diffrhythm.name }));
+  expect(dialog.getByRole("heading", { name: diffrhythm.name })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "ASLP-lab/DiffRhythm2" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "OpenMuQ/MuQ-MuLan-large" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "CC BY-NC 4.0" })).toHaveLength(2);
+  expect(dialog.getByText(/Mono-WAV/)).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  const optIn = dialog.queryByRole("button", { name: "Für nichtkommerzielle Evaluation herunterladen" });
+  expect(Boolean(optIn)).toBe(available);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  if (optIn) {
+    fireEvent.click(optIn);
+    await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: diffrhythm.selection }));
+    return;
+  }
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+});
+
+it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
+  const catalog = catalogWithHeartMuLa();
+  const heartmula = catalog.profiles![0];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -59,22 +97,230 @@ it("shows the YuE2 terms on an unsupported computer without offering acquisition
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 
-it.each([false, true])("shows the YuE2 creator permission before acquisition (local files: %s)", async present => {
-  const catalog = catalogWithNativeProfiles();
-  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
-  yue2.available = true;
-  catalog.hardware.ram_bytes = 64 * 1024 ** 3;
-  catalog.models.forEach(model => { if (model.provider === "yue2") model.present = present; });
+it("shows pinned Text2midi sources and permits local import in Simple Mode", async () => {
+  const catalog = catalogWithText2midi(true);
+  const profile = catalog.profiles![0];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => {
+    if (name === "model_catalog") return Promise.resolve(structuredClone(catalog));
+    if (name === "get_settings") return Promise.resolve({ ...saved(), expert_mode: false });
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  for (const source of profile.upstream_sources) {
+    expect(dialog.getByRole("link", { name: source.repository }).getAttribute("href")).toBe(`https://huggingface.co/${source.repository}/tree/${source.revision}`);
+  }
+  expect(dialog.getByText("MIDI (.mid)")).toBeTruthy();
+  expect(dialog.queryByText("Länge")).toBeNull();
+  expect(dialog.getByText(/Apache 2\.0 erlaubt die private und kommerzielle Nutzung/)).toBeTruthy();
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Herunterladen und verwenden" })).toHaveProperty("disabled", false);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  catalog.models = catalog.models.map(model => ({ ...model, present: true }));
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  fireEvent.click(await dialog.findByRole("button", { name: "Prüfen und verwenden" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: profile.selection }));
+});
+
+it("shows the one-time Text2midi runtime command before enabling the download", async () => {
+  const catalog = catalogWithText2midi();
+  const profile = catalog.profiles![0];
+  profile.unavailable_reason = "text2midi_runtime_required";
+  profile.install_command = "/bin/bash '/Applications/Music Generator.app/Contents/Resources/text2midi/install.sh' '/Users/Test/Music Generator'";
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
   mountControls();
   const dialog = within(await open());
-  fireEvent.click(await dialog.findByRole("button", { name: yue2.name }));
-  expect(dialog.getByRole("link", { name: "Vollständige Gewichtslizenz und Zusatzgenehmigung" }).getAttribute("href")).toBe(yue2.usage.policy_url);
-  expect(dialog.getByText(/Unternehmen brauchen für die kommerzielle Modellnutzung eine separate Lizenz/)).toBeTruthy();
-  expect(dialog.getByText(/Einzelkreative dürfen erzeugte Songs ohne Lizenzgebühren/)).toBeTruthy();
-  expect(dialog.getByText(/Lege beim manuellen Import/)).toBeTruthy();
-  expect(dialog.getByRole("button", { name: present ? "Prüfen und verwenden" : "Herunterladen und verwenden" })).toBeTruthy();
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  const command = dialog.getByRole("textbox", { name: "Einmaliger Terminalbefehl" }) as HTMLTextAreaElement;
+  expect(command.readOnly).toBe(true);
+  expect(command.value).toBe(profile.install_command);
+  expect(dialog.getByText(/Installiere Python 3\.12 für arm64/)).toBeTruthy();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+});
+
+it("lists both AudioCraft NC profiles and downloads only the one explicitly confirmed", async () => {
+  const catalog = catalogWithAudioCraft(true);
+  const magnet = catalog.profiles!.find(profile => profile.selection.synthesis === "magnet-small-30secs")!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(await dialog.findByRole("button", { name: "MusicGen Small · CC BY-NC 4.0" })).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "MAGNeT Small 30s · CC BY-NC 4.0" }));
+  expect(dialog.getByRole("link", { name: "facebook/magnet-small-30secs" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "google-t5/t5-base" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(magnet.usage.policy_url);
+  expect(dialog.getByText(/nichtkommerzielle Nutzung mit Namensnennung/)).toBeTruthy();
+  expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Modelldateien neu einlesen" })).toBeTruthy();
+  expect(dialog.queryByRole("link", { name: "facebook/musicgen-small" })).toBeNull();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  const download = dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement;
+  expect(download.disabled).toBe(false);
+  fireEvent.click(download);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", {
+    selection: { provider: "audiocraft", synthesis: "magnet-small-30secs", language: "" },
+  }));
+});
+
+it("discloses the Magenta weight license, attribution, output terms and import path before acquisition", async () => {
+  const catalog = catalogWithMagenta(true);
+  const profile = catalog.profiles![0];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles: catalog.recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expect(dialog.getByRole("link", { name: "google/magenta-realtime-2" }).getAttribute("href")).toContain(profile.upstream_sources[0].revision);
+  expect(dialog.getByRole("link", { name: "CC BY 4.0" })).toBeTruthy();
+  expect(dialog.getByText(/Bei Weitergabe der Gewichte oder Änderungen Google LLC nennen/)).toBeTruthy();
+  expect(dialog.getByText(/Google beansprucht keine Rechte an erzeugter Musik/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(profile.usage.policy_url);
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("note").textContent).toMatch(/Lücken in der Aufnahme/);
+  expect((dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement).disabled).toBe(false);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows the Stable Audio conditions and verifies imported files without activating an untested profile", async () => {
+  const catalog = catalogWithStableAudio();
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    if (name === "verify_imported_models") {
+      for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.verified = true;
+      return;
+    }
+    return invoke(name, args);
+  });
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expect(dialog.getByText(/Stimme den Bedingungen auf der offiziellen Hugging-Face-Modellseite zu/)).toBeTruthy();
+  expect(dialog.getByText(/Powered by Stability AI/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Bezugsbedingungen auf Hugging Face prüfen" }).getAttribute("href")).toBe("https://huggingface.co/stabilityai/stable-audio-3-small-music");
+  expect(dialog.getByRole("link", { name: "Gemma Terms of Use" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "stabilityai/stable-audio-3-optimized" })).toBeTruthy();
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Importierte Dateien prüfen" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection: small.selection }));
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("refreshes locally imported Stable Audio files and activates the supported profile in basic mode", async () => {
+  const catalog = catalogWithStableAudio(true);
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  catalog.hardware.ram_bytes = small.platforms[0].minimum_ram_bytes;
+  const recommended_profiles = [standard, small.selection];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  const activate = dialog.getByRole("button", { name: "Importierte Dateien prüfen und verwenden" }) as HTMLButtonElement;
+  expect(activate.disabled).toBe(true);
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(activate.disabled).toBe(false));
+  fireEvent.click(activate);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: small.selection }));
+  await waitFor(() => expect(screen.getByLabelText("selection").textContent).toBe(small.selection.synthesis));
+});
+
+it("verifies the pinned MiniMax import with the license visible and keeps the active model", async () => {
+  let catalog = catalogWithMiniMax();
+  const { selection } = catalog.profiles![0];
+  const license = catalog.models.find(model => model.provider === selection.provider && model.role === "license")!;
+  for (const file of catalog.models.filter(model => model.provider === selection.provider)) {
+    file.present = file !== license;
+  }
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "verify_imported_models") {
+      expect(args.selection).toEqual(selection);
+      catalog = { ...catalog, models: catalog.models.map(model => model.provider === selection.provider ? { ...model, verified: true } : model) };
+      return;
+    }
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: "MiniMax-Music3" }));
+  expect(dialog.getByRole("link", { name: "MiniMaxAI/MiniMax-Music3" }).getAttribute("href")).toContain("/tree/1b525ccb");
+  expect(dialog.getByRole("link", { name: "audio-cpp/MiniMax-Music3-GGUF" }).getAttribute("href")).toContain("/tree/46fe77f8");
+  expect(dialog.getByRole("link", { name: "MiniMax-Music3-GGUF/LICENSE" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toContain("/blob/1b525ccb");
+  expect(dialog.getByText(/Die Freigabe wartet auf Schutzmaßnahmen/)).toBeTruthy();
+  const verify = dialog.getByRole("button", { name: "Importierte Dateien prüfen" }) as HTMLButtonElement;
+  expect(verify.disabled).toBe(true);
+  catalog = { ...catalog, models: catalog.models.map(model => model === license ? { ...license, present: true } : model) };
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(verify.disabled).toBe(false));
+  fireEvent.click(verify);
+  await waitFor(() => expect(verify.textContent).toBe("Importierte Dateien geprüft"));
+  expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection });
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "use_models")).toBe(false);
+  expect(screen.getByLabelText("selection").textContent).toBe(standard.synthesis);
+});
+
+it("shows Mimetic sources and terms, then refreshes locally imported files for verification", async () => {
+  const initial = catalogWithMimetic();
+  const profile = initial.profiles![0];
+  let catalog = initial;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles: catalog.recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expect(dialog.getByText("1 / 2 / 4 Takte im 4/4-Takt, bis zu 16 Sekunden")).toBeTruthy();
+  for (const { repository, revision } of profile.upstream_sources) {
+    expect(dialog.getByRole("link", { name: repository }).getAttribute("href")).toBe(`https://huggingface.co/${repository}/tree/${revision}`);
+  }
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(profile.usage.policy_url);
+  expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Herunterladen und verwenden" })).toBeTruthy();
+  catalog = { ...catalog, models: catalog.models.map(model => ({ ...model, present: true })) };
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  expect(await dialog.findByRole("button", { name: "Prüfen und verwenden" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("discloses MuLaCover source pins and noncommercial output terms before acquisition", async () => {
+  const catalog = catalogWithMuLaCover();
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(dialog.queryByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeNull();
+  fireEvent.click(await dialog.findByRole("button", { name: "MuLaCover" }));
+  expect(dialog.getByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeTruthy();
+  for (const source of ["HeartMuLa/MuLaCover", "HeartMuLa/HeartCodec-oss-20260123", "Qwen/Qwen3-Embedding-0.6B"]) {
+    expect(dialog.getByRole("link", { name: source })).toBeTruthy();
+  }
+  expect(dialog.getByRole("link", { name: "mimbres/YourMT3" }).getAttribute("href")).toContain("/spaces/mimbres/YourMT3/");
+  expect(dialog.getByRole("link", { name: "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition" }).getAttribute("href")).toContain("https://github.com/");
+  expect((dialog.getByRole("button", { name: "Herunterladen und verwenden" }) as HTMLButtonElement).disabled).toBe(false);
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

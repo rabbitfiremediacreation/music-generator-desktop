@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
-import { audioCppDirectory, audioCppSupported, run, shipsYue2, target } from "./common.mjs";
+import { audioCppDirectory, audioCppSupported, exists, run, shipsYue2, target } from "./common.mjs";
 
 export async function verifyMacSandbox(app, engine) {
   const entitlements = file => execFileSync("codesign",["-d","--entitlements",":-","--xml",file],{encoding:"utf8",stdio:["ignore","pipe","pipe"]});
@@ -13,9 +13,15 @@ export async function verifyMacSandbox(app, engine) {
   const parent = entitlements(app);
   assert(enabled(parent,"com.apple.security.app-sandbox"), "Main app is not sandboxed");
   assert(!enabled(parent,"com.apple.security.inherit"), "Main app must not use child inheritance");
-  const helpers = ["ace-server", "mp3-codec", "title/music-title", ...(shipsYue2() ? [yue2.executable] : [])];
-  if (audioCppSupported(target)) helpers.push(path.join(audioCppDirectory, "audiocpp_cli"));
-  for (const file of [path.join(path.dirname(app),"music-engine-supervisor"), ...helpers.map(helper => path.join(engine, helper))]) {
+  const helpers = [path.join(path.dirname(app),"music-engine-supervisor"),path.join(engine,"ace-server"),path.join(engine,"mp3-codec"),path.join(engine,"title/music-title")];
+  if (audioCppSupported(target)) helpers.push(path.join(engine, audioCppDirectory, "audiocpp_cli"));
+  const magenta = path.join(engine, "magenta");
+  if (await exists(magenta)) helpers.push(path.join(magenta, "mrt2-record"));
+  const audioCraft = path.join(engine, "audiocraft", "audiocraft-synth");
+  if (await exists(audioCraft)) helpers.push(audioCraft);
+  if (target.arch === "arm64") helpers.push(path.join(engine, "mimetic-synth"));
+  if (shipsYue2()) helpers.push(path.join(engine, yue2.executable));
+  for (const file of helpers) {
     const child = entitlements(file);
     assert(enabled(child,"com.apple.security.app-sandbox") && enabled(child,"com.apple.security.inherit"), "Engine helper must inherit the app sandbox");
     assert.equal((child.match(/<key>com\.apple\.security\./g) || []).length, 2, "Child must have only the two inheritance entitlements");

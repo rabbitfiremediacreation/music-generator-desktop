@@ -17,6 +17,7 @@ impl Target {
         let settings = state.db.settings()?;
         let expected = match kind {
             "audio" => settings.export_format.as_str(),
+            "midi" => "mid",
             "lyrics" => "txt",
             "zip" => "zip",
             _ => return Err(message("Unknown export kind")),
@@ -40,7 +41,7 @@ impl Target {
             .file_name()
             .ok_or_else(|| message("Missing export filename"))?;
         let destination = parent.join(filename);
-        // Export is never a way to overwrite the database, model weights or original library audio.
+        // Protect the database, model weights and original library files.
         for protected in [
             state.db.root.as_path(),
             Path::new(&settings.models_dir),

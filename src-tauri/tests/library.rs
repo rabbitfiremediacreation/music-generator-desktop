@@ -1,6 +1,6 @@
 use music_generator::{
     db::Database,
-    types::{GenerateRequest, SongFilter},
+    types::{GenerateRequest, OutputKind, SongFilter},
 };
 use serde_json::json;
 
@@ -64,7 +64,12 @@ fn visible_prompts_and_combined_captions_survive_restart_for_every_variant() {
 fn legacy_start_time_migration_preserves_saved_values_and_parameter_bytes() {
     let root = tempfile::tempdir().unwrap();
     let con = rusqlite::Connection::open(root.path().join("music.db")).unwrap();
-    let old_schema = include_str!("../src/schema.sql").replace(", started_at TEXT", "");
+    let old_schema = include_str!("../src/schema.sql")
+        .replace(", started_at TEXT", "")
+        .replace(
+            ",\n    output_kind TEXT NOT NULL DEFAULT 'audio' CHECK (output_kind IN ('audio','midi'))",
+            "",
+        );
     con.execute_batch(&old_schema).unwrap();
     let params =
         "{ \"inference_steps\": 50, \"lm_temperature\": 1.0, \"seed\": 7, \"duration\": 90 }";
@@ -74,6 +79,7 @@ fn legacy_start_time_migration_preserves_saved_values_and_parameter_bytes() {
         let db = Database::open(root.path()).unwrap();
         let song = db.song("old").unwrap();
         assert!(song.started_at.is_none());
+        assert_eq!(song.output_kind, OutputKind::Audio);
         assert_eq!(song.created_at, "2000-01-01T00:00:00Z");
         assert_eq!(song.finished_at.as_deref(), Some("2000-01-01T00:02:00Z"));
         assert_eq!(song.title.as_deref(), Some("Original"));

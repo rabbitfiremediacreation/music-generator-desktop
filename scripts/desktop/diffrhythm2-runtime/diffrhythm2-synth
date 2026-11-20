@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+runtime=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+unset PYTHONHOME PYTHONSTARTUP LD_LIBRARY_PATH LD_PRELOAD
+export PYTHONPATH="$runtime/upstream"
+export PHONEMIZER_ESPEAK_LIBRARY="$runtime/espeak/lib/libespeak-ng.so.1"
+export ESPEAK_DATA_PATH="$runtime/espeak/share"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+exec "$runtime/python/bin/python3.11" -s -B "$runtime/runner.py" "$@"

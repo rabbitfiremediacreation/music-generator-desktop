@@ -1,6 +1,6 @@
 # ModelPicker
 
-The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. ACE-Step provides the starter profiles. Optional native models such as HeartMuLa and YuE2 have their own entries under **Add model**. The picker checks their runtime and hardware requirements before activation.
+The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. ACE-Step provides the starter profiles. The picker checks each optional profile's native runtime and hardware requirements before activation. See [Mimetic A0](mimetic-a0.md) for the short-clip profile.
 
 The additional downloader dialog uses a split catalog and detail view. Search and **All / Installed / Recommended** filters browse sound-model families on the left; Installed requires a verified local file, and Recommended uses the actual hardware recommendations. The detail pane shows quantization variants for the chosen family, its companion language model, file size, total profile download, memory estimate, required files and the explicit download/activation action. Choosing a family only changes the preview. On narrow layouts the catalog appears above the details. Escape closes only the add dialog and returns focus to Add model; Settings and its unsaved drafts remain open. Download progress and cancellation stay available on the installed-models page when the additional dialog is closed.
 
@@ -10,7 +10,7 @@ The additional downloader dialog uses a split catalog and detail view. Search an
 
 When no XL recommendation fits this computer's RAM budget, a visible hint beside the Creator drop-down explains that XL requires more memory and is not recommended. This also appears in Expert Mode: installing an XL file or enabling that mode does not add an XL recommendation or remove the backend's memory checks. The hint and all Settings labels/status messages are localized in all twelve UI languages and update when the language changes.
 
-By default, the Creator drop-down offers **Standard** and, only when its complete profile fits the detected RAM budget, **XL**. These use SFT Q8_0. Each profile has exactly one automatically recommended Q8_0 language model; there is no manual size selector. Recommendations use the existing RAM/VRAM language-size guidance (0.6B, 1.7B or 4B), lowering the size if needed to fit synthesis, language weights, fixed dependencies and runtime headroom together. If no starter profile fits, the drop-down explains that no recommendation is available. The first-run assistant follows the same rules.
+For ACE-Step, the Creator drop-down offers **Standard** and, only when its complete profile fits the detected RAM budget, **XL**. These use SFT Q8_0. Each profile has exactly one automatically recommended Q8_0 language model; there is no manual size selector. Recommendations use the existing RAM/VRAM language-size guidance (0.6B, 1.7B or 4B), lowering the size if needed to fit synthesis, language weights, fixed dependencies and runtime headroom together. If no starter profile fits, the drop-down explains that no recommendation is available. The first-run assistant follows the same rules.
 
 The Creator drop-down uses `select_models`, which activates only already verified local files and persists the choice without downloading. If files are missing or need verification, the previous selection stays active and an inline hint links to Settings. The requested profile is preselected in the model manager, where download/verification needs an explicit action. Advanced profiles selected in Settings or restored from songs remain visible as the current drop-down entry; the Creator does not expand into a full catalog when Expert Mode is enabled.
 
@@ -121,18 +121,38 @@ The live Hugging Face test resumed a VAE `.part` file with 65,536 bytes remainin
 The compiled arm64 helper targets macOS 14.0 and links to system libraries and frameworks. It started inside a relocated, signed local test app with inherited App Sandbox restrictions. An earlier local package attempt stalled at the ACE-Step registry probe before YuE2 staging. The existing Rust CPU device probe also exceeded its five-second timeout on this host. [CPU probe test](../src-tauri/tests/device.rs)
 
 The Apple Silicon GitHub Actions job for `d885f52` built the native runtime without a shared runtime cache and verified the relocated portable ZIP and the DMG. Both package checks started the bundled YuE2 helper and confirmed that App Sandbox denied access to an unselected file. The inference, timing, and cancellation results above come from the local M5 Pro. Clean-system GUI acceptance remains open. [Apple Silicon build and package checks](https://github.com/rabbitfiremediacreation/music-generator-desktop/actions/runs/44562989623/job/135697059987)
+## Magenta RealTime 2
+
+The optional `mrt2_small` profile records prompted instrumentals as timed 48 kHz stereo WAVs. The ModelPicker shows the pinned downloads and license terms. The verified Apple Silicon path and its measured dropouts are documented separately. [Magenta RealTime 2](magenta-realtime-2.md)
+
+## DiffRhythm 2
+
+DiffRhythm 2 is an opt-in profile for noncommercial evaluation in Expert Mode. It uses English or Mandarin lyrics and a text style description to generate a mono WAV. The optional Linux x86-64 CUDA evaluation build includes the local runner. The picker shows the model licenses and publisher guidance before download or local verification. [Sources, runtime and acceptance procedure](qa/issue-131/README.md)
+
+## AudioCraft
+
+MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the Apple Silicon AudioCraft bundle. The ModelPicker displays the CC BY-NC terms and requires explicit selection. [AudioCraft runtime, model requirements and acceptance](qa/issue-132/README.md)
+
+
+## Text2midi
+
+Choose **Text2midi** in the add-model catalog. The profile shows both model sources, file sizes and checksums, usage terms, and the tested CPU backend. On macOS arm64 the picker shows the one-time terminal command when its Python 3.12 environment is missing. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
 
 ## Downloads and persistence
 
 The existing Rust streaming downloader provides checked HTTP ranges, `.part` resumption, disk-space checks, SHA-256 verification and promotion only after success. Progress includes filename, verification phase, bytes and MiB/s. The picker stays open on errors and supports cancel/retry. Downloads and activation run under the existing operation lock, so they cannot race an engine operation or wizard. The saved default changes once the complete profile is verified. Failure or cancellation preserves the previous profile and completed setup. Activation stops the active engine. ACE-Step scans the model folder on its next lazy start. Cached proofs avoid rehashing unchanged files when browsing or reusing installed models. Verified offline selection needs no network or extra model-sized disk space.
 
-New jobs store `model_selection` and `generation_profile` in their parameter JSON. The latter records the provider, runtime revision, capabilities and model file pins. ACE-Step uses its synthesis and language filenames. Fixed profiles use a profile ID and list their required files in the catalog. Worker execution and retries use that snapshot. Reusing a song restores its profile and sampling values. Analysis also sends the selected model filenames in the engine's multipart `request` field alongside the original audio. Existing settings fall back to their original Standard/XL and language model. Existing database rows and audio are preserved. Older jobs without a snapshot use the current ACE-Step selection or the last saved ACE-Step selection when another provider is active.
+New jobs store `model_selection` and `generation_profile` in their parameter JSON. The latter records the provider, runtime revision, capabilities and model file pins. ACE-Step uses its synthesis and language filenames. Fixed profiles use a profile ID and list their required files in the catalog. Worker execution and retries resolve that snapshot rather than a later global default. Reusing a new song restores its profile without changing that song or its sampling values. Analysis also sends the selected model filenames in the engine's multipart `request` field alongside the original audio. Existing settings fall back to their original Standard/XL and language model. Existing database rows and audio are preserved. Older jobs without a snapshot use the current ACE-Step selection or the last saved ACE-Step selection when another provider is active.
 
 The first-run assistant offers hardware-recommended ACE-Step starter profiles. Enable Expert Mode in Settings to use the wider catalog afterwards.
 
 ## Shared automatic-title model
 
 The picker also shows the Qwen3-0.6B Q8 text model, its approximately 640 MB footprint, verification state and a separate download/verify button. This common auxiliary asset is independent of music-provider profiles. Downloading it never switches the provider or changes existing songs or sampling controls. The assistant includes it with the music models; existing installations can fetch it here or lazily for their first blank-title ACE-Step job. Alternate providers use a locally available title model or fall back to a generated placeholder title. It uses the shared resumable, checksum-verified downloader and cancellation control. See [automatic titles](desktop.md#automatic-song-titles) for lyric priority, offline behavior and error handling.
+
+## MuLaCover
+
+Choose **MuLaCover** in **Add model** to review the noncommercial model and output terms, the pinned native checkpoint and the tested platform. The desktop Creator uses a local WAV reference with lyrics and style. [MuLaCover workflow, sources and hardware verification](mulacover.md)
 
 ## Verification
 

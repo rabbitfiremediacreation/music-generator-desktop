@@ -8,6 +8,7 @@ use std::{
     time::SystemTime,
 };
 mod wav;
+pub(crate) use wav::WavFacts;
 
 #[derive(PartialEq, Eq)]
 struct Signature {
@@ -20,7 +21,25 @@ struct Cached {
 }
 
 pub fn duration(audio: &[u8]) -> Result<f64> {
-    wav::duration(&mut Cursor::new(audio))
+    Ok(wav_facts(audio)?.duration_seconds)
+}
+
+pub(crate) fn wav_facts(audio: &[u8]) -> Result<WavFacts> {
+    wav::facts(&mut Cursor::new(audio))
+}
+
+pub(crate) fn is_reference_wav(audio: &[u8]) -> bool {
+    wav_facts(audio).is_ok_and(|format| {
+        format.bits_per_sample == 16
+            && matches!(format.channels, 1 | 2)
+            && (8000..=48000).contains(&format.sample_rate_hz)
+    })
+}
+
+pub(crate) fn is_stereo_48khz_pcm16(audio: &[u8]) -> bool {
+    wav_facts(audio).is_ok_and(|format| {
+        format.bits_per_sample == 16 && format.channels == 2 && format.sample_rate_hz == 48000
+    })
 }
 
 pub fn tolerance(requested: f64) -> f64 {
@@ -55,12 +74,11 @@ pub fn record_duration(seconds: f64, params: &Value, meta: &mut Value) {
     }
     let limit = meta["duration_limit"].as_f64().filter(|limit| *limit > 0.0);
     if let Some(requested) = limit.or_else(|| requested_duration(params)) {
-        let deviation = if limit.is_some() {
-            seconds - requested
-        } else {
-            (seconds - requested).abs()
-        };
-        if deviation > tolerance(requested) + 1e-6 {
+        let delta = seconds - requested;
+        let too_short = delta < -tolerance(requested) - 1e-6
+            && limit.is_none()
+            && meta["duration_is_limit"] != true;
+        if too_short || delta > tolerance(requested) + 1e-6 {
             meta["duration_warning"] = json!({
                 "code":if seconds < requested { "short_audio" } else { "long_audio" },
                 "requested_seconds":requested,"actual_seconds":seconds
@@ -111,7 +129,7 @@ pub(crate) fn file_duration(path: &Path) -> Result<f64> {
     let seconds = if let Some(seconds) = cached {
         seconds
     } else {
-        let seconds = wav::duration(&mut std::fs::File::open(path)?)?;
+        let seconds = wav::facts(&mut std::fs::File::open(path)?)?.duration_seconds;
         let mut cache = cache.lock().unwrap();
         if cache.len() >= 1024 {
             cache.clear();

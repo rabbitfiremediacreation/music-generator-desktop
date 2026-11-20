@@ -4,7 +4,7 @@ import type { ModelSelection, Settings } from "./types";
 
 const selection: ModelSelection = { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "acestep-5Hz-lm-0.6B-Q8_0.gguf" };
 
-it("allows only backend recommendations without Expert Mode, including language size", () => {
+it("allows only backend ACE-Step recommendations without Expert Mode, including language size", () => {
   expect(modelAllowed(selection, false, [selection])).toBe(true);
   for (const changed of [
     { ...selection, synthesis: "acestep-v15-turbo-Q8_0.gguf" },
@@ -15,6 +15,18 @@ it("allows only backend recommendations without Expert Mode, including language 
     expect(modelAllowed(changed, true, [selection])).toBe(true);
   }
   expect(modelAllowed(selection, false, [])).toBe(false);
+});
+
+it("allows the exact Text2midi selection in Simple Mode", () => {
+  const midi = { provider: "text2midi", synthesis: "text2midi", language: "flan-t5-base" };
+  expect(modelAllowed(midi, false, [selection])).toBe(true);
+  expect(modelAllowed({ ...midi, language: "another-encoder" }, false, [selection])).toBe(false);
+});
+
+it("keeps expert-only native profiles restricted in Simple Mode", () => {
+  const audiocraft = { provider: "audiocraft", synthesis: "musicgen-small", language: "" };
+  expect(modelAllowed(audiocraft, false, [])).toBe(false);
+  expect(modelAllowed(audiocraft, true, [])).toBe(true);
 });
 
 it("uses simple labels while the expert view retains family and precision", () => {

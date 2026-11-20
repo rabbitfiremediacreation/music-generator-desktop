@@ -60,6 +60,32 @@ fn variant_mapping_inherits_omitted_values_and_keeps_cpu_choice_outside_override
 }
 
 #[test]
+fn generation_schema_accepts_only_staged_reference_ids() {
+    let schema =
+        jsonschema::validator_for(&definitions()["generate_music"]["inputSchema"]).unwrap();
+    assert!(schema.is_valid(&json!({"reference_audio": "a".repeat(64)})));
+    assert!(schema.is_valid(&json!({"source_song_id":"song","reference_audio":null})));
+    assert!(!schema.is_valid(&json!({"reference_audio":"/tmp/reference.wav"})));
+}
+
+#[test]
+fn public_generation_accepts_metered_clip_inputs_without_duration() {
+    let tools = definitions();
+    let schema = jsonschema::validator_for(&tools["generate_music"]["inputSchema"]).unwrap();
+    let clip = json!({"prompt":"house drums","bpm":124,"bars":2,"seed":42});
+    assert!(schema.is_valid(&clip));
+    assert!(schema.is_valid(&json!({"prompt":"drums","bpm":300,"bars":1,"duration":0.8})));
+    assert!(!schema.is_valid(&json!({"prompt":"house drums","bpm":124,"bars":3})));
+    assert_eq!(
+        generation_request(clip.clone()).unwrap(),
+        ("generate_music", clip)
+    );
+    let (_, variant) =
+        generation_request(json!({"source_song_id":"clip","bpm":125,"bars":1})).unwrap();
+    assert_eq!(variant["overrides"], json!({"bpm":125,"bars":1}));
+}
+
+#[test]
 fn direct_song_poll_is_not_a_timeout_and_waited_shape_is_the_same() {
     let result = json!({"song":{"id":"song","status":"running","lyrics":"words"},"completed":false,"timed_out":true,"progress":{"phase":"synthesis"}});
     let immediate = flatten_song(result.clone(), 0).unwrap();

@@ -7,12 +7,13 @@ import { chmod, mkdtemp, mkdir, readFile, readdir, readlink, rename, rm, writeFi
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { architecture, exists, files, hash, platform, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
+import { architecture, audioCppDirectory, audioCppSupported, exists, files, hash, platform, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
 import { msiArguments } from "./windows-msi.mjs";
 import { pathTestGguf } from "./windows-unicode.mjs";
+import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, verifyDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -22,9 +23,14 @@ function startupLocation(app) {
 const output = path.join(root, "release");
 const diskImage = process.argv.includes("--dmg");
 const installer = process.argv.includes("--msi");
+const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, target);
+const audioCraft = process.argv.includes("--audiocraft");
 assert(!installer || platform === "windows", "MSI verification requires Windows");
 assert(!diskImage || platform === "macos", "DMG verification requires macOS");
-const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}.dmg` : platform === "linux" ? `-${target.artifactSuffix}` : `-${platform}-${architecture}.zip`;
+assert(!audioCraft || (platform === "macos" && architecture === "arm64"), "AudioCraft bundle verification requires macOS arm64");
+const packageKind = audioCraft ? "-audiocraft" : "";
+const linuxSuffix = diffRhythm2 ? diffrhythm2ArtifactSuffix : target.artifactSuffix;
+const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}${packageKind}.dmg` : platform === "linux" ? `-${linuxSuffix}` : `-${platform}-${architecture}${packageKind}.zip`;
 const { version } = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const filename = `Music-Generator-${version}${suffix}`;
 const artifact = path.join(output, filename);
@@ -86,7 +92,15 @@ try {
   const record = extracted.find(file => path.basename(file) === "VERSION.desktop.json");
   assert(record, "Bundled engine manifest is missing");
   const engine = path.dirname(record);
-  await verifyEngine(engine);
+  const provenance = await verifyEngine(engine);
+  await verifyDiffRhythm2(engine, provenance, diffRhythm2);
+  assert.equal(await exists(path.join(engine, "audiocraft/audiocraft-synth")), audioCraft, "Unexpected AudioCraft runtime availability");
+  if (audioCraft) {
+    const catalog = JSON.parse(await readFile(path.join(root, "models/catalog.json"), "utf8"));
+    const profiles = catalog.profiles.filter(profile => profile.selection.provider === "audiocraft");
+    const runtime = JSON.parse(await readFile(path.join(engine, "audiocraft/audiocraft-runtime.json"), "utf8"));
+    assert(profiles.length && profiles.every(profile => profile.runtime.revision === runtime.revision), "Packaged AudioCraft revision differs from the model catalog");
+  }
   if (shipsYue2()) await verifyYue2Binary(engine);
   await verifyTitle(path.join(engine,"title"),false);
   if(platform!=="macos") { const text=execFileSync(path.join(engine,"title",platform==="windows"?"music-title.exe":"music-title"),["--self-test"],{encoding:"utf8",timeout:30000});assert(text.includes("music-title=ready"),"Title runtime did not start"); }
@@ -106,13 +120,15 @@ try {
   }
   if (platform === "macos") {
     assert.equal(startupLocation(app).installation_required, false, "Copied app must start after ejecting the DMG");
+    if (audioCppSupported(target)) await run("codesign", ["--verify", "--strict", path.join(engine, audioCppDirectory, "libsoxr.dylib")]);
     const expectedArch = architecture === "x64" ? "x86_64" : "arm64";
+    const bundledPython = path.join(engine, "audiocraft", "python") + path.sep;
     for (const file of extracted) {
       const bytes = await readFile(file);
       if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
       const archs = execFileSync("lipo", ["-archs", file], { encoding: "utf8" }).trim().split(/\s+/);
       const sparkle = file.includes("/Contents/Frameworks/Sparkle.framework/");
-      assert(archs.includes(expectedArch) && (sparkle || archs.length === 1), `Wrong Mach-O architecture: ${file}`);
+      assert(archs.includes(expectedArch) && (sparkle || (audioCraft && file.startsWith(bundledPython)) || archs.length === 1), `Wrong Mach-O architecture: ${file}`);
       const headers = execFileSync("otool", ["-arch", expectedArch, "-l", file], { encoding: "utf8" });
       const versions = [...headers.matchAll(/cmd LC_BUILD_VERSION[\s\S]*?\n\s+minos ([\d.]+)|cmd LC_VERSION_MIN_MACOSX[\s\S]*?\n\s+version ([\d.]+)/g)];
       assert(versions.length, `No macOS deployment target in ${file}`);

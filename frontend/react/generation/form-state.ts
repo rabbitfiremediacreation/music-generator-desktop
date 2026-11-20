@@ -26,9 +26,13 @@ export function numericValues(values: FormValues): GenerationFormPreferences {
 export function songValues(song: Song, selection: ModelSelection | null): FormValues {
   const p = song.params, instrumental = isInstrumentalLyrics(p.lyrics || "") || p.instrumental === true;
   const sampling = samplingForSong(p, selection ?? undefined);
+  const minimax = p.model_selection?.provider === "minimax-music3";
+  const useSavedCaption = minimax && !p.prompt?.trim();
   return {
     ...INITIAL_VALUES, ...sampling,
-    title: song.title || "", style: p.style ?? p.caption ?? "", prompt: p.prompt ?? "",
+    title: song.title || "",
+    style: song.output_kind === "midi" || useSavedCaption ? "" : p.style ?? (minimax ? "" : p.caption ?? ""),
+    prompt: song.output_kind === "midi" ? p.prompt || p.caption || song.caption : useSavedCaption ? p.caption || song.caption : p.prompt ?? "",
     instrumental, lyrics: instrumental ? "" : p.lyrics || "",
     duration: Math.min(600, Math.max(10, p.duration || 90)),
     bpm: !p.bpm || p.bpm <= 50 ? 0 : Math.min(200, p.bpm),
