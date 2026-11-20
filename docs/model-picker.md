@@ -1,6 +1,6 @@
 # ModelPicker
 
-The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. The picker also shows optional profiles and checks their native runtime and hardware requirements before activation.
+The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. ACE-Step provides the starter profiles. The picker checks each optional profile's native runtime and hardware requirements before activation. See [Mimetic A0](mimetic-a0.md) for the short-clip profile.
 
 The additional downloader dialog uses a split catalog and detail view. Search and **All / Installed / Recommended** filters browse sound-model families on the left; Installed requires a verified local file, and Recommended uses the actual hardware recommendations. The detail pane shows quantization variants for the chosen family, its companion language model, file size, total profile download, memory estimate, required files and the explicit download/activation action. Choosing a family only changes the preview. On narrow layouts the catalog appears above the details. Escape closes only the add dialog and returns focus to Add model; Settings and its unsaved drafts remain open. Download progress and cancellation stay available on the installed-models page when the additional dialog is closed.
 
@@ -10,7 +10,7 @@ The additional downloader dialog uses a split catalog and detail view. Search an
 
 When no XL recommendation fits this computer's RAM budget, a visible hint beside the Creator drop-down explains that XL requires more memory and is not recommended. This also appears in Expert Mode: installing an XL file or enabling that mode does not add an XL recommendation or remove the backend's memory checks. The hint and all Settings labels/status messages are localized in all twelve UI languages and update when the language changes.
 
-By default, the Creator drop-down offers **Standard** and, only when its complete profile fits the detected RAM budget, **XL**. These use SFT Q8_0. Each profile has exactly one automatically recommended Q8_0 language model; there is no manual size selector. Recommendations use the existing RAM/VRAM language-size guidance (0.6B, 1.7B or 4B), lowering the size if needed to fit synthesis, language weights, fixed dependencies and runtime headroom together. If no starter profile fits, the drop-down explains that no recommendation is available. The first-run assistant follows the same rules.
+For ACE-Step, the Creator drop-down offers **Standard** and, only when its complete profile fits the detected RAM budget, **XL**. These use SFT Q8_0. Each profile has exactly one automatically recommended Q8_0 language model; there is no manual size selector. Recommendations use the existing RAM/VRAM language-size guidance (0.6B, 1.7B or 4B), lowering the size if needed to fit synthesis, language weights, fixed dependencies and runtime headroom together. If no starter profile fits, the drop-down explains that no recommendation is available. The first-run assistant follows the same rules.
 
 The Creator drop-down uses `select_models`, which activates only already verified local files and persists the choice without downloading. If files are missing or need verification, the previous selection stays active and an inline hint links to Settings. The requested profile is preselected in the model manager, where download/verification needs an explicit action. Advanced profiles selected in Settings or restored from songs remain visible as the current drop-down entry; the Creator does not expand into a full catalog when Expert Mode is enabled.
 
@@ -70,6 +70,19 @@ The initial HeartMuLa profile accepts 5–30 requested seconds per vocal track a
 - **Runtime.** The app uses the audio.cpp v0.9.5 C ABI and a native launcher. Audio.cpp is licensed under Apache-2.0. The app includes the upstream runtime license with the bundled library. [audio.cpp release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5) · [Pinned runtime license](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE)
 - **Weights and dependencies.** The native adapter reads the official F32 Safetensors in their upstream layout. The HNY generator, January 23 decoder, and tokenizer and generation configuration are Apache-2.0. [HNY checkpoint](https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B-happy-new-year/tree/41d4faafc5bde6990bf8505daa70840fb3c4a3e7) · [HeartCodec](https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/tree/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f) · [HeartMuLaGen](https://huggingface.co/HeartMuLa/HeartMuLaGen/tree/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7)
 - **Use and redistribution.** Apache-2.0 permits local private and commercial model use. Redistribution requires the full license text, retention of applicable notices and any NOTICE, and identification of modified files. The upstream cards impose no separate output-attribution or noncommercial condition. Assess the rights to supplied lyrics and generated music separately. [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+## Magenta RealTime 2
+
+The optional `mrt2_small` profile records prompted instrumentals as timed 48 kHz stereo WAVs. The ModelPicker shows the pinned downloads and license terms. The verified Apple Silicon path and its measured dropouts are documented separately. [Magenta RealTime 2](magenta-realtime-2.md)
+
+## AudioCraft
+
+MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the Apple Silicon AudioCraft bundle. The ModelPicker displays the CC BY-NC terms and requires explicit selection. [AudioCraft runtime, model requirements and acceptance](qa/issue-132/README.md)
+
+
+## Text2midi
+
+Choose **Text2midi** in the add-model catalog. The profile shows both model sources, file sizes and checksums, usage terms, and the tested CPU backend. On macOS arm64 the picker shows the one-time terminal command when its Python 3.12 environment is missing. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
 
 ## Downloads and persistence
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
+import { bundledProfile } from "../../expert-mode";
 import { exportFolder } from "../../exports";
 import type { ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
@@ -51,7 +52,7 @@ export function Library({folder,onFolderChange,onReuse,selection,onReady,onError
   },[armed]);
   const arm=(key:string)=>{if(armed===key){setArmed("");return true;}setArmed(key);setAnnouncement({key:"an_armed"});return false;};
   const current=folders.data?.folders.find(value=>value.id===folder),library=queue.data?.library;
-  const rememberedAce = selection && !selection.language
+  const rememberedAce = selection && (!selection.language || bundledProfile(selection)?.capabilities.output_kind === "midi")
     ? settings.data?.model_profiles?.["ace-step"] ?? settings.data?.recommended_profiles?.find(profile => profile.provider === "ace-step")
     : undefined;
   function restore(song: Song) {

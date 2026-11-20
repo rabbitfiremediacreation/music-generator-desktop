@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
+import { bundledProfile } from "../../expert-mode";
 import { samplingForSong } from "../../song-sampling";
 import type { Generation, GenerationPolicy, Health } from "../../types";
 import { DEFAULT_PREFERENCES } from "./form-state";
@@ -29,7 +30,7 @@ export function GenerationAdmissionProvider({ children, settingsBlocked = false 
       const healthBefore = client.getQueryData<Health>(["health"]);
       const current = await client.fetchQuery({ queryKey: ["generation-policy", request.model_selection ?? null], queryFn: () => backend.generationPolicy(request.model_selection, true), staleTime: 0, retry: false, networkMode: "always" }).catch((): GenerationPolicy => ({ backend: "unknown", cpu_iteration_behavior: "ask", legacy_inference_steps: 50, recommended_steps: 30, defaults: DEFAULT_PREFERENCES }));
       if (!mounted.current || blocked.current) return null;
-      const usesIterations = current.capabilities?.advanced ?? (!request.model_selection || Boolean(request.model_selection.language));
+      const usesIterations = (current.capabilities ?? bundledProfile(request.model_selection)?.capabilities)?.advanced ?? (!request.model_selection || Boolean(request.model_selection.language));
       if (usesIterations && (request.inference_steps || request.model_selection)) request.inference_steps = samplingForSong(request).inference_steps;
       const health = client.getQueryState(["health"])?.status === "error" ? undefined : client.getQueryData<Health>(["health"]);
       const observed = health?.backend_status;

@@ -1,4 +1,4 @@
-//! Shared lifecycle for one-shot native WAV generators.
+//! Shared lifecycle for one-shot native generators.
 use super::{process::OwnedProcess, progress::Progress};
 use crate::{
     audio_facts,
@@ -11,7 +11,7 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 
-pub struct WavJob<'a> {
+pub struct NativeJob<'a> {
     pub executable: &'a Path,
     pub model_folder: &'a Path,
     pub data_root: &'a Path,
@@ -20,7 +20,9 @@ pub struct WavJob<'a> {
     pub timeout: Duration,
 }
 
-impl WavJob<'_> {
+pub type WavJob<'a> = NativeJob<'a>;
+
+impl NativeJob<'_> {
     pub async fn run(
         &self,
         params: &Value,
@@ -28,6 +30,52 @@ impl WavJob<'_> {
         progress: impl Fn(Progress),
         arguments: impl FnOnce(&Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, String, Value)> {
+        let (audio, metadata) = self
+            .run_file("wav", params, cancel, progress, arguments)
+            .await?;
+        let metadata = wav_metadata(&audio, params, metadata)?;
+        Ok((audio, "wav".into(), metadata))
+    }
+
+    pub async fn run_file(
+        &self,
+        extension: &str,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        arguments: impl FnOnce(&Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, Value)> {
+        let (bytes, metadata, _) = self
+            .run_job(extension, params, cancel, progress, false, |output, _| {
+                arguments(output)
+            })
+            .await?;
+        Ok((bytes, metadata))
+    }
+
+    pub async fn run_with_report(
+        &self,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, String, Value, Vec<u8>)> {
+        let (audio, metadata, report) = self
+            .run_job("wav", params, cancel, progress, true, arguments)
+            .await?;
+        let metadata = wav_metadata(&audio, params, metadata)?;
+        Ok((audio, "wav".into(), metadata, report))
+    }
+
+    async fn run_job(
+        &self,
+        extension: &str,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        with_report: bool,
+        arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
+    ) -> Result<(Vec<u8>, Value, Vec<u8>)> {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -36,8 +84,10 @@ impl WavJob<'_> {
         let work = tempfile::Builder::new()
             .prefix("music-job-")
             .tempdir_in(self.data_root)?;
-        let output = work.path().join("song.wav");
-        let args = arguments(&output);
+        let output = work.path().join(format!("song.{extension}"));
+        let report = work.path().join("report.json");
+        let args = arguments(&output, &report);
+        let started = Instant::now();
         let mut process = OwnedProcess::spawn_with_model_folder(
             self.executable,
             &args,
@@ -45,8 +95,12 @@ impl WavJob<'_> {
             &logs.join(self.log_name),
             Some(self.model_folder),
         )?;
-        let started = Instant::now();
         let mut elapsed = None;
+        let phase = if extension == "wav" {
+            "generation"
+        } else {
+            "synth"
+        };
         loop {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
@@ -70,7 +124,7 @@ impl WavJob<'_> {
             if elapsed != Some(seconds) {
                 progress(Progress {
                     elapsed_seconds: seconds,
-                    ..Progress::new("generation")
+                    ..Progress::new(phase)
                 });
                 elapsed = Some(seconds);
             }
@@ -79,17 +133,34 @@ impl WavJob<'_> {
                 _ = tokio::time::sleep(Duration::from_millis(200)) => {}
             }
         }
-        let audio = tokio::select! {
+        let runtime_seconds = started.elapsed().as_secs_f64();
+        let (bytes, report) = tokio::select! {
+            biased;
             _ = cancel.cancelled() => return Err(Error::Cancelled),
-            audio = tokio::fs::read(&output) => audio?,
+            output = async {
+                let bytes = tokio::fs::read(output).await?;
+                let report = if with_report { tokio::fs::read(report).await? } else { Vec::new() };
+                std::io::Result::Ok((bytes, report))
+            } => output?,
         };
-        let seconds = audio_facts::duration(&audio)?;
-        let mut meta = json!({
-            "runtime_seconds": started.elapsed().as_secs_f64(),
+        let meta = json!({
+            "runtime_seconds": runtime_seconds,
             "backend": self.backend,
             "seed": params["seed"],
         });
-        audio_facts::record_duration(seconds, params, &mut meta);
-        Ok((audio, "wav".into(), meta))
+        Ok((bytes, meta, report))
     }
+}
+
+fn wav_metadata(audio: &[u8], params: &Value, mut metadata: Value) -> Result<Value> {
+    let wav = audio_facts::wav_facts(audio)?;
+    metadata["audio_format"] = json!({
+        "container": "wav",
+        "encoding": "pcm",
+        "sample_rate_hz": wav.sample_rate_hz,
+        "channels": wav.channels,
+        "bits_per_sample": wav.bits_per_sample,
+    });
+    audio_facts::record_duration(wav.duration_seconds, params, &mut metadata);
+    Ok(metadata)
 }

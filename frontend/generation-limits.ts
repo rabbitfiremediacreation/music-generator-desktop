@@ -2,6 +2,8 @@ import type { ModelAbilities } from "./types";
 
 export const MAX_INFERENCE_STEPS = 200;
 export const LEGACY_INFERENCE_STEPS_LIMIT = 100;
+export const MAX_CLIP_BPM = 300;
+export const DEFAULT_CLIP_BPM = "120";
 
 export const ACE_STEP_ABILITIES: ModelAbilities = {
   min_duration: 10, max_duration: 600, max_variants: 10,
@@ -11,6 +13,12 @@ export const ACE_STEP_ABILITIES: ModelAbilities = {
 
 export function boundedDuration(duration: number, { min_duration, max_duration }: ModelAbilities): number {
   return Math.max(min_duration, Math.min(max_duration, duration));
+}
+
+export function clipSeconds(bars: number, tempo: string): number | undefined {
+  const bpm = Number(tempo);
+  if (!Number.isInteger(bpm) || bpm < 1 || bpm > MAX_CLIP_BPM) return undefined;
+  return 240 * bars / bpm;
 }
 
 /** Match the pinned engine's legacy defaults and effective diffusion-step limits. */

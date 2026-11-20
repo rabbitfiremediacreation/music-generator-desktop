@@ -1,4 +1,9 @@
-use music_generator::{db::Database, exports::export, types::GenerateRequest};
+use music_generator::{
+    catalog::Selection,
+    db::Database,
+    exports::export,
+    types::{GenerateRequest, OutputKind},
+};
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -179,6 +184,100 @@ async fn wav_audio_and_zip_preserve_original_audio_bytes() {
     std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
     assert_eq!(bytes, b"lossless original");
     assert_eq!(std::fs::read(original).unwrap(), b"lossless original");
+}
+
+#[tokio::test]
+async fn midi_job_and_exports_preserve_the_composition_with_mp3_selected() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.export_format = "mp3".into();
+    db.save_settings(&settings).unwrap();
+    let id = db
+        .enqueue(&GenerateRequest {
+            model_selection: Some(Selection {
+                provider: "text2midi".into(),
+                synthesis: "text2midi".into(),
+                language: "flan-t5-base".into(),
+            }),
+            prompt: "Piano in C major".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    let queued = db.song(&id).unwrap();
+    assert_eq!(queued.output_kind, OutputKind::Midi);
+    assert!(queued.lyrics.is_none());
+    assert_eq!(queued.params["lyrics"], "");
+    db.claim_next().unwrap();
+    let songs = PathBuf::from(settings.songs_dir);
+    std::fs::create_dir_all(&songs).unwrap();
+    // Type 0, 96 ticks per beat, a tempo change and a quarter note.
+    let midi = b"MThd\0\0\0\x06\0\0\0\x01\0\x60MTrk\0\0\0\x13\0\xff\x51\x03\x07\xa1\x20\0\x90\x3c\x40\x60\x80\x3c\0\0\xff\x2f\0";
+    let source = songs.join("original.mid");
+    std::fs::write(&source, midi).unwrap();
+    let metadata = json!({"track_count":1,"note_count":1,"tempos":[120.0]});
+    assert!(db
+        .finish_output(
+            &id,
+            "original.mid",
+            &metadata,
+            "text2midi",
+            OutputKind::Midi
+        )
+        .unwrap());
+    drop(db);
+
+    let db = Arc::new(Database::open(root.path()).unwrap());
+    let song = db.song(&id).unwrap();
+    assert_eq!(song.output_kind, OutputKind::Midi);
+    assert_eq!(song.result_meta, Some(metadata));
+    assert!(db.read_song_audio(&id).is_err());
+    assert!(db.export_midi(&id, &source).is_err());
+    assert!(db.export_midi(&id, &root.path().join("saved.wav")).is_err());
+    let destination = root.path().join("saved.mid");
+    std::fs::write(&destination, b"previous export").unwrap();
+    export(
+        db.clone(),
+        root.path().into(),
+        "midi".into(),
+        Some(id.clone()),
+        None,
+        destination.clone(),
+        CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(destination).unwrap(), midi);
+    assert!(export(
+        db.clone(),
+        root.path().into(),
+        "audio".into(),
+        Some(id),
+        None,
+        root.path().join("saved.mp3"),
+        CancellationToken::new(),
+    )
+    .await
+    .is_err());
+
+    let destination = root.path().join("library.zip");
+    export(
+        db,
+        root.path().into(),
+        "zip".into(),
+        None,
+        None,
+        destination.clone(),
+        CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(destination).unwrap()).unwrap();
+    let mut entry = archive.by_name("Piano in C major.mid").unwrap();
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
+    assert_eq!(bytes, midi);
 }
 
 #[tokio::test]

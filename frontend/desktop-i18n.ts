@@ -97,3 +97,6 @@ const progressLabels: Record<string, string[]> = {
 for (const [language, values] of Object.entries(progressLabels)) {
   Object.assign(I18N[language as keyof typeof I18N], Object.fromEntries(progressKeys.map((key, i) => [`desktop_progress_${key}`, values[i]])));
 }
+
+Object.assign(I18N.en, { desktop_progress_generation: "Generating audio" });
+Object.assign(I18N.de, { desktop_progress_generation: "Audio wird erzeugt" });

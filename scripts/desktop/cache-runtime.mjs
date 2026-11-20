@@ -65,7 +65,7 @@ async function restore() {
     if (platform === "windows" && !await exists(path.join(unpacked, "WebView2/msedgewebview2.exe"))) throw Error("Cached WebView2 runtime is incomplete");
     for (const folder of platform === "windows" ? ["engine", "WebView2"] : ["engine"]) {
       await rm(path.join(resources, folder), { recursive: true, force: true });
-      await cp(path.join(unpacked, folder), path.join(resources, folder), { recursive: true });
+      await cp(path.join(unpacked, folder), path.join(resources, folder), { recursive: true, verbatimSymlinks: true });
     }
     await output("restored", "true"); await output("available", "true");
     console.log(`Reused verified ${platform}/${architecture}/${target.backend || "native"} runtime from run ${artifact.workflow_run.id}.`);

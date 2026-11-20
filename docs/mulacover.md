@@ -1,6 +1,6 @@
 # MuLaCover
 
-MuLaCover by MuLa Labs is an experimental local remix profile. In **Settings → Models and hardware → Add model**, choose **MuLaCover** and review the usage and output terms before downloading. The installer and first-run recommendations use their usual ACE-Step models. MuLaCover weights are acquired separately.
+MuLaCover by MuLa Labs is an experimental local remix profile. Enable **Expert Mode** under **Settings → Models and hardware**, then choose **MuLaCover** in **Add model** and review the usage and output terms before downloading.
 
 Both the weights and music generated with them are for noncommercial use. Commercial use requires written authorization from MuLa Labs. CC BY-NC 4.0 requires attribution when sharing the weights. The model terms grant no rights to third-party recordings, compositions, performances, or lyrics. Use only your own material or material you have permission to remix. [Official project](https://github.com/HeartMuLa/MuLaCover) · [Model and output terms](https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE)
 

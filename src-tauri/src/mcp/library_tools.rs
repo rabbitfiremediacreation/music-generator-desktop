@@ -17,13 +17,14 @@ fn generation() -> Value {
         "prompt": text(20000), "style": text(4000), "caption": text(24000),
         "lyrics": text(100000), "title": text(500),
         "reference_audio": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Reference ID from a MuLaCover job. Choose the recording in the desktop app. Set null to clear an inherited reference."},
-        "instrumental": {"type": "boolean", "default": true},
+        "instrumental": {"type": "boolean", "description": "Applies to profiles that expose the instrumental control."},
         "keep_caption": {"type": "boolean", "default": true},
-        "duration": {"type": "number", "minimum": 5, "maximum": 600, "description": "Requested seconds within the selected profile's limits from get_generation_policy."},
-        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "0 selects automatic tempo."},
+        "duration": {"type": "number", "minimum": 0.8, "maximum": 600, "description": "Requested seconds within the selected profile's limits from get_generation_policy. Metered profiles derive this value from BPM and bars."},
+        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "Metered profiles require a positive tempo. For ACE-Step, 0 selects automatic tempo."},
+        "bars": {"type": "integer", "enum": [1, 2, 4], "description": "Required by metered short-clip profiles. BPM and 4/4 bars determine the duration."},
         "keyscale": text(100), "timesignature": text(100), "vocal_language": text(100),
         "seed": {"type": "integer", "minimum": -1, "maximum": 9007199254740991_i64, "default": -1},
-        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Omitted values use the saved studio preference, initially 2."},
+        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Use the selected profile's limits from get_generation_policy. ACE-Step uses the saved studio preference when omitted."},
         "inference_steps": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Omitted values use the saved studio preference or device/model recommendation."},
         "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 0.85."},
         "group_id": id(), "folder_id": {"type": ["string", "null"], "maxLength": 200},
@@ -39,7 +40,7 @@ pub(super) fn tools() -> Vec<Value> {
     let mut generate = generation();
     generate["cpu_iteration_decision"] = cpu_choice();
     vec![
-        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. For ACE-Step, supply prompt, style or caption. For HeartMuLa supply comma-separated style tags and lyrics along with optional duration and seed. Setup and verified models are required. Poll get_song/get_queue or wait_song for results.", generate, &[], false, false),
+        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. ACE-Step and AudioCraft take a prompt, style or caption. HeartMuLa takes comma-separated style tags and lyrics. Stable Audio 3 takes a prompt and instrumental duration. Magenta RealTime 2 takes a text prompt or style and uses duration as the recording time. Mimetic A0 takes a prompt, BPM and 1, 2 or 4 bars. Setup and verified models are required. Poll get_song, get_queue or wait_song for results.", generate, &[], false, false),
         super::super::tool("create_variants", "Queue new variants from a song's stored generation settings with random seeds, preserving its group, current title and folder. Overrides replace individual parameters. Existing audio remains unchanged.", json!({"id": id(), "variants": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1}, "overrides": {"type": "object", "properties": generation(), "additionalProperties": false}, "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("retry_song", "Retry a failed or cancelled song, honoring current model admission and saved CPU behavior. Reducing high CPU iterations creates a new song and preserves the original request.", json!({"id": id(), "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("cancel_song", "Cancel queued or running generation. Safe to repeat; a completed song and its audio are never deleted.", json!({"id": id()}), &["id"], false, false),

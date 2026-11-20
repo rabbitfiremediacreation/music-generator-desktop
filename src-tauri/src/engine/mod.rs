@@ -1,15 +1,21 @@
+pub(crate) mod audiocraft;
 pub mod backend_status;
 pub mod client;
 pub mod device;
 mod diagnostics;
 mod generation;
 pub(crate) mod heartmula;
+pub mod magenta;
 pub(crate) mod manager;
+pub(crate) mod mimetic;
+pub(crate) mod minimax_music3;
 pub(crate) mod mulacover;
 pub mod native;
 pub mod process;
 pub mod progress;
 mod response;
+pub(crate) mod stable_audio;
+pub mod text2midi;
 use crate::{
     error::{message, Error, Result},
     types::Settings,

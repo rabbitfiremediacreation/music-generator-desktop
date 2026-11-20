@@ -2,6 +2,7 @@ use super::{catalog, required, Catalog, Selection};
 use crate::{
     error::{message, Result},
     hardware::Hardware,
+    types::OutputKind,
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -33,6 +34,8 @@ pub struct UpstreamSource {
     pub license_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +54,11 @@ pub struct GenerationCapabilities {
     pub reference_audio: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_seed: Option<u32>,
+    #[serde(default, skip_serializing_if = "OutputKind::is_audio")]
+    pub output_kind: OutputKind,
+    /// For metered profiles, allowed counts of 4/4 bars.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bars: Option<Vec<u32>>,
 }
 
 impl GenerationCapabilities {
@@ -68,6 +76,8 @@ impl GenerationCapabilities {
             analysis: true,
             reference_audio: false,
             max_seed: None,
+            output_kind: OutputKind::Audio,
+            bars: None,
         }
     }
 }
@@ -79,8 +89,13 @@ pub struct NativeRuntime {
     pub source: String,
     pub license: String,
     pub license_url: String,
-    /// Path within the application's resource directory, without the Windows suffix.
+    /// Path within the application's resource directory. Native executables omit the Windows suffix.
     pub executable: String,
+    /// Optional Python venv interpreter, relative to the application data directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interpreter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installer: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_files: Vec<String>,
 }
@@ -88,11 +103,41 @@ pub struct NativeRuntime {
 impl NativeRuntime {
     pub fn executable(&self, resources: &Path) -> PathBuf {
         let executable = resources.join(&self.executable);
-        if cfg!(windows) {
+        if cfg!(windows) && self.interpreter.is_none() {
             executable.with_extension("exe")
         } else {
             executable
         }
+    }
+
+    pub fn interpreter(&self, data_root: &Path) -> Option<PathBuf> {
+        self.interpreter.as_ref().map(|path| data_root.join(path))
+    }
+
+    fn interpreter_ready(&self, data_root: &Path) -> bool {
+        let Some(executable) = self.interpreter(data_root) else {
+            return true;
+        };
+        let Some(venv) = executable.parent().and_then(Path::parent) else {
+            return false;
+        };
+        // A Homebrew upgrade can remove the exact CPython used to initialize the venv.
+        executable.is_file()
+            && std::fs::read_to_string(venv.join("pyvenv.cfg")).is_ok_and(|config| {
+                config
+                    .lines()
+                    .find_map(|line| line.strip_prefix("executable = "))
+                    .is_some_and(|base| Path::new(base).is_file())
+            })
+    }
+
+    pub fn install_command(&self, resources: &Path, data_root: &Path) -> Option<String> {
+        fn quote(path: &Path) -> String {
+            format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+        }
+        let setup = resources.join(self.installer.as_ref()?);
+        (setup.is_file() && !self.interpreter_ready(data_root))
+            .then(|| format!("/bin/bash {} {}", quote(&setup), quote(data_root)))
     }
 }
 
@@ -145,11 +190,24 @@ pub struct ProviderProfile {
     pub upstream_sources: Vec<UpstreamSource>,
     pub usage: Usage,
     pub platforms: Vec<TestedPlatform>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_hold: Option<String>,
     #[serde(default)]
     pub acquisition: Acquisition,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub expert_only: bool,
 }
 
 impl ProviderProfile {
+    pub(super) fn ensure_released(&self) -> Result<()> {
+        if let Some(reason) = &self.release_hold {
+            return Err(message(reason.clone()));
+        }
+        Ok(())
+    }
+
     pub fn platform(&self, hardware: &Hardware) -> Result<&TestedPlatform> {
         self.platforms
             .iter()
@@ -159,7 +217,13 @@ impl ProviderProfile {
             })
     }
 
-    pub fn ensure_runtime(&self, resources: &Path, hardware: &Hardware) -> Result<()> {
+    pub fn ensure_runtime(
+        &self,
+        resources: &Path,
+        data_root: &Path,
+        hardware: &Hardware,
+    ) -> Result<()> {
+        self.ensure_released()?;
         self.platform(hardware)?;
         if !self.runtime.executable(resources).is_file()
             || self
@@ -171,6 +235,9 @@ impl ProviderProfile {
             return Err(message(
                 "The native runtime for this model is missing from this app build",
             ));
+        }
+        if !self.runtime.interpreter_ready(data_root) {
+            return Err(message("text2midi_runtime_required"));
         }
         Ok(())
     }
@@ -212,7 +279,7 @@ pub fn capabilities(selection: &Selection) -> Result<GenerationCapabilities> {
         .ok_or_else(|| message("Unknown model profile"))
 }
 
-pub fn ensure_runtime(selection: &Selection, resources: &Path) -> Result<()> {
+pub fn ensure_runtime(selection: &Selection, resources: &Path, data_root: &Path) -> Result<()> {
     if selection.provider == "ace-step" {
         return Ok(());
     }
@@ -220,7 +287,7 @@ pub fn ensure_runtime(selection: &Selection, resources: &Path) -> Result<()> {
     catalog
         .profile(selection)
         .ok_or_else(|| message("Unknown model profile"))?
-        .ensure_runtime(resources, crate::hardware::inspect())
+        .ensure_runtime(resources, data_root, crate::hardware::inspect())
 }
 
 pub fn generation_profile(selection: &Selection) -> Result<GenerationProfile> {

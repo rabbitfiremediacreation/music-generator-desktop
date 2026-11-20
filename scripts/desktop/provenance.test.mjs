@@ -44,7 +44,7 @@ it("rejects the old Windows iteration limit even when target and file hashes mat
   } finally { await rm(work,{recursive:true,force:true}); }
 });
 
-it("requires only the pinned audio.cpp runtime resources in Apple Silicon bundles", async () => {
+it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon bundles", async () => {
   const work = await mkdtemp(path.join(tmpdir(), "macos-provider-provenance-test-"));
   try {
     const macos = desktopTarget("macos", "arm64");
@@ -55,6 +55,12 @@ it("requires only the pinned audio.cpp runtime resources in Apple Silicon bundle
       recipe_sha256: await engineRecipeHash(macos),
     };
     await writeFile(path.join(work, "ace-server"), "test engine");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
+    await writeFile(path.join(work, "mimetic-synth"), "test launcher");
+    await mkdir(path.join(work, "mimetic-python"));
+    await writeFile(path.join(work, "mimetic-python/MIMETIC_RUNTIME.json"), "test runtime receipt");
+
     const runtime = path.join(work, "providers/audio.cpp");
     await mkdir(path.join(runtime, "model_specs"), { recursive: true });
     for (const file of ["audiocpp_cli", "libaudiocpp.0.dylib", "LICENSE"]) {
@@ -66,12 +72,18 @@ it("requires only the pinned audio.cpp runtime resources in Apple Silicon bundle
     await writeFile(path.join(runtime, "model_specs/heartmula.json"), "test resource");
     await writeFile(path.join(runtime, "LICENSE.soxr"), "test license");
     await writeFile(path.join(runtime, "soxr-0.1.3-Source.tar.xz"), "test source archive");
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
 
     await writeFile(path.join(runtime, "libsoxr.dylib"), "test resampler");
     await recordHashes(work, metadata);
     await verifyEngine(work, macos);
+
+    await rm(path.join(runtime, "model_specs/stable_audio.json"));
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
 
     await writeFile(path.join(runtime, "weights.gguf"), "test weights");
     await recordHashes(work, metadata);

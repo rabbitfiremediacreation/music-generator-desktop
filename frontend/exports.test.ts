@@ -17,6 +17,22 @@ it("keeps lyrics as text regardless of the audio setting", async () => {
   expect(mocks.settings).not.toHaveBeenCalled();
   expect(mocks.save.mock.calls[0][0].defaultPath).toBe("/Downloads/Rain.txt");
 });
+it("exports MIDI using its own native dialog and ignores the MP3 preference", async () => {
+  mocks.save.mockResolvedValue("/exports/Rain.mid");
+  await exportSong({ ...song, output_kind: "midi", file: "one.mid" });
+  expect(mocks.settings).not.toHaveBeenCalled();
+  expect(mocks.save).toHaveBeenCalledWith({ defaultPath: "/Downloads/Rain.mid", title: "translated:dialog_export_midi", filters: [{ name: "MID", extensions: ["mid"] }] });
+  expect(mocks.export).toHaveBeenCalledWith("midi", "/exports/Rain.mid", "one", null);
+});
+
+it("shows the publication disclosure during native export of generated audio", async () => {
+  const generated = { ...song, result_meta: { generated_by: "MiniMax-Music3", machine_generated: true } };
+  await exportSong(generated);
+  expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ title: "translated:dialog_export_generated_audio" }));
+  expect(mocks.export).toHaveBeenCalledWith("audio", "/exports/Rain.mp3", "one", null);
+  await exportSong(generated, true);
+  expect(mocks.save).toHaveBeenLastCalledWith(expect.objectContaining({ title: "translated:dialog_export_lyrics" }));
+});
 
 it("keeps the export destination unchanged when the save dialog is cancelled", async () => {
   mocks.save.mockResolvedValue(null);

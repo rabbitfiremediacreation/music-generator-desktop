@@ -1,6 +1,6 @@
 use crate::{
     error::{message, Result},
-    types::{id, now, GenerateRequest, Settings, Song, SongFilter, SongPage},
+    types::{id, now, GenerateRequest, OutputKind, Settings, Song, SongFilter, SongPage},
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
@@ -43,6 +43,12 @@ impl Database {
             if !columns.iter().any(|c| c == "audio_missing") {
                 con.execute(
                     "ALTER TABLE songs ADD COLUMN audio_missing INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            if !columns.iter().any(|c| c == "output_kind") {
+                con.execute(
+                    "ALTER TABLE songs ADD COLUMN output_kind TEXT NOT NULL DEFAULT 'audio' CHECK (output_kind IN ('audio','midi'))",
                     [],
                 )?;
             }
@@ -200,6 +206,7 @@ impl Database {
                     params: parse_json(row.get("params")?)?,
                     result_meta: meta.map(parse_json).transpose()?,
                     engine: row.get("engine")?,
+                    output_kind: row.get("output_kind")?,
                     path: file
                         .as_ref()
                         .filter(|_| !audio_missing)
@@ -222,7 +229,7 @@ impl Database {
 
     fn enrich_songs(songs: &mut [Song]) {
         for song in songs {
-            if song.status != "done" {
+            if song.status != "done" || !song.output_kind.is_audio() {
                 continue;
             }
             let mut metadata = song.result_meta.clone().unwrap_or_else(|| json!({}));
@@ -270,7 +277,7 @@ impl Database {
             crate::catalog::Selection::from_settings(&self.settings()?)
         };
         let capabilities = crate::catalog::capabilities(&selection)?;
-        crate::generation_limits::validate_request(req, &capabilities)?;
+        let duration = crate::generation_limits::validate_request(req, &capabilities)?;
         if let Some(reference) = &req.reference_audio {
             crate::reference_audio::resolve(&self.root, reference)?;
         }
@@ -300,12 +307,15 @@ impl Database {
             return Err(message("Please enter a prompt or style"));
         }
         let group = req.group_id.clone().unwrap_or_else(id);
-        let lyrics = if req.instrumental {
-            "[Instrumental]"
+        let lyrics = if !capabilities.output_kind.is_audio() {
+            None
+        } else if req.instrumental && capabilities.lyrics {
+            Some("[Instrumental]")
         } else {
-            req.lyrics.trim()
+            Some(req.lyrics.trim())
         };
         let mut params = serde_json::to_value(req)?;
+        params["duration"] = json!(duration);
         if let Some(profile) = profile {
             params["generation_profile"] = serde_json::to_value(profile)?;
         }
@@ -317,7 +327,7 @@ impl Database {
             params["use_cot_caption"] = json!(!req.keep_caption);
         }
         params["caption"] = json!(caption);
-        params["lyrics"] = json!(lyrics);
+        params["lyrics"] = json!(lyrics.unwrap_or_default());
         let mut con = self.lock();
         let tx = con.transaction()?;
         let folder = req.folder_id.as_ref().filter(|f| {
@@ -339,7 +349,7 @@ impl Database {
                 req.seed + i as i64
             };
             params["seed"] = json!(seed);
-            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,params.to_string(),folder])?;
+            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id,output_kind) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9,?10)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,params.to_string(),folder,capabilities.output_kind.as_str()])?;
             ids.push(sid);
         }
         tx.commit()?;
@@ -393,6 +403,17 @@ impl Database {
         meta: &Value,
         engine: &str,
     ) -> Result<bool> {
+        self.finish_output(sid, file, meta, engine, OutputKind::Audio)
+    }
+
+    pub fn finish_output(
+        &self,
+        sid: &str,
+        file: &str,
+        meta: &Value,
+        engine: &str,
+        output_kind: OutputKind,
+    ) -> Result<bool> {
         let mut meta = meta.clone();
         if meta["generated_title"]
             .as_str()
@@ -402,7 +423,7 @@ impl Database {
         {
             meta["generated_title"] = crate::random_titles::random_title().into();
         }
-        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty)])? == 1)
+        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,output_kind=?7,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty), output_kind.as_str()])? == 1)
     }
 
     pub fn fail(&self, sid: &str, error: &str) -> Result<()> {

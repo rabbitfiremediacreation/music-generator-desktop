@@ -75,6 +75,108 @@ it("limits HeartMuLa generation to lyrics, style tags, seed and its profile dura
   });
 });
 
+it("sends the metered clip controls and validates the same length limit as Studio", async () => {
+  const clip: ActiveGenerationProfile = {
+    selection: { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" },
+    name: "Mimetic A0", available: true,
+    capabilities: { prompt: true, lyrics: false, lyrics_required: false, instrumental: true, bpm: true,
+      advanced: false, analysis: false, min_duration: 0, max_duration: 16, max_variants: 1, bars: [1, 2, 4] },
+  };
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/generation-profile" ? Response.json(clip) : original(path, options));
+  render(<App />);
+  await screen.findByRole("heading", { name: "Rain song" });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  const description = await screen.findByRole("textbox", { name: "Description" });
+  const generate = screen.getByRole<HTMLButtonElement>("button", { name: "Generate on computer" });
+  expect(generate.disabled).toBe(true);
+  expect(screen.queryByRole("spinbutton", { name: "Length (seconds)" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  const bars = screen.getByRole("combobox", { name: "Bars (4/4)" });
+  const bpm = screen.getByRole("spinbutton", { name: "BPM" });
+  fireEvent.change(description, { target: { value: "analog synth melody" } });
+  fireEvent.change(bars, { target: { value: "4" } });
+  fireEvent.change(bpm, { target: { value: "59" } });
+  expect(screen.getByText(/to stay within 16 seconds/)).toBeTruthy();
+  expect(generate.disabled).toBe(true);
+  fireEvent.submit(generate.closest("form")!);
+  expect(request.mock.calls.some(([path]) => path === "/api/generate")).toBe(false);
+  fireEvent.change(bpm, { target: { value: "124" } });
+  expect(screen.getByText("7.742 s")).toBeTruthy();
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "42" } });
+  fireEvent.click(generate);
+  await screen.findByText("Your song is in the queue.");
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toEqual({
+    model_selection: clip.selection, title: "", prompt: "analog synth melody", lyrics: "",
+    bars: 4, bpm: 124, duration: 960 / 124, seed: 42, variants: 1, instrumental: true, folder_id: null, keep_caption: true,
+  });
+});
+
+it("sends a Stable Audio instrumental without lyrics controls", async () => {
+  const stableAudio: ActiveGenerationProfile = {
+    selection: { provider: "stable-audio-3", synthesis: "stable-audio-3-small-music", language: "" },
+    name: "Stable Audio 3 Small Music", available: true,
+    capabilities: { ...heartmula.capabilities, prompt: true, lyrics: false, lyrics_required: false, instrumental: true, min_duration: 5, max_duration: 120 },
+  };
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/generation-profile" ? Response.json(stableAudio) : original(path, options));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your idea" }), { target: { value: "warm piano" } });
+  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect((screen.getByRole("spinbutton", { name: "Length (seconds)" }) as HTMLInputElement).max).toBe("120");
+  fireEvent.click(screen.getByRole("button", { name: "Generate on computer" }));
+  await screen.findByText("Your song is in the queue.");
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toMatchObject({ model_selection: stableAudio.selection, prompt: "warm piano", lyrics: "", instrumental: true });
+});
+
+it("uses a MIDI prompt and downloads the result as a MIDI attachment", async () => {
+  const midi: ActiveGenerationProfile = {
+    selection: { provider: "text2midi", synthesis: "text2midi", language: "flan-t5-base" },
+    name: "Text2midi", available: true,
+    capabilities: {
+      output_kind: "midi", prompt: true, lyrics: false, lyrics_required: false, instrumental: true,
+      bpm: false, advanced: false, analysis: false, min_duration: 0, max_duration: 0, max_variants: 1,
+    },
+  };
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => {
+    if (path === "/api/generation-profile") return Response.json(midi);
+    if (path.startsWith("/api/pwa/library?")) return Response.json({
+      ...library, songs: [{ ...song, duration: null, bpm: null, has_audio: false, output_kind: "midi", has_midi: true }],
+    });
+    if (path === "/api/songs/one/midi") return new Response(new Blob(["MThd"]), { headers: { "Content-Disposition": 'attachment; filename="Rain.mid"' } });
+    return original(path, options);
+  });
+  const save = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+    expect(this.download).toBe("Rain.mid");
+  });
+  render(<App />);
+  expect(await screen.findByText("MIDI (.mid)")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Play: Rain song" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Download MIDI: Rain song" }));
+  await screen.findByText("Download prepared");
+  expect(save).toHaveBeenCalledOnce();
+
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  const generate = await screen.findByRole("button", { name: "Generate MIDI on computer" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(true);
+  expect(screen.queryByRole("spinbutton", { name: "Length (seconds)" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Style" })).toBeNull();
+  expect(screen.queryByText("Use an audio idea")).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Your idea" }), { target: { value: "Quiet violin in 3/4" } });
+  fireEvent.click(generate);
+  await waitFor(() => expect(request.mock.calls.some(([path]) => path === "/api/generate")).toBe(true));
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toEqual({
+    model_selection: midi.selection, title: "", prompt: "Quiet violin in 3/4", seed: -1,
+    variants: 1, folder_id: null, instrumental: true, keep_caption: true,
+  });
+});
+
 it("cancels a queued song through the same authenticated computer", async () => {
   const original = request.getMockImplementation()!;
   let cancelled = false;

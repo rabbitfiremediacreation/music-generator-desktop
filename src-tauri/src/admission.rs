@@ -41,7 +41,7 @@ fn enqueue(
             ));
         }
         catalog::catalog().ensure_allowed(&selection, settings.expert_mode, Some(hardware))?;
-        catalog::ensure_runtime(&selection, &state.resources)?;
+        catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
         ensure_cached(state, &settings, &selection)?;
         let profile = catalog::generation_profile(&selection)?;
         request.model_selection = Some(selection);
@@ -91,14 +91,14 @@ pub fn retry(state: &AppState, id: &str) -> Result<()> {
         let song = state.db.song(id)?;
         let selection = profile_for_song(&settings, &song.params)?;
         catalog::catalog().ensure_allowed(&selection, settings.expert_mode, Some(hardware))?;
-        catalog::ensure_runtime(&selection, &state.resources)?;
+        catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
         validate_saved_profile(&selection, &song.params)?;
         if selection.provider != "ace-step" {
             let capabilities = catalog::capabilities(&selection)?;
             let mut request: GenerateRequest = serde_json::from_value(song.params)?;
             request.variants = 1;
-            if !capabilities.prompt {
-                // The library caption for a tag-based model is derived from its style tags.
+            if !capabilities.prompt || capabilities.bars.is_some() {
+                // These profiles store their composed library caption alongside the input.
                 request.caption.clear();
             }
             crate::generation_limits::validate_request(&request, &capabilities)?;
@@ -134,17 +134,10 @@ pub(crate) fn generation_policy(
             f64::from(capabilities.min_duration),
             f64::from(capabilities.max_duration),
         );
-        policy.defaults.variants = policy.defaults.variants.min(capabilities.max_variants);
+        policy.defaults.variants = 1;
         policy
     };
-    policy.available = catalog::ensure_runtime(selection, &state.resources).is_ok();
-    if !capabilities.advanced {
-        policy.defaults.duration = policy.defaults.duration.clamp(
-            f64::from(capabilities.min_duration),
-            f64::from(capabilities.max_duration),
-        );
-        policy.defaults.variants = 1;
-    }
+    policy.available = catalog::ensure_runtime(selection, &state.resources, &state.db.root).is_ok();
     policy.capabilities = Some(capabilities);
     policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
     policy.lm_device = settings.lm_device.clone();
@@ -174,7 +167,7 @@ pub(crate) fn active_profile(state: &AppState) -> Result<Value> {
                 Some(crate::hardware::inspect()),
             )
             .is_ok()
-        && catalog::ensure_runtime(&selection, &state.resources).is_ok()
+        && catalog::ensure_runtime(&selection, &state.resources, &state.db.root).is_ok()
         && ensure_cached(state, &settings, &selection).is_ok();
     Ok(serde_json::json!({"selection": selection, "name": name,
         "capabilities": catalog::capabilities(&selection)?, "available": available}))
