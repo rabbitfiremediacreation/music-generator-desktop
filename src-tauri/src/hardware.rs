@@ -17,6 +17,13 @@ pub struct Hardware {
     pub cuda: Option<CudaCompatibility>,
 }
 
+impl Hardware {
+    pub(crate) fn has_nvidia(&self) -> bool {
+        // Multiple NVIDIA devices retain the nvidia-smi VRAM reading, but no single driver record.
+        self.nvidia.is_some() || (self.vram_bytes.is_some() && self.gpu != "AMD")
+    }
+}
+
 pub fn cpu_only_target(os: &str, arch: &str) -> bool {
     os == "macos" && arch == "x86_64"
 }

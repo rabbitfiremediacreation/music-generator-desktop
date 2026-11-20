@@ -23,6 +23,10 @@ describe("desktop contracts", () => {
     expect(invoke).toHaveBeenCalledWith("list_songs", { filter: { q: "piano", favorites: true } });
     expect(songs[0].url).toBe("asset:/songs/one.wav");
   });
+  it("keeps MIDI files out of audio asset URLs", async () => {
+    invoke.mockResolvedValue({ id: "one", output_kind: "midi", path: "/songs/one.mid" });
+    expect(await backend.song("one")).toMatchObject({ output_kind: "midi", path: "/songs/one.mid", url: null });
+  });
   it("requests audio by song ID and preserves the binary response", async () => {
     const bytes = new Uint8Array([0, 128, 255, 1]).buffer;
     invoke.mockResolvedValue(bytes);

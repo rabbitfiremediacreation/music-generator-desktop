@@ -63,6 +63,17 @@ impl ModelVerifier {
         Self { file, cache }
     }
 
+    pub(crate) fn forget(&mut self, paths: &[PathBuf]) -> Result<()> {
+        let before = self.cache.entries.len();
+        for path in paths {
+            self.cache.entries.remove(path.to_string_lossy().as_ref());
+        }
+        if self.cache.entries.len() != before {
+            self.save()?;
+        }
+        Ok(())
+    }
+
     // Persist each successful check, so retries and subsequent launches reuse completed work.
     pub async fn verify(
         &mut self,

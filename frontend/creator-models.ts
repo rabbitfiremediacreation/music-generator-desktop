@@ -1,10 +1,14 @@
-import { modelAllowed, modelLabel } from "./expert-mode";
-import type { ModelSelection, Settings } from "./types";
 import catalog from "../models/catalog.json";
+import { bundledProfile, modelAllowed, modelLabel } from "./expert-mode";
+import type { ModelSelection, Settings } from "./types";
 
 export function selectionLabel(selection: ModelSelection): string {
   const profiles = (catalog as { profiles?: { selection: ModelSelection; name: string }[] }).profiles;
-  const name = profiles?.find(profile => profile.selection.provider === selection.provider && profile.selection.synthesis === selection.synthesis)?.name;
+  const name = bundledProfile(selection)?.name;
+  if (name && profiles?.some(profile => profile.selection.provider === selection.provider && profile.name === name && profile.selection.synthesis !== selection.synthesis)) {
+    const precision = catalog.models.find(model => model.file === selection.synthesis && model.provider === selection.provider)?.precision;
+    if (precision) return `${name} · ${precision}`;
+  }
   return name ?? (selection.language ? modelLabel(selection.synthesis, false) : selection.synthesis);
 }
 
@@ -24,7 +28,8 @@ export function selectionFromSettings(settings: Settings): ModelSelection {
 export function creatorOptions(recommendations: readonly ModelSelection[], chosen: ModelSelection | undefined, expertMode: boolean) {
   const options = recommendations.map(selection => ({ selection, value: profileKey(selection), label: selectionLabel(selection), disabled: false }));
   if (chosen && !options.some(option => option.value === profileKey(chosen))) {
-    const label = chosen.language ? `${modelLabel(chosen.synthesis, true)} · ${modelLabel(chosen.language, true)}` : selectionLabel(chosen);
+    const name = bundledProfile(chosen)?.name;
+    const label = name ? selectionLabel(chosen) : (chosen.language ? `${modelLabel(chosen.synthesis, true)} · ${modelLabel(chosen.language, true)}` : selectionLabel(chosen));
     options.unshift({ selection: chosen, value: profileKey(chosen), label, disabled: !modelAllowed(chosen, expertMode, recommendations) });
   }
   return options;

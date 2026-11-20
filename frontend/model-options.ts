@@ -13,20 +13,29 @@ export function profileModels(catalog: ModelCatalog, selection: ModelSelection):
     (m.role === "dependency" || m.file === selection.synthesis || m.file === selection.language));
 }
 
+export function aceStepMemory(models: CatalogModel[], replacement?: Pick<CatalogModel, "role" | "estimated_bytes">) {
+  const weights = models.reduce((total, model) => total + (model.role === replacement?.role ? replacement.estimated_bytes : model.estimated_bytes), 0);
+  const xl = models.some(model => model.role === "synthesis" && model.file.includes("-xl-"));
+  return weights + (xl ? 4 : 3) * 1024 ** 3;
+}
+
 export function profile(catalog: ModelCatalog, selection: ModelSelection) {
   const models = profileModels(catalog, selection);
   const metadata = modelProfile(catalog, selection);
-  const valid = metadata ? metadata.available && metadata.files.length > 0 && models.length === metadata.files.length :
+  const complete = metadata ? metadata.files.length > 0 && models.length === metadata.files.length :
     catalog.providers.some(p => p.id === selection.provider && p.status === "available") &&
     models.some(m => m.role === "synthesis" && m.file === selection.synthesis) &&
     models.some(m => m.role === "language" && m.file === selection.language);
-  const platforms = metadata?.platforms.filter(platform => platform.os === catalog.hardware.platform) ?? [];
-  const memory = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : models.reduce((n, m) => n + m.estimated_bytes, 0) +
-    (selection.synthesis.includes("-xl-") ? 4 : 3) * 1024 ** 3;
+  const valid = complete && (metadata?.available ?? true);
+  const filesVerified = complete && models.every(m => m.verified);
+  const platforms = [...(metadata?.platforms ?? []), ...(metadata?.evaluation_platforms ?? [])]
+    .filter(platform => platform.os === catalog.hardware.platform);
+  const memory = metadata?.estimated_ram_bytes ?? aceStepMemory(models);
+  const minimumRam = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : memory;
   const synthesis = models.find(m => m.role === "synthesis");
   return {
-    models, metadata, valid, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
-    verified: valid && models.every(m => m.verified),
+    models, metadata, complete, valid, filesVerified, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && minimumRam <= catalog.hardware.ram_bytes,
+    verified: valid && filesVerified,
     download: models.filter(m => !m.present).reduce((n, m) => n + Math.max(0, m.estimated_bytes - m.partial_bytes), 0),
     steps: synthesis?.suggested_steps ?? synthesis?.recommended_steps,
   };
@@ -40,6 +49,7 @@ export function modelRoleLabel(role: CatalogModel["role"] | "title"): string {
   return {
     synthesis: "dit", language: "desktop_language_model", dependency: "picker_dependencies", title: "title_model",
     weights: "provider_weights", codec: "provider_codec", tokenizer: "provider_tokenizer",
+    config: "provider_config", license: "provider_license_file",
   }[role];
 }
 

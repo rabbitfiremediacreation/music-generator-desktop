@@ -9,10 +9,11 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
     },
 };
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 #[path = "support/wav.rs"]
 mod wav;
@@ -22,7 +23,7 @@ struct Script {
     lm: Mutex<Vec<Value>>,
     synth: Mutex<Vec<Value>>,
     options: Options,
-    retry_polled: AtomicBool,
+    retry_polled: Notify,
     cancelled: AtomicU32,
 }
 
@@ -51,7 +52,7 @@ async fn server_with(
         lm: Mutex::new(Vec::new()),
         synth: Mutex::new(Vec::new()),
         options,
-        retry_polled: AtomicBool::new(false),
+        retry_polled: Notify::new(),
         cancelled: AtomicU32::new(0),
     });
     let lm = script.clone();
@@ -107,7 +108,7 @@ async fn server_with(
                         && query["id"] == "lm-1"
                         && !query.contains_key("result")
                     {
-                        script.retry_polled.store(true, Ordering::SeqCst);
+                        script.retry_polled.notify_one();
                         return (
                             [(CONTENT_TYPE, "application/json")],
                             serde_json::to_vec(&json!({"status":"running"})).unwrap(),
@@ -493,18 +494,20 @@ async fn cancellation_during_the_retry_cancels_that_job_and_never_synthesizes() 
     .await;
     let token = CancellationToken::new();
     let signal = token.clone();
-    let generation = tokio::spawn(async move {
+    let mut generation = tokio::spawn(async move {
         client
             .generate(&phone_params(false), "lm.gguf", "sft.gguf", &token, |_| {})
             .await
     });
-    tokio::time::timeout(std::time::Duration::from_secs(2), async {
-        while !script.retry_polled.load(Ordering::SeqCst) {
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    tokio::select! {
+        result = &mut generation => panic!("generation finished before retry was polled: {:?}", result.map(|result| result.map(|_| ()))),
+        polled = tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            script.retry_polled.notified(),
+        ) => {
+            polled.expect("engine did not receive a poll for the retry job");
         }
-    })
-    .await
-    .unwrap();
+    }
     signal.cancel();
     assert!(matches!(
         generation.await.unwrap(),

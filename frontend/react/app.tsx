@@ -102,11 +102,11 @@ function DesktopShell(){
   },[studio]);
   const allowed=modelAllowed(selection??undefined,settings.data?.expert_mode??false,settings.data?.recommended_profiles??bootstrap.recommended_profiles);
   return <PlayerProvider><GenerationAdmissionProvider settingsBlocked={blocked}>
-    <WindowBar onClose={close}/><div className="glow" aria-hidden="true"/>
+    <WindowBar onClose={close} studioControls={studio?{selection,onSettings:()=>openSettings(),inert:closingAccepted}:undefined}/><div className="glow" aria-hidden="true"/>
     <SceneContext.Provider value={{bootstrap:{...bootstrap,settings:settings.data??bootstrap.settings},complete,back,ready:setupInitialized,importLibrary}}><Outlet/></SceneContext.Provider>
     {!bootstrap.needs_setup&&<main id="studio" hidden={!studio} inert={closingAccepted}>
       <div className={`wrap ${layout!=="stack"?"side":""}`}>
-        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})} onSettings={()=>openSettings()}/>}
+        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
           <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onReady={modelsInitialized}/>

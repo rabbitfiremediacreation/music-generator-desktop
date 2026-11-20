@@ -3,6 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { backend } from "../backend";
+import type { ModelSelection } from "../types";
+import { ComputeStatus } from "./ComputeStatus";
 import { useI18n } from "./i18n";
 
 export function useDesktop(busy:boolean, flush:RefObject<()=>Promise<void>>) {
@@ -30,9 +32,15 @@ export function useDesktop(busy:boolean, flush:RefObject<()=>Promise<void>>) {
   return {requestClose,closingAccepted};
 }
 
-export function WindowBar({onClose}:{onClose:()=>Promise<void>}){
+export function WindowBar({onClose,studioControls}:{onClose:()=>Promise<void>;studioControls?:{selection:ModelSelection|null;onSettings:()=>void;inert:boolean}}){
   const {t}=useI18n();
-  return <header className="titlebar"><span data-tauri-drag-region className="titlebar-name">♫ &nbsp; Music Generator</span><nav aria-label="Music Generator">
+  return <header className="titlebar">
+    <span data-tauri-drag-region className="titlebar-name">♫ &nbsp; Music Generator</span>
+    {studioControls&&<div className="titlebar-tools" inert={studioControls.inert}>
+      <ComputeStatus selection={studioControls.selection}/>
+      <button id="btnSettings" type="button" className="gear" title={t("settings_title")} aria-label={t("settings_title")} onClick={studioControls.onSettings}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M9 3h6l1 4 4 2v6l-4 2-1 4H9l-1-4-4-2V9l4-2z"/></svg></button>
+    </div>}
+    <nav aria-label="Music Generator">
     <button id="windowMinimize" aria-label={t("desktop_minimize")} onClick={()=>{void getCurrentWindow().minimize();}}>−</button>
     <button id="windowMaximize" aria-label={t("desktop_maximize")} onClick={()=>{void getCurrentWindow().toggleMaximize();}}>□</button>
     <button id="windowClose" aria-label={t("desktop_close")} onClick={()=>{void onClose();}}>×</button>

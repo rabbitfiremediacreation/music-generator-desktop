@@ -1,6 +1,6 @@
 use super::{native::WavJob, progress::Progress};
 use crate::{
-    catalog::ProviderProfile,
+    catalog::{self, ProviderProfile},
     error::{message, Result},
     types::Settings,
 };
@@ -8,7 +8,12 @@ use serde_json::Value;
 use std::{path::Path, time::Duration};
 use tokio_util::sync::CancellationToken;
 
-fn arguments(model: &Path, spec: &Path, backend: &str, params: &Value) -> Result<Vec<String>> {
+fn arguments(
+    model: &Path,
+    spec: Option<&Path>,
+    backend: &str,
+    params: &Value,
+) -> Result<Vec<String>> {
     let lyrics = params["lyrics"]
         .as_str()
         .filter(|lyrics| !lyrics.trim().is_empty())
@@ -33,7 +38,7 @@ fn arguments(model: &Path, spec: &Path, backend: &str, params: &Value) -> Result
         .and_then(|seed| u32::try_from(seed).ok())
         .ok_or_else(|| message("Missing HeartMuLa seed"))?;
 
-    Ok(vec![
+    let mut args = vec![
         "--log".into(),
         "--task".into(),
         "gen".into(),
@@ -43,8 +48,6 @@ fn arguments(model: &Path, spec: &Path, backend: &str, params: &Value) -> Result
         backend.into(),
         "--model".into(),
         model.to_string_lossy().into(),
-        "--model-spec-override".into(),
-        spec.to_string_lossy().into(),
         "--lyrics".into(),
         lyrics.into(),
         "--request-option".into(),
@@ -55,7 +58,25 @@ fn arguments(model: &Path, spec: &Path, backend: &str, params: &Value) -> Result
         "heartmula.mem_saver=true".into(),
         "--seed".into(),
         seed.to_string(),
-    ])
+    ];
+    if let Some(spec) = spec {
+        args.extend([
+            "--model-spec-override".into(),
+            spec.to_string_lossy().into(),
+        ]);
+    }
+    Ok(args)
+}
+
+fn model_package(profile: &ProviderProfile) -> Result<Option<String>> {
+    let files = catalog::required(&profile.selection)?;
+    match files.as_slice() {
+        [file] if file.role == "weights" && file.file.ends_with(".gguf") => {
+            Ok(Some(file.file.clone()))
+        }
+        _ if profile.selection.synthesis == "heartmula-oss-3b-hny" => Ok(None),
+        _ => Err(message("Missing pinned HeartMuLa GGUF package")),
+    }
 }
 
 pub(crate) async fn generate(
@@ -70,7 +91,8 @@ pub(crate) async fn generate(
     let platform = profile.platform(crate::hardware::inspect())?;
     let executable = profile.runtime.executable(resources);
     let model_folder = Path::new(&settings.models_dir);
-    let model = model_folder.join("heartmula");
+    let package = model_package(profile)?;
+    let model = model_folder.join(package.as_deref().unwrap_or("heartmula"));
     let spec = executable
         .parent()
         .ok_or_else(|| message("Invalid HeartMuLa runtime location"))?
@@ -84,7 +106,13 @@ pub(crate) async fn generate(
         timeout: Duration::from_secs_f64(settings.timeout_minutes * 60.0),
     };
     // The request has been validated by admission. Parse the persisted fields before launching.
-    let request = arguments(&model, &spec, &platform.backend, params)?;
+    // GGUF bundles carry their own spec, tokenizer and codec.
+    let request = arguments(
+        &model,
+        package.is_none().then_some(spec.as_path()),
+        &platform.backend,
+        params,
+    )?;
     let (audio, format, mut meta) = job
         .run(params, cancel, progress, |output| {
             let mut args = request;
@@ -117,7 +145,7 @@ mod tests {
         });
         let args = arguments(
             Path::new("model folder"),
-            Path::new("model_specs"),
+            Some(Path::new("model_specs")),
             "metal",
             &params,
         )
@@ -130,6 +158,46 @@ mod tests {
         assert!(args
             .windows(2)
             .any(|pair| pair == ["--request-option", "tags=pop,drums,warm vocals"]));
+    }
+
+    #[test]
+    fn resolves_each_gguf_from_its_profile_and_keeps_original_directory_mode() {
+        let catalog = catalog::catalog();
+        let variants = [
+            ("heartmula-oss-3b-hny", None),
+            (
+                "heartmula-oss-3b-hny-q8_0",
+                Some("heartmula-gguf/HeartMuLa-oss-3B-HNY-Q8_0.gguf"),
+            ),
+            (
+                "heartmula-oss-3b-q8_0",
+                Some("heartmula-gguf/HeartMuLa-oss-3B-Q8_0.gguf"),
+            ),
+            (
+                "heartmula-oss-3b-f16",
+                Some("heartmula-gguf/HeartMuLa-oss-3B-F16.gguf"),
+            ),
+        ];
+        for (synthesis, expected) in variants {
+            let selection = Selection {
+                provider: "heartmula".into(),
+                synthesis: synthesis.into(),
+                language: String::new(),
+            };
+            let profile = catalog.profile(&selection).unwrap();
+            assert_eq!(model_package(profile).unwrap().as_deref(), expected);
+            if let Some(file) = expected {
+                let args = arguments(
+                    Path::new(file),
+                    None,
+                    "metal",
+                    &serde_json::json!({"lyrics":"Test", "style":"folk", "duration":5, "seed":42}),
+                )
+                .unwrap();
+                assert!(args.windows(2).any(|pair| pair == ["--model", file]));
+                assert!(!args.iter().any(|arg| arg == "--model-spec-override"));
+            }
+        }
     }
 
     #[test]

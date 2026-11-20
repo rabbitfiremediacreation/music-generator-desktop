@@ -9,8 +9,7 @@ import { PhoneAccessField } from "./PhoneAccessField";
 import { McpSettings } from "./McpSettings";
 import { SettingsNavigation, settingsGroups, type SettingsPage } from "./SettingsNavigation";
 import { GenerationSettings } from "./GenerationSettings";
-import { ModelsSettings } from "./ModelsSettings";
-import type { ModelManagerProps } from "../models/ModelManager";
+import { ModelsSettings, type SettingsModelManager } from "./ModelsSettings";
 import { LibrarySettings } from "./LibrarySettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { AboutSettings } from "./AboutSettings";
@@ -18,7 +17,7 @@ import "./settings.css";
 
 export interface SettingsDialogProps {
   open: boolean; onClose: () => void; onBusyChange: (busy: boolean) => void;
-  modelManager: ModelManagerProps; onMoveLibrary: () => void;
+  modelManager: SettingsModelManager; onMoveLibrary: () => void;
   initialPage?: SettingsPage;
   layout: "auto" | "stack" | "side"; onLayoutChange: (value: "auto" | "stack" | "side") => void;
 }

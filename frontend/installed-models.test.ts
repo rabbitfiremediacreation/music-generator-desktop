@@ -7,9 +7,9 @@ it("lists verified and unverified local files but excludes partial downloads", (
   const catalog = structuredClone(catalogFixture);
   catalog.models = catalog.models.map(model => ({ ...model, verified: model.file === standard.synthesis, present: model.file === standard.synthesis || model.file === standard.language, partial_bytes: 100 }));
   catalog.title_model = { ...catalog.title_model, verified: false, present: false };
-  expect(installedModels(catalog).map(model => model.file)).toEqual([standard.synthesis, standard.language]);
+  expect(installedModels(catalog).rows.map(model => model.file)).toEqual([standard.synthesis, standard.language]);
   catalog.title_model.present = true;
-  const files = installedModels(catalog);
+  const { rows: files } = installedModels(catalog);
   expect(files.at(-1)?.role).toBe("title");
   expect(files.filter(model => model.file === catalog.title_model.file)).toHaveLength(1);
 });

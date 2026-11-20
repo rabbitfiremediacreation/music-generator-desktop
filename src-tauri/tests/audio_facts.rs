@@ -88,6 +88,22 @@ fn unavailable_audio_never_presents_old_lm_duration_as_measured() {
 }
 
 #[test]
+fn duration_budgets_allow_early_completion_but_still_measure_the_wav() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("remix.wav");
+    std::fs::write(&path, wav::tone(5.6)).unwrap();
+    let params = json!({"duration":10});
+    let mut meta = json!({"duration_is_limit":true});
+    enrich_metadata(&path, &params, &mut meta).unwrap();
+    assert_eq!(meta["duration"], 5.6);
+    assert_eq!(meta["requested_duration"], 10.0);
+    assert!(meta.get("duration_warning").is_none());
+
+    enrich_metadata(&path, &json!({"duration":4}), &mut meta).unwrap();
+    assert_eq!(meta["duration_warning"]["code"], "long_audio");
+}
+
+#[test]
 fn a_song_may_end_before_a_provider_duration_limit() {
     let params = json!({"duration": 30});
     let mut meta = json!({"duration_limit": 30});

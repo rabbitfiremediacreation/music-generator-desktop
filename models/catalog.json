@@ -24,6 +24,13 @@
   },
   "providers": [
     {
+      "id": "text2midi",
+      "name": "Text2midi",
+      "status": "available",
+      "adapter": "text2midi",
+      "source": "https://github.com/AMAAI-Lab/Text2midi"
+    },
+    {
       "id": "ace-step",
       "name": "ACE-Step 1.5",
       "status": "available",
@@ -36,6 +43,55 @@
       "status": "available",
       "adapter": "audio.cpp",
       "source": "https://github.com/0xShug0/audio.cpp"
+    },
+    {
+      "id": "stable-audio-3",
+      "name": "Stable Audio 3",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/Stability-AI/stable-audio-3"
+    },
+    {
+      "id": "minimax-music3",
+      "name": "MiniMax-Music3",
+      "status": "preview",
+      "adapter": "audio.cpp",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-Music3"
+    },
+    {
+      "id": "magenta-realtime-2",
+      "name": "Magenta RealTime 2",
+      "status": "available",
+      "adapter": "magenta-realtime-cpp",
+      "source": "https://huggingface.co/google/magenta-realtime-2"
+    },
+    {
+      "id": "audiocraft",
+      "name": "AudioCraft",
+      "status": "available",
+      "adapter": "audiocraft",
+      "source": "https://github.com/facebookresearch/audiocraft"
+    },
+    {
+      "id": "mimetic-a0",
+      "name": "Mimetic A0",
+      "status": "available",
+      "adapter": "mimetic-a0",
+      "source": "https://github.com/micknoise/mimetic-a0"
+    },
+    {
+      "id": "mulacover",
+      "name": "MuLaCover",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/HeartMuLa/MuLaCover"
+    },
+    {
+      "id": "diffrhythm2",
+      "name": "DiffRhythm 2",
+      "status": "available",
+      "adapter": "diffrhythm2",
+      "source": "https://github.com/ASLP-lab/DiffRhythm2"
     },
     {
       "id": "yue2",
@@ -53,6 +109,7 @@
         "language": ""
       },
       "name": "HeartMuLa 3B Happy New Year",
+      "estimated_ram_bytes": 30064771072,
       "files": [
         "heartmula/HeartMuLa-oss-3B/config.json",
         "heartmula/HeartMuLa-oss-3B/model-00001-of-00004.safetensors",
@@ -131,11 +188,1099 @@
     },
     {
       "selection": {
+        "provider": "heartmula",
+        "synthesis": "heartmula-oss-3b-hny-q8_0",
+        "language": ""
+      },
+      "name": "HeartMuLa 3B Happy New Year",
+      "estimated_ram_bytes": 16106127360,
+      "files": [
+        "heartmula-gguf/HeartMuLa-oss-3B-HNY-Q8_0.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "heartmula-gguf",
+          "role": "runtime_weights",
+          "repository": "themindstudio/HeartMuLa-GGUF",
+          "revision": "b5e55eac99ff25f01608be9d2d978c00a2e8bf63",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/themindstudio/HeartMuLa-GGUF/blob/b5e55eac99ff25f01608be9d2d978c00a2e8bf63/README.md",
+          "source_url": "https://huggingface.co/themindstudio/HeartMuLa-GGUF/blob/b5e55eac99ff25f01608be9d2d978c00a2e8bf63/heartmula-q8_0.gguf"
+        },
+        {
+          "id": "heartmula-hny",
+          "role": "weights",
+          "repository": "HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
+          "revision": "41d4faafc5bde6990bf8505daa70840fb3c4a3e7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B-happy-new-year/blob/41d4faafc5bde6990bf8505daa70840fb3c4a3e7/README.md"
+        },
+        {
+          "id": "heartcodec-20260123",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "heartmula-gen",
+          "role": "tokenizer",
+          "repository": "HeartMuLa/HeartMuLaGen",
+          "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLaGen/blob/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7/README.md"
+        }
+      ],
+      "runtime": {
+        "name": "audio.cpp v0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "usage": {
+        "model_use": "Apache-2.0 permits private and commercial model use.",
+        "redistribution": "When redistributing code or weights, include the Apache-2.0 license and applicable notices, retain any NOTICE, and identify modified files.",
+        "outputs": "The upstream licenses impose no separate noncommercial or attribution condition on generated music. Check rights to the supplied lyrics and to the resulting song separately."
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download",
+      "expert_only": true
+    },
+    {
+      "selection": {
+        "provider": "heartmula",
+        "synthesis": "heartmula-oss-3b-q8_0",
+        "language": ""
+      },
+      "name": "HeartMuLa 3B",
+      "estimated_ram_bytes": 16106127360,
+      "files": [
+        "heartmula-gguf/HeartMuLa-oss-3B-Q8_0.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "heartmula-gguf",
+          "role": "runtime_weights",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/model_licenses.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/33120a4cfdf0d56786db934a03a093d4675de938/HeartMuLa-GGUF/heartmula-q8_0.gguf"
+        },
+        {
+          "id": "heartmula-base",
+          "role": "weights",
+          "repository": "HeartMuLa/HeartMuLa-oss-3B",
+          "revision": "08d8474addce81ccee5f7d3a67a639bfc1f3bce3",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B/blob/08d8474addce81ccee5f7d3a67a639bfc1f3bce3/README.md"
+        },
+        {
+          "id": "heartcodec-20260123",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "heartmula-gen",
+          "role": "tokenizer",
+          "repository": "HeartMuLa/HeartMuLaGen",
+          "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLaGen/blob/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7/README.md"
+        }
+      ],
+      "runtime": {
+        "name": "audio.cpp v0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "usage": {
+        "model_use": "Apache-2.0 permits private and commercial model use.",
+        "redistribution": "When redistributing code or weights, include the Apache-2.0 license and applicable notices, retain any NOTICE, and identify modified files.",
+        "outputs": "The upstream licenses impose no separate noncommercial or attribution condition on generated music. Check rights to the supplied lyrics and to the resulting song separately."
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download",
+      "expert_only": true
+    },
+    {
+      "selection": {
+        "provider": "heartmula",
+        "synthesis": "heartmula-oss-3b-f16",
+        "language": ""
+      },
+      "name": "HeartMuLa 3B",
+      "estimated_ram_bytes": 20401094656,
+      "files": [
+        "heartmula-gguf/HeartMuLa-oss-3B-F16.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "heartmula-gguf",
+          "role": "runtime_weights",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/model_licenses.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/33120a4cfdf0d56786db934a03a093d4675de938/HeartMuLa-GGUF/heartmula-f16.gguf"
+        },
+        {
+          "id": "heartmula-base",
+          "role": "weights",
+          "repository": "HeartMuLa/HeartMuLa-oss-3B",
+          "revision": "08d8474addce81ccee5f7d3a67a639bfc1f3bce3",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B/blob/08d8474addce81ccee5f7d3a67a639bfc1f3bce3/README.md"
+        },
+        {
+          "id": "heartcodec-20260123",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "heartmula-gen",
+          "role": "tokenizer",
+          "repository": "HeartMuLa/HeartMuLaGen",
+          "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartMuLaGen/blob/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7/README.md"
+        }
+      ],
+      "runtime": {
+        "name": "audio.cpp v0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "usage": {
+        "model_use": "Apache-2.0 permits private and commercial model use.",
+        "redistribution": "When redistributing code or weights, include the Apache-2.0 license and applicable notices, retain any NOTICE, and identify modified files.",
+        "outputs": "The upstream licenses impose no separate noncommercial or attribution condition on generated music. Check rights to the supplied lyrics and to the resulting song separately."
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download",
+      "expert_only": true
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-music",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small Music",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "stable-audio-3-small-music/model.safetensors",
+        "stable-audio-3-small-music/model_config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-medium",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Medium",
+      "estimated_ram_bytes": 15032385536,
+      "files": [
+        "stable-audio-3-medium/model.safetensors",
+        "stable-audio-3-medium/model_config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 380,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "minimax-music3",
+        "synthesis": "q4-0-q8-0-q4-0",
+        "language": ""
+      },
+      "name": "MiniMax-Music3",
+      "estimated_ram_bytes": 17179869184,
+      "files": [
+        "MiniMax-Music3-GGUF/language_model_q4_0.gguf",
+        "MiniMax-Music3-GGUF/config.json",
+        "MiniMax-Music3-GGUF/config/language_model.json",
+        "MiniMax-Music3-GGUF/config/rvq_depth_decoder.json",
+        "MiniMax-Music3-GGUF/config/condition_encoder.json",
+        "MiniMax-Music3-GGUF/config/transformer.json",
+        "MiniMax-Music3-GGUF/config/vocoder.json",
+        "MiniMax-Music3-GGUF/tokenizer/tokenizer.json",
+        "MiniMax-Music3-GGUF/tokenizer/tokenizer_config.json",
+        "MiniMax-Music3-GGUF/rvq_depth_decoder_q8_0.gguf",
+        "MiniMax-Music3-GGUF/condition_encoder.gguf",
+        "MiniMax-Music3-GGUF/transformer_q4_0.gguf",
+        "MiniMax-Music3-GGUF/vocoder.gguf",
+        "MiniMax-Music3-GGUF/LICENSE"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 300,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "audio.cpp",
+        "revision": "f7ac446fb75e594a6913c846bea6c85b637f6ac0",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE",
+        "executable": "engine/minimax-music3/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "minimax-music3-gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/MiniMax-Music3-GGUF",
+          "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+          "license": "MiniMax-Music3 Community License",
+          "license_url": "https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/blob/46fe77f8bb395ccdbe797d784225f7b84866e7ce/LICENSE"
+        },
+        {
+          "id": "minimax-music3-original",
+          "role": "official",
+          "repository": "MiniMaxAI/MiniMax-Music3",
+          "revision": "1b525ccb685ae809f33027c51c351eeb5833cf72",
+          "license": "MiniMax-Music3 Community License",
+          "license_url": "https://huggingface.co/MiniMaxAI/MiniMax-Music3/blob/1b525ccb685ae809f33027c51c351eeb5833cf72/LICENSE"
+        }
+      ],
+      "usage": {
+        "model_use": "minimax_music3_usage",
+        "redistribution": "minimax_music3_redistribution",
+        "outputs": "minimax_music3_outputs",
+        "policy_url": "https://huggingface.co/MiniMaxAI/MiniMax-Music3/blob/1b525ccb685ae809f33027c51c351eeb5833cf72/LICENSE"
+      },
+      "platforms": [],
+      "release_hold": "MiniMax-Music3 release is pending license safeguards and offline CUDA validation",
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "magenta-realtime-2",
+        "synthesis": "mrt2_small",
+        "language": ""
+      },
+      "name": "Magenta RealTime 2 Small",
+      "estimated_ram_bytes": 6442450944,
+      "files": [
+        "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+        "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+        "magenta-realtime-2/resources/musiccoca/spm.model",
+        "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+        "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+        "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+        "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+        "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+        "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 1000000000
+      },
+      "runtime": {
+        "name": "Magenta RealTime 2 C++/MLX",
+        "revision": "694a545e4ba0b88bf1150137b129582166d3e07f",
+        "source": "https://github.com/magenta/magenta-realtime/tree/694a545e4ba0b88bf1150137b129582166d3e07f",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/magenta/magenta-realtime/blob/694a545e4ba0b88bf1150137b129582166d3e07f/LICENSE",
+        "executable": "engine/magenta/mrt2-record",
+        "required_files": [
+          "engine/magenta/mlx.metallib",
+          "engine/magenta/MAGENTA_RUNTIME.json"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mrt2-small",
+          "role": "weights",
+          "repository": "google/magenta-realtime-2",
+          "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "usage": {
+        "model_use": "provider_magenta_model_use",
+        "redistribution": "provider_magenta_redistribution",
+        "outputs": "provider_magenta_outputs",
+        "policy_url": "https://huggingface.co/google/magenta-realtime-2/blob/010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc/README.md#terms-of-use"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "mlx",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "runtime_note": "provider_magenta_capture_status",
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "musicgen-small",
+        "language": ""
+      },
+      "name": "MusicGen Small · CC BY-NC 4.0",
+      "estimated_ram_bytes": 9663676416,
+      "expert_only": true,
+      "files": [
+        "audiocraft/musicgen-small/state_dict.bin",
+        "audiocraft/musicgen-small/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 1,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "musicgen-small",
+          "role": "weights_codec",
+          "repository": "facebook/musicgen-small",
+          "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/musicgen-small/blob/4c8334b02c6ec4e8664a91979669a501ec497792/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "magnet-small-30secs",
+        "language": ""
+      },
+      "name": "MAGNeT Small 30s · CC BY-NC 4.0",
+      "estimated_ram_bytes": 10737418240,
+      "expert_only": true,
+      "files": [
+        "audiocraft/magnet-small-30secs/state_dict.bin",
+        "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 30,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "magnet-small-30secs",
+          "role": "weights_codec",
+          "repository": "facebook/magnet-small-30secs",
+          "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/magnet-small-30secs/blob/7d62a3ef839d51abb5f087ac72732d6f45301460/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "mimetic-a0",
+        "synthesis": "mimetic-a0-model.fp16.safetensors",
+        "language": ""
+      },
+      "name": "Mimetic A0 · Short Clips",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "mimetic-a0-model.fp16.safetensors",
+        "mimetic-a0-model_config.json",
+        "mimetic-a0-t5-model.safetensors",
+        "mimetic-a0-t5-config.json",
+        "mimetic-a0-t5-tokenizer.json"
+      ],
+      "capabilities": {
+        "min_duration": 0,
+        "max_duration": 16,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": true,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295,
+        "bars": [
+          1,
+          2,
+          4
+        ]
+      },
+      "runtime": {
+        "name": "mimetic-a0 + stable-audio-tools",
+        "revision": "c4331b95f2db653c6268973a3096c8f0a77a4a61",
+        "source": "https://github.com/micknoise/mimetic-a0/tree/c4331b95f2db653c6268973a3096c8f0a77a4a61",
+        "license": "MIT",
+        "license_url": "https://github.com/micknoise/mimetic-a0/blob/c4331b95f2db653c6268973a3096c8f0a77a4a61/LICENSE",
+        "executable": "engine/mimetic-synth",
+        "required_files": [
+          "engine/mimetic-python/MIMETIC_RUNTIME.json"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mimetic-a0",
+          "role": "mimetic_weights_vae",
+          "repository": "micknoisemachine/mimetic-a0",
+          "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+          "license": "MIT",
+          "license_url": "https://huggingface.co/micknoisemachine/mimetic-a0/blob/5f21e1807517cda2e6d72051cdb81dafc3931077/LICENSE"
+        },
+        {
+          "id": "t5-base",
+          "role": "t5_encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/google-research/text-to-text-transfer-transformer/blob/42909aa15d1fbd16c69333aa474a00ae8ed9fde4/LICENSE"
+        }
+      ],
+      "usage": {
+        "model_use": "mimetic_model_use",
+        "redistribution": "mimetic_redistribution",
+        "outputs": "mimetic_outputs",
+        "policy_url": "https://huggingface.co/micknoisemachine/mimetic-a0/blob/5f21e1807517cda2e6d72051cdb81dafc3931077/NOTICE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 17179869184,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "text2midi",
+        "synthesis": "text2midi",
+        "language": "flan-t5-base"
+      },
+      "name": "Text2midi",
+      "estimated_ram_bytes": 4294967296,
+      "files": [
+        "text2midi/pytorch_model.bin",
+        "text2midi/flan-t5-base/config.json",
+        "text2midi/flan-t5-base/special_tokens_map.json",
+        "text2midi/flan-t5-base/spiece.model",
+        "text2midi/flan-t5-base/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 0,
+        "max_duration": 0,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295,
+        "output_kind": "midi"
+      },
+      "runtime": {
+        "name": "Text2midi (PyTorch)",
+        "revision": "f3245ee402b29ba00b86c6eb9813032f3f05954f",
+        "source": "https://github.com/AMAAI-Lab/Text2midi",
+        "license": "MIT",
+        "license_url": "https://github.com/AMAAI-Lab/Text2midi/blob/f3245ee402b29ba00b86c6eb9813032f3f05954f/LICENSE",
+        "executable": "text2midi/text2midi.py",
+        "interpreter": "runtimes/text2midi-v1/bin/python3",
+        "installer": "text2midi/install.sh",
+        "required_files": [
+          "text2midi/decoder.py",
+          "text2midi/vocab_remi.json"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "text2midi",
+          "role": "model",
+          "repository": "amaai-lab/text2midi",
+          "revision": "9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/amaai-lab/text2midi/blob/9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36/README.md"
+        },
+        {
+          "id": "flan-t5-base",
+          "role": "encoder",
+          "repository": "google/flan-t5-base",
+          "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/google/flan-t5-base/blob/7bcac572ce56db69c1ea7c8af255c5d7c9672fc2/README.md"
+        }
+      ],
+      "usage": {
+        "model_use": "text2midi_model_use",
+        "redistribution": "text2midi_redistribution",
+        "outputs": "text2midi_outputs",
+        "policy_url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 8589934592,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "mulacover",
+        "synthesis": "mulacover-noncommercial",
+        "language": ""
+      },
+      "name": "MuLaCover",
+      "estimated_ram_bytes": 15032385536,
+      "files": [
+        "mulacover/MuLaCover-Q8_0.gguf"
+      ],
+      "acquisition": "download",
+      "expert_only": true,
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 180,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "reference_audio": true,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "audio.cpp",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli",
+        "required_files": [
+          "engine/providers/audio.cpp/libaudiocpp.0.dylib",
+          "engine/providers/audio.cpp/libsoxr.dylib"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mulacover",
+          "role": "weights",
+          "repository": "HeartMuLa/MuLaCover",
+          "revision": "0f5ca612a41134738a14a28f95ed80bfa9b52adc",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+        },
+        {
+          "id": "heartcodec",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "qwen3-embedding",
+          "role": "embedding",
+          "repository": "Qwen/Qwen3-Embedding-0.6B",
+          "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md"
+        },
+        {
+          "id": "audio-cpp-mulacover-gguf",
+          "role": "runtime_weights",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/57de533382ad47d5527e7562d1f80c41f769553b/MuLaCover-GGUF/README.md"
+        },
+        {
+          "id": "yourmt3",
+          "role": "transcription",
+          "repository": "mimbres/YourMT3",
+          "revision": "5e66c1ea173a8186e0d20432b841d3180cc015b5",
+          "license": "Apache-2.0 (checkpoint)",
+          "license_url": "https://huggingface.co/spaces/mimbres/YourMT3/blob/5e66c1ea173a8186e0d20432b841d3180cc015b5/README.md",
+          "source_url": "https://huggingface.co/spaces/mimbres/YourMT3/tree/5e66c1ea173a8186e0d20432b841d3180cc015b5"
+        },
+        {
+          "id": "chordnet",
+          "role": "transcription",
+          "repository": "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition",
+          "revision": "481f4ce703f8822b99f4037e9104ba1760e21ea3",
+          "license": "MIT",
+          "license_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/blob/481f4ce703f8822b99f4037e9104ba1760e21ea3/LICENSE",
+          "source_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/tree/481f4ce703f8822b99f4037e9104ba1760e21ea3/cache_data"
+        }
+      ],
+      "usage": {
+        "model_use": "mulacover_model_use",
+        "redistribution": "mulacover_redistribution",
+        "outputs": "mulacover_outputs",
+        "policy_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "diffrhythm2",
+        "synthesis": "diffrhythm2/model.safetensors",
+        "language": ""
+      },
+      "name": "DiffRhythm 2",
+      "estimated_ram_bytes": 21474836480,
+      "files": [
+        "diffrhythm2/model.safetensors",
+        "diffrhythm2/config.json",
+        "diffrhythm2/decoder.bin",
+        "diffrhythm2/decoder.json",
+        "diffrhythm2/mulan/pytorch_model.bin",
+        "diffrhythm2/mulan/config.json",
+        "diffrhythm2/muq/config.json",
+        "diffrhythm2/muq/model.safetensors",
+        "diffrhythm2/xlm-roberta/config.json",
+        "diffrhythm2/xlm-roberta/model.safetensors",
+        "diffrhythm2/xlm-roberta/tokenizer.json",
+        "diffrhythm2/xlm-roberta/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 210,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "style_description": true,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "DiffRhythm 2 (PyTorch CUDA)",
+        "revision": "7804f821b797b4f276090e1a9dcd37e97d9915d5",
+        "source": "https://github.com/ASLP-lab/DiffRhythm2/tree/7804f821b797b4f276090e1a9dcd37e97d9915d5",
+        "license": "Apache-2.0",
+        "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "executable": "engine/diffrhythm2/diffrhythm2-synth",
+        "components": [
+          {
+            "name": "eSpeak NG",
+            "revision": "1.52.0",
+            "source": "https://github.com/espeak-ng/espeak-ng/tree/4870adfa25b1a32b4361592f1be8a40337c58d6c",
+            "license": "GPL-3.0-or-later",
+            "license_url": "https://www.gnu.org/licenses/gpl-3.0.html"
+          },
+          {
+            "name": "phonemizer",
+            "revision": "3.3.0",
+            "source": "https://github.com/bootphon/phonemizer/tree/v3.3.0",
+            "license": "GPL-3.0-or-later",
+            "license_url": "https://www.gnu.org/licenses/gpl-3.0.html"
+          },
+          {
+            "name": "PyTorch CUDA 12.6",
+            "revision": "2.7.0",
+            "source": "https://github.com/pytorch/pytorch/tree/v2.7.0",
+            "license": "BSD-3-Clause",
+            "license_url": "https://github.com/pytorch/pytorch/blob/v2.7.0/LICENSE"
+          }
+        ],
+        "required_files": [
+          "engine/diffrhythm2/DIFFRHYTHM2_RUNTIME.json"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "diffrhythm2",
+          "role": "weights",
+          "repository": "ASLP-lab/DiffRhythm2",
+          "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        {
+          "id": "muq-mulan-large",
+          "role": "dependency",
+          "repository": "OpenMuQ/MuQ-MuLan-large",
+          "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+        },
+        {
+          "id": "muq",
+          "role": "dependency",
+          "repository": "OpenMuQ/MuQ-large-msd-iter",
+          "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+        },
+        {
+          "id": "xlm-roberta",
+          "role": "dependency",
+          "repository": "FacebookAI/xlm-roberta-base",
+          "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+          "license": "MIT",
+          "license_url": "https://opensource.org/license/mit"
+        }
+      ],
+      "usage": {
+        "model_use": "Experimental local profile for noncommercial evaluation. Use English or Mandarin lyrics and a style description. The files are publicly available from Hugging Face.",
+        "redistribution": "Preserve the Apache-2.0 notices. Share the OpenMuQ weights only noncommercially, with attribution and the CC BY-NC 4.0 terms.",
+        "outputs": "Mono WAV. Check musical originality, disclose AI involvement, and obtain permission to adapt protected styles as requested by the publisher.",
+        "noncommercial_evaluation": true,
+        "policy_url": "https://huggingface.co/ASLP-lab/DiffRhythm2/blob/9aa15742e4889c0eb2e198db6fdab1facf1b6761/README.md#license--disclaimer"
+      },
+      "platforms": [],
+      "acquisition": "download",
+      "evaluation_platforms": [
+        {
+          "os": "linux",
+          "arch": "x86_64",
+          "backend": "cuda",
+          "minimum_ram_bytes": 0,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "expert_only": true
+    },
+    {
+      "selection": {
         "provider": "yue2",
         "synthesis": "yue2/YuE2-3B-Q8_0.gguf",
         "language": ""
       },
       "name": "YuE2 3B",
+      "estimated_ram_bytes": 9663676416,
       "files": [
         "yue2/YuE2-3B-Q8_0.gguf",
         "yue2/YuE2-Vae-F32.gguf"
@@ -203,9 +1348,929 @@
         }
       ],
       "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "yue2",
+        "synthesis": "yue2/YuE2-3B-Q6_K.gguf",
+        "language": ""
+      },
+      "name": "YuE2 3B",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "yue2/YuE2-3B-Q6_K.gguf",
+        "yue2/YuE2-Vae-F32.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 60,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "yue2-3b",
+          "role": "weights",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-3B/blob/1a96eca688d6ae5d7f0feb88573fec89920fcd19/LICENSE"
+        },
+        {
+          "id": "yue2-vae",
+          "role": "codec",
+          "repository": "m-a-p/YuE2-Vae",
+          "revision": "95535e72a97bc0f09b8ada125d26b4009428c0e8",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-Vae/blob/95535e72a97bc0f09b8ada125d26b4009428c0e8/LICENSE"
+        },
+        {
+          "id": "yue2-qwen-tokenizer",
+          "role": "tokenizer",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/QwenLM/Qwen-Agent/blob/31a4d36d123688581a9e9744427272b33ce940e0/LICENSE"
+        }
+      ],
+      "runtime": {
+        "name": "yue2.cpp",
+        "revision": "e646d5228911ae1b81ac2a261115a255848ce85f",
+        "source": "https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f",
+        "license": "MIT",
+        "license_url": "https://github.com/ServeurpersoCom/yue2.cpp/blob/e646d5228911ae1b81ac2a261115a255848ce85f/LICENSE",
+        "executable": "engine/yue-synth"
+      },
+      "usage": {
+        "model_use": "CC BY-NC 4.0 covers noncommercial model use, including research and education. The creator permission applies to individuals acting in a personal creative capacity. Companies need a separate license for commercial model use.",
+        "redistribution": "Share weights noncommercially with credit to YuE2 and MAP, the original source and license, and an indication of changes including GGUF conversion and quantization. Commercial redistribution or sale of the weights requires separate permission.",
+        "outputs": "Individual creators may release, sell, and license generated songs, including to clients, without license fees or mandatory output credit. Follow MAP’s responsible-use terms and obtain the necessary rights and consent.",
+        "policy_url": "https://github.com/multimodal-art-projection/YuE/blob/cbb3b060725ddd95ac6e6237cfb709e153da5988/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 17179869184,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "yue2",
+        "synthesis": "yue2/YuE2-3B-Q5_K_M.gguf",
+        "language": ""
+      },
+      "name": "YuE2 3B",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "yue2/YuE2-3B-Q5_K_M.gguf",
+        "yue2/YuE2-Vae-F32.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 60,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "yue2-3b",
+          "role": "weights",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-3B/blob/1a96eca688d6ae5d7f0feb88573fec89920fcd19/LICENSE"
+        },
+        {
+          "id": "yue2-vae",
+          "role": "codec",
+          "repository": "m-a-p/YuE2-Vae",
+          "revision": "95535e72a97bc0f09b8ada125d26b4009428c0e8",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-Vae/blob/95535e72a97bc0f09b8ada125d26b4009428c0e8/LICENSE"
+        },
+        {
+          "id": "yue2-qwen-tokenizer",
+          "role": "tokenizer",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/QwenLM/Qwen-Agent/blob/31a4d36d123688581a9e9744427272b33ce940e0/LICENSE"
+        }
+      ],
+      "runtime": {
+        "name": "yue2.cpp",
+        "revision": "e646d5228911ae1b81ac2a261115a255848ce85f",
+        "source": "https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f",
+        "license": "MIT",
+        "license_url": "https://github.com/ServeurpersoCom/yue2.cpp/blob/e646d5228911ae1b81ac2a261115a255848ce85f/LICENSE",
+        "executable": "engine/yue-synth"
+      },
+      "usage": {
+        "model_use": "CC BY-NC 4.0 covers noncommercial model use, including research and education. The creator permission applies to individuals acting in a personal creative capacity. Companies need a separate license for commercial model use.",
+        "redistribution": "Share weights noncommercially with credit to YuE2 and MAP, the original source and license, and an indication of changes including GGUF conversion and quantization. Commercial redistribution or sale of the weights requires separate permission.",
+        "outputs": "Individual creators may release, sell, and license generated songs, including to clients, without license fees or mandatory output credit. Follow MAP’s responsible-use terms and obtain the necessary rights and consent.",
+        "policy_url": "https://github.com/multimodal-art-projection/YuE/blob/cbb3b060725ddd95ac6e6237cfb709e153da5988/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 17179869184,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "yue2",
+        "synthesis": "yue2/YuE2-3B-BF16.gguf",
+        "language": ""
+      },
+      "name": "YuE2 3B",
+      "estimated_ram_bytes": 13958643712,
+      "files": [
+        "yue2/YuE2-3B-BF16.gguf",
+        "yue2/YuE2-Vae-F32.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 60,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "yue2-3b",
+          "role": "weights",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-3B/blob/1a96eca688d6ae5d7f0feb88573fec89920fcd19/LICENSE"
+        },
+        {
+          "id": "yue2-vae",
+          "role": "codec",
+          "repository": "m-a-p/YuE2-Vae",
+          "revision": "95535e72a97bc0f09b8ada125d26b4009428c0e8",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-Vae/blob/95535e72a97bc0f09b8ada125d26b4009428c0e8/LICENSE"
+        },
+        {
+          "id": "yue2-qwen-tokenizer",
+          "role": "tokenizer",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/QwenLM/Qwen-Agent/blob/31a4d36d123688581a9e9744427272b33ce940e0/LICENSE"
+        }
+      ],
+      "runtime": {
+        "name": "yue2.cpp",
+        "revision": "e646d5228911ae1b81ac2a261115a255848ce85f",
+        "source": "https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f",
+        "license": "MIT",
+        "license_url": "https://github.com/ServeurpersoCom/yue2.cpp/blob/e646d5228911ae1b81ac2a261115a255848ce85f/LICENSE",
+        "executable": "engine/yue-synth"
+      },
+      "usage": {
+        "model_use": "CC BY-NC 4.0 covers noncommercial model use, including research and education. The creator permission applies to individuals acting in a personal creative capacity. Companies need a separate license for commercial model use.",
+        "redistribution": "Share weights noncommercially with credit to YuE2 and MAP, the original source and license, and an indication of changes including GGUF conversion and quantization. Commercial redistribution or sale of the weights requires separate permission.",
+        "outputs": "Individual creators may release, sell, and license generated songs, including to clients, without license fees or mandatory output credit. Follow MAP’s responsible-use terms and obtain the necessary rights and consent.",
+        "policy_url": "https://github.com/multimodal-art-projection/YuE/blob/cbb3b060725ddd95ac6e6237cfb709e153da5988/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 21474836480,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-music-q8_0",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small Music",
+      "estimated_ram_bytes": 7516192768,
+      "files": [
+        "stable-audio-3-small-music/stable-audio-3-small-music-q8_0.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Small-Music-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-music-f16",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small Music",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "stable-audio-3-small-music/stable-audio-3-small-music-f16.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Small-Music-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-medium-q8_0",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Medium",
+      "estimated_ram_bytes": 10737418240,
+      "files": [
+        "stable-audio-3-medium/stable-audio-3-medium-q8_0.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 380,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Medium-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-medium-f16",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Medium",
+      "estimated_ram_bytes": 12884901888,
+      "files": [
+        "stable-audio-3-medium/stable-audio-3-medium-f16.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 380,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Medium-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-sfx-q8_0",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small SFX",
+      "estimated_ram_bytes": 7516192768,
+      "files": [
+        "stable-audio-3-small-sfx/stable-audio-3-small-sfx-q8_0.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 10,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-sfx",
+          "revision": "05ca3857881c94a2b84026b1111c537d78f5f9f0",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-small-sfx/blob/05ca3857881c94a2b84026b1111c537d78f5f9f0/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-sfx",
+          "revision": "05ca3857881c94a2b84026b1111c537d78f5f9f0",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-small-sfx/blob/05ca3857881c94a2b84026b1111c537d78f5f9f0/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Small-SFX-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-sfx-f16",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small SFX",
+      "estimated_ram_bytes": 8589934592,
+      "files": [
+        "stable-audio-3-small-sfx/stable-audio-3-small-sfx-f16.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 10,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-sfx",
+          "revision": "05ca3857881c94a2b84026b1111c537d78f5f9f0",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-small-sfx/blob/05ca3857881c94a2b84026b1111c537d78f5f9f0/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-sfx",
+          "revision": "05ca3857881c94a2b84026b1111c537d78f5f9f0",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "gguf",
+          "role": "gguf",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-small-sfx/blob/05ca3857881c94a2b84026b1111c537d78f5f9f0/LICENSE.md",
+          "source_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/Stable-Audio-3-Small-SFX-GGUF"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "mulacover",
+        "synthesis": "mulacover-noncommercial-f16",
+        "language": ""
+      },
+      "name": "MuLaCover",
+      "estimated_ram_bytes": 20401094656,
+      "files": [
+        "mulacover/MuLaCover-F16.gguf"
+      ],
+      "acquisition": "download",
+      "expert_only": true,
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 180,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "reference_audio": true,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "audio.cpp",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli",
+        "required_files": [
+          "engine/providers/audio.cpp/libaudiocpp.0.dylib",
+          "engine/providers/audio.cpp/libsoxr.dylib"
+        ]
+      },
+      "upstream_sources": [
+        {
+          "id": "mulacover",
+          "role": "weights",
+          "repository": "HeartMuLa/MuLaCover",
+          "revision": "0f5ca612a41134738a14a28f95ed80bfa9b52adc",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+        },
+        {
+          "id": "heartcodec",
+          "role": "codec",
+          "repository": "HeartMuLa/HeartCodec-oss-20260123",
+          "revision": "58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/blob/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f/README.md"
+        },
+        {
+          "id": "qwen3-embedding",
+          "role": "embedding",
+          "repository": "Qwen/Qwen3-Embedding-0.6B",
+          "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+          "license": "Apache-2.0",
+          "license_url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md"
+        },
+        {
+          "id": "audio-cpp-mulacover-gguf",
+          "role": "runtime_weights",
+          "repository": "audio-cpp/audio.cpp-gguf",
+          "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+          "license": "CC BY-NC 4.0 + MuLa Labs terms",
+          "license_url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/57de533382ad47d5527e7562d1f80c41f769553b/MuLaCover-GGUF/README.md"
+        },
+        {
+          "id": "yourmt3",
+          "role": "transcription",
+          "repository": "mimbres/YourMT3",
+          "revision": "5e66c1ea173a8186e0d20432b841d3180cc015b5",
+          "license": "Apache-2.0 (checkpoint)",
+          "license_url": "https://huggingface.co/spaces/mimbres/YourMT3/blob/5e66c1ea173a8186e0d20432b841d3180cc015b5/README.md",
+          "source_url": "https://huggingface.co/spaces/mimbres/YourMT3/tree/5e66c1ea173a8186e0d20432b841d3180cc015b5"
+        },
+        {
+          "id": "chordnet",
+          "role": "transcription",
+          "repository": "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition",
+          "revision": "481f4ce703f8822b99f4037e9104ba1760e21ea3",
+          "license": "MIT",
+          "license_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/blob/481f4ce703f8822b99f4037e9104ba1760e21ea3/LICENSE",
+          "source_url": "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition/tree/481f4ce703f8822b99f4037e9104ba1760e21ea3/cache_data"
+        }
+      ],
+      "usage": {
+        "model_use": "mulacover_model_use",
+        "redistribution": "mulacover_redistribution",
+        "outputs": "mulacover_outputs",
+        "policy_url": "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
     }
   ],
   "models": [
+    {
+      "file": "text2midi/pytorch_model.bin",
+      "provider": "text2midi",
+      "role": "synthesis",
+      "family": "text2midi",
+      "precision": "FP32",
+      "estimated_bytes": 901867614,
+      "sha256": "d94e8d7dda9207ed734268933629d4a4b7a1a6ce84c77299f610d3470448bfc1",
+      "recommended_steps": null,
+      "source": {
+        "repository": "amaai-lab/text2midi",
+        "revision": "9bc91479c4a9b08a9a28a7dcfb3f1a56ee2ded36",
+        "path": "pytorch_model.bin"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/config.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 1404,
+      "sha256": "7c1853dbfa0e4aac093eb109a358b6ab25fe86b7c15185a91322f0ed26f0f940",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/special_tokens_map.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 2201,
+      "sha256": "5c87151ef0f72a99d1f766a4c418bd2a1f90aaa30a8e22fe5eca9641daebb64f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "special_tokens_map.json"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/spiece.model",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 791656,
+      "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "spiece.model"
+      }
+    },
+    {
+      "file": "text2midi/flan-t5-base/tokenizer_config.json",
+      "provider": "text2midi",
+      "role": "dependency",
+      "family": "flan-t5-base",
+      "precision": "original",
+      "estimated_bytes": 2537,
+      "sha256": "4c55124402e4ce48c7125d04b9af152a125eda9e7c80829f8f99f2ec69f3f68d",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/flan-t5-base",
+        "revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+        "path": "tokenizer_config.json"
+      }
+    },
     {
       "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
       "provider": "ace-step",
@@ -214,7 +2279,8 @@
       "precision": "Q8_0",
       "estimated_bytes": 784144960,
       "sha256": "972f23255e46adfe744a0eb9a0039f3c63988f65753b0968d776e8b27168c321",
-      "recommended_steps": null
+      "recommended_steps": null,
+      "category": "embedding"
     },
     {
       "file": "acestep-5Hz-lm-0.6B-BF16.gguf",
@@ -1007,6 +3073,936 @@
       }
     },
     {
+      "file": "stable-audio-3-small-music/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 2270384940,
+      "sha256": "da85866b11b01d0694d990785f6abbd79c8064df1b0e6f8aea52935e0ef84b64",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 10341,
+      "sha256": "100776f25af5aa83f70e0c6b384de6690cb4e5ad01c24f7cfbb6524d18765f06",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 9222116660,
+      "sha256": "48d9c65e290e7bcd5194e0633bfc2424a59ee9683f5c2d58762d997b7d8ce0b5",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 10360,
+      "sha256": "4f8846649df59167e1792d134acb6fc2bb7105227c5455300bad6cb107e20c88",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 107,
+      "sha256": "1ffcff67d916d5519d1ef9a36853232ee6bcb7e14a936623c4e85559f5dce106",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/language_model.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 1596,
+      "sha256": "34ded58fcd5e8181557f1417e76af9f3e95109a5ce113a4771fd16f8625b53c0",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/language_model.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/rvq_depth_decoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 274,
+      "sha256": "b38c7f72d4b2fa8667442071f9e4a63ca5a7b5d0859e5e64ee7f79c4bc64520c",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/rvq_depth_decoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/condition_encoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 292,
+      "sha256": "1cdea3f36506719128ae4a29cdfff74b1134e607eb4a504ce6d810568fac8263",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/condition_encoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/transformer.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 294,
+      "sha256": "f60856be934127a8b8223510aff2e38a9efd8bbdbc230c3d3339b96e2cb12f00",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/transformer.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/config/vocoder.json",
+      "provider": "minimax-music3",
+      "role": "config",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 251,
+      "sha256": "4161afd07ba7d5b949e29c8a7a005592259fba73e9110b6ece9dfd38d3489eac",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "config/vocoder.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/tokenizer/tokenizer.json",
+      "provider": "minimax-music3",
+      "role": "tokenizer",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 11423801,
+      "sha256": "b1537fa9e59a537276ecbc2e12d0438edff635a1f4a4948e679774b5feb3e610",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "tokenizer/tokenizer.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/tokenizer/tokenizer_config.json",
+      "provider": "minimax-music3",
+      "role": "tokenizer",
+      "family": "MiniMax-Music3",
+      "precision": "JSON",
+      "estimated_bytes": 377,
+      "sha256": "1689852cc9c45010de040c8302a8acdc0d2c4c6c740dd7e9dd0a8c704e16eada",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "tokenizer/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/language_model_q4_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q4_0",
+      "estimated_bytes": 6006866496,
+      "sha256": "6f621dd636320403c03e9f755b3e2047f5754d055e0fcc6c0c444ae52ffbfa90",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "language_model_q4_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/rvq_depth_decoder_q8_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q8_0",
+      "estimated_bytes": 714028960,
+      "sha256": "d5b7495fb1a7845abfeab13df829510de442fd4ea0fd55467fe9895fe8ec5db6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "rvq_depth_decoder_q8_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/condition_encoder.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "GGUF",
+      "estimated_bytes": 100678368,
+      "sha256": "ae4be8b6154645b0717d1928f5c195359bdee8fd025099c49954ed302257cd20",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "condition_encoder.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/transformer_q4_0.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "Q4_0",
+      "estimated_bytes": 1396392768,
+      "sha256": "18d3b2461a2988f59e197ccf05dc3931663099290b42443baa2a30e4fd15e506",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "transformer_q4_0.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/vocoder.gguf",
+      "provider": "minimax-music3",
+      "role": "weights",
+      "family": "MiniMax-Music3",
+      "precision": "GGUF",
+      "estimated_bytes": 216705376,
+      "sha256": "5d40e6d52349d50d2aeaaaf6ba934afbf490e4cbc1ba5bb715c3133ea45cdca4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "vocoder.gguf"
+      }
+    },
+    {
+      "file": "MiniMax-Music3-GGUF/LICENSE",
+      "provider": "minimax-music3",
+      "role": "license",
+      "family": "MiniMax-Music3",
+      "precision": "text",
+      "estimated_bytes": 7373,
+      "sha256": "b21d12df2adae59dad3fcf80c1d81492654c662342f497d9a9770198c9317e58",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/MiniMax-Music3-GGUF",
+        "revision": "46fe77f8bb395ccdbe797d784225f7b84866e7ce",
+        "path": "LICENSE"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "MLX",
+      "estimated_bytes": 455654550,
+      "sha256": "1a70b0de30b3e6ad054fe6a61a7765408f01127628e6362c1abc328809a3c422",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small.mlxfn"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/models/mrt2_small/mrt2_small_state.safetensors",
+      "provider": "magenta-realtime-2",
+      "role": "weights",
+      "family": "mrt2_small",
+      "precision": "Safetensors",
+      "estimated_bytes": 8676998,
+      "sha256": "23f1e05a6beea306fe39970bd61193f2d3e5fbd8f08af93570bda4ca9ec33255",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "models/mrt2_small/mrt2_small_state.safetensors"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/spm.model",
+      "provider": "magenta-realtime-2",
+      "role": "tokenizer",
+      "family": "MusicCoCa",
+      "precision": "SentencePiece",
+      "estimated_bytes": 517448,
+      "sha256": "ff325a99b61ba5726cf6437cde6eefbb633dbaa363a684f7a97ed99b55202cca",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/spm.model"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/text_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 418674324,
+      "sha256": "e1222e3418cbe8cc2623939571bae8e9ab6f0d511404b0d83da69f4e6e11b272",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/text_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/pretrained_vector_quantizer.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 72422108,
+      "sha256": "7a8a19e2119ad405818eae84a331a970f1a582b3389d4bfd27814f75b455a444",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/pretrained_vector_quantizer.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/mapper.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 86166664,
+      "sha256": "2f9743cc8f121a588b69c7f4d79a2a4111ce81864cbde8830054cd5e97f3d717",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/mapper.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/audio_preprocessor.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 8729640,
+      "sha256": "656ca4c358451c2b85932e66efcfd2ba62492f4435953d775bfc1d3c08329a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/audio_preprocessor.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/musiccoca/music_encoder.tflite",
+      "provider": "magenta-realtime-2",
+      "role": "dependency",
+      "family": "MusicCoCa",
+      "precision": "TFLite",
+      "estimated_bytes": 370935584,
+      "sha256": "0d4501af799834e383d904c34ee826c61eb53c69682bf15a981a46c1bb32793a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/musiccoca/music_encoder.tflite"
+      }
+    },
+    {
+      "file": "magenta-realtime-2/resources/spectrostream/spectrostream_encoder.mlxfn",
+      "provider": "magenta-realtime-2",
+      "role": "codec",
+      "family": "SpectroStream",
+      "precision": "MLX",
+      "estimated_bytes": 104319983,
+      "sha256": "887c25b21aa1714d19907fc96963c6440d5911f11571054cd5acf7306c260905",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google/magenta-realtime-2",
+        "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
+        "path": "resources/spectrostream/spectrostream_encoder.mlxfn"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/config.json",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/spiece.model",
+      "provider": "audiocraft",
+      "role": "tokenizer",
+      "family": "T5-base",
+      "precision": "SentencePiece",
+      "estimated_bytes": 791656,
+      "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "spiece.model"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/model.safetensors",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "musicgen-small",
+      "precision": "PyTorch",
+      "estimated_bytes": 840843863,
+      "sha256": "830fe5771e2835cbd305f3ffdda22d3ff38718fbbe8274bd19dc203265de7244",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236001935,
+      "sha256": "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "compression_state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "magnet-small-30secs",
+      "precision": "PyTorch",
+      "estimated_bytes": 840844851,
+      "sha256": "965b4d537d691483918ccc6d97e738c0177191900c2e2cd3272d29fa3c9a44d0",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236003715,
+      "sha256": "91598c7da3d183eb8e0cc19cbbdc4f64f2d0c53069f9c8aa84185d0e33873c67",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "compression_state_dict.bin"
+      }
+    },
+    {
+      "file": "mimetic-a0-model.fp16.safetensors",
+      "provider": "mimetic-a0",
+      "role": "synthesis",
+      "family": "mimetic-a0",
+      "precision": "FP16",
+      "estimated_bytes": 1021661156,
+      "sha256": "e3e255e27a45d41327156b1b2d4d88b7c2a3029550206b669695650391dd8491",
+      "recommended_steps": 50,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model.fp16.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-model_config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "mimetic-a0",
+      "precision": "JSON",
+      "estimated_bytes": 3719,
+      "sha256": "6f7da1c3ae1a5ccf77fdfa714befc5d800137e9cf736335c38a007bb3cfc1709",
+      "recommended_steps": null,
+      "source": {
+        "repository": "micknoisemachine/mimetic-a0",
+        "revision": "5f21e1807517cda2e6d72051cdb81dafc3931077",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-model.safetensors",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-config.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "mimetic-a0-t5-tokenizer.json",
+      "provider": "mimetic-a0",
+      "role": "dependency",
+      "family": "t5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1389353,
+      "sha256": "d2acde0d8d71dd30a711834b07781b9c89feaac33fd332f60507699282740066",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "mulacover/MuLaCover-Q8_0.gguf",
+      "provider": "mulacover",
+      "role": "weights",
+      "family": "MuLaCover",
+      "precision": "Q8_0",
+      "estimated_bytes": 8220378496,
+      "sha256": "5daca50ce959c63dcfef3be1e3a7cd855eee753a91cab1a3475da1af781e4518",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+        "path": "MuLaCover-GGUF/mulacover-q8_0.gguf"
+      }
+    },
+    {
+      "file": "diffrhythm2/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "diffrhythm2",
+      "precision": "F32",
+      "estimated_bytes": 4545024856,
+      "sha256": "a3745f77199eef0615e3ec21288663f9c6b3234078b62c9be8ad040061fc921e",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "diffrhythm2",
+      "precision": "JSON",
+      "estimated_bytes": 262,
+      "sha256": "606d6392fdd00398d36373574b4990199580ec7dcc0bd82903a1ff00de82c249",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/decoder.bin",
+      "provider": "diffrhythm2",
+      "role": "codec",
+      "family": "diffrhythm2",
+      "precision": "PyTorch",
+      "estimated_bytes": 523071584,
+      "sha256": "9ec403c3e8b9ef59f4adbb6d4e4a930f2a1c2d88ff488329fed74e04f15d1cfb",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "decoder.bin"
+      }
+    },
+    {
+      "file": "diffrhythm2/decoder.json",
+      "provider": "diffrhythm2",
+      "role": "codec",
+      "family": "diffrhythm2",
+      "precision": "JSON",
+      "estimated_bytes": 544,
+      "sha256": "3d96454939a75879b2a8911826ab7371f91e7245d01de858250e92c90520a3b5",
+      "recommended_steps": null,
+      "source": {
+        "repository": "ASLP-lab/DiffRhythm2",
+        "revision": "9aa15742e4889c0eb2e198db6fdab1facf1b6761",
+        "path": "decoder.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/mulan/pytorch_model.bin",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq-mulan-large",
+      "precision": "PyTorch",
+      "estimated_bytes": 2653954401,
+      "sha256": "d42ae3f7cb9b66759ee0089ddc70e2f28b130c2d8ba621457358272d32dd0444",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-MuLan-large",
+        "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+        "path": "pytorch_model.bin"
+      }
+    },
+    {
+      "file": "diffrhythm2/mulan/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq-mulan-large",
+      "precision": "JSON",
+      "estimated_bytes": 847,
+      "sha256": "8fefc545ef87ecd9bcde7417dd03464370c48c321f36dcff20266a752079e468",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-MuLan-large",
+        "revision": "2e01c796b71dca71b45251384c04cd7b237c9020",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/muq/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq",
+      "precision": "JSON",
+      "estimated_bytes": 3133,
+      "sha256": "237335ee27d8fb951ce778701a12a79e06c51ae636dd786f97e45f51ce532543",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-large-msd-iter",
+        "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/muq/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "muq",
+      "precision": "F32",
+      "estimated_bytes": 1333825096,
+      "sha256": "273febab2be02872c37d2c37e48a9d6c52c1c9392f3eeeabd498efa281ccb7a6",
+      "recommended_steps": null,
+      "source": {
+        "repository": "OpenMuQ/MuQ-large-msd-iter",
+        "revision": "0562a57814f6f8bbd9fdea0a25921a2fce1a841a",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/config.json",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 615,
+      "sha256": "d66ed8cd4f2a93b358c245e50736fa389ed4f35c0bae7aad0b32abb20c62b579",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/model.safetensors",
+      "provider": "diffrhythm2",
+      "role": "weights",
+      "family": "xlm-roberta",
+      "precision": "F32",
+      "estimated_bytes": 1115567652,
+      "sha256": "6fd4797bc397c3b8b55d6bb5740366b57e6a3ce91c04c77f22aafc0c128e6feb",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/tokenizer.json",
+      "provider": "diffrhythm2",
+      "role": "tokenizer",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 9096718,
+      "sha256": "a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "diffrhythm2/xlm-roberta/tokenizer_config.json",
+      "provider": "diffrhythm2",
+      "role": "tokenizer",
+      "family": "xlm-roberta",
+      "precision": "JSON",
+      "estimated_bytes": 25,
+      "sha256": "994f46754c5bf4014f1aa92d34b1374319c3a6b3f702105cd5b742beaecd18ce",
+      "recommended_steps": null,
+      "source": {
+        "repository": "FacebookAI/xlm-roberta-base",
+        "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+        "path": "tokenizer_config.json"
+      }
+    },
+    {
       "file": "yue2/YuE2-3B-Q8_0.gguf",
       "provider": "yue2",
       "role": "weights",
@@ -1034,6 +4030,201 @@
         "repository": "Serveurperso/YuE2-GGUF",
         "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
         "path": "YuE2-Vae-F32.gguf"
+      }
+    },
+    {
+      "file": "yue2/YuE2-3B-Q6_K.gguf",
+      "provider": "yue2",
+      "role": "weights",
+      "family": "YuE2-3B",
+      "precision": "Q6_K",
+      "estimated_bytes": 2943331072,
+      "sha256": "42068d5e57713df11b9f6a5a3751072d9bbefe231d1d088f9c100e026ffa4ef9",
+      "recommended_steps": null,
+      "source": {
+        "repository": "Serveurperso/YuE2-GGUF",
+        "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
+        "path": "YuE2-3B-Q6_K.gguf"
+      }
+    },
+    {
+      "file": "yue2/YuE2-3B-Q5_K_M.gguf",
+      "provider": "yue2",
+      "role": "weights",
+      "family": "YuE2-3B",
+      "precision": "Q5_K_M",
+      "estimated_bytes": 2622936832,
+      "sha256": "cd3efd250b734a229172800f08f33a893ad1f66b521666e176cdae4a0729b281",
+      "recommended_steps": null,
+      "source": {
+        "repository": "Serveurperso/YuE2-GGUF",
+        "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
+        "path": "YuE2-3B-Q5_K_M.gguf"
+      }
+    },
+    {
+      "file": "yue2/YuE2-3B-BF16.gguf",
+      "provider": "yue2",
+      "role": "weights",
+      "family": "YuE2-3B",
+      "precision": "BF16",
+      "estimated_bytes": 7166072352,
+      "sha256": "668ca9ffa4622449916aae5068b5737363e7ec186a824cd3d7a1a8a95269f166",
+      "recommended_steps": null,
+      "source": {
+        "repository": "Serveurperso/YuE2-GGUF",
+        "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
+        "path": "YuE2-3B-BF16.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/stable-audio-3-small-music-q8_0.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-music",
+      "precision": "Q8_0",
+      "estimated_bytes": 1683576608,
+      "sha256": "a6d9176e11b857409b28cf5a69f4fefd8f3e61907b3b10d867f1f4c0a7eb9418",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Small-Music-GGUF/stable-audio-3-small-music-q8_0.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/stable-audio-3-small-music-f16.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-music",
+      "precision": "F16",
+      "estimated_bytes": 2358473088,
+      "sha256": "560ea1505deadf6c37689b672bda13be6cfbc6e996eaf574cac7f546347e3754",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Small-Music-GGUF/stable-audio-3-small-music-f16.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/stable-audio-3-medium-q8_0.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-medium",
+      "precision": "Q8_0",
+      "estimated_bytes": 3582601408,
+      "sha256": "d239eba564bd049b6fc0b103ee51cf179dc1a836ac7904c0d50088c6d45018a3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Medium-GGUF/stable-audio-3-medium-q8_0.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/stable-audio-3-medium-f16.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-medium",
+      "precision": "F16",
+      "estimated_bytes": 5834365856,
+      "sha256": "539df1f5794242c01152894f00e3454182f8974e07952f72417786c08ff33dcc",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Medium-GGUF/stable-audio-3-medium-f16.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-sfx/stable-audio-3-small-sfx-q8_0.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-sfx",
+      "precision": "Q8_0",
+      "estimated_bytes": 1683576512,
+      "sha256": "bfe435d2c5841868a7025433929ee250e51e491be369a279f341221539c71841",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Small-SFX-GGUF/stable-audio-3-small-sfx-q8_0.gguf"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-sfx/stable-audio-3-small-sfx-f16.gguf",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-sfx",
+      "precision": "F16",
+      "estimated_bytes": 2358472992,
+      "sha256": "0ecda5dbf3b4107eb63678535b387e6e53289b622db2164f17ff13f9d0eb19a9",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "Stable-Audio-3-Small-SFX-GGUF/stable-audio-3-small-sfx-f16.gguf"
+      }
+    },
+    {
+      "file": "mulacover/MuLaCover-F16.gguf",
+      "provider": "mulacover",
+      "role": "weights",
+      "family": "MuLaCover",
+      "precision": "F16",
+      "estimated_bytes": 13380996416,
+      "sha256": "5a73ce63ab2c4b8a9bd606d40ccf83f95ed68ecc8ac2c6210e45cf2dc56e3b57",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "57de533382ad47d5527e7562d1f80c41f769553b",
+        "path": "MuLaCover-GGUF/mulacover-f16.gguf"
+      }
+    },
+    {
+      "file": "heartmula-gguf/HeartMuLa-oss-3B-HNY-Q8_0.gguf",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-hny",
+      "precision": "Q8_0",
+      "estimated_bytes": 7659674144,
+      "sha256": "8262fa15b06651fb8f8549fa1b8e506bcf45e21d29439b62ae25e10599ed91b3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "themindstudio/HeartMuLa-GGUF",
+        "revision": "b5e55eac99ff25f01608be9d2d978c00a2e8bf63",
+        "path": "heartmula-q8_0.gguf"
+      }
+    },
+    {
+      "file": "heartmula-gguf/HeartMuLa-oss-3B-Q8_0.gguf",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-oss-3b",
+      "precision": "Q8_0",
+      "estimated_bytes": 7659762592,
+      "sha256": "5c3e42171ec012ba7420e3841e2a36e68e36177863b5e76793393afecd10cfbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "HeartMuLa-GGUF/heartmula-q8_0.gguf"
+      }
+    },
+    {
+      "file": "heartmula-gguf/HeartMuLa-oss-3B-F16.gguf",
+      "provider": "heartmula",
+      "role": "weights",
+      "family": "heartmula-oss-3b",
+      "precision": "F16",
+      "estimated_bytes": 11204759552,
+      "sha256": "77d47b5c4ffd93ac839c95761c881dac7f0732ef144ea74ab1e7d4bbb9c1fdf3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "audio-cpp/audio.cpp-gguf",
+        "revision": "33120a4cfdf0d56786db934a03a093d4675de938",
+        "path": "HeartMuLa-GGUF/heartmula-f16.gguf"
       }
     }
   ]

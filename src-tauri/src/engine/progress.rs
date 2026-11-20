@@ -31,6 +31,7 @@ impl Progress {
             "title_download" => "Preparing title model",
             "title" => "Generating song title",
             "saving" => "Saving audio",
+            "saving_midi" => "Saving MIDI",
             _ => "Synth",
         };
         let steps = match (self.step, self.total_steps) {

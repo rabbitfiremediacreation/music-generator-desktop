@@ -45,57 +45,53 @@ it("rejects the old Windows iteration limit even when target and file hashes mat
   } finally { await rm(work,{recursive:true,force:true}); }
 });
 
-async function macosFixture(work) {
-  const macos = desktopTarget("macos", "arm64");
-  const metadata = {
-    platform: macos.platform, arch: macos.arch, revision: manifest.engines.macos.revision,
-    max_inference_steps: manifest.engines.macos.max_inference_steps,
-    recipe_sha256: await engineRecipeHash(macos),
-    sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
-    yue2_revision: yue2.revision,
-    yue2_ggml_revision: yue2.ggml_revision,
-  };
-  const yue2Runner = path.join(work, yue2.executable);
-  const audioCpp = path.join(work, audioCppDirectory);
-  const heartmulaSpec = path.join(audioCpp, "model_specs", "heartmula.json");
-  await writeFile(path.join(work, "ace-server"), "test engine");
-  await writeFile(yue2Runner, "test YuE2 runner");
-  await mkdir(path.dirname(heartmulaSpec), { recursive: true });
-  for (const file of ["audiocpp_cli", "libaudiocpp.0.dylib", "LICENSE"]) {
-    await writeFile(path.join(audioCpp, file), "test resource");
-  }
-  await writeFile(heartmulaSpec, "test resource");
-  return { macos, metadata, yue2Runner, audioCpp, heartmulaSpec };
-}
-
-it("requires the pinned YuE2 runner in the Apple Silicon bundle", async () => {
-  const work = await mkdtemp(path.join(tmpdir(), "yue2-provenance-test-"));
-  try {
-    const { macos, metadata, yue2Runner } = await macosFixture(work);
-    await rm(yue2Runner);
-    await recordHashes(work, metadata);
-    await assert.rejects(verifyEngine(work, macos), /YuE2 runner is missing/);
-    await writeFile(yue2Runner, "test YuE2 runner");
-    await recordHashes(work, metadata);
-    await verifyEngine(work, macos);
-    await writeFile(yue2Runner, "changed runner");
-    await assert.rejects(verifyEngine(work, macos), /failed verification: yue-synth/);
-  } finally { await rm(work, { recursive: true, force: true }); }
-});
-
-it("requires only the pinned audio.cpp runtime resources in Apple Silicon bundles", async () => {
+it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon bundles", async () => {
   const work = await mkdtemp(path.join(tmpdir(), "macos-provider-provenance-test-"));
   try {
-    const { macos, metadata, audioCpp, heartmulaSpec } = await macosFixture(work);
-    await rm(heartmulaSpec);
+    const macos = desktopTarget("macos", "arm64");
+    const metadata = {
+      platform: "macos", arch: "arm64", revision: manifest.engines.macos.revision,
+      max_inference_steps: manifest.engines.macos.max_inference_steps,
+      sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
+      recipe_sha256: await engineRecipeHash(macos),
+      yue2_revision: yue2.revision,
+      yue2_ggml_revision: yue2.ggml_revision,
+    };
+    await writeFile(path.join(work, "ace-server"), "test engine");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /YuE2 runner is missing/);
+    await writeFile(path.join(work, yue2.executable), "test YuE2 runner");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
+    await writeFile(path.join(work, "mimetic-synth"), "test launcher");
+    await mkdir(path.join(work, "mimetic-python"));
+    await writeFile(path.join(work, "mimetic-python/MIMETIC_RUNTIME.json"), "test runtime receipt");
+
+    const runtime = path.join(work, "providers/audio.cpp");
+    await mkdir(path.join(runtime, "model_specs"), { recursive: true });
+    for (const file of ["audiocpp_cli", "libaudiocpp.0.dylib", "LICENSE"]) {
+      await writeFile(path.join(runtime, file), "test resource");
+    }
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
 
-    await writeFile(heartmulaSpec, "test resource");
+    await writeFile(path.join(runtime, "model_specs/heartmula.json"), "test resource");
+    await writeFile(path.join(runtime, "LICENSE.soxr"), "test license");
+    await writeFile(path.join(runtime, "soxr-0.1.3-Source.tar.xz"), "test source archive");
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+
+    await writeFile(path.join(runtime, "libsoxr.dylib"), "test resampler");
     await recordHashes(work, metadata);
     await verifyEngine(work, macos);
 
-    await writeFile(path.join(audioCpp, "weights.gguf"), "test weights");
+    await rm(path.join(runtime, "model_specs/stable_audio.json"));
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
+
+    await writeFile(path.join(runtime, "weights.gguf"), "test weights");
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
   } finally { await rm(work, { recursive: true, force: true }); }

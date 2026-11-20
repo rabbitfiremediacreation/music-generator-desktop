@@ -7,8 +7,10 @@ import { ModelDialog } from "../models/ModelDialog";
 import { InstalledModels } from "../models/InstalledModels";
 import type { useSettingsDraft } from "./useSettingsDraft";
 
-export function ModelsSettings({ state, active, manager }: {
-  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: ModelManagerProps;
+export type SettingsModelManager = ModelManagerProps & { onManage?: () => void };
+
+export function ModelsSettings({ state, active, manager: { onManage, ...manager } }: {
+  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager;
 }) {
   const { t } = useI18n();
   const { draft, pending } = state;
@@ -35,6 +37,6 @@ export function ModelsSettings({ state, active, manager }: {
         {draft.expert_mode !== state.confirmedExpertMode && <button type="button" className="sek settings-expert-apply" onClick={() => void state.applyExpertMode()}>{t("settings_apply_expert")}</button>}
       </div>
     </fieldset>
-    {manager.onManage && <div className="settings-section"><p id="settingsModelSetupHint" className="small">{t("desktop_manage_hint")}</p><button type="button" className="sek" disabled={pending || modelBusy} aria-describedby="settingsModelSetupHint" onClick={manager.onManage}>{t("desktop_manage")}</button></div>}
+    {onManage && <div className="settings-section"><p id="settingsModelSetupHint" className="small">{t("desktop_manage_hint")}</p><button type="button" className="sek" disabled={pending || modelBusy} aria-describedby="settingsModelSetupHint" onClick={onManage}>{t("desktop_manage")}</button></div>}
   </>;
 }

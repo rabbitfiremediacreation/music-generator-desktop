@@ -1,0 +1,50 @@
+{
+  "repository": "https://github.com/ASLP-lab/DiffRhythm2.git",
+  "revision": "7804f821b797b4f276090e1a9dcd37e97d9915d5",
+  "files": {
+    "g2p/g2p/vocab.json": {
+      "bytes": 5802,
+      "sha256": "0f5c44e05f79df8ae4fd77d7772950436a8bacc83d134fdf0ae3c72412b5676a"
+    },
+    "g2p/sources/bpmf_2_pinyin.txt": {
+      "bytes": 256,
+      "sha256": "bf24a3306ffbef6b1fbfc1780e25933361bc4d6587b8eb331b13241b8d892ba2"
+    },
+    "g2p/sources/chinese_lexicon.txt": {
+      "bytes": 14779443,
+      "sha256": "a3a7685d1c3e68eb2fa304bfc63e90c90c3c1a1948839a5b1b507b2131b3e2fb"
+    },
+    "g2p/sources/g2p_chinese_model/config.json": {
+      "bytes": 18485,
+      "sha256": "5a16b71fe399bfa6114053a1e249665c0d7921a6a1c10b3f530cb7d213f8a735"
+    },
+    "g2p/sources/g2p_chinese_model/poly_bert_model.onnx": {
+      "bytes": 76583333,
+      "sha256": "8765d835ffdf9811c832d4dc7b6a552757aa8615c01d1184db716a50c20aebbc"
+    },
+    "g2p/sources/g2p_chinese_model/polychar.txt": {
+      "bytes": 636,
+      "sha256": "9df819e371415c23e26a2907236a0228ef93772cc698d93dc0c18844956d1011"
+    },
+    "g2p/sources/g2p_chinese_model/polydict.json": {
+      "bytes": 8210,
+      "sha256": "ec6c8bd6d223205f48a17a07720bc594c20b3eab5460175414f7ebee1e66b6b9"
+    },
+    "g2p/sources/g2p_chinese_model/polydict_r.json": {
+      "bytes": 7428,
+      "sha256": "386e90aecf0f9bdbeac41541d7013e347594188962e17c7daee83caf40d993d2"
+    },
+    "g2p/sources/g2p_chinese_model/vocab.txt": {
+      "bytes": 109540,
+      "sha256": "45bbac6b341c319adc98a532532882e91a9cefc0329aa57bac9ae761c27b291c"
+    },
+    "g2p/sources/pinyin_2_bpmf.txt": {
+      "bytes": 5262,
+      "sha256": "dc8b048a20cf61d04b5a36bc6939db74095719b8099269a1269023ee3e6535b4"
+    },
+    "g2p/utils/mls_en.json": {
+      "bytes": 4288,
+      "sha256": "ad7511cf9b27f6d43caf531198413f060b08c12249fc179d7be3aa5cae1c3530"
+    }
+  }
+}

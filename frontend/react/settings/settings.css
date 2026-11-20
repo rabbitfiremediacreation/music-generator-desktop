@@ -60,7 +60,6 @@
 .settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .settings-timeout input { max-width: 160px; }
 .settings-expert-apply { margin-top: 14px; }
-#settingsDlg .model-manager .model-picker-actions { justify-content: flex-start; margin-top: 20px; }
 #settingsDlg .settings-toggle { justify-content: space-between; margin: 0; font-size: 15px; font-weight: 600; }
 #settingsDlg .settings-toggle + p { margin: 8px 54px 0 0; }
 #settingsDlg .settings-toggle input { appearance: none; position: relative; flex: none; width: 40px; height: 24px; border: 0; border-radius: 20px; padding: 0; background: #80848e; cursor: pointer; }
@@ -119,6 +118,8 @@
 #settingsDlg .installed-models-heading h4 { margin: 0; font-size: 15px; }
 .installed-models-heading h4 > span { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #ffffff12; color: #b5bac1; font-size: 11px; font-weight: 500; }
 .installed-models-heading p { margin: 6px 0 0; }
+.installed-models-category + .installed-models-category { margin-top: 18px; }
+.installed-models-category h5 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
 .installed-models-table { max-height: 400px; overflow: auto; border: 1px solid #ffffff12; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #1e1f22 transparent; }
 .installed-models-table table { width: 100%; border-collapse: collapse; }
 .installed-models-table th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: #292b30; color: #b5bac1; text-align: left; font-size: 10px; font-weight: 600; }
@@ -128,6 +129,7 @@
 .installed-active { display: inline-block; margin-left: 5px; padding: 2px 5px; border-radius: 4px; background: #5865f22b; color: #b9bfff; font: 500 10px var(--font-sans); }
 #settingsDlg .installed-models-table .small { display: block; font-size: 10px; }
 #settingsDlg .installed-models-table .sek { padding: 6px 9px; font-size: 11px; white-space: normal; }
+.installed-model-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .installed-models-empty { margin: 0; padding: 32px 20px; border: 1px dashed #ffffff24; border-radius: 8px; color: #b5bac1; font-size: 13px; text-align: center; }
 .installed-models-path { overflow-wrap: anywhere; }
 .installed-models-progress { margin-top: 18px; padding: 14px; border: 1px solid #ffffff12; border-radius: 8px; background: #2b2d31; }

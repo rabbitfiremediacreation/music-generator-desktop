@@ -13,6 +13,7 @@ export const platform = process.platform === "darwin" ? "macos" : process.platfo
 export const architecture = process.arch;
 export const target = desktopTarget(platform, architecture, process.env.MUSIC_GENERATOR_LINUX_BACKEND || "vulkan");
 export const audioCppDirectory = "providers/audio.cpp";
+export const audioCppRuntime = JSON.parse(await readFile(path.join(root, "models/audio-cpp-runtime.json"), "utf8"));
 
 export function audioCppSupported(buildTarget) {
   return buildTarget.platform === "macos" && buildTarget.arch === "arm64";
@@ -65,8 +66,11 @@ export async function engineRecipeHash(buildTarget = target) {
   const digest = createHash("sha256");
   for (const name of ["prepare-engine.mjs", "engine-source.mjs", "engine-contract.mjs", "engine-generation-limits.h", "targets.mjs", "patches/acestep-macos-compat.patch", "patches/acestep-iterations.patch", "patches/acestep-title-registry.patch", "engine-registry-test.cpp", "registry-contract.mjs"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
   digest.update(await readFile(path.join(root, "models/title-model.json")));
+  if (buildTarget.platform === "macos" && buildTarget.arch === "arm64") {
+    for (const name of ["prepare-mimetic.mjs", "mimetic-runtime/launcher.cpp", "mimetic-runtime/generate_clip.py"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+  }
   if (audioCppSupported(buildTarget)) {
-    for (const name of ["models/audio-cpp-runtime.json", "scripts/desktop/prepare-audio-cpp.mjs", "scripts/desktop/audio-cpp-launcher.cpp", "src-tauri/Engine.entitlements"]) digest.update(await readFile(path.join(root, name)));
+    for (const name of ["models/audio-cpp-runtime.json", "scripts/desktop/prepare-audio-cpp.mjs", "scripts/desktop/prepare-audio-cpp-soxr.mjs", "scripts/desktop/audio-cpp-launcher.cpp", "scripts/desktop/audio-cpp-wav.h", "src-tauri/Engine.entitlements"]) digest.update(await readFile(path.join(root, name)));
   }
   if (buildTarget.platform === "windows") {
     for (const name of ["prepare-windows-engine.mjs", "windows-ggml-imports.cmake", "patches/acestep-iterations-windows.patch", "patches/acestep-windows-unicode.patch", "engine-windows-paths.h", "engine-windows-cli.cpp", "engine-windows-paths-test.cpp", "windows-unicode.mjs"]) digest.update(await readFile(path.join(root,"scripts/desktop",name)));
@@ -98,10 +102,14 @@ export async function verifyEngine(folder, buildTarget = target) {
       throw new Error("YuE2 runner is missing or has a different revision");
     }
   }
+  if (buildPlatform === "macos" && buildTarget.arch === "arm64" && (!provenance.files["mimetic-synth"] || !provenance.files["mimetic-python/MIMETIC_RUNTIME.json"])) throw new Error("Mimetic A0 runtime is missing from checksums");
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
   const providerFiles = Object.keys(provenance.files).filter(file => file.startsWith(`${audioCppDirectory}/`)).sort();
   const expectedProviderFiles = audioCppSupported(buildTarget)
-    ? ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib", "model_specs/heartmula.json"].map(file => `${audioCppDirectory}/${file}`)
+    ? [
+      "LICENSE", "LICENSE.soxr", "audiocpp_cli", "libaudiocpp.0.dylib", "libsoxr.dylib",
+      "soxr-0.1.3-Source.tar.xz", ...audioCppRuntime.model_specs.map(spec => spec.path),
+    ].map(file => `${audioCppDirectory}/${file}`).sort()
     : [];
   if (JSON.stringify(providerFiles) !== JSON.stringify(expectedProviderFiles)) throw new Error("Unexpected audio.cpp runtime inventory");
   const actual = (await files(folder)).filter(file => path.basename(file) !== "VERSION.desktop.json").map(file => path.relative(folder, file).split(path.sep).join("/")).sort();

@@ -34,3 +34,9 @@ it("distinguishes a restored language override from the recommended profile", ()
   expect(options[1].disabled).toBe(false);
   expect(creatorOptions([], undefined, false)).toEqual([]);
 });
+
+it("keeps active Text2midi usable alongside ACE-Step recommendations in Simple Mode", () => {
+  const midi = { provider: "text2midi", synthesis: "text2midi", language: "flan-t5-base" };
+  const options = creatorOptions([standard, xl], midi, false);
+  expect(options.map(option => [option.label, option.disabled])).toEqual([["Text2midi", false], ["Standard", false], ["XL", false]]);
+});

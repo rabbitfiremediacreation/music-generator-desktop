@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryHistory } from "@tanstack/react-router";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
@@ -27,6 +27,7 @@ beforeEach(()=>{
     if(name==="get_generation_form_preferences")return {duration:90,bpm:0,inference_steps:30,lm_temperature:1.2,variants:2};
     if(name==="setup_estimate")return {missing_bytes:0,free_bytes:1000000};
     if(name==="setup_models")return {ok:true,mode:"single",backend_status:measuredBackend};
+    if(name==="discover_hugging_face_models")return {candidates:[],unavailable_repositories:[]};
     if(name==="model_catalog")return {...source,selection:standard,expert_mode:false,recommended_profiles:[standard],hardware:setupFixture.hardware,free_bytes:null,models_dir:"/models",busy:false,title_model:{...setupFixture.title_model,verified:true,present:true,partial_bytes:0},models:source.models.map(model=>({...model,verified:true,present:true,partial_bytes:0}))};
     if(name==="list_song_page")return {songs:[],total:0};
     if(name==="list_folders")return {folders:[],all:0,none:0};
@@ -112,7 +113,7 @@ it("opens the creator model chooser directly on the settings models page", async
   firstRun=false; await mount();
   fireEvent.click(await screen.findByRole("button",{name:t("picker_choose")}));
   expect(await screen.findByRole("dialog",{name:t("settings_title")})).toBeTruthy();
-  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(await screen.findByRole("table", { name: t("models_music") })).toBeTruthy();
   expect(screen.queryByRole("searchbox",{name:t("browser_search")})).toBeNull();
   expect(screen.getByRole("button",{name:t("settings_page_models")}).getAttribute("aria-current")).toBe("page");
   expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
@@ -129,7 +130,13 @@ it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten
   const dialog=await screen.findByRole("dialog",{name:t("settings_title")});
   expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
   expect(router.state.location.pathname).toBe("/studio");
-  await screen.findByRole("table");
+  await screen.findByRole("table", { name: t("models_music") });
+  fireEvent.click(screen.getByRole("button", { name: t("models_add") }));
+  const picker = await screen.findByRole("dialog", { name: t("models_add") });
+  expect(within(picker).queryByRole("button", { name: action })).toBeNull();
+  expect(within(picker).queryByText(t("desktop_manage_hint"))).toBeNull();
+  fireEvent.click(within(picker).getByRole("button", { name: t("desktop_close") }));
+  await waitFor(() => expect(picker.isConnected).toBe(false));
   expect(mocks.invoke.mock.calls.some(([name])=>["setup_models","use_models","select_models"].includes(name))).toBe(false);
   const testButton=screen.getByRole("button",{name:action});
   expect(document.getElementById(testButton.getAttribute("aria-describedby")!)?.textContent).toBe(t("desktop_manage_hint"));
