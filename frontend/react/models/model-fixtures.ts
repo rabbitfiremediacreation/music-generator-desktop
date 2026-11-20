@@ -51,3 +51,8 @@ function catalogWithProvider(id: string, available = false): ModelCatalog {
   };
 }
 
+export function catalogWithMimetic(): ModelCatalog {
+  const catalog = catalogWithProvider("mimetic-a0", true);
+  catalog.recommended_profiles.push(catalog.profiles![0].selection);
+  return catalog;
+}

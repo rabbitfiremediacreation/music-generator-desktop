@@ -143,6 +143,7 @@ mod tests {
             advanced: false,
             analysis: false,
             max_seed: None,
+            bars: None,
         }
     }
 

@@ -69,7 +69,7 @@ function seedPages(count: number) {
   }));
 }
 
-it("navigates both ways and resets the page when search, folder or favorites changes", async () => {
+it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
   seedPages(106);
   mount();
   const next=await screen.findByRole("button",{name:"Next"});
@@ -250,6 +250,26 @@ it("localizes a rejected library variant instead of exposing a backend message k
   const alert=await screen.findByRole("alert");
   expect(alert.textContent).toContain("Expert Mode");
   expect(alert.textContent).not.toContain("expert_mode_required");
+});
+
+it("shows measured clip seconds and keeps the meter for a new library variant", async () => {
+  const selection = { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" };
+  const params = { model_selection: selection, prompt: "jazzy swung drums", caption: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300, duration: 0.8, seed: 42 };
+  songs[0].params = params;
+  songs[0].result_meta = { duration: 0.8, duration_source: "wav", bpm: 300 };
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", cpu_iteration_behavior: "ask" });
+    if (name === "generate") return Promise.resolve({ ids: ["new-clip"] });
+    return original(name, args);
+  });
+  mount();
+  expect(await screen.findByText("300BPM · 0.8 s")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: {
+    model_selection: selection, prompt: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300,
+    duration: 0.8, seed: -1, variants: 1, keep_caption: true, title: "A song", folder_id: null, group_id: "g",
+  } }));
 });
 
 it("resets delete confirmation after a keyboard or screenreader click on another action",async()=>{

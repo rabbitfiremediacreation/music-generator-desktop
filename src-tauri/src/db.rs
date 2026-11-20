@@ -270,7 +270,7 @@ impl Database {
             crate::catalog::Selection::from_settings(&self.settings()?)
         };
         let capabilities = crate::catalog::capabilities(&selection)?;
-        crate::generation_limits::validate_request(req, &capabilities)?;
+        let duration = crate::generation_limits::validate_request(req, &capabilities)?;
         if req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
             || req.bpm > 300
             || req.seed.checked_add(req.variants as i64).is_none()
@@ -303,6 +303,7 @@ impl Database {
             req.lyrics.trim()
         };
         let mut params = serde_json::to_value(req)?;
+        params["duration"] = json!(duration);
         if let Some(profile) = profile {
             params["generation_profile"] = serde_json::to_value(profile)?;
         }

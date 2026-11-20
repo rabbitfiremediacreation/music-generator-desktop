@@ -126,6 +126,9 @@ pub fn supervise() -> Option<i32> {
     });
     loop {
         if let Ok(Some(status)) = child.try_wait() {
+            if status.code().is_none() {
+                eprintln!("Engine exited: {status}");
+            }
             return Some(status.code().unwrap_or(1));
         }
         if receive.recv_timeout(Duration::from_millis(100)).is_ok() {

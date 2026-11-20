@@ -184,6 +184,18 @@ impl AppState {
                 )
                 .await
             }
+            "mimetic-a0" => {
+                crate::engine::mimetic::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "minimax-music3" => {
                 let platform = profile.platform(crate::hardware::inspect())?;
                 let job = crate::engine::native::WavJob {

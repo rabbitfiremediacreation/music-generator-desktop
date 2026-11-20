@@ -43,7 +43,8 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
   const verifyOnly = manual && !canInstall;
   const existing = catalog && draft && catalog.selection.provider === draft.provider && catalog.selection.synthesis === draft.synthesis && catalog.selection.language === draft.language;
   const spaceLow = !manual && !!selected && catalog?.free_bytes !== null && catalog?.free_bytes !== undefined && selected.download > 0 && selected.download + 512 * 1024 ** 2 > catalog.free_bytes;
-  const missingImport = manual && selected?.models.some(model => !model.present);
+  const missingFiles = selected?.models.some(model => !model.present);
+  const missingImport = manual && missingFiles;
   const blocked = disabled || !selected || busy || missingImport ||
     (verifyOnly ? !selected.complete || selected.filesVerified :
       !selected.valid || !selected.allowed || (!selected.compatible && !existing) || spaceLow);
@@ -75,8 +76,8 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
         <dl className="model-requirements">{!verifyOnly && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
         {metadata && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
-        {metadata && !manual && <p className="small">{t("provider_download_import_hint")}</p>}
-        {metadata && selected.models.some(model => !model.present) && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
+        {metadata && !manual && missingFiles && <p className="small">{t("provider_download_import_hint", t("provider_refresh_files"), t("picker_verify_use"))}</p>}
+        {metadata && missingFiles && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         {!verifyOnly && selected.allowed && !selected.compatible && <p className="setup-error">{t("picker_low_ram")}</p>}
         {spaceLow && <p className="setup-error">{t("browser_space_low")}</p>}
       <div className="model-download-actions">{busy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t(manual ? "provider_cancel_verification" : "picker_cancel_download")}</button>}<button type="button" className="aktion" disabled={blocked} onClick={() => state.apply(verifyOnly)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{t(actionLabel)}{!manual && selected.download > 0 && <span className="model-action-size" aria-hidden="true">{bytes(selected.download)}</span>}</button></div>

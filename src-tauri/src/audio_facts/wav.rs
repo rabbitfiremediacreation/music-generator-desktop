@@ -6,6 +6,7 @@ pub(crate) struct WavFacts {
     pub sample_rate_hz: u32,
     pub channels: u32,
     pub bits_per_sample: u32,
+    pub frames: u64,
 }
 
 fn invalid() -> crate::error::Error {
@@ -75,11 +76,13 @@ pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
     if audio_bytes == 0 || !audio_bytes.is_multiple_of(u64::from(align)) {
         return Err(invalid());
     }
+    let frames = audio_bytes / u64::from(align);
     Ok(WavFacts {
-        duration_seconds: (audio_bytes / u64::from(align)) as f64 / f64::from(rate),
+        duration_seconds: frames as f64 / f64::from(rate),
         sample_rate_hz: rate,
         channels,
         bits_per_sample: bits,
+        frames,
     })
 }
 
@@ -101,6 +104,7 @@ mod tests {
         assert_eq!(wav.sample_rate_hz, 48_000);
         assert_eq!(wav.channels, 2);
         assert_eq!(wav.bits_per_sample, 24);
+        assert_eq!(wav.frames, 2);
         assert_eq!(wav.duration_seconds, 2.0 / 48_000.0);
     }
 }

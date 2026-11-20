@@ -87,6 +87,8 @@ pub struct GenerateRequest {
     pub title: String,
     pub duration: f64,
     pub bpm: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bars: Option<u32>,
     pub keyscale: String,
     pub timesignature: String,
     pub vocal_language: String,
@@ -111,6 +113,7 @@ impl Default for GenerateRequest {
             title: String::new(),
             duration: 0.0,
             bpm: 0,
+            bars: None,
             keyscale: String::new(),
             timesignature: String::new(),
             vocal_language: String::new(),

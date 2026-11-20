@@ -74,6 +74,11 @@ fn main() {
         provider_files.sort_unstable();
         let mut expected_provider_files = Vec::new();
         if platform == "macos" && arch == "aarch64" {
+            assert!(
+                files.contains_key("mimetic-synth")
+                    && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),
+                "Mimetic A0 runtime is missing: run npm run engine:prepare"
+            );
             let pin: serde_json::Value =
                 serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))
                     .expect("Invalid audio.cpp runtime pin");

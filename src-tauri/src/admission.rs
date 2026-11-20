@@ -97,8 +97,8 @@ pub fn retry(state: &AppState, id: &str) -> Result<()> {
             let capabilities = catalog::capabilities(&selection)?;
             let mut request: GenerateRequest = serde_json::from_value(song.params)?;
             request.variants = 1;
-            if !capabilities.prompt {
-                // The library caption for a tag-based model is derived from its style tags.
+            if !capabilities.prompt || capabilities.bars.is_some() {
+                // These profiles store their composed library caption alongside the input.
                 request.caption.clear();
             }
             crate::generation_limits::validate_request(&request, &capabilities)?;
@@ -131,17 +131,10 @@ pub(crate) fn generation_policy(
             f64::from(capabilities.min_duration),
             f64::from(capabilities.max_duration),
         );
-        policy.defaults.variants = policy.defaults.variants.min(capabilities.max_variants);
+        policy.defaults.variants = 1;
         policy
     };
     policy.available = catalog::ensure_runtime(selection, &state.resources).is_ok();
-    if !capabilities.advanced {
-        policy.defaults.duration = policy.defaults.duration.clamp(
-            f64::from(capabilities.min_duration),
-            f64::from(capabilities.max_duration),
-        );
-        policy.defaults.variants = 1;
-    }
     policy.capabilities = Some(capabilities);
     policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
     policy.lm_device = settings.lm_device.clone();

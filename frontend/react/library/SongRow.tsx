@@ -41,8 +41,8 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       if (!retry) {
         const capabilities = params.generation_profile?.capabilities;
         generation.model_selection = params.model_selection ?? selection ?? undefined;
-        if (capabilities?.prompt === false) delete generation.caption;
-        const instrumental = capabilities?.instrumental === true && capabilities.lyrics === false;
+        if (capabilities?.prompt === false || params.bars !== undefined) delete generation.caption;
+        const instrumental = params.bars !== undefined || (capabilities?.instrumental === true && capabilities.lyrics === false);
         Object.assign(generation, { instrumental, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
       }
       await admission.start(generation,retry?song.id:undefined);
@@ -50,6 +50,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   };
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false,describedBy?:string) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} aria-describedby={describedBy} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
+  const durationText = duration && (song.params.bars === undefined ? audioTime(duration) : `${duration.toLocaleString(language, { maximumFractionDigits: 3 })} s`);
   const wav = songWavFormat(song);
   const wavLabel = wav && t("result_wav_format", new Intl.NumberFormat(language, { maximumFractionDigits: 3 }).format(wav.sampleRateHz / 1000), wav.channels, wav.bitsPerSample);
   const runtime = typeof meta.runtime === "string" ? meta.runtime : null;
@@ -60,7 +61,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
   const lyrics = song.status==="done" && song.lyrics!=="[Instrumental]" && typeof meta.lyrics==="string" && /[^\s\[\]]/.test(meta.lyrics.replace(/\[[^\]]*\]/g,"")) ? meta.lyrics.trim():"";
-  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,duration?audioTime(duration):null].filter(Boolean).join(" · ");
+  const info = [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,durationText].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
     aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>

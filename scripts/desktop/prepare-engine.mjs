@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
+import { prepareMimetic } from "./prepare-mimetic.mjs";
 import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
 import { magentaFolder, prepareMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
@@ -73,6 +74,7 @@ export async function prepareEngine() {
     if (platform === "windows") await copyWindowsCrt();
     await prepareTitle();
     await prepareAudioCpp(engineFolder, cache, work);
+    await prepareMimetic(engineFolder);
     if (magenta) await updateMagenta(true);
     if (platform === "linux") {
       if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());

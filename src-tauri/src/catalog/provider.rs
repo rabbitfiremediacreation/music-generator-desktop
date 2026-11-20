@@ -49,6 +49,9 @@ pub struct GenerationCapabilities {
     pub analysis: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_seed: Option<u32>,
+    /// For metered profiles, allowed counts of 4/4 bars.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bars: Option<Vec<u32>>,
 }
 
 impl GenerationCapabilities {
@@ -65,6 +68,7 @@ impl GenerationCapabilities {
             advanced: true,
             analysis: true,
             max_seed: None,
+            bars: None,
         }
     }
 }

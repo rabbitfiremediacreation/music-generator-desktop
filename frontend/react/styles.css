@@ -162,6 +162,7 @@ input[type=checkbox] { width: auto; accent-color: var(--accent); margin: 0; }
   display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums;
   pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, .5); }
 .field.adv { margin-top: 14px; }
+.clip-meter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .genrow { display: flex; gap: 12px; align-items: center; }
 .genrow .slider { flex: 1; min-width: 0; }
 .genrow .aktion.big { height: var(--slider-h); padding: 0 1.6rem; flex: none; }

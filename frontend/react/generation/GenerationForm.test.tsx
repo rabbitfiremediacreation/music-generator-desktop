@@ -12,8 +12,13 @@ import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalo
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
 const selection = { provider: "acestep", synthesis: "sft.gguf", language: "lm.gguf" };
+const clipSelection = { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" };
 const preferences = { duration: 90, bpm: 0, inference_steps: 30, lm_temperature: 1.2, variants: 2 };
 const policy: GenerationPolicy = { backend: "gpu", cpu_iteration_behavior: "ask", recommended_steps: 80, defaults: { ...preferences, inference_steps: 80 } };
+const clipPolicy: GenerationPolicy = { ...policy, available: true, capabilities: {
+  prompt: true, lyrics: false, lyrics_required: false, instrumental: true, bpm: true, advanced: false, analysis: false,
+  min_duration: 0, max_duration: 16, max_variants: 1, bars: [1, 2, 4],
+} };
 let requests: Generation[];
 let currentPolicy: GenerationPolicy;
 beforeEach(() => {
@@ -84,6 +89,54 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+it("computes a clip from 4/4 bars and BPM and blocks submissions over 16 seconds", async () => {
+  currentPolicy = clipPolicy;
+  const { container } = mount({ selection: clipSelection });
+  const description = await screen.findByRole("textbox", { name: "Beschreibung" });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(true);
+  expect(screen.queryByRole("slider", { name: "Länge" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Stil" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  const bars = screen.getByRole<HTMLSelectElement>("combobox", { name: "Takte (4/4)" });
+  expect([...bars.options].map(option => option.value)).toEqual(["1", "2", "4"]);
+  const bpm = screen.getByRole("spinbutton", { name: "BPM" });
+  expect(screen.getByText("Länge: 2 s")).toBeTruthy();
+  fireEvent.change(description, { target: { value: "boom bap drum loop" } });
+  fireEvent.change(bars, { target: { value: "4" } });
+  fireEvent.change(bpm, { target: { value: "59" } });
+  expect(screen.getByText(/maximal 16 Sekunden/)).toBeTruthy();
+  expect(generate.disabled).toBe(true);
+  fireEvent.submit(container.querySelector("form")!);
+  expect(requests).toHaveLength(0);
+  fireEvent.change(bpm, { target: { value: "60.5" } });
+  expect(generate.disabled).toBe(true);
+  fireEvent.change(bpm, { target: { value: "60" } });
+  expect(screen.getByText("Länge: 16 s")).toBeTruthy();
+  expect(generate.disabled).toBe(false);
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "123" } });
+  fireEvent.submit(container.querySelector("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toEqual({
+    model_selection: clipSelection, title: "", folder_id: null, instrumental: true, lyrics: "",
+    prompt: "boom bap drum loop", bars: 4, bpm: 60, duration: 16, variants: 1, seed: 123, keep_caption: true,
+  });
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
+});
+it("restores the saved clip meter and seed from a library item", async () => {
+  currentPolicy = clipPolicy;
+  const song = { id: "clip", title: "Bass loop", seed: 123, params: {
+    model_selection: clipSelection, prompt: "finger bass in A minor", bars: 2, bpm: 95, duration: 480 / 95,
+  } } as Song;
+  mount({ selection: clipSelection, reuse: { song, revision: 1 } });
+  const description = await screen.findByRole<HTMLTextAreaElement>("textbox", { name: "Beschreibung" });
+  await waitFor(() => expect(description.value).toBe("finger bass in A minor"));
+  expect(screen.getByRole<HTMLSelectElement>("combobox", { name: "Takte (4/4)" }).value).toBe("2");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "BPM" }).value).toBe("95");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value).toBe("123");
+  expect(screen.getByText("Länge: 5,053 s")).toBeTruthy();
+});
+
 it("submits a MAGNeT prompt at the checkpoint's fixed duration", async () => {
   const profile = catalogWithAudioCraft(true).profiles!.find(item => item.selection.synthesis === "magnet-small-30secs")!;
   currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { boundedDuration } from "../generation-limits";
+import { DEFAULT_CLIP_BPM, MAX_CLIP_BPM, boundedDuration, clipSeconds } from "../generation-limits";
 import type { ActiveGenerationProfile, Folder, Generation, Queue } from "../types";
 import { AuthenticationError, pairingToken, readConnection, rememberConnection, releaseMedia, RemoteApi, type FolderList, type SongCard } from "./client";
 import { QrScanner } from "./QrScanner";
@@ -226,7 +226,7 @@ export function App() {
           {(song.status === "queued" || song.status === "running") && <button className="secondary" type="button" disabled={Boolean(action)} onClick={() => void cancelSong(song)} aria-label={`${t("cancel")}: ${song.title}`}>{t("cancel")}</button>}
         </div>
       </article>)}</div>
-    </section><div hidden={page !== "create"}><CreateForm active={page === "create"} api={api} folders={folders.folders} t={t} onQueued={() => { setToast("sent"); setRevision(value => value + 1); }} /></div>
+    </section><div hidden={page !== "create"}><CreateForm active={page === "create"} api={api} folders={folders.folders} language={language} t={t} onQueued={() => { setToast("sent"); setRevision(value => value + 1); }} /></div>
     <details className="connection-details"><summary>{t("connection")}</summary><p className="fine">{window.location.host}</p><label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label><p className="fine">{t("keyTip")}</p>{storageError && <p className="fine" role="status">{t("storageDenied")}</p>}<button className="secondary" type="button" onClick={() => disconnect()}>{t("disconnect")}</button></details>
     <details className="install-details"><summary>{t("installTitle")}</summary><p className="fine">{t("installIos")}</p>{installPrompt && <button className="secondary" type="button" onClick={() => { void installPrompt.prompt().then(() => installPrompt.userChoice).finally(() => setInstallPrompt(null)); }}>{t("install")}</button>}</details>
     <nav className="bottom-nav" aria-label="Music Generator"><button className={page === "library" ? "selected" : ""} type="button" aria-current={page === "library" ? "page" : undefined} onClick={() => setPage("library")}><Icon name="library" />{t("library")}</button><button className={page === "create" ? "selected" : ""} type="button" aria-current={page === "create" ? "page" : undefined} onClick={() => setPage("create")}><Icon name="create" />{t("create")}</button></nav>
@@ -246,16 +246,22 @@ function NewFolder({ api, t, disabled, onCreated, onError }: { api: RemoteApi; t
   return <><button className="icon-button" type="button" disabled={disabled} aria-label={t("newFolder")} onClick={() => setOpen(value => !value)}>+</button>{open && <form className="new-folder" onSubmit={event => void submit(event)}><input aria-label={t("folderName")} autoFocus value={name} onChange={event => setName(event.target.value)} maxLength={100} required /><button className="secondary" disabled={pending} type="submit">{t("save")}</button><button className="icon-button" type="button" aria-label={t("cancel")} onClick={() => setOpen(false)}>×</button></form>}</>;
 }
 
-function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; api: RemoteApi; folders: Folder[]; t: Translate; onQueued: () => void }) {
+function CreateForm({ active, api, folders, language, t, onQueued }: { active: boolean; api: RemoteApi; folders: Folder[]; language: Language; t: Translate; onQueued: () => void }) {
   const [pending, setPending] = useState(false), [analyzing, setAnalyzing] = useState(false), [error, setError] = useState<string | null>(null), [notice, setNotice] = useState(false);
   const [draft, setDraft] = useState({ title: "", prompt: "", style: "", lyrics: "", instrumental: true, duration: "90", bpm: 0, variants: 1, folder_id: "", seed: "" });
+  const [meter, setMeter] = useState({ bars: 1, tempo: DEFAULT_CLIP_BPM });
   const [snapshot, setSnapshot] = useState<{ api: RemoteApi; profile: ActiveGenerationProfile }>();
   const [profileError, setProfileError] = useState<string | null>(null), [refresh, setRefresh] = useState(0);
   const profile = snapshot?.api === api ? snapshot.profile : undefined;
   const abilities = profile?.capabilities;
+  const barOptions = abilities?.bars?.length ? abilities.bars : undefined;
+  const bars = barOptions?.find(count => count === meter.bars) ?? barOptions?.[0];
+  const clipDuration = bars === undefined ? undefined : clipSeconds(bars, meter.tempo);
+  const clipTooLong = clipDuration !== undefined && abilities !== undefined && clipDuration > abilities.max_duration;
   const maxVariants = Math.min(8, abilities?.max_variants ?? 1);
   const instrumental = !abilities?.lyrics || (abilities.instrumental && draft.instrumental);
-  const incomplete = (!abilities?.prompt && !draft.style.split(",").some(tag => tag.trim())) ||
+  const incomplete = (barOptions && (!draft.prompt.trim().replace(/^,+|,+$/g, "").trim() || clipDuration === undefined || clipTooLong)) ||
+    (!abilities?.prompt && !draft.style.split(",").some(tag => tag.trim())) ||
     (abilities?.lyrics_required && (!draft.lyrics.trim() || /^\[instrumental\]$/i.test(draft.lyrics.trim())));
   const file = useRef<HTMLInputElement>(null);
   const durationBounds = useRef("");
@@ -270,7 +276,7 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
         if (!mounted) return;
         const { min_duration, max_duration } = profile.capabilities;
         const bounds = `${min_duration}:${max_duration}`;
-        if (durationBounds.current !== bounds) {
+        if (!profile.capabilities.bars?.length && durationBounds.current !== bounds) {
           durationBounds.current = bounds;
           setDraft(draft => ({ ...draft, duration: String(boundedDuration(Number(draft.duration) || 90, profile.capabilities)) }));
         }
@@ -290,13 +296,19 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
     event.preventDefault(); if (pending || analyzing || incomplete || profileError || !profile?.available || !abilities) return;
     setPending(true); setError(null); setNotice(false);
     const request: Generation = {
-      model_selection: profile.selection, title: draft.title, style: draft.style, lyrics: instrumental ? "" : draft.lyrics,
+      model_selection: profile.selection, title: draft.title, lyrics: instrumental ? "" : draft.lyrics,
       instrumental: abilities.instrumental && instrumental,
-      duration: Number(draft.duration), variants: Math.min(maxVariants, draft.variants),
+      duration: clipDuration ?? Number(draft.duration), variants: Math.min(maxVariants, draft.variants),
       folder_id: draft.folder_id || null, keep_caption: true,
     };
     if (abilities.prompt) request.prompt = draft.prompt;
-    if (abilities.bpm) request.bpm = draft.bpm;
+    if (bars !== undefined) {
+      request.bars = bars;
+      request.bpm = Number(meter.tempo);
+    } else {
+      request.style = draft.style;
+      if (abilities.bpm) request.bpm = draft.bpm;
+    }
     if (!abilities.advanced) request.seed = draft.seed === "" ? -1 : Number(draft.seed);
     try { await api.write("/api/generate", "POST", request); onQueued(); }
     catch (reason) { if (!isAborted(reason) && !(reason instanceof AuthenticationError)) setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -321,17 +333,32 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
     {profile?.available === false && <p className="notice" role="status">{t("profileUnavailable")}</p>}
     {abilities && <fieldset disabled={pending || analyzing || Boolean(profileError) || !profile?.available}>
       <Field title={t("title")}><input value={draft.title} placeholder={t("titleHint")} onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} /></Field>
-      {abilities.prompt && <Field title={t("prompt")}><textarea rows={3} value={draft.prompt} placeholder={t("promptHint")} onChange={event => setDraft(value => ({ ...value, prompt: event.target.value }))} /></Field>}
-      <Field title={t(abilities.prompt ? "style" : "styleTags")}><input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} /></Field>
-      {abilities.lyrics && abilities.instrumental && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
+      {abilities.prompt && <Field title={t(barOptions ? "clipDescription" : "prompt")}><textarea rows={3} required={Boolean(barOptions)} value={draft.prompt} placeholder={t(barOptions ? "clipDescriptionHint" : "promptHint")} onChange={event => setDraft(value => ({ ...value, prompt: event.target.value }))} /></Field>}
+      {!barOptions && <Field title={t(abilities.prompt ? "style" : "styleTags")}><input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} /></Field>}
+      {abilities.lyrics && abilities.instrumental && !barOptions && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
       {!instrumental && <Field title={t("lyrics")}><textarea rows={4} required={abilities.lyrics_required} value={draft.lyrics} onChange={event => setDraft(value => ({ ...value, lyrics: event.target.value }))} /></Field>}
       <div className="field-grid">
-        <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} readOnly={abilities.min_duration === abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
-        {abilities.bpm && <Field title={t("bpm")}><input type="number" min={0} max={300} required value={draft.bpm} onChange={event => setDraft(value => ({ ...value, bpm: Number(event.target.value) }))} /></Field>}
+        {barOptions ? <>
+          <Field title={t("clipBars")}>
+            <select value={bars} onChange={event => setMeter({ ...meter, bars: Number(event.target.value) })}>
+              {barOptions.map(count => <option key={count}>{count}</option>)}
+            </select>
+          </Field>
+          <Field title={t("clipBpm")}>
+            <input type="number" min={1} max={MAX_CLIP_BPM} required value={meter.tempo} onChange={event => setMeter({ ...meter, tempo: event.target.value })} />
+          </Field>
+        </> : <>
+          <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} readOnly={abilities.min_duration === abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
+          {abilities.bpm && <Field title={t("bpm")}><input type="number" min={0} max={300} required value={draft.bpm} onChange={event => setDraft(value => ({ ...value, bpm: Number(event.target.value) }))} /></Field>}
+        </>}
         {maxVariants > 1 && <Field title={t("variants")}><input type="number" min={1} max={maxVariants} required value={Math.min(maxVariants, draft.variants)} onChange={event => setDraft(value => ({ ...value, variants: Number(event.target.value) }))} /></Field>}
         {!abilities.advanced && <Field title={t("seed")}><input type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} value={draft.seed} onChange={event => setDraft(value => ({ ...value, seed: event.target.value }))} /></Field>}
         <Field title={t("folder")}><select value={draft.folder_id} onChange={event => setDraft(value => ({ ...value, folder_id: event.target.value }))}><option value="">{t("unsorted")}</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></Field>
       </div>
+      {barOptions && <output className="field muted" aria-live="polite">
+        {clipDuration !== undefined && `${clipDuration.toLocaleString(language, { maximumFractionDigits: 3 })} ${t("seconds")}`}
+        {clipTooLong && <span>{t("clipTooLong").replace("{limit}", String(abilities.max_duration))}</span>}
+      </output>}
       {abilities.analysis && <details className="analyze-details"><summary>{t("analyze")}</summary><p className="fine">{t("analyzeHint")}</p><input ref={file} type="file" accept=".wav,.mp3,.flac,.m4a,.ogg,audio/*" aria-label={t("analyze")} onChange={event => void analyze(event.target.files?.[0])} /></details>}
       <button className="primary wide generate" type="submit" disabled={pending || analyzing || incomplete}>{pending ? t("loading") : analyzing ? t("analyzeBusy") : t("generate")}<Icon name="create" /></button>
     </fieldset>}

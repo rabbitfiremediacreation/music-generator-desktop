@@ -61,6 +61,9 @@ export async function engineRecipeHash(buildTarget = target) {
   const digest = createHash("sha256");
   for (const name of ["prepare-engine.mjs", "engine-source.mjs", "engine-contract.mjs", "engine-generation-limits.h", "targets.mjs", "patches/acestep-macos-compat.patch", "patches/acestep-iterations.patch", "patches/acestep-title-registry.patch", "engine-registry-test.cpp", "registry-contract.mjs"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
   digest.update(await readFile(path.join(root, "models/title-model.json")));
+  if (buildTarget.platform === "macos" && buildTarget.arch === "arm64") {
+    for (const name of ["prepare-mimetic.mjs", "mimetic-runtime/launcher.cpp", "mimetic-runtime/generate_clip.py"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+  }
   if (audioCppSupported(buildTarget)) {
     for (const name of ["models/audio-cpp-runtime.json", "scripts/desktop/prepare-audio-cpp.mjs", "scripts/desktop/audio-cpp-launcher.cpp", "src-tauri/Engine.entitlements"]) digest.update(await readFile(path.join(root, name)));
   }
@@ -84,6 +87,7 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (provenance.recipe_sha256 !== await engineRecipeHash(buildTarget)) throw new Error("Engine build recipe changed");
   const executable = buildPlatform === "windows" ? "ace-server.exe" : "ace-server";
   if (!provenance.files[executable]) throw new Error("Engine executable is missing from checksums");
+  if (buildPlatform === "macos" && buildTarget.arch === "arm64" && (!provenance.files["mimetic-synth"] || !provenance.files["mimetic-python/MIMETIC_RUNTIME.json"])) throw new Error("Mimetic A0 runtime is missing from checksums");
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
   const providerFiles = Object.keys(provenance.files).filter(file => file.startsWith(`${audioCppDirectory}/`)).sort();
   const expectedProviderFiles = audioCppSupported(buildTarget)

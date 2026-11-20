@@ -33,14 +33,14 @@ if (platform === "macos") {
   const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
   await cp(path.join(target,"music-engine-supervisor"),helper);
   const bundledEngine = path.join(app,"Contents/Resources/engine");
-  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true});
+  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true,verbatimSymlinks:true});
   if (audioCraft) {
     await run(process.execPath, [
       path.join(root, "scripts/desktop/audiocraft-runtime/prepare.mjs"),
       path.join(bundledEngine, "audiocraft"),
     ]);
   }
-  const inheritingHelpers = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth"];
+  const inheritingHelpers = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth", "mimetic-synth"];
   for (const file of await files(bundledEngine)) {
     const handle = await open(file);
     const magic = Buffer.alloc(4);

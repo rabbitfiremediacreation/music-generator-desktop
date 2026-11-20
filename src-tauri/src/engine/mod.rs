@@ -7,6 +7,7 @@ mod generation;
 pub(crate) mod heartmula;
 pub mod magenta;
 pub(crate) mod manager;
+pub(crate) mod mimetic;
 pub(crate) mod minimax_music3;
 pub mod native;
 pub mod process;
