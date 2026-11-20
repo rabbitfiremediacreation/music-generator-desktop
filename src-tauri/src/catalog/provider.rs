@@ -31,6 +31,8 @@ pub struct UpstreamSource {
     pub revision: String,
     pub license: String,
     pub license_url: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

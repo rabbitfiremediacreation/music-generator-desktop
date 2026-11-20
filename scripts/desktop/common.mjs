@@ -12,6 +12,7 @@ export const platform = process.platform === "darwin" ? "macos" : process.platfo
 export const architecture = process.arch;
 export const target = desktopTarget(platform, architecture, process.env.MUSIC_GENERATOR_LINUX_BACKEND || "vulkan");
 export const audioCppDirectory = "providers/audio.cpp";
+export const audioCppRuntime = JSON.parse(await readFile(path.join(root, "models/audio-cpp-runtime.json"), "utf8"));
 
 export function audioCppSupported(buildTarget) {
   return buildTarget.platform === "macos" && buildTarget.arch === "arm64";
@@ -86,7 +87,8 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
   const providerFiles = Object.keys(provenance.files).filter(file => file.startsWith(`${audioCppDirectory}/`)).sort();
   const expectedProviderFiles = audioCppSupported(buildTarget)
-    ? ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib", "model_specs/heartmula.json"].map(file => `${audioCppDirectory}/${file}`)
+    ? ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib", ...audioCppRuntime.model_specs.map(spec => spec.path)]
+      .map(file => `${audioCppDirectory}/${file}`).sort()
     : [];
   if (JSON.stringify(providerFiles) !== JSON.stringify(expectedProviderFiles)) throw new Error("Unexpected audio.cpp runtime inventory");
   const actual = (await files(folder)).filter(file => path.basename(file) !== "VERSION.desktop.json").map(file => path.relative(folder, file).split(path.sep).join("/")).sort();

@@ -1,19 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdir, readFile, stat } from "node:fs/promises";
+import { cp, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
-import { audioCppDirectory, audioCppSupported, download, root, run, target } from "./common.mjs";
-
-const pin = JSON.parse(await readFile(path.join(root, "models/audio-cpp-runtime.json"), "utf8"));
+import { audioCppDirectory, audioCppRuntime as pin, audioCppSupported, download, root, run, target } from "./common.mjs";
 
 export async function prepareAudioCpp(engineFolder, cache, work) {
   if (!audioCppSupported(target)) return;
 
-  const { macos_arm64_metal: archive, heartmula_spec: spec, revision } = pin;
+  const { macos_arm64_metal: archive, model_specs: specs, revision } = pin;
   const archiveFile = path.join(cache, `audio-cpp-${revision}-macos-arm64.tar.gz`);
-  const specFile = path.join(cache, `audio-cpp-${revision}-heartmula.json`);
   await download(archive.url, archiveFile, archive.sha256);
-  await download(`https://raw.githubusercontent.com/0xShug0/audio.cpp/${revision}/${spec.path}`, specFile, spec.sha256);
-  if ((await stat(archiveFile)).size !== archive.bytes || (await stat(specFile)).size !== spec.bytes) {
+  if ((await stat(archiveFile)).size !== archive.bytes) {
     throw new Error("Wrong size for pinned audio.cpp input");
   }
 
@@ -27,7 +23,12 @@ export async function prepareAudioCpp(engineFolder, cache, work) {
   await mkdir(path.join(folder, "model_specs"), { recursive: true });
   await cp(path.join(sdk, "libs/libaudiocpp.0.1.0.dylib"), library);
   await cp(path.join(sdk, "LICENSE"), path.join(folder, "LICENSE"));
-  await cp(specFile, path.join(folder, spec.path));
+  for (const spec of specs) {
+    const specFile = path.join(cache, `audio-cpp-${revision}-${path.basename(spec.path)}`);
+    await download(`https://raw.githubusercontent.com/0xShug0/audio.cpp/${revision}/${spec.path}`, specFile, spec.sha256);
+    if ((await stat(specFile)).size !== spec.bytes) throw new Error(`Wrong size for pinned audio.cpp spec: ${spec.path}`);
+    await cp(specFile, path.join(folder, spec.path));
+  }
   await run("xcrun", [
     "clang++", "-arch", "arm64", `-mmacosx-version-min=${target.minimumSystemVersion}`, "-std=c++20", "-O2",
     "-I", path.join(sdk, "include"), path.join(root, "scripts/desktop/audio-cpp-launcher.cpp"),

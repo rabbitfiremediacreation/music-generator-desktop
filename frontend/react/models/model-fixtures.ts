@@ -14,11 +14,19 @@ export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, reco
 };
 
 export function catalogWithHeartMuLa(): ModelCatalog {
+  return catalogWithProvider("heartmula");
+}
+
+export function catalogWithStableAudio(available = false): ModelCatalog {
+  return catalogWithProvider("stable-audio-3", available);
+}
+
+function catalogWithProvider(id: string, available = false): ModelCatalog {
   return {
     ...structuredClone(catalogFixture),
-    providers: source.providers.map(provider => ({ ...provider, status: "available" })),
-    profiles: source.profiles.map(profile => ({ ...profile, platforms: [], available: false, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
-    models: source.models.map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
+    providers: source.providers.filter(provider => provider.id === "ace-step" || provider.id === id).map(provider => ({ ...provider, status: "available" })),
+    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({ ...profile, platforms: available ? profile.platforms : [], available, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }
 

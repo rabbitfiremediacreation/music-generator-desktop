@@ -75,6 +75,26 @@ it("limits HeartMuLa generation to lyrics, style tags, seed and its profile dura
   });
 });
 
+it("sends a Stable Audio instrumental without lyrics controls", async () => {
+  const stableAudio: ActiveGenerationProfile = {
+    selection: { provider: "stable-audio-3", synthesis: "stable-audio-3-small-music", language: "" },
+    name: "Stable Audio 3 Small Music", available: true,
+    capabilities: { ...heartmula.capabilities, prompt: true, lyrics: false, lyrics_required: false, instrumental: true, min_duration: 5, max_duration: 120 },
+  };
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/generation-profile" ? Response.json(stableAudio) : original(path, options));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your idea" }), { target: { value: "warm piano" } });
+  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  expect((screen.getByRole("spinbutton", { name: "Length (seconds)" }) as HTMLInputElement).max).toBe("120");
+  fireEvent.click(screen.getByRole("button", { name: "Generate on computer" }));
+  await screen.findByText("Your song is in the queue.");
+  const call = request.mock.calls.find(([path]) => path === "/api/generate")!;
+  expect(JSON.parse(call[1].body)).toMatchObject({ model_selection: stableAudio.selection, prompt: "warm piano", lyrics: "", instrumental: true });
+});
+
 it("cancels a queued song through the same authenticated computer", async () => {
   const original = request.getMockImplementation()!;
   let cancelled = false;

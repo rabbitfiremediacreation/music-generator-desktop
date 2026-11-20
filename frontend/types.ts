@@ -89,6 +89,7 @@ export interface ModelAbilities {
 }
 export interface ProfileSource {
   id: string; role: string; repository: string; revision: string; license: string; license_url: string;
+  gated?: boolean;
 }
 export interface ProfilePlatform {
   os: string; arch: string; backend: string; minimum_ram_bytes: number; minimum_vram_bytes?: number | null;

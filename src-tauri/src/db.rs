@@ -297,7 +297,7 @@ impl Database {
             return Err(message("Please enter a prompt or style"));
         }
         let group = req.group_id.clone().unwrap_or_else(id);
-        let lyrics = if req.instrumental {
+        let lyrics = if req.instrumental && capabilities.lyrics {
             "[Instrumental]"
         } else {
             req.lyrics.trim()

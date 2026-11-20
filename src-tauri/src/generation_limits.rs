@@ -54,6 +54,9 @@ pub fn validate_request(
     if request.instrumental && !capabilities.instrumental {
         return Err(message("This model requires a vocal song"));
     }
+    if capabilities.instrumental && !capabilities.lyrics && !request.instrumental {
+        return Err(message("This model generates instrumental music only"));
+    }
     if !capabilities.lyrics && !request.lyrics.trim().is_empty() {
         return Err(message("This model does not support lyrics"));
     }
@@ -85,6 +88,19 @@ pub fn validate_request(
         if request.style.contains('\0') || request.lyrics.contains('\0') {
             return Err(message(
                 "Style tags and lyrics cannot contain NUL characters",
+            ));
+        }
+        let separator_bytes =
+            usize::from(!request.style.trim().is_empty() && !request.prompt.trim().is_empty()) * 2;
+        if capabilities.prompt
+            && (request.style.len() + separator_bytes + request.prompt.len()
+                > MAX_NATIVE_TEXT_BYTES
+                || request.caption.len() > MAX_NATIVE_TEXT_BYTES
+                || request.prompt.contains('\0')
+                || request.caption.contains('\0'))
+        {
+            return Err(message(
+                "Prompt and style must fit in 8 KiB of UTF-8 text without NUL characters",
             ));
         }
     }

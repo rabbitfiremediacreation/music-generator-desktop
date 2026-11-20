@@ -36,6 +36,13 @@
       "status": "available",
       "adapter": "audio.cpp",
       "source": "https://github.com/0xShug0/audio.cpp"
+    },
+    {
+      "id": "stable-audio-3",
+      "name": "Stable Audio 3",
+      "status": "available",
+      "adapter": "audio.cpp",
+      "source": "https://github.com/Stability-AI/stable-audio-3"
     }
   ],
   "profiles": [
@@ -121,6 +128,168 @@
         }
       ],
       "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-small-music",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Small Music",
+      "files": [
+        "stable-audio-3-small-music/model.safetensors",
+        "stable-audio-3-small-music/model_config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 120,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-small-music",
+          "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
+    },
+    {
+      "selection": {
+        "provider": "stable-audio-3",
+        "synthesis": "stable-audio-3-medium",
+        "language": ""
+      },
+      "name": "Stable Audio 3 Medium",
+      "files": [
+        "stable-audio-3-medium/model.safetensors",
+        "stable-audio-3-medium/model_config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+        "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json"
+      ],
+      "capabilities": {
+        "min_duration": 5,
+        "max_duration": 380,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": true,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 2147483647
+      },
+      "runtime": {
+        "name": "audio.cpp 0.9.5",
+        "revision": "61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "source": "https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE",
+        "executable": "engine/providers/audio.cpp/audiocpp_cli"
+      },
+      "upstream_sources": [
+        {
+          "id": "checkpoint",
+          "role": "checkpoint",
+          "gated": true,
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        },
+        {
+          "id": "text-encoder",
+          "role": "text_encoder",
+          "repository": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "license": "Gemma Terms of Use",
+          "license_url": "https://ai.google.dev/gemma/terms"
+        },
+        {
+          "id": "optimized",
+          "role": "optimized_reference",
+          "repository": "stabilityai/stable-audio-3-optimized",
+          "revision": "30cb2644da54bfa63275d1bc7f1fa67fc718680f",
+          "license": "Stability AI Community License",
+          "license_url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/30cb2644da54bfa63275d1bc7f1fa67fc718680f/LICENSE.md"
+        }
+      ],
+      "usage": {
+        "model_use": "stable_audio_model_use",
+        "redistribution": "stable_audio_redistribution",
+        "outputs": "stable_audio_outputs",
+        "policy_url": "https://stability.ai/use-policy"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ],
+      "acquisition": "manual"
     }
   ],
   "models": [
@@ -922,6 +1091,216 @@
         "repository": "HeartMuLa/HeartMuLaGen",
         "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
         "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 2270384940,
+      "sha256": "da85866b11b01d0694d990785f6abbd79c8064df1b0e6f8aea52935e0ef84b64",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 10341,
+      "sha256": "100776f25af5aa83f70e0c6b384de6690cb4e5ad01c24f7cfbb6524d18765f06",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-small-music",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-small-music/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-small-music",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-small-music",
+        "revision": "8bdfb53c6b0fbc62113cd571fd37373efe15fa14",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "weights",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 9222116660,
+      "sha256": "48d9c65e290e7bcd5194e0633bfc2424a59ee9683f5c2d58762d997b7d8ce0b5",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/model_config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 10360,
+      "sha256": "4f8846649df59167e1792d134acb6fc2bb7105227c5455300bad6cb107e20c88",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "model_config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/config.json",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 2540,
+      "sha256": "575334409716886ac2952f5a275ed92868deef8a0ea560258d9970a431c6fb3a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/config.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/model.safetensors",
+      "provider": "stable-audio-3",
+      "role": "dependency",
+      "family": "stable-audio-3-medium",
+      "precision": "Safetensors",
+      "estimated_bytes": 1183022944,
+      "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/model.safetensors"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 34362429,
+      "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.json"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer.model",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "SentencePiece",
+      "estimated_bytes": 4241003,
+      "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer.model"
+      }
+    },
+    {
+      "file": "stable-audio-3-medium/t5gemma-b-b-ul2/tokenizer_config.json",
+      "provider": "stable-audio-3",
+      "role": "tokenizer",
+      "family": "stable-audio-3-medium",
+      "precision": "JSON",
+      "estimated_bytes": 46437,
+      "sha256": "9546baec0dfefec0e29873edea9488ecde153f846e18c06ea48cb44587bf408f",
+      "recommended_steps": null,
+      "source": {
+        "repository": "stabilityai/stable-audio-3-medium",
+        "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+        "path": "t5gemma-b-b-ul2/tokenizer_config.json"
       }
     }
   ]
