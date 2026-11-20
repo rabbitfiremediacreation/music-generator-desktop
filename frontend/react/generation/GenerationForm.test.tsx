@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa } from "../models/model-fixtures";
+import { catalogWithNativeProfiles } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -56,10 +56,10 @@ it("generates the displayed automatic prompt with saved numeric preferences and 
   fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "A quiet lake" } });
   expect(screen.queryByText("GENERATED")).toBeNull();
 });
-it("submits only the supported HeartMuLa controls and preserves ACE-Step duration preferences", async () => {
-  const heartmula = catalogWithHeartMuLa().profiles![0];
-  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: heartmula.capabilities };
-  mount({ selection: heartmula.selection });
+it.each([["yue2", "Maximale Dauer"], ["heartmula", "Länge"]])("submits only the supported %s controls and preserves ACE-Step duration preferences", async (provider, durationLabel) => {
+  const nativeProfile = catalogWithNativeProfiles().profiles!.find(profile => profile.selection.provider === provider)!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: nativeProfile.capabilities };
+  mount({ selection: nativeProfile.selection });
   const style = await screen.findByRole("textbox", { name: "Stil-Tags" });
   const lyrics = screen.getByRole("textbox", { name: "Lyrics" });
   expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
@@ -69,15 +69,15 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   expect(generate.disabled).toBe(true);
   fireEvent.change(style, { target: { value: "soul, piano" } });
   fireEvent.change(lyrics, { target: { value: "[verse]\nThe rain is falling" } });
-  const duration = screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement;
-  expect(Number(duration.min)).toBe(heartmula.capabilities.min_duration);
-  expect(Number(duration.max)).toBe(heartmula.capabilities.max_duration);
+  const duration = screen.getByRole("slider", { name: durationLabel }) as HTMLInputElement;
+  expect(Number(duration.min)).toBe(nativeProfile.capabilities.min_duration);
+  expect(Number(duration.max)).toBe(nativeProfile.capabilities.max_duration);
   fireEvent.change(duration, { target: { value: duration.min } });
   fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "123" } });
   fireEvent.submit(generate.closest("form")!);
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toEqual({
-    model_selection: heartmula.selection, folder_id: null, title: "", style: "soul, piano",
+    model_selection: nativeProfile.selection, folder_id: null, title: "", style: "soul, piano",
     lyrics: "[verse]\nThe rain is falling", duration: Number(duration.min), seed: 123,
     variants: 1, instrumental: false, keep_caption: true,
   });

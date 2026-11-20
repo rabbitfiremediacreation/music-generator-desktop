@@ -95,6 +95,56 @@ fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_ste
 }
 
 #[test]
+fn yue2_generation_pins_only_the_backbone_and_stereo_vae() {
+    let catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "yue2")
+        .unwrap();
+    let packaged: serde_json::Value =
+        serde_json::from_str(include_str!("../../models/yue2-runtime.json")).unwrap();
+    assert_eq!(profile.runtime.revision, packaged["revision"]);
+    assert_eq!(profile.runtime.executable, "engine/yue-synth");
+    assert_eq!(
+        profile
+            .usage
+            .policy_url
+            .as_deref()
+            .unwrap()
+            .split('/')
+            .next_back(),
+        Some("MODEL_LICENSE")
+    );
+    assert_eq!(profile.capabilities.min_duration, 10);
+    assert_eq!(profile.capabilities.max_duration, 60);
+    assert!(profile.capabilities.lyrics_required);
+    assert!(!profile.capabilities.analysis);
+    let assets = catalog.required(&profile.selection).unwrap();
+    assert_eq!(
+        assets
+            .iter()
+            .map(|asset| asset.estimated_bytes)
+            .sum::<u64>(),
+        4_340_729_408
+    );
+    assert_eq!(assets.len(), 2);
+    for (asset, filename) in assets
+        .iter()
+        .zip(["YuE2-3B-Q8_0.gguf", "YuE2-Vae-F32.gguf"])
+    {
+        assert_eq!(asset.file, format!("yue2/{filename}"));
+        let source = asset.source.as_ref().unwrap();
+        assert_eq!(source.path, filename);
+        assert_eq!(source.url(), format!("https://huggingface.co/Serveurperso/YuE2-GGUF/resolve/e630f2b8f6aedf8254c3186438633c1b5eeaf80a/{filename}"));
+    }
+    let evidence = catalog::generation_profile(&profile.selection).unwrap();
+    assert_eq!(evidence.provider, "yue2");
+    assert_eq!(evidence.files.len(), assets.len());
+    assert_eq!(evidence.runtime_revision, profile.runtime.revision);
+}
+
+#[test]
 fn compatibility_uses_the_complete_profile_and_keeps_cpu_only_intel_available() {
     let mut hw = Hardware {
         ram_bytes: 8 * 1024u64.pow(3),

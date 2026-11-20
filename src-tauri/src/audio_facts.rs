@@ -52,7 +52,15 @@ pub fn record_duration(seconds: f64, params: &Value, meta: &mut Value) {
     meta.as_object_mut().unwrap().remove("duration_warning");
     if let Some(requested) = requested_duration(params) {
         meta["requested_duration"] = json!(requested);
-        if (seconds - requested).abs() > tolerance(requested) + 1e-6 {
+    }
+    let limit = meta["duration_limit"].as_f64().filter(|limit| *limit > 0.0);
+    if let Some(requested) = limit.or_else(|| requested_duration(params)) {
+        let deviation = if limit.is_some() {
+            seconds - requested
+        } else {
+            (seconds - requested).abs()
+        };
+        if deviation > tolerance(requested) + 1e-6 {
             meta["duration_warning"] = json!({
                 "code":if seconds < requested { "short_audio" } else { "long_audio" },
                 "requested_seconds":requested,"actual_seconds":seconds

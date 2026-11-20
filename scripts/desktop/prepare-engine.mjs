@@ -5,13 +5,15 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
 import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
+import { prepareYue2 } from "./prepare-yue2.mjs";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
 import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
 import { checkoutEngineSource } from "./engine-source.mjs";
 import { prepareWindowsEngine } from "./prepare-windows-engine.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
 import { verifyRegistryContract } from "./registry-contract.mjs";
-import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, target, verifyEngine } from "./common.mjs";
+import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
 
 export const engineFolder = path.join(root, "src-tauri/resources/engine");
 
@@ -53,6 +55,7 @@ export async function prepareEngine() {
     }
     if (platform === "macos") await relocateMac();
     if (platform === "windows") await copyWindowsCrt();
+    if (shipsYue2()) await prepareYue2(engineFolder, work);
     await prepareTitle();
     await prepareAudioCpp(engineFolder, cache, work);
     if (platform === "linux") {
@@ -61,7 +64,8 @@ export async function prepareEngine() {
       // Relocation changes helper bytes after their initial provenance was written.
       await recordTitle();
     }
-    await recordHashes(engineFolder, { platform, arch: architecture, backend: target.backend, revision: source.revision, source: source.url || source.repository, source_revision: source.source_revision || source.revision, archive_sha256: source.sha256 || null, max_inference_steps:iterationLimit, sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root,"scripts/desktop/engine-sandbox.mm")) : null, recipe_sha256: await engineRecipeHash() });
+    const yue2Provenance = shipsYue2() ? { yue2_revision: yue2.revision, yue2_ggml_revision: yue2.ggml_revision } : {};
+    await recordHashes(engineFolder, { platform, arch: architecture, backend: target.backend, revision: source.revision, source: source.url || source.repository, source_revision: source.source_revision || source.revision, archive_sha256: source.sha256 || null, max_inference_steps:iterationLimit, sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root,"scripts/desktop/engine-sandbox.mm")) : null, recipe_sha256: await engineRecipeHash(), ...yue2Provenance });
     await verifyEngine(engineFolder);
     console.log(`Prepared ${platform} engine ${source.revision}.`);
   } finally { await rm(work, { recursive: true, force: true }); }

@@ -36,6 +36,13 @@
       "status": "available",
       "adapter": "audio.cpp",
       "source": "https://github.com/0xShug0/audio.cpp"
+    },
+    {
+      "id": "yue2",
+      "name": "YuE2 3B",
+      "status": "available",
+      "adapter": "yue2.cpp",
+      "source": "https://github.com/ServeurpersoCom/yue2.cpp"
     }
   ],
   "profiles": [
@@ -118,6 +125,81 @@
           "arch": "aarch64",
           "backend": "metal",
           "minimum_ram_bytes": 68719476736
+        }
+      ],
+      "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "yue2",
+        "synthesis": "yue2/YuE2-3B-Q8_0.gguf",
+        "language": ""
+      },
+      "name": "YuE2 3B",
+      "files": [
+        "yue2/YuE2-3B-Q8_0.gguf",
+        "yue2/YuE2-Vae-F32.gguf"
+      ],
+      "capabilities": {
+        "min_duration": 10,
+        "max_duration": 60,
+        "max_variants": 1,
+        "prompt": false,
+        "lyrics": true,
+        "lyrics_required": true,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "upstream_sources": [
+        {
+          "id": "yue2-3b",
+          "role": "weights",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-3B/blob/1a96eca688d6ae5d7f0feb88573fec89920fcd19/LICENSE"
+        },
+        {
+          "id": "yue2-vae",
+          "role": "codec",
+          "repository": "m-a-p/YuE2-Vae",
+          "revision": "95535e72a97bc0f09b8ada125d26b4009428c0e8",
+          "license": "CC-BY-NC-4.0",
+          "license_url": "https://huggingface.co/m-a-p/YuE2-Vae/blob/95535e72a97bc0f09b8ada125d26b4009428c0e8/LICENSE"
+        },
+        {
+          "id": "yue2-qwen-tokenizer",
+          "role": "tokenizer",
+          "repository": "m-a-p/YuE2-3B",
+          "revision": "1a96eca688d6ae5d7f0feb88573fec89920fcd19",
+          "license": "Apache-2.0",
+          "license_url": "https://github.com/QwenLM/Qwen-Agent/blob/31a4d36d123688581a9e9744427272b33ce940e0/LICENSE"
+        }
+      ],
+      "runtime": {
+        "name": "yue2.cpp",
+        "revision": "e646d5228911ae1b81ac2a261115a255848ce85f",
+        "source": "https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f",
+        "license": "MIT",
+        "license_url": "https://github.com/ServeurpersoCom/yue2.cpp/blob/e646d5228911ae1b81ac2a261115a255848ce85f/LICENSE",
+        "executable": "engine/yue-synth"
+      },
+      "usage": {
+        "model_use": "CC BY-NC 4.0 covers noncommercial model use, including research and education. The creator permission applies to individuals acting in a personal creative capacity. Companies need a separate license for commercial model use.",
+        "redistribution": "Share weights noncommercially with credit to YuE2 and MAP, the original source and license, and an indication of changes including GGUF conversion and quantization. Commercial redistribution or sale of the weights requires separate permission.",
+        "outputs": "Individual creators may release, sell, and license generated songs, including to clients, without license fees or mandatory output credit. Follow MAP’s responsible-use terms and obtain the necessary rights and consent.",
+        "policy_url": "https://github.com/multimodal-art-projection/YuE/blob/cbb3b060725ddd95ac6e6237cfb709e153da5988/MODEL_LICENSE"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "metal",
+          "minimum_ram_bytes": 17179869184,
+          "minimum_vram_bytes": null
         }
       ],
       "acquisition": "download"
@@ -922,6 +1004,36 @@
         "repository": "HeartMuLa/HeartMuLaGen",
         "revision": "6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7",
         "path": "tokenizer.json"
+      }
+    },
+    {
+      "file": "yue2/YuE2-3B-Q8_0.gguf",
+      "provider": "yue2",
+      "role": "weights",
+      "family": "YuE2-3B",
+      "precision": "Q8_0",
+      "estimated_bytes": 3810232064,
+      "sha256": "41121ce97786d7795a325bcf123ca196956c03bb252c9e75384cfc1f2fc19e6b",
+      "recommended_steps": null,
+      "source": {
+        "repository": "Serveurperso/YuE2-GGUF",
+        "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
+        "path": "YuE2-3B-Q8_0.gguf"
+      }
+    },
+    {
+      "file": "yue2/YuE2-Vae-F32.gguf",
+      "provider": "yue2",
+      "role": "codec",
+      "family": "YuE2-Vae",
+      "precision": "F32",
+      "estimated_bytes": 530497344,
+      "sha256": "93e49dfb1970e89ad64cacb17cf13b5d05f6bb30ef7ed3adae3050bcb728638a",
+      "recommended_steps": null,
+      "source": {
+        "repository": "Serveurperso/YuE2-GGUF",
+        "revision": "e630f2b8f6aedf8254c3186438633c1b5eeaf80a",
+        "path": "YuE2-Vae-F32.gguf"
       }
     }
   ]

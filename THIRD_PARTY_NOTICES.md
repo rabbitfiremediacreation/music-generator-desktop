@@ -3,6 +3,7 @@
 Music Generator is distributed under the MIT license; see LICENSE.
 
 - acestep.cpp by ServeurpersoCom: https://github.com/ServeurpersoCom/acestep.cpp (MIT). Upstream licenses are preserved. Platform source revisions and Windows archive checksums are in models/manifest.json; final bundled-file checksums are in engine/VERSION.desktop.json. The macOS source build includes the project's small Objective-C++ sandbox bookmark bridge; its SHA-256 and build-recipe hash are recorded in that provenance file.
+- `yue2.cpp` by ServeurpersoCom and its GGML and yyjson dependencies are MIT-licensed. The Apple Silicon bundle includes `yue-synth` and the license texts under `engine/LICENSE-yue2*`. Source revisions are pinned in `models/yue2-runtime.json`. The linked minimp3 decoder is dedicated to the public domain under CC0 1.0. [yue2.cpp](https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f) · [minimp3 notice](https://github.com/ServeurpersoCom/yue2.cpp/blob/e646d5228911ae1b81ac2a261115a255848ce85f/vendor/minimp3/minimp3.h#L3-L8)
 - GGML and its CPU/GPU backends: https://github.com/ggml-org/ggml (MIT). See the engine's bundled license files.
 - wavesurfer.js by katspaugh and contributors: https://github.com/katspaugh/wavesurfer.js (BSD-3-Clause). Its full license is in `vendor/wavesurfer.LICENSE` in the bundled frontend assets and `static/vendor/wavesurfer.LICENSE` in the source tree.
 - qrcode-generator 1.4.4 by Kazuhiko Arase: https://github.com/kazuhikoarase/qrcode-generator (MIT). Bundled into the frontend for the phone-access QR code.
@@ -12,7 +13,7 @@ Music Generator is distributed under the MIT license; see LICENSE.
 - Microsoft WebView2 Fixed Version Runtime, Windows only: https://developer.microsoft.com/microsoft-edge/webview2/ — distributed under Microsoft's WebView2 Runtime terms. Its runtime license files remain inside the WebView2 directory. The exact download and SHA-256 are in models/webview2.json. It is not installed globally.
 - Microsoft Visual C++ runtime DLLs, Windows only: redistributed app-locally from the Visual Studio build tools' redistributable directory under Microsoft's redistribution terms.
 
-The GGUF models are downloaded separately from the pinned Hugging Face revision in models/manifest.json. Model cards and license information: https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF. Models are not included in the application download.
+ACE-Step GGUF models are downloaded separately from the pinned Hugging Face revision in models/manifest.json. Model cards and license information: https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF. Models are not included in the application download.
 
 Linux AppImage media support includes the GStreamer base/good plugins supplied by the build distribution. Additional proprietary codecs and GStreamer ugly plugins are not deliberately bundled.
 

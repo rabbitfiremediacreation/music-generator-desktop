@@ -147,6 +147,17 @@ impl AppState {
                 )
                 .await
             }
+            "yue2" => {
+                crate::engine::yue2::generate(
+                    &profile.runtime.executable(&self.resources),
+                    &self.db.root,
+                    settings,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             _ => Err(message(
                 "This model provider has no native generation adapter",
             )),

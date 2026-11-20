@@ -75,6 +75,15 @@ it("limits HeartMuLa generation to lyrics, style tags, seed and its profile dura
   });
 });
 
+it("shows a measured WAV just below one minute as 1:00", async () => {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path.startsWith("/api/pwa/library?")
+    ? Response.json({ ...library, songs: [{ ...song, duration: 59.998667 }] })
+    : original(path, options));
+  render(<App />);
+  expect(await screen.findByText("1:00 · 80 BPM")).toBeTruthy();
+});
+
 it("cancels a queued song through the same authenticated computer", async () => {
   const original = request.getMockImplementation()!;
   let cancelled = false;

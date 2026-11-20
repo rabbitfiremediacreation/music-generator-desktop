@@ -1,5 +1,6 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
@@ -32,7 +33,7 @@ if (platform === "macos") {
   for (const file of await files(bundledEngine)) {
     const bytes = await readFile(file);
     if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", yue2.executable].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));
