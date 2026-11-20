@@ -2,6 +2,91 @@ use music_generator::{db::Database, generation_limits::effective_steps, types::G
 use serde_json::json;
 
 #[test]
+fn metered_clips_store_derived_duration_and_reject_invalid_inputs() {
+    use music_generator::{catalog, generation_limits::validate_request};
+    let catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "mimetic-a0")
+        .unwrap();
+    let caps = &profile.capabilities;
+    let request = GenerateRequest {
+        model_selection: Some(profile.selection.clone()),
+        prompt: "bassline in C minor".into(),
+        bars: Some(4),
+        bpm: 60,
+        duration: 600.0,
+        seed: i64::from(u32::MAX),
+        ..Default::default()
+    };
+    assert_eq!(validate_request(&request, caps).unwrap(), 16.0);
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let id = &db.enqueue(&request).unwrap()[0];
+    let song = db.song(id).unwrap();
+    assert_eq!(song.params["duration"], 16.0);
+    assert_eq!(song.params["bars"], 4);
+    assert_eq!(song.params["bpm"], 60);
+    assert_eq!(song.params["seed"], u32::MAX);
+    let loaded = serde_json::from_value(song.params).unwrap();
+    assert_eq!(validate_request(&loaded, caps).unwrap(), 16.0);
+    assert_eq!(
+        validate_request(
+            &GenerateRequest {
+                bars: Some(1),
+                bpm: 300,
+                ..request.clone()
+            },
+            caps
+        )
+        .unwrap(),
+        0.8,
+    );
+    for invalid in [
+        GenerateRequest {
+            bpm: 59,
+            ..request.clone()
+        },
+        GenerateRequest {
+            bpm: 0,
+            ..request.clone()
+        },
+        GenerateRequest {
+            bpm: 301,
+            ..request.clone()
+        },
+        GenerateRequest {
+            bars: Some(3),
+            ..request.clone()
+        },
+        GenerateRequest {
+            bars: None,
+            ..request.clone()
+        },
+        GenerateRequest {
+            prompt: " ".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            prompt: "drums\0".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            lyrics: "verse".into(),
+            ..request.clone()
+        },
+        GenerateRequest {
+            instrumental: false,
+            ..request.clone()
+        },
+    ] {
+        assert!(validate_request(&invalid, caps).is_err(), "{invalid:?}");
+    }
+    assert!(validate_request(&request, &catalog::GenerationCapabilities::ace_step()).is_err());
+}
+
+#[test]
 fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
     use music_generator::{catalog::GenerationCapabilities, generation_limits::validate_request};
     let caps = GenerationCapabilities {
@@ -16,7 +101,10 @@ fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
         bpm: false,
         advanced: false,
         analysis: false,
+        reference_audio: false,
         max_seed: Some(u32::MAX),
+        output_kind: Default::default(),
+        bars: None,
     };
     let request = GenerateRequest {
         style: "folk, mellow".into(),

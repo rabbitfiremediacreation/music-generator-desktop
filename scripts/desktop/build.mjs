@@ -1,13 +1,18 @@
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
 import { recordTitle } from "./prepare-title.mjs";
 import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, prepareDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
+import { recordMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
-const experimental = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, desktop);
+const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, desktop);
+const audioCraft = process.argv.includes("--audiocraft");
+if (audioCraft && (platform !== "macos" || architecture !== "arm64")) {
+  throw new Error("The experimental AudioCraft bundle requires macOS arm64");
+}
 await prepareEngine(); await verifyEngine(engineFolder);
 const output = path.join(root, "release"); await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await (await import("node:fs/promises")).readFile(path.join(root,"package.json"),"utf8"));
@@ -30,14 +35,31 @@ if (platform === "macos") {
   const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
   await cp(path.join(target,"music-engine-supervisor"),helper);
   const bundledEngine = path.join(app,"Contents/Resources/engine");
-  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true});
+  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true,verbatimSymlinks:true});
+  if (audioCraft) {
+    await run(process.execPath, [
+      path.join(root, "scripts/desktop/audiocraft-runtime/prepare.mjs"),
+      path.join(bundledEngine, "audiocraft"),
+    ]);
+  }
+  const inheritingHelpers = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth", "mimetic-synth"];
   for (const file of await files(bundledEngine)) {
-    const bytes = await readFile(file);
-    if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const handle = await open(file);
+    const magic = Buffer.alloc(4);
+    try {
+      const { bytesRead } = await handle.read(magic);
+      if (bytesRead < magic.length) continue;
+    } finally { await handle.close(); }
+    if (![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(magic.readUInt32BE(0))) continue;
+    const entitlements = inheritingHelpers.includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));
+  const magenta = path.join(bundledEngine, "magenta");
+  if (await exists(magenta)) {
+    await recordMagenta(magenta);
+    await verifyMagenta(magenta);
+  }
   const { files: preparedFiles, ...provenance } = await verifyEngine(engineFolder);
   await recordHashes(bundledEngine,{...provenance,prepared_files:preparedFiles});
   await run("codesign",["--force","--sign",identity,"--entitlements",path.join(root,"src-tauri/Engine.entitlements"),helper]);
@@ -47,9 +69,10 @@ if (platform === "macos") {
   if (process.env.APPLE_SIGNING_IDENTITY && process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID) {
     console.log("Tauri signs and notarizes using the configured Apple credentials.");
   }
-  artifact = path.join(output,`${name}-macos-${architecture}.zip`);
+  const suffix = audioCraft ? "-audiocraft" : "";
+  artifact = path.join(output,`${name}-macos-${architecture}${suffix}.zip`);
   await run("ditto",["-c","-k","--sequesterRsrc","--keepParent",app,artifact]);
-  const dmg = path.join(output,`${name}-macos-${architecture}.dmg`);
+  const dmg = path.join(output,`${name}-macos-${architecture}${suffix}.dmg`);
   await createMacDiskImage(app, dmg); artifacts.push(dmg);
 } else if (platform === "windows") {
   const runtimeDir = path.join(root,"src-tauri/resources/WebView2");
@@ -86,12 +109,12 @@ if (platform === "macos") {
   await run("tar.exe",["-a","-cf",artifact,"-C",output,path.basename(portable)]);
   await rm(portable,{recursive:true,force:true});
 } else {
-  const runtime = experimental ? await prepareDiffRhythm2() : undefined;
+  const runtime = diffRhythm2 ? await prepareDiffRhythm2() : undefined;
   try {
     await run(process.execPath,[cli,"build","--bundles","appimage"]);
     const folder = path.join(target,"bundle/appimage"); const file = (await readdir(folder)).find(n=>n.endsWith(".AppImage"));
     if (!file) throw new Error("AppImage was not generated");
-    const suffix = experimental ? diffrhythm2ArtifactSuffix : desktop.artifactSuffix;
+    const suffix = diffRhythm2 ? diffrhythm2ArtifactSuffix : desktop.artifactSuffix;
     artifact = path.join(output,`${name}-${suffix}`);
     await finalizeLinux(path.join(folder,file), artifact, engineFolder, runtime?.folder);
   } finally {

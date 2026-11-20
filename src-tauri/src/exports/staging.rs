@@ -1,7 +1,7 @@
 use crate::error::Result;
 use std::path::{Path, PathBuf};
 
-/// Keep incomplete archives away from the selected file and clean them up on every exit.
+/// Keep incomplete exports away from the selected file and clean them up on every exit.
 pub(super) struct StagedExport {
     path: PathBuf,
     #[cfg(target_os = "macos")]
@@ -30,7 +30,7 @@ impl StagedExport {
                     .to_string(),
             );
             Ok(Self {
-                path: directory.join("archive.zip"),
+                path: directory.join("export.part"),
                 directory,
             })
         }

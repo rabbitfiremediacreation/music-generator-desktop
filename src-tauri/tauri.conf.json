@@ -59,6 +59,14 @@
     ],
     "resources": {
       "resources/engine/": "engine/",
+      "resources/text2midi/text2midi.py": "text2midi/text2midi.py",
+      "resources/text2midi/decoder.py": "text2midi/decoder.py",
+      "resources/text2midi/vocab_remi.json": "text2midi/vocab_remi.json",
+      "resources/text2midi/LICENSE.upstream": "text2midi/LICENSE.upstream",
+      "resources/text2midi/LICENSE.vocab": "text2midi/LICENSE.vocab",
+      "resources/text2midi/NOTICE": "text2midi/NOTICE",
+      "resources/text2midi/install.sh": "text2midi/install.sh",
+      "resources/text2midi/requirements-macos-arm64-py312.txt": "text2midi/requirements-macos-arm64-py312.txt",
       "../LICENSE": "LICENSE",
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },

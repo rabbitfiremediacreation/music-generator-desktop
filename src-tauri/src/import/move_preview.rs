@@ -7,7 +7,7 @@ use std::path::Path;
 
 pub fn preview_move(db: &Database, songs_dir: &str) -> Result<ImportPreview> {
     let source = db.settings()?.songs_dir;
-    let files = db.audio_files()?;
+    let files = db.result_files()?;
     let mut preview = ImportPreview {
         files: files.len(),
         songs_source: source.clone(),
