@@ -4,6 +4,7 @@ import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
 import { recordTitle } from "./prepare-title.mjs";
+import { recordMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
 const audioCraft = process.argv.includes("--audiocraft");
@@ -39,15 +40,24 @@ if (platform === "macos") {
       path.join(bundledEngine, "audiocraft"),
     ]);
   }
+  const inheritingHelpers = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth"];
   for (const file of await files(bundledEngine)) {
     const handle = await open(file);
     const magic = Buffer.alloc(4);
-    try { await handle.read(magic); } finally { await handle.close(); }
+    try {
+      const { bytesRead } = await handle.read(magic);
+      if (bytesRead < magic.length) continue;
+    } finally { await handle.close(); }
     if (![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(magic.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocraft-synth"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const entitlements = inheritingHelpers.includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));
+  const magenta = path.join(bundledEngine, "magenta");
+  if (await exists(magenta)) {
+    await recordMagenta(magenta);
+    await verifyMagenta(magenta);
+  }
   const { files: preparedFiles, ...provenance } = await verifyEngine(engineFolder);
   await recordHashes(bundledEngine,{...provenance,prepared_files:preparedFiles});
   await run("codesign",["--force","--sign",identity,"--entitlements",path.join(root,"src-tauri/Engine.entitlements"),helper]);

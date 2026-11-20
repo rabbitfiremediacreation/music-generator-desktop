@@ -3,7 +3,7 @@ import { backend } from "./backend";
 import { t } from "./i18n.js";
 
 export type FolderPurpose = "models" | "songs" | "import_root" | "import_songs";
-export type ExportPurpose = "export_audio" | "export_lyrics" | "export_zip";
+export type ExportPurpose = "export_audio" | "export_generated_audio" | "export_lyrics" | "export_zip";
 type Purpose = FolderPurpose | "audio_import";
 const storageKey = "dialog-folders:v1";
 

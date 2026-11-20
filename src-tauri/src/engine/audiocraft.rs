@@ -1,6 +1,6 @@
 use super::{native::WavJob, progress::Progress};
 use crate::{
-    catalog::{self, ProviderProfile, Selection},
+    catalog::ProviderProfile,
     error::{message, Result},
     types::Settings,
 };
@@ -12,15 +12,11 @@ pub(crate) async fn generate(
     resources: &Path,
     data_root: &Path,
     settings: &Settings,
-    selection: &Selection,
+    profile: &ProviderProfile,
     params: &Value,
     cancel: &CancellationToken,
     progress: impl Fn(Progress),
 ) -> Result<(Vec<u8>, String, Value)> {
-    let catalog = catalog::catalog();
-    let profile = catalog
-        .profile(selection)
-        .ok_or_else(|| message("Unknown AudioCraft profile"))?;
     let backend = &profile.platform(crate::hardware::inspect())?.backend;
     let executable = profile.runtime.executable(resources);
     let timeout = Duration::try_from_secs_f64(settings.timeout_minutes * 60.0)
@@ -74,6 +70,7 @@ fn arguments(profile: &ProviderProfile, models_dir: &str, params: &Value) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog;
     use serde_json::json;
 
     #[test]

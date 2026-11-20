@@ -11,6 +11,7 @@ Music Generator is distributed under the MIT license; see LICENSE.
 - React/React DOM, TanStack Router/Query and their bundled JavaScript dependencies, and Tailwind CSS: license texts are included in `static/vendor/frontend-dependencies.LICENSE.txt` (shipped as `vendor/frontend-dependencies.LICENSE.txt`). Exact versions are recorded in package-lock.json.
 - Microsoft WebView2 Fixed Version Runtime, Windows only: https://developer.microsoft.com/microsoft-edge/webview2/ — distributed under Microsoft's WebView2 Runtime terms. Its runtime license files remain inside the WebView2 directory. The exact download and SHA-256 are in models/webview2.json. It is not installed globally.
 - Microsoft Visual C++ runtime DLLs, Windows only: redistributed app-locally from the Visual Studio build tools' redistributable directory under Microsoft's redistribution terms.
+- Magenta RealTime 2 by Google LLC (Apache-2.0) can be bundled as the optional Apple Silicon recorder. It uses MLX, TensorFlow Lite and SentencePiece. The runtime licenses and file checksums accompany the recorder under `engine/magenta/`. The separately acquired Google model files are licensed under CC BY 4.0. See [model sources and usage](docs/magenta-realtime-2.md#license-and-attribution).
 
 The GGUF models are downloaded separately from the pinned Hugging Face revision in models/manifest.json. Model cards and license information: https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF. Models are not included in the application download.
 
@@ -29,3 +30,13 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 
 - AudioCraft 1.3.0 by Meta Platforms, Inc. and affiliates (MIT). The optional macOS arm64 bundle includes the locally patched inference code, its full MIT license and the pinned Python distribution and wheel license files. The archives and SHA-256 locks are in `scripts/desktop/audiocraft-runtime/`. [AudioCraft source and license](https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c)
 - Meta's MusicGen Small and MAGNeT Small 30s checkpoints and their EnCodec weights use CC BY-NC 4.0. The ModelPicker displays the terms before download. The shared Google T5-base encoder and SentencePiece vocabulary use Apache-2.0. These files are acquired separately using the exact source, revision, byte count and SHA-256 in `models/catalog.json`. [MusicGen Small](https://huggingface.co/facebook/musicgen-small) · [MAGNeT Small 30s](https://huggingface.co/facebook/magnet-small-30secs) · [AudioCraft weights license](https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights) · [T5-base](https://huggingface.co/google-t5/t5-base)
+
+## Optional HeartMuLa profile
+
+- audio.cpp v0.9.5 by 0xShug0 and contributors (Apache-2.0). The Apple Silicon package includes the upstream C ABI library and its license under `engine/providers/audio.cpp/`. The app supplies the launcher and uses the sandbox bookmark bridge described above. [Pinned runtime source and license](https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535) · [SDK archive and spec pins](models/audio-cpp-runtime.json)
+- HeartMuLa HNY, HeartCodec 20260123 and HeartMuLaGen (Apache-2.0). These files are acquired separately through the ModelPicker. [Model revisions and licenses](docs/model-picker.md#heartmula-3b-happy-new-year)
+
+## MiniMax-Music3 development profile
+
+- The local adapter targets audio.cpp v0.9.4 by ShugoAI LLC under Apache-2.0. [Runtime release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4) · [Runtime license](https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE)
+- The separately acquired MiniMax-Music3 GGUF weights retain the MiniMax-Music3 Community License and Acceptable Use Policy. The publisher's `LICENSE` accompanies the verified model set. The third-party release decision is pending. [Pinned GGUF weights](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/tree/46fe77f8bb395ccdbe797d784225f7b84866e7ce) · [Model license](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/blob/46fe77f8bb395ccdbe797d784225f7b84866e7ce/LICENSE) · [Distribution notes](docs/qa/issue-129/README.md)

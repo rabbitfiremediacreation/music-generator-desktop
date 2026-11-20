@@ -138,6 +138,10 @@ impl Catalog {
     ) -> Result<()> {
         self.required(selection)?;
         if let Some(profile) = self.profile(selection) {
+            profile.ensure_released()?;
+            if profile.expert_only && !expert_mode {
+                return Err(message("expert_mode_required"));
+            }
             if let Some(hardware) = hardware {
                 profile.platform(hardware)?;
             }
@@ -162,26 +166,47 @@ impl Catalog {
         else {
             return Vec::new();
         };
-        self.basic_models
-            .synthesis
+        let ace_step = self.basic_models.synthesis.iter().filter_map(|synthesis| {
+            self.basic_models.language[..=limit]
+                .iter()
+                .rev()
+                .find_map(|language| {
+                    let selection = Selection {
+                        provider: "ace-step".into(),
+                        synthesis: synthesis.clone(),
+                        language: language.clone(),
+                    };
+                    let models = self.required(&selection).ok()?;
+                    (!models
+                        .iter()
+                        .any(|m| self.expert_families.contains(&m.family))
+                        && memory_bytes(&models) <= hardware.ram_bytes)
+                        .then_some(selection)
+                })
+        });
+        let native = self
+            .profiles
             .iter()
-            .filter_map(|synthesis| {
-                self.basic_models.language[..=limit]
-                    .iter()
-                    .rev()
-                    .find_map(|language| {
-                        let selection = Selection {
-                            provider: "ace-step".into(),
-                            synthesis: synthesis.clone(),
-                            language: language.clone(),
-                        };
-                        let models = self.required(&selection).ok()?;
-                        (!models
-                            .iter()
-                            .any(|m| self.expert_families.contains(&m.family))
-                            && memory_bytes(&models) <= hardware.ram_bytes)
-                            .then_some(selection)
-                    })
+            .filter(|profile| {
+                !profile.expert_only
+                    && profile.ensure_released().is_ok()
+                    && profile.platform(hardware).is_ok()
+            })
+            .map(|profile| profile.selection.clone());
+        ace_step.chain(native).collect()
+    }
+
+    /// Keep hardware-compatible profiles discoverable while limiting recommendations to this build's runtimes.
+    pub fn recommendations_for_build(
+        &self,
+        hardware: &Hardware,
+        resources: &Path,
+    ) -> Vec<Selection> {
+        self.recommended_profiles(hardware)
+            .into_iter()
+            .filter(|selection| {
+                self.profile(selection)
+                    .is_none_or(|profile| profile.ensure_runtime(resources, hardware).is_ok())
             })
             .collect()
     }
@@ -191,7 +216,7 @@ impl Catalog {
             if profile.files.is_empty()
                 || !self.providers.iter().any(|provider| {
                     provider.id == selection.provider
-                        && provider.status == "available"
+                        && matches!(provider.status.as_str(), "available" | "preview")
                         && provider.adapter.is_some()
                 })
             {
@@ -301,14 +326,11 @@ pub async fn install_profile(
     let manual = catalog
         .profile(selection)
         .is_some_and(|profile| profile.acquisition == Acquisition::Manual);
-    if manual && models.iter().any(|model| !root.join(&model.file).is_file()) {
-        return Err(message(
-            "Place all imported model files in the model folder before verifying",
-        ));
+    if manual {
+        verify_imported_files(db, root, &models, cancel, &progress).await?;
+        return activate_installed(db, &mut settings, selection, cancel);
     }
-    if !manual {
-        tokio::fs::create_dir_all(root).await?;
-    }
+    tokio::fs::create_dir_all(root).await?;
     let missing: u64 = models
         .iter()
         .filter(|m| !root.join(&m.file).is_file())
@@ -331,16 +353,7 @@ pub async fn install_profile(
     let mut verifier = ModelVerifier::open(&db.root);
     for model in models {
         let pinned = model.download();
-        if manual {
-            crate::download::verify_model(
-                &root.join(&model.file),
-                &pinned,
-                &mut verifier,
-                cancel,
-                &progress,
-            )
-            .await?;
-        } else if let Some(source) = &model.source {
+        if let Some(source) = &model.source {
             crate::download::download_pinned_model(
                 &client,
                 &source.url(),
@@ -364,11 +377,74 @@ pub async fn install_profile(
             .await?;
         }
     }
+    activate_installed(db, &mut settings, selection, cancel)
+}
+
+/// Verify a manual import independently of whether its runtime can run on this device.
+pub async fn verify_manual_profile(
+    catalog: &Catalog,
+    db: &crate::db::Database,
+    selection: &Selection,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
+    if !catalog
+        .profile(selection)
+        .is_some_and(|profile| profile.acquisition == Acquisition::Manual)
+    {
+        return Err(message("This profile does not use local import"));
+    }
+    let settings = db.settings()?;
+    verify_imported_files(
+        db,
+        Path::new(&settings.models_dir),
+        &catalog.required(selection)?,
+        cancel,
+        &progress,
+    )
+    .await
+}
+
+async fn verify_imported_files(
+    db: &crate::db::Database,
+    root: &Path,
+    models: &[Asset],
+    cancel: &CancellationToken,
+    progress: &impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
     if cancel.is_cancelled() {
         return Err(crate::error::Error::Cancelled);
     }
-    selection.apply(&mut settings)?;
-    db.save_settings(&settings)
+    if models.iter().any(|model| !root.join(&model.file).is_file()) {
+        return Err(message(
+            "Place all imported model files in the model folder before verifying",
+        ));
+    }
+    let mut verifier = ModelVerifier::open(&db.root);
+    for model in models {
+        crate::download::verify_model(
+            &root.join(&model.file),
+            &model.download(),
+            &mut verifier,
+            cancel,
+            progress,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+fn activate_installed(
+    db: &crate::db::Database,
+    settings: &mut Settings,
+    selection: &Selection,
+    cancel: &CancellationToken,
+) -> Result<()> {
+    if cancel.is_cancelled() {
+        return Err(crate::error::Error::Cancelled);
+    }
+    selection.apply(settings)?;
+    db.save_settings(settings)
 }
 
 /// Conservative weight footprint plus runtime/OS headroom; duration can require more.

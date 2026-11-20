@@ -280,12 +280,24 @@ impl Database {
         {
             return Err(message("Invalid generation parameters"));
         }
-        let caption = crate::generation_limits::caption(req);
+        let caption = [
+            req.style.trim().trim_matches(','),
+            req.prompt.trim().trim_matches(','),
+        ]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
+        let caption = if caption.is_empty() {
+            req.caption.trim().to_string()
+        } else {
+            caption
+        };
         if caption.is_empty() {
             return Err(message("Please enter a prompt or style"));
         }
         let group = req.group_id.clone().unwrap_or_else(id);
-        let lyrics = if req.instrumental {
+        let lyrics = if req.instrumental && capabilities.lyrics {
             "[Instrumental]"
         } else {
             req.lyrics.trim()

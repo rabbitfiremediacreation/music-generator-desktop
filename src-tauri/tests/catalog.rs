@@ -226,9 +226,18 @@ fn audiocraft_profiles_stay_out_of_automatic_and_legacy_selection() {
     let catalog = catalog::catalog();
     let recommended = catalog.recommended_profiles(&hardware);
     assert!(!recommended.is_empty());
-    assert!(recommended
-        .iter()
-        .all(|profile| profile.provider == "ace-step"));
+    for name in ["musicgen-small", "magnet-small-30secs"] {
+        let profile = audiocraft_selection(name);
+        assert!(!recommended.contains(&profile));
+        assert_eq!(
+            catalog
+                .ensure_allowed(&profile, false, Some(&hardware))
+                .unwrap_err()
+                .to_string(),
+            "expert_mode_required"
+        );
+        catalog.ensure_allowed(&profile, true, None).unwrap();
+    }
     assert_eq!(Selection::from_settings(&settings), selection());
     let profile = audiocraft_selection("musicgen-small");
     profile.apply(&mut settings).unwrap();

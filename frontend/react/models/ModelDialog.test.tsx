@@ -1,13 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import source from "../../../models/catalog.json";
 import { setLang } from "../../i18n.js";
 import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa } from "./model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -20,6 +19,7 @@ async function open() {
 it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
   const catalog = catalogWithHeartMuLa();
   const heartmula = catalog.profiles![0];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
@@ -33,6 +33,7 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
   expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
   expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
   expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
   expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
@@ -42,16 +43,8 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
 });
 
 it("lists both AudioCraft NC profiles and downloads only the one explicitly confirmed", async () => {
-  const catalog = structuredClone(catalogFixture);
-  catalog.providers.push(...source.providers.filter(provider => provider.id === "audiocraft")
-    .map(provider => ({ ...provider, status: "available" as const })));
-  const profiles = source.profiles.filter(profile => profile.selection.provider === "audiocraft");
-  const magnet = profiles.find(profile => profile.selection.synthesis === "magnet-small-30secs")!;
-  catalog.profiles = profiles.map(profile => ({ ...profile, platforms: [], available: true }));
-  catalog.models.push(...source.models.filter(model => model.provider === "audiocraft").map(model => ({
-    ...model, role: model.role as ModelCatalog["models"][number]["role"],
-    verified: false, present: false, partial_bytes: 0,
-  })));
+  const catalog = catalogWithAudioCraft(true);
+  const magnet = catalog.profiles!.find(profile => profile.selection.synthesis === "magnet-small-30secs")!;
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
   mountControls();
@@ -60,15 +53,131 @@ it("lists both AudioCraft NC profiles and downloads only the one explicitly conf
   fireEvent.click(dialog.getByRole("button", { name: "MAGNeT Small 30s · CC BY-NC 4.0" }));
   expect(dialog.getByRole("link", { name: "facebook/magnet-small-30secs" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "google-t5/t5-base" })).toBeTruthy();
-  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen des Herausgebers" }).getAttribute("href")).toBe(magnet.usage.policy_url);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(magnet.usage.policy_url);
   expect(dialog.getByText(/nichtkommerzielle Nutzung mit Namensnennung/)).toBeTruthy();
   expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Modelldateien neu einlesen" })).toBeTruthy();
   expect(dialog.queryByRole("link", { name: "facebook/musicgen-small" })).toBeNull();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
-  fireEvent.click(dialog.getByRole("button", { name: /Herunterladen und verwenden/i }));
+  const download = dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement;
+  expect(download.disabled).toBe(false);
+  fireEvent.click(download);
   await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", {
     selection: { provider: "audiocraft", synthesis: "magnet-small-30secs", language: "" },
   }));
+});
+
+it("discloses the Magenta weight license, attribution, output terms and import path before acquisition", async () => {
+  const catalog = catalogWithMagenta(true);
+  const profile = catalog.profiles![0];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles: catalog.recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expect(dialog.getByRole("link", { name: "google/magenta-realtime-2" }).getAttribute("href")).toContain(profile.upstream_sources[0].revision);
+  expect(dialog.getByRole("link", { name: "CC BY 4.0" })).toBeTruthy();
+  expect(dialog.getByText(/Bei Weitergabe der Gewichte oder Änderungen Google LLC nennen/)).toBeTruthy();
+  expect(dialog.getByText(/Google beansprucht keine Rechte an erzeugter Musik/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(profile.usage.policy_url);
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("note").textContent).toMatch(/Lücken in der Aufnahme/);
+  expect((dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement).disabled).toBe(false);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows the Stable Audio conditions and verifies imported files without activating an untested profile", async () => {
+  const catalog = catalogWithStableAudio();
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    if (name === "verify_imported_models") {
+      for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.verified = true;
+      return;
+    }
+    return invoke(name, args);
+  });
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expect(dialog.getByText(/Stimme den Bedingungen auf der offiziellen Hugging-Face-Modellseite zu/)).toBeTruthy();
+  expect(dialog.getByText(/Powered by Stability AI/)).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Bezugsbedingungen auf Hugging Face prüfen" }).getAttribute("href")).toBe("https://huggingface.co/stabilityai/stable-audio-3-small-music");
+  expect(dialog.getByRole("link", { name: "Gemma Terms of Use" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "stabilityai/stable-audio-3-optimized" })).toBeTruthy();
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Importierte Dateien prüfen" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection: small.selection }));
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("refreshes locally imported Stable Audio files and activates the supported profile in basic mode", async () => {
+  const catalog = catalogWithStableAudio(true);
+  const small = catalog.profiles!.find(profile => profile.name.endsWith("Small Music"))!;
+  catalog.hardware.ram_bytes = small.platforms[0].minimum_ram_bytes;
+  const recommended_profiles = [standard, small.selection];
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "get_settings") return { ...saved(), expert_mode: false, recommended_profiles };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  const activate = dialog.getByRole("button", { name: "Importierte Dateien prüfen und verwenden" }) as HTMLButtonElement;
+  expect(activate.disabled).toBe(true);
+  for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(activate.disabled).toBe(false));
+  fireEvent.click(activate);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: small.selection }));
+  await waitFor(() => expect(screen.getByLabelText("selection").textContent).toBe(small.selection.synthesis));
+});
+
+it("verifies the pinned MiniMax import with the license visible and keeps the active model", async () => {
+  let catalog = catalogWithMiniMax();
+  const { selection } = catalog.profiles![0];
+  const license = catalog.models.find(model => model.provider === selection.provider && model.role === "license")!;
+  for (const file of catalog.models.filter(model => model.provider === selection.provider)) {
+    file.present = file !== license;
+  }
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "verify_imported_models") {
+      expect(args.selection).toEqual(selection);
+      catalog = { ...catalog, models: catalog.models.map(model => model.provider === selection.provider ? { ...model, verified: true } : model) };
+      return;
+    }
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: "MiniMax-Music3" }));
+  expect(dialog.getByRole("link", { name: "MiniMaxAI/MiniMax-Music3" }).getAttribute("href")).toContain("/tree/1b525ccb");
+  expect(dialog.getByRole("link", { name: "audio-cpp/MiniMax-Music3-GGUF" }).getAttribute("href")).toContain("/tree/46fe77f8");
+  expect(dialog.getByRole("link", { name: "MiniMax-Music3-GGUF/LICENSE" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toContain("/blob/1b525ccb");
+  expect(dialog.getByText(/Die Freigabe wartet auf Schutzmaßnahmen/)).toBeTruthy();
+  const verify = dialog.getByRole("button", { name: "Importierte Dateien prüfen" }) as HTMLButtonElement;
+  expect(verify.disabled).toBe(true);
+  catalog = { ...catalog, models: catalog.models.map(model => model === license ? { ...license, present: true } : model) };
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(verify.disabled).toBe(false));
+  fireEvent.click(verify);
+  await waitFor(() => expect(verify.textContent).toBe("Importierte Dateien geprüft"));
+  expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection });
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "use_models")).toBe(false);
+  expect(screen.getByLabelText("selection").textContent).toBe(standard.synthesis);
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {

@@ -35,7 +35,7 @@ export interface Song {
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
-  params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
+  params: Generation & { generation_profile?: { capabilities?: Partial<ModelAbilities> } }; result_meta: Record<string, unknown> | null; file: string | null;
   audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
@@ -76,7 +76,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
 }
 
@@ -89,6 +89,7 @@ export interface ModelAbilities {
 }
 export interface ProfileSource {
   id: string; role: string; repository: string; revision: string; license: string; license_url: string;
+  gated?: boolean;
 }
 export interface ProfilePlatform {
   os: string; arch: string; backend: string; minimum_ram_bytes: number; minimum_vram_bytes?: number | null;
@@ -100,6 +101,7 @@ export interface CatalogProfile {
   runtime: { name: string; revision: string; source: string; license: string; license_url: string };
   usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string };
   platforms: ProfilePlatform[];
+  runtime_note?: string;
   available: boolean; unavailable_reason?: string | null;
 }
 export interface ActiveGenerationProfile {
@@ -107,7 +109,7 @@ export interface ActiveGenerationProfile {
   available: boolean; unavailable_reason?: string | null;
 }
 export interface CatalogModel {
-  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer"; family: string;
+  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer" | "config" | "license"; family: string;
   precision: string; estimated_bytes: number; sha256: string; recommended_steps: number | null; suggested_steps?: number | null;
   verified: boolean; present: boolean; partial_bytes: number;
   source?: { repository: string; revision: string; path: string } | null;
@@ -120,7 +122,7 @@ export interface ModelCatalog {
   basic_models: { synthesis: string[]; language: string[] };
   recommended_profiles: ModelSelection[];
   profiles?: CatalogProfile[];
-  providers: { id: string; name: string; status: "available" | "planned"; adapter: string | null; source: string }[];
+  providers: { id: string; name: string; status: "available" | "planned" | "preview"; adapter: string | null; source: string }[];
   selection: ModelSelection; hardware: Bootstrap["hardware"]; free_bytes: number | null;
   model_profiles?: Record<string, ModelSelection>;
   models_dir: string; busy: boolean;

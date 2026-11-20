@@ -14,7 +14,9 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
       <div><dt>{t("provider_runtime")}</dt><dd><ProfileLink url={profile.runtime.source}>{profile.runtime.name}</ProfileLink>{" "}<code>{profile.runtime.revision}</code> · <ProfileLink url={profile.runtime.license_url}>{profile.runtime.license}</ProfileLink></dd></div>
       {profile.upstream_sources.map(source => <div key={source.id}>
         <dt>{t(`provider_source_${source.role}`)}</dt>
-        <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink></dd>
+        <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink>
+          {source.gated && <> · <ProfileLink url={`https://huggingface.co/${source.repository}`}>{t("provider_review_download_terms")}</ProfileLink></>}
+        </dd>
       </div>)}
       <div><dt>{t("provider_model_use")}</dt><dd>
         {t(profile.usage.model_use)}
@@ -31,6 +33,7 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
         </li>)}</ul> : t("provider_no_tested_platforms")}
       </dd></div>
     </dl>
+    {profile.runtime_note && <p className="small" role="note">{t(profile.runtime_note)}</p>}
     {!profile.available && <p className="setup-error" role="status">{t(profile.unavailable_reason || "provider_unavailable")}</p>}
   </section>;
 }

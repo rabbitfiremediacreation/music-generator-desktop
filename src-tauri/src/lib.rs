@@ -161,6 +161,7 @@ pub fn run() {
             audio_import::pick_and_analyze_audio,
             model_commands::model_catalog,
             model_commands::use_models,
+            model_commands::verify_imported_models,
             model_commands::select_models,
             model_commands::download_title_model,
             model_commands::cancel_model_download
