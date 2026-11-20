@@ -351,3 +351,18 @@ it("keeps the loaded song after a rejected deletion or a filtered library refres
   fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));await screen.findByText("Nothing yet");
   expect(document.querySelector("#pTitle")!.textContent).toBe("A song");expect(waveform.destroy).not.toHaveBeenCalled();
 });
+
+it("rounds a duration-limited WAV at the displayed second", async () => {
+  songs[0].params = { duration: 60 };
+  songs[0].result_meta = { duration: 59.998667, duration_source: "wav", duration_limit: 60 };
+  mount();
+  expect(await screen.findByText("1:00")).toBeTruthy();
+});
+
+it("shows the supplied lyrics for a YuE2 song", async () => {
+  songs[0].engine = "yue2";
+  songs[0].lyrics = "[Verse]\nI hear the ocean roar";
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Lyrics" }));
+  expect(screen.getByText(/I hear the ocean roar/)).toBeTruthy();
+});

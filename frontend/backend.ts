@@ -23,8 +23,12 @@ export const backend = {
   estimate: (request: SetupRequest) => command<{ missing_bytes: number; free_bytes: number }>("setup_estimate", { request }),
   cancelSetup: () => command<void>("cancel_setup"),
   modelCatalog: () => command<ModelCatalog>("model_catalog"),
+  discoverHuggingFaceModels: () => command<import("./types").HuggingFaceDiscovery>("discover_hugging_face_models"),
+  adoptHuggingFaceModel: (pin: import("./types").HuggingFacePin, draft: ModelSelection) =>
+    command<ModelSelection>("adopt_hugging_face_model", { pin, draft }),
   downloadTitleModel: () => command<void>("download_title_model"),
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
+  removeModel: (target: import("./types").ModelRemoval) => command<void>("remove_model", { target }),
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),
   verifyImportedModels: (selection: ModelSelection) => command<void>("verify_imported_models", { selection }),
   cancelModelDownload: () => command<void>("cancel_model_download"),

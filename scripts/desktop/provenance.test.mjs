@@ -54,8 +54,13 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
       max_inference_steps: manifest.engines.macos.max_inference_steps,
       sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
       recipe_sha256: await engineRecipeHash(macos),
+      yue2_revision: yue2.revision,
+      yue2_ggml_revision: yue2.ggml_revision,
     };
     await writeFile(path.join(work, "ace-server"), "test engine");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /YuE2 runner is missing/);
+    await writeFile(path.join(work, yue2.executable), "test YuE2 runner");
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
     await writeFile(path.join(work, "mimetic-synth"), "test launcher");
@@ -91,26 +96,3 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
   } finally { await rm(work, { recursive: true, force: true }); }
 });
-
-async function macosFixture(work) {
-  const macos = desktopTarget("macos", "arm64");
-  const metadata = {
-    platform: macos.platform, arch: macos.arch, revision: manifest.engines.macos.revision,
-    max_inference_steps: manifest.engines.macos.max_inference_steps,
-    recipe_sha256: await engineRecipeHash(macos),
-    sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
-    yue2_revision: yue2.revision,
-    yue2_ggml_revision: yue2.ggml_revision,
-  };
-  const yue2Runner = path.join(work, yue2.executable);
-  const audioCpp = path.join(work, audioCppDirectory);
-  const heartmulaSpec = path.join(audioCpp, "model_specs", "heartmula.json");
-  await writeFile(path.join(work, "ace-server"), "test engine");
-  await writeFile(yue2Runner, "test YuE2 runner");
-  await mkdir(path.dirname(heartmulaSpec), { recursive: true });
-  for (const file of ["audiocpp_cli", "libaudiocpp.0.dylib", "LICENSE"]) {
-    await writeFile(path.join(audioCpp, file), "test resource");
-  }
-  await writeFile(heartmulaSpec, "test resource");
-  return { macos, metadata, yue2Runner, audioCpp, heartmulaSpec };
-}

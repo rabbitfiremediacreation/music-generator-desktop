@@ -13,6 +13,7 @@ fn arguments(
     spec: &Path,
     backend: &str,
     capabilities: &GenerationCapabilities,
+    sfx: bool,
     params: &Value,
 ) -> Result<Vec<String>> {
     let prompt = params["caption"]
@@ -28,6 +29,12 @@ fn arguments(
         .as_u64()
         .ok_or_else(|| message("Missing Stable Audio 3 seed"))?;
 
+    let prompt = prompt.trim().replace('|', ",");
+    let text = if sfx {
+        prompt
+    } else {
+        format!("TrackType: Music, VocalType: Instrumental, {prompt}")
+    };
     Ok(vec![
         "--task".into(),
         "gen".into(),
@@ -40,11 +47,7 @@ fn arguments(
         "--model-spec-override".into(),
         spec.to_string_lossy().into(),
         "--text".into(),
-        // Keep the published instrumental tags and reserve pipes for runtime batching.
-        format!(
-            "TrackType: Music, VocalType: Instrumental, {}",
-            prompt.trim().replace('|', ",")
-        ),
+        text,
         "--request-option".into(),
         format!("duration_sec={seconds}"),
         "--session-option".into(),
@@ -82,13 +85,13 @@ pub(crate) async fn generate(
     let checkpoint = catalog::required(&profile.selection)?
         .into_iter()
         .find(|asset| {
-            asset
-                .source
-                .as_ref()
-                .is_some_and(|source| source.path == "model.safetensors")
+            asset.role == "weights"
+                && asset.source.as_ref().is_some_and(|source| {
+                    source.path == "model.safetensors" || source.path.ends_with(".gguf")
+                })
         })
         .ok_or_else(|| message("Missing Stable Audio 3 checkpoint pin"))?;
-    // Passing the verified file forces the safetensors layout when a GGUF is also nearby.
+    // Pass the verified checkpoint itself so neighboring files cannot change which format is loaded.
     let model = model_folder.join(checkpoint.file);
     let spec = executable
         .parent()
@@ -107,6 +110,7 @@ pub(crate) async fn generate(
         &spec,
         &platform.backend,
         &profile.capabilities,
+        checkpoint.family == "stable-audio-3-small-sfx",
         params,
     )?;
     let (audio, format, mut meta) = job
@@ -156,8 +160,30 @@ mod tests {
             Path::new("model_specs/stable_audio.json"),
             "metal",
             &capabilities(max_duration),
+            false,
             params,
         )
+    }
+
+    #[test]
+    fn the_sfx_route_uses_the_pinned_gguf_and_keeps_its_prompt() {
+        let args = arguments(
+            Path::new("stable-audio-3-small-sfx/stable-audio-3-small-sfx-q8_0.gguf"),
+            Path::new("model_specs/stable_audio.json"),
+            "metal",
+            &capabilities(10),
+            true,
+            &serde_json::json!({"caption": "oncoming train", "duration": 7, "seed": 2}),
+        )
+        .unwrap();
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--text", "oncoming train"]));
+        assert!(args.windows(2).any(|pair| pair
+            == [
+                "--model",
+                "stable-audio-3-small-sfx/stable-audio-3-small-sfx-q8_0.gguf"
+            ]));
     }
 
     #[test]

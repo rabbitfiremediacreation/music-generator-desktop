@@ -66,7 +66,7 @@ it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers
   expect(screen.getByRole("checkbox", { name: t("expert_mode") })).toBeTruthy();
   expect(screen.queryByRole("spinbutton")).toBeNull();
   expect(callbacks.onClose).not.toHaveBeenCalled();
-  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(await screen.findByRole("table", { name: t("models_music") })).toBeTruthy();
   expect(screen.queryByRole("searchbox")).toBeNull();
   expect(screen.queryByRole("button", { name: t("picker_choose") })).toBeNull();
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -144,14 +144,21 @@ it("retains failed draft edits, blocks duplicate submissions and supports an exp
   expect(mocks.saveSettings).toHaveBeenLastCalledWith({ timeout_minutes: 75 });
 });
 
-it("saves a changed CPU iteration preference and keeps live labels reactive", async () => {
+it("changes language immediately in Appearance and preserves other settings drafts", async () => {
   mocks.settings.mockResolvedValue({ ...settings, cpu_iteration_behavior: "continue" });
   render(view());
   const behavior = await screen.findByRole("combobox", { name: t("cpu_behavior_label") });
   expect((behavior as HTMLSelectElement).value).toBe("continue");
   fireEvent.change(behavior, { target: { value: "limit_30" } });
-  await act(async () => setLang("de"));
+  goTo("appearance");
+  const language = screen.getByRole<HTMLSelectElement>("combobox", { name: "Language" });
+  expect(language.value).toBe("en");
+  fireEvent.change(language, { target: { value: "de" } });
   expect(screen.getByRole("heading", { name: "Einstellungen" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Sprache" })).toBe(language);
+  expect(localStorage.getItem("ui_lang")).toBe("de");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  goTo("generation");
   expect((screen.getByRole("combobox", { name: t("cpu_behavior_label") }) as HTMLSelectElement).value).toBe("limit_30");
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ cpu_iteration_behavior: "limit_30" }));

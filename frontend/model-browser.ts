@@ -1,8 +1,12 @@
 import { modelName, modelOptions } from "./model-options";
-import type { CatalogModel, ModelCatalog, ModelSelection } from "./types";
+import type { CatalogModel, CatalogProfile, ModelCatalog, ModelSelection } from "./types";
 
 export type ModelFilter = "all" | "installed" | "recommended";
 export interface ModelFamily { id: string; name: string; variants: CatalogModel[]; recommended: boolean }
+
+export function nativeProfileFamily(profile: CatalogProfile): string {
+  return JSON.stringify([profile.selection.provider, profile.name]);
+}
 
 export function familyName(family: string): string {
   return modelName(family).replace(/sftturbo50/g, "SFT Turbo 50").split("-").map(part =>

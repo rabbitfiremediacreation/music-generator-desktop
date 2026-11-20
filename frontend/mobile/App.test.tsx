@@ -347,3 +347,12 @@ it("shows scanning without requesting camera access and accepts a pasted connect
   expect(window.localStorage.getItem(connectionKey)).toBe("pasted-key");
   expect(request.mock.calls.some(([path]) => String(path).startsWith("https://another-host.test"))).toBe(false);
 });
+
+it("shows a measured WAV just below one minute as 1:00", async () => {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path.startsWith("/api/pwa/library?")
+    ? Response.json({ ...library, songs: [{ ...song, duration: 59.998667 }] })
+    : original(path, options));
+  render(<App />);
+  expect(await screen.findByText("1:00 · 80 BPM")).toBeTruthy();
+});

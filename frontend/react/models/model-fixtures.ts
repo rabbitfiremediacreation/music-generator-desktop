@@ -2,6 +2,9 @@ import source from "../../../models/catalog.json";
 import type { CatalogModel, CatalogProfile, ModelCatalog, Settings } from "../../types";
 import { setupFixture, standard } from "../setup/fixtures";
 
+const catalogModels = source.models.map(model => ({
+  ...model, role: model.role as CatalogModel["role"], category: model.category as CatalogModel["category"],
+}));
 export const xl = { ...standard, synthesis: "acestep-v15-xl-sft-Q8_0.gguf" };
 export const turbo = { ...standard, synthesis: "acestep-v15-turbo-Q8_0.gguf" };
 export const saved = (selection = standard): Settings => ({ ...setupFixture.settings, model_provider: selection.provider, synthesis_model: selection.synthesis, lm_model: selection.language, expert_mode: true, recommended_profiles: [standard, xl] });
@@ -10,7 +13,7 @@ export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, reco
   title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 },
   providers: source.providers.filter(provider => provider.id === "ace-step").map(provider => ({ ...provider, status: "available" })),
   profiles: [],
-  models: source.models.filter(model => model.provider === "ace-step").map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: true, present: true, partial_bytes: 0 })),
+  models: catalogModels.filter(model => model.provider === "ace-step").map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
 };
 
 export function catalogWithDiffRhythm2(): ModelCatalog {
@@ -69,7 +72,7 @@ function catalogWithProvider(id: string, available = false): ModelCatalog {
       unavailable_reason: profile.release_hold,
       acquisition: profile.acquisition === "manual" ? "manual" : "download",
     })),
-    models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
+    models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], category: model.category as CatalogModel["category"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }
 
@@ -77,4 +80,11 @@ export function catalogWithMimetic(): ModelCatalog {
   const catalog = catalogWithProvider("mimetic-a0", true);
   catalog.recommended_profiles.push(catalog.profiles![0].selection);
   return catalog;
+}
+
+export function catalogWithNativeProfiles(): ModelCatalog {
+  const heartmula = catalogWithProvider("heartmula");
+  const yue2 = catalogWithProvider("yue2");
+  return { ...heartmula, providers: [...heartmula.providers, ...yue2.providers.filter(item => item.id === "yue2")],
+    profiles: [...heartmula.profiles!, ...yue2.profiles!], models: [...heartmula.models, ...yue2.models.filter(item => item.provider === "yue2")] };
 }

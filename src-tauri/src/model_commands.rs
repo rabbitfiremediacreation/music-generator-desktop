@@ -14,6 +14,30 @@ pub fn model_catalog(state: State<'_, Arc<AppState>>) -> Result<Value> {
     catalog_data(&state)
 }
 
+#[tauri::command]
+pub async fn discover_hugging_face_models(
+    state: State<'_, Arc<AppState>>,
+) -> Result<catalog::hugging_face::Discovery> {
+    let current = Selection::from_settings(&state.db.settings()?);
+    catalog::hugging_face::discover(&current).await
+}
+
+#[tauri::command]
+pub async fn adopt_hugging_face_model(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    pin: catalog::hugging_face::Pin,
+    draft: Selection,
+) -> Result<Selection> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let settings = state.db.settings()?;
+    let selection =
+        catalog::hugging_face::adopt(&state.db.root, pin, &draft, settings.expert_mode).await?;
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    Ok(selection)
+}
+
 /// Share catalog discovery between the desktop interface and MCP without starting engines.
 pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     let settings = state.db.settings()?;
@@ -151,6 +175,19 @@ pub fn select_models(
     let _ = app.emit("models-changed", ());
     state.changed(&app);
     Ok(selection)
+}
+
+#[tauri::command]
+pub fn remove_model(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    target: catalog::ModelRemoval,
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let outcome = catalog::remove_installed(&state.db, &target, || state.stop_engine());
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    outcome
 }
 
 #[tauri::command]

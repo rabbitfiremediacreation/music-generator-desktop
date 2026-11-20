@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio_util::sync::CancellationToken;
 
+pub(crate) mod hugging_face;
 mod provider;
+mod removal;
 pub use provider::*;
+pub use removal::{remove_installed, ModelRemoval};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provider {
@@ -27,6 +30,8 @@ pub struct Asset {
     pub file: String,
     pub provider: String,
     pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     pub family: String,
     pub precision: String,
     pub estimated_bytes: u64,
@@ -34,6 +39,8 @@ pub struct Asset {
     pub recommended_steps: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<AssetSource>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hf_discovered: bool,
 }
 
 impl Asset {
@@ -66,8 +73,14 @@ pub struct Catalog {
     pub profiles: Vec<ProviderProfile>,
 }
 
-pub fn catalog() -> Catalog {
+fn embedded_catalog() -> Catalog {
     serde_json::from_str(include_str!("../../models/catalog.json")).expect("embedded model catalog")
+}
+
+pub fn catalog() -> Catalog {
+    let mut catalog = embedded_catalog();
+    hugging_face::extend(&mut catalog);
+    catalog
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

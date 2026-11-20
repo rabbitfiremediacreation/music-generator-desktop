@@ -15,6 +15,79 @@ fn selection() -> Selection {
 }
 
 #[test]
+fn model_removal_protects_active_and_queued_files_and_removes_whole_inactive_profiles() {
+    use catalog::{remove_installed, ModelRemoval};
+    use std::fs;
+
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let models = root.path().join("models");
+    fs::create_dir(&models).unwrap();
+    let active = selection();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = models.to_string_lossy().into();
+    active.apply(&mut settings).unwrap();
+    db.save_settings(&settings).unwrap();
+    let queued = Selection {
+        synthesis: "acestep-v15-xl-sft-Q8_0.gguf".into(),
+        ..active.clone()
+    };
+    let queued_id = db
+        .enqueue(&GenerateRequest {
+            model_selection: Some(queued.clone()),
+            prompt: "ambient piano".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    for file in [&active.synthesis, &queued.synthesis] {
+        fs::write(models.join(file), b"weights").unwrap();
+    }
+    let active_target = ModelRemoval::File {
+        file: active.synthesis.clone(),
+    };
+    let queued_target = ModelRemoval::File {
+        file: queued.synthesis.clone(),
+    };
+    assert_eq!(
+        remove_installed(&db, &active_target, || panic!())
+            .unwrap_err()
+            .to_string(),
+        "model_remove_active"
+    );
+    assert_eq!(
+        remove_installed(&db, &queued_target, || panic!())
+            .unwrap_err()
+            .to_string(),
+        "model_remove_queued"
+    );
+    assert!(models.join(&active.synthesis).is_file());
+    assert!(models.join(&queued.synthesis).is_file());
+
+    let catalog = catalog::catalog();
+    let bundle = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "heartmula")
+        .unwrap();
+    for file in &bundle.files {
+        let path = models.join(file);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, b"weights").unwrap();
+    }
+    let part = models.join(format!("{}.part", bundle.files[0]));
+    fs::write(&part, b"unfinished").unwrap();
+    let target = ModelRemoval::Profile {
+        selection: bundle.selection.clone(),
+    };
+    remove_installed(&db, &target, || {}).unwrap();
+    assert!(bundle.files.iter().all(|file| !models.join(file).exists()));
+    assert!(!part.exists());
+    assert_eq!(db.song(&queued_id).unwrap().status, "queued");
+    remove_installed(&db, &target, || panic!()).unwrap();
+}
+
+#[test]
 fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums() {
     let catalog = catalog::catalog();
     assert!(catalog.base_url.ends_with(&catalog.revision));
@@ -453,7 +526,17 @@ async fn mulacover_local_import_keeps_the_active_profile_until_verified() {
 #[test]
 fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_step() {
     let mut s = selection();
-    assert_eq!(catalog::required(&s).unwrap().len(), 4);
+    let required = catalog::required(&s).unwrap();
+    assert_eq!(required.len(), 4);
+    let embedding = required
+        .iter()
+        .find(|asset| asset.file == "Qwen3-Embedding-0.6B-Q8_0.gguf")
+        .unwrap();
+    assert_eq!(embedding.role, "dependency");
+    assert_eq!(
+        serde_json::to_value(embedding).unwrap()["category"],
+        "embedding"
+    );
     s.synthesis = "../acestep-v15-sft-Q8_0.gguf".into();
     assert!(catalog::required(&s).is_err());
     s.synthesis = s.language.clone();
@@ -659,6 +742,55 @@ fn yue2_generation_pins_only_the_backbone_and_stereo_vae() {
     assert_eq!(evidence.provider, "yue2");
     assert_eq!(evidence.files.len(), assets.len());
     assert_eq!(evidence.runtime_revision, profile.runtime.revision);
+}
+
+#[test]
+fn yue2_quantizations_keep_separate_checkpoint_pins_and_share_the_codec() {
+    let source = catalog::catalog();
+    let profiles: Vec<_> = source
+        .profiles
+        .iter()
+        .filter(|profile| profile.selection.provider == "yue2")
+        .collect();
+    assert_eq!(profiles.len(), 4);
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = root.path().to_string_lossy().into();
+    selection().apply(&mut settings).unwrap();
+    db.save_settings(&settings).unwrap();
+    std::fs::create_dir(root.path().join("yue2")).unwrap();
+    let codec = root.path().join("yue2/YuE2-Vae-F32.gguf");
+    let mut installed = Vec::new();
+    for (precision, bytes) in [
+        ("Q8_0", 3_810_232_064),
+        ("Q6_K", 2_943_331_072),
+        ("Q5_K_M", 2_622_936_832),
+        ("BF16", 7_166_072_352),
+    ] {
+        let file = format!("yue2/YuE2-3B-{precision}.gguf");
+        let profile = profiles
+            .iter()
+            .find(|profile| profile.selection.synthesis == file)
+            .unwrap();
+        let pins = catalog::generation_profile(&profile.selection).unwrap();
+        assert_eq!(pins.files[0].file, file);
+        assert_eq!(pins.files[0].bytes, bytes);
+        assert_eq!(pins.files[1].file, "yue2/YuE2-Vae-F32.gguf");
+        if precision == "Q8_0" || precision == "Q5_K_M" {
+            std::fs::write(root.path().join(file), b"backbone").unwrap();
+            installed.push(profile.selection.clone());
+        }
+    }
+    std::fs::write(&codec, b"codec").unwrap();
+    let mut installed = installed.into_iter().peekable();
+    while let Some(selection) = installed.next() {
+        let file = root.path().join(&selection.synthesis);
+        catalog::remove_installed(&db, &catalog::ModelRemoval::Profile { selection }, || {})
+            .unwrap();
+        assert!(!file.exists());
+        assert_eq!(codec.exists(), installed.peek().is_some());
+    }
 }
 
 #[test]

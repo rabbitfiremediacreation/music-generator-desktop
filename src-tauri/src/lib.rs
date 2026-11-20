@@ -169,9 +169,12 @@ pub fn run() {
             audio_import::pick_and_analyze_audio,
             reference_audio::pick_reference_audio,
             model_commands::model_catalog,
+            model_commands::discover_hugging_face_models,
+            model_commands::adopt_hugging_face_model,
             model_commands::use_models,
             model_commands::verify_imported_models,
             model_commands::select_models,
+            model_commands::remove_model,
             model_commands::download_title_model,
             model_commands::cancel_model_download
         ])

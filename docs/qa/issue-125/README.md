@@ -6,7 +6,7 @@ Der native Loader aus audio.cpp v0.9.5 liest den offiziellen Checkpoint `HeartMu
 
 Alle zwölf heruntergeladenen Dateien mit zusammen 22.400.063.577 Bytes wurden lokal gelesen. Die Dateigrößen und SHA-256-Werte stimmten mit dem Katalog überein.
 
-Die Modellkarte und das unverändert als F32 verpackte `mula_weights/muq_linear.bias` identifizieren das von audio.cpp angebotene Q8_0-GGUF als Ableitung des früheren 3B-Checkpoints. Der Q8_0-Header von MindMuse nennt die HNY-Version und `HeartCodec-oss-20260123`. Die beiden geprüften MindMuse-Tensoren stimmen bytegenau mit den gepinnten Originalen überein. Das belegt die Herkunft dieser Tensoren. Für die vollständige Quantisierung fehlt eine reproduzierbare Attestierung auf konkrete Quellrevisionen. Die App lädt die Originaldateien. [audio.cpp-Modelllizenzen zur Runtime-Revision](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/model_licenses.md) · [audio.cpp-GGUF](https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/32c1ce1fea57a513eb9386aa62408d47b1cf7ab2/HeartMuLa-GGUF/heartmula-q8_0.gguf) · [MindMuse-GGUF](https://huggingface.co/themindstudio/HeartMuLa-GGUF/blob/b5e55eac99ff25f01608be9d2d978c00a2e8bf63/heartmula-q8_0.gguf)
+Die Modellkarte und das unverändert als F32 verpackte `mula_weights/muq_linear.bias` identifizieren das von audio.cpp angebotene Q8_0-GGUF als Ableitung des früheren 3B-Checkpoints. Der Q8_0-Header von MindMuse nennt die HNY-Version und `HeartCodec-oss-20260123`. Die beiden geprüften MindMuse-Tensoren stimmen bytegenau mit den gepinnten Originalen überein. Das belegt die Herkunft dieser Tensoren. Für die vollständige Quantisierung fehlt eine reproduzierbare Attestierung auf konkrete Quellrevisionen. Das F32-Profil lädt die Originaldateien. [audio.cpp-Modelllizenzen zur Runtime-Revision](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/model_licenses.md) · [audio.cpp-GGUF](https://huggingface.co/audio-cpp/audio.cpp-gguf/blob/32c1ce1fea57a513eb9386aa62408d47b1cf7ab2/HeartMuLa-GGUF/heartmula-q8_0.gguf) · [MindMuse-GGUF](https://huggingface.co/themindstudio/HeartMuLa-GGUF/blob/b5e55eac99ff25f01608be9d2d978c00a2e8bf63/heartmula-q8_0.gguf)
 
 | Quelle | Bytebereich für `muq_linear.bias`, inklusive Endpunkte | SHA-256 des Bereichs |
 | --- | ---: | --- |
@@ -45,6 +45,16 @@ Ein lokal ad hoc signiertes Testbundle aus den vorhandenen gepinnten ACE-Step-Re
 
 Der optionale Rust-Hardwaretest vollzieht Verifikation, Warteschlange, erneuten Auftrag, Abbruch und Export mit denselben Modelldateien nach. Er erhält den Modelle-Ordner, den Ressourcenordner und einen neuen Ausgabepfad über `MUSIC_HEARTMULA_QA_MODELS`, `MUSIC_HEARTMULA_QA_RESOURCES` und `MUSIC_HEARTMULA_QA_OUTPUT`. Das mit `cargo test --lib --no-run` gebaute Testprogramm wird neben `music-engine-supervisor` kopiert und mit `--ignored --exact jobs::heartmula_hardware::offline_queue_library_export_and_cancel --nocapture` in einer Umgebung ohne ausgehende Verbindungen aufgerufen. [Hardwaretest](../../../src-tauri/src/jobs/heartmula_hardware.rs)
 
+## GGUF-Profile
+
+Die GGUF-Profile verwenden dasselbe gepinnte audio.cpp 0.9.5 und übergeben die ausgewählte Datei direkt aus `heartmula-gguf/`. Jedes Paket enthält seinen Codec und Tokenizer. Der Hardwaretest wählt das Profil über `MUSIC_HEARTMULA_QA_PROFILE`, prüft die vollständige SHA-256 über den App-Modellinstaller und startet einen fünfsekündigen Auftrag. Er prüft den Metal-Backend-Eintrag, die Gewichtspins im gespeicherten Auftrag, ein nicht stummes 48-kHz-Stereo-PCM16-WAV und den bytegleichen WAV-Export.
+
+| Profil | Gemessene WAV-Dauer | Native Laufzeit | WAV-SHA-256 |
+| --- | ---: | ---: | --- |
+| HeartMuLa 3B Q8_0 | 5,04 s | 11,53 s | `1fd3969a5e6b43c9ad1ee1312ca5d0ecd84f7056a8dd90885c0aedbe86034e89` |
+| HeartMuLa 3B Happy New Year Q8_0 | 5,04 s | 10,10 s | `e737b7c5dce1716c3af18b3ccf6f29433b1f1aec5278eb8d6c421093f1cbb34a` |
+
+Das HNY-Q8_0-Paket ließ sich mit dem veröffentlichten GGUF-Header und den gepinnten HNY- und Codec-Safetensors vollständig bytegleich reproduzieren. Wiederholungstests in den endgültigen Katalogpfaden lieferten dieselben WAV-Prüfsummen. Beim Originalprofil reproduzierte die App die WAV-Prüfsummen aus den F32-Referenzläufen. Abbruch und Export bestanden auch mit beiden GGUFs im Modellordner.
 
 ## Weitere Plattformen und Testabdeckung
 

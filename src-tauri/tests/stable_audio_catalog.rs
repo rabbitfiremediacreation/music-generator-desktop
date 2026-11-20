@@ -52,6 +52,32 @@ fn stable_audio_variants_have_separate_pinned_imports_and_duration_limits() {
     assert!(catalog.required(&selection("optimized")).is_err());
 }
 
+#[test]
+fn stable_audio_ggufs_pin_exact_packages_for_manual_import() {
+    let catalog = catalog::catalog();
+    for (family, max_duration) in [("small-music", 120), ("medium", 380), ("small-sfx", 10)] {
+        for (slug, precision) in [("q8_0", "Q8_0"), ("f16", "F16")] {
+            let variant = selection(&format!("{family}-{slug}"));
+            let profile = catalog.profile(&variant).unwrap();
+            let files = catalog.required(&variant).unwrap();
+            assert_eq!(profile.acquisition, Acquisition::Manual);
+            assert_eq!(profile.capabilities.max_duration, max_duration);
+            assert!(profile.upstream_sources.iter().any(|source| source.gated));
+            assert_eq!(files.len(), 1);
+            let checkpoint = &files[0];
+            assert_eq!(checkpoint.role, "weights");
+            assert_eq!(checkpoint.precision, precision);
+            let source = checkpoint.source.as_ref().unwrap();
+            assert_eq!(source.repository, "audio-cpp/audio.cpp-gguf");
+            assert_eq!(
+                source.path.rsplit('/').next().unwrap(),
+                format!("{}.gguf", variant.synthesis)
+            );
+            assert_eq!(checkpoint.sha256.len(), 64);
+        }
+    }
+}
+
 #[tokio::test]
 async fn local_import_rejects_missing_changed_and_cancelled_files_without_activating() {
     let root = tempfile::tempdir().unwrap();

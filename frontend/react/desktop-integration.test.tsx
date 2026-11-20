@@ -46,6 +46,7 @@ beforeEach(() => {
     if (name === "list_folders") return { folders: [], all: 2, none: 2 };
     if (name === "queue") return { running: queueActive ? [{ id: "active", caption: "A song", message: null }] : [], queued: 0, active: queueActive, progress: null, library: { count: 2, bytes: 100 } };
     if (name === "health") return { ok: true, backend_status: backendStatus };
+    if (name === "discover_hugging_face_models") return { candidates: [], unavailable_repositories: [] };
     if (name === "generate") return { ids: ["new"] };
     if (name === "retry_song") return songs[1];
     if (name === "model_catalog") return { ...source, expert_mode: false, selection: standard, recommended_profiles: [standard], hardware: setupFixture.hardware, free_bytes: null, models_dir: "/models", busy: false, title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 }, models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })) };
@@ -119,7 +120,7 @@ it.each([false, true])("keeps generation blocked after closing an inline model o
   const dialog = await screen.findByRole("dialog", { name: t("settings_title") });
   fireEvent.click(within(dialog).getByRole("button", { name: t("models_add") }));
   const catalogDialog = await screen.findByRole("dialog", { name: t("models_add") });
-  await within(catalogDialog).findByRole("combobox", { name: t("dit") });
+  await within(catalogDialog).findByRole("group", { name: t("browser_precision") });
   fireEvent.click(within(catalogDialog).getByRole("button", { name: "XL SFT" }));
   fireEvent.click(within(catalogDialog).getByRole("button", { name: t("picker_use") }));
   await waitFor(() => expect(finish).toBeTypeOf("function"));

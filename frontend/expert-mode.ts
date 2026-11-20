@@ -26,7 +26,10 @@ export function modelLabel(file: string, expertMode: boolean): string {
 export function modelErrorText(error: unknown, translate: (key: string) => string): string {
   const raw = error instanceof Error ? error.message : String(error);
   const message = raw === "Open the ModelPicker and download or verify the selected models first" ? "model_setup_required" : raw;
-  return ["expert_mode_required", "model_setup_required", "text2midi_runtime_required"].includes(message) ? translate(message) : message;
+  return [
+    "expert_mode_required", "model_setup_required", "text2midi_runtime_required", "model_remove_active", "model_remove_queued",
+    "model_remove_unsafe", "model_remove_use_profile",
+  ].includes(message) ? translate(message) : message;
 }
 
 // Send only edits so an Expert Mode toggle can be saved during an active generation.

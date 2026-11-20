@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio } from "../models/model-fixtures";
+import { catalogWithNativeProfiles, catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -609,4 +609,33 @@ it("updates the queued announcement from backend snapshots and clears it once no
   queued = 0;
   await act(async () => { await view.client.invalidateQueries({ queryKey: ["queue"] }); });
   await waitFor(() => expect(screen.queryByText(/Song\(s\) in der Warteschlange/)).toBeNull());
+});
+
+it.each([["yue2", "Maximale Dauer"], ["heartmula", "Länge"]])("submits only the supported %s controls and preserves ACE-Step duration preferences", async (provider, durationLabel) => {
+  const nativeProfile = catalogWithNativeProfiles().profiles!.find(profile => profile.selection.provider === provider)!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: nativeProfile.capabilities };
+  mount({ selection: nativeProfile.selection });
+  const style = await screen.findByRole("textbox", { name: "Stil-Tags" });
+  const lyrics = screen.getByRole("textbox", { name: "Lyrics" });
+  expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
+  expect(screen.queryByRole("slider", { name: "Iterationen" })).toBeNull();
+  const generate = screen.getByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
+  expect(generate.disabled).toBe(true);
+  fireEvent.change(style, { target: { value: "soul, piano" } });
+  fireEvent.change(lyrics, { target: { value: "[verse]\nThe rain is falling" } });
+  const duration = screen.getByRole("slider", { name: durationLabel }) as HTMLInputElement;
+  expect(Number(duration.min)).toBe(nativeProfile.capabilities.min_duration);
+  expect(Number(duration.max)).toBe(nativeProfile.capabilities.max_duration);
+  fireEvent.change(duration, { target: { value: duration.min } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "123" } });
+  fireEvent.submit(generate.closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toEqual({
+    model_selection: nativeProfile.selection, folder_id: null, title: "", style: "soul, piano",
+    lyrics: "[verse]\nThe rain is falling", duration: Number(duration.min), seed: 123,
+    variants: 1, instrumental: false, keep_caption: true,
+  });
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

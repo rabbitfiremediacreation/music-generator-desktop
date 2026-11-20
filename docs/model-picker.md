@@ -24,6 +24,21 @@ Disabling the mode preserves an advanced selection and shows a recovery hint. En
 
 The estimate sums both selected model weights, the fixed text encoder and VAE, plus 3 GiB of OS/runtime headroom (4 GiB for XL). It does not mistake unknown VRAM for an unsupported GPU. The engine's existing CPU language-model preference/fallback remains available in Settings. A small GPU may require a smaller synthesis model; the picker does not promise automatic CPU synthesis fallback on every GPU configuration.
 
+## RAM estimates for native profiles
+
+Each native variant has its own planning estimate in [the model catalog](../models/catalog.json). The picker shows it for every selection, including profiles that need another platform. The platform section lists the RAM and VRAM thresholds used for activation. Estimates include headroom, and longer clips can increase usage. For new Hugging Face files, the estimate adjusts for the size of the replacement weights.
+
+| Model family | Estimated RAM | Basis |
+| --- | --- | --- |
+| Stable Audio 3 | Small Music and Small SFX 7–8 GiB, Medium 10–14 GiB | [Metal measurements](qa/stable-audio-3.md) for the Safetensors profiles and GGUF weight-size differences |
+| HeartMuLa | 15 GiB for Q8_0, 19 GiB for F16, 28 GiB for F32 | [Generator and codec buffers](qa/issue-125/README.md), GGUF package sizes and runtime headroom |
+| YuE2 3B | 8 GiB for Q5_K_M and Q6_K, 9 GiB for Q8_0, 13 GiB for BF16 | [Q8_0 peak RSS](#platform-and-offline-checks) and weight-size differences |
+| MuLaCover | 14 GiB for Q8_0, 19 GiB for F16 | [Q8_0 peak RSS](mulacover.md#hardware-acceptance) and the F16 weight-size difference |
+| MiniMax-Music3 | 16 GiB | [Physical peak for the 180-second Metal run](qa/issue-129/README.md) plus headroom |
+| MusicGen Small and MAGNeT Small | 9 and 10 GiB | [30-second CPU peak RSS](qa/issue-132/README.md#offline-inference) plus headroom |
+| Magenta RealTime 2 Small and Mimetic A0 | 6 and 8 GiB | [Magenta recorder RSS](magenta-realtime-2.md#hardware-acceptance), [Mimetic process footprint](mimetic-a0.md), and runtime headroom |
+| Text2midi and DiffRhythm 2 | 4 and 20 GiB | Provisional estimates from the local weight sets and runtime buffers. [DiffRhythm 2 hardware test scope](qa/issue-131/README.md) |
+
 ## Screenshots of the Creator and Settings flows
 
 Browser UI verification with **simulated Tauri responses and 16 GiB RAM**, captured on 2026-10-25. The files, download sizes and installed status shown here are test data; no model download or inference is demonstrated.
@@ -67,9 +82,22 @@ Enter your own lyrics and comma-separated style tags such as `acoustic, indie po
 
 The initial HeartMuLa profile accepts 5–30 requested seconds per vocal track and is offered on macOS arm64 with Metal and at least 64 GiB of unified memory. The tested computer and WAV measurements are recorded in the hardware acceptance report. [Hardware acceptance](qa/issue-125/README.md)
 
+Expert Mode offers the MindMuse Q8_0 package alongside the original F32 files under **HeartMuLa 3B Happy New Year**. The **HeartMuLa 3B** family contains the audio.cpp Q8_0 and F16 packages for the earlier checkpoint. Each GGUF has its own exact file pin and includes its codec and tokenizer. [MindMuse package](https://huggingface.co/themindstudio/HeartMuLa-GGUF/tree/b5e55eac99ff25f01608be9d2d978c00a2e8bf63) · [audio.cpp packages](https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/HeartMuLa-GGUF)
+
 - **Runtime.** The app uses the audio.cpp v0.9.5 C ABI and a native launcher. Audio.cpp is licensed under Apache-2.0. The app includes the upstream runtime license with the bundled library. [audio.cpp release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.5) · [Pinned runtime license](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/LICENSE)
 - **Weights and dependencies.** The native adapter reads the official F32 Safetensors in their upstream layout. The HNY generator, January 23 decoder, and tokenizer and generation configuration are Apache-2.0. [HNY checkpoint](https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B-happy-new-year/tree/41d4faafc5bde6990bf8505daa70840fb3c4a3e7) · [HeartCodec](https://huggingface.co/HeartMuLa/HeartCodec-oss-20260123/tree/58ec14fd02a123316e4fdaa9fe49fa7a902d1a6f) · [HeartMuLaGen](https://huggingface.co/HeartMuLa/HeartMuLaGen/tree/6f76e891c10ef8ae50fa6f2fb48fab783f3ce1d7)
 - **Use and redistribution.** Apache-2.0 permits local private and commercial model use. Redistribution requires the full license text, retention of applicable notices and any NOTICE, and identification of modified files. The upstream cards impose no separate output-attribution or noncommercial condition. Assess the rights to supplied lyrics and generated music separately. [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+## Additional audio.cpp 0.9.5 packages
+
+Stable Audio 3 Small Music and Medium accept the original safetensors imports or their complete F16 and Q8_0 GGUF packages. Small SFX uses those GGUFs for sound-effect prompts, with a 5–10 second range in the app. All Stable Audio profiles retain the manual import flow and link to the original download terms. Use the exact file listed under **Required files**. The app passes that verified file to the runner, including when both formats exist in the same directory.
+
+MuLaCover offers its F16 and Q8_0 GGUF packages under the same noncommercial model terms. Both remain separate local files and keep separate provenance on generated songs.
+
+- [Stable Audio 3 packages declared by the bundled engine](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/model_specs/stable_audio.json)
+- [MuLaCover formats supported by the bundled engine](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/models/mulacover.md)
+
+The same engine also documents MiDashengLM-Gen F32 and Q8_0, which use a structured prompt for speech, music and sound effects. Its request format needs a dedicated app adapter. The MiniMax preview uses the catalog's pinned component mix and retains its release hold. The Magenta recorder loads the Small model and its matching initial state by name. Mimetic A0 uses the publisher's FP16 checkpoint and casts the model to FP16 for Metal inference. Meta also publishes more MusicGen and MAGNeT checkpoints. The bundled AudioCraft runner accepts MusicGen Small and the 30-second MAGNeT Small profile and checks the codec and context length. [MiDashengLM-Gen runtime documentation](https://github.com/0xShug0/audio.cpp/blob/61c7838baf1f7f34769b5b7bd369c0d78edf9535/docs/models/midashenglm_gen.md) · [MiniMax component weights](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/tree/46fe77f8bb395ccdbe797d784225f7b84866e7ce) · [Magenta model layouts](https://github.com/magenta/magenta-realtime/blob/main/docs/models.md) · [Mimetic checkpoints](https://huggingface.co/micknoisemachine/mimetic-a0/tree/5f21e1807517cda2e6d72051cdb81dafc3931077) · [AudioCraft MAGNeT checkpoints](https://facebookresearch.github.io/audiocraft/docs/MAGNET.html)
 
 ## YuE2 3B
 

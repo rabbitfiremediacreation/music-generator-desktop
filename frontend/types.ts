@@ -84,6 +84,25 @@ export interface JobProgress {
 }
 
 export interface ModelSelection { provider: string; synthesis: string; language: string }
+export interface HuggingFacePin {
+  source: { repository: string; revision: string; path: string };
+  bytes: number;
+  sha256: string;
+}
+export interface HuggingFaceCandidate {
+  pin: HuggingFacePin;
+  provider: string;
+  role: string;
+  family: string;
+  precision: string;
+  estimated_ram_bytes?: number | null;
+  selection: ModelSelection | null;
+}
+export interface HuggingFaceDiscovery {
+  candidates: HuggingFaceCandidate[];
+  unavailable_repositories: string[];
+}
+export type ModelRemoval = { kind: "file"; file: string } | { kind: "profile"; selection: ModelSelection };
 export interface ModelAbilities {
   min_duration: number; max_duration: number; max_variants: number;
   prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
@@ -105,6 +124,7 @@ export interface ProfilePlatform {
 interface ProfileRuntimeComponent { name: string; revision: string; source: string; license: string; license_url: string }
 export interface CatalogProfile {
   selection: ModelSelection; name: string; files: string[]; capabilities: ModelAbilities;
+  estimated_ram_bytes: number;
   acquisition?: "download" | "manual";
   upstream_sources: ProfileSource[];
   runtime: ProfileRuntimeComponent & { components?: ProfileRuntimeComponent[] };
@@ -122,9 +142,11 @@ export interface ActiveGenerationProfile {
 }
 export interface CatalogModel {
   file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer" | "config" | "license"; family: string;
+  category?: "llm" | "embedding";
   precision: string; estimated_bytes: number; sha256: string; recommended_steps: number | null; suggested_steps?: number | null;
   verified: boolean; present: boolean; partial_bytes: number;
   source?: { repository: string; revision: string; path: string } | null;
+  hf_discovered?: boolean;
 }
 export interface TitleModel extends Model { verified: boolean; present: boolean; partial_bytes: number }
 export interface ModelCatalog {

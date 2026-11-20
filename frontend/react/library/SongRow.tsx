@@ -53,7 +53,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   };
   const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false,describedBy?:string) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} aria-describedby={describedBy} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
-  const durationText = duration && (song.params.bars === undefined ? audioTime(duration) : `${duration.toLocaleString(language, { maximumFractionDigits: 3 })} s`);
+  const durationText = duration && (song.params.bars === undefined ? audioTime(meta.duration_limit ? Math.round(duration) : duration) : `${duration.toLocaleString(language, { maximumFractionDigits: 3 })} s`);
   const wav = songWavFormat(song);
   const wavLabel = wav && t("result_wav_format", new Intl.NumberFormat(language, { maximumFractionDigits: 3 }).format(wav.sampleRateHz / 1000), wav.channels, wav.bitsPerSample);
   const runtime = typeof meta.runtime === "string" ? meta.runtime : null;

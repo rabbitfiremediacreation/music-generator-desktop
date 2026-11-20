@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
 import title from "../models/title-model.json";
-import { modelOptions, profile } from "./model-options";
+import { aceStepMemory, modelOptions, profile } from "./model-options";
 import type { ModelCatalog, ModelSelection } from "./types";
-import { catalogWithDiffRhythm2 } from "./react/models/model-fixtures";
+import { catalogWithDiffRhythm2, catalogWithStableAudio } from "./react/models/model-fixtures";
 
 function catalog(): ModelCatalog {
   const data = catalogWithDiffRhythm2();
@@ -54,6 +54,24 @@ it("provides turbo's eight steps without changing the caller's selection", () =>
   const s = Object.freeze({ ...selection(), synthesis: "acestep-v15-turbo-shift3-Q6_K.gguf" });
   expect(profile(c, s).steps).toBe(8);
   expect(profile(c, selection()).steps).toBe(80);
+});
+
+it("uses each native variant's RAM estimate independently of the platform threshold", () => {
+  const c = catalogWithStableAudio();
+  const gib = 1024 ** 3;
+  c.hardware.ram_bytes = 16 * gib;
+  const small = c.profiles!.find(p => p.selection.synthesis === "stable-audio-3-small-music-q8_0")!;
+  const medium = c.profiles!.find(p => p.selection.synthesis === "stable-audio-3-medium-f16")!;
+  expect(profile(c, small.selection).memory).toBe(7 * gib);
+  expect(profile(c, medium.selection).memory).toBe(12 * gib);
+  expect(profile(c, small.selection).compatible).toBe(false);
+});
+
+it("includes the current ACE-Step companion and dependencies when estimating an online variant", () => {
+  const c = catalog();
+  const selected = profile(c, selection());
+  const weight = selected.models.find(model => model.role === "synthesis")!;
+  expect(aceStepMemory(selected.models, { role: "synthesis", estimated_bytes: weight.estimated_bytes + 512 })).toBe(selected.memory + 512);
 });
 
 it("shows only recommended Standard/XL profiles and their automatic language model in simple mode", () => {

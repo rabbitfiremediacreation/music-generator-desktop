@@ -78,6 +78,6 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     {!recommendations.some(profile => profile.synthesis.includes("-xl-")) && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
     {(error || settings.error) && <div><p className="setup-error" role="alert">{modelErrorText(error || settings.error, t)}</p>{settings.isError && <button type="button" className="sek" onClick={() => void settings.refetch()}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
     {!allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
-    {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onManage={() => { setOpen(false); onManage(); }} onOpenSettings={openSettings} onRecommendedSteps={onRecommendedSteps} />}
+    {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onOpenSettings={openSettings} onRecommendedSteps={onRecommendedSteps} />}
   </>;
 }

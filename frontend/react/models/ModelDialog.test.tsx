@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
+import { catalogWithNativeProfiles, catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -30,6 +30,7 @@ it.each([false, true])("shows DiffRhythm terms before download (evaluation runne
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: diffrhythm.name }));
+  expandSources(dialog);
   expect(dialog.getByRole("heading", { name: diffrhythm.name })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "ASLP-lab/DiffRhythm2" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "OpenMuQ/MuQ-MuLan-large" })).toBeTruthy();
@@ -63,35 +64,25 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   });
   mountControls();
   const dialog = within(await open());
-  fireEvent.click(await dialog.findByRole("button", { name }));
-  expect(dialog.getByRole("heading", { name })).toBeTruthy();
-  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
-  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
-  return dialog;
-}
-
-it("shows pinned HeartMuLa sources and terms on an unsupported computer", async () => {
-  const catalog = catalogWithNativeProfiles();
-  const heartmula = catalog.profiles!.find(profile => profile.selection.provider === "heartmula")!;
-  heartmula.platforms = [];
-  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
-  const dialog = await openUnavailableProfile(catalog, heartmula.name);
+  fireEvent.click(await dialog.findByRole("button", { name: heartmula.name }));
+  const quantizations = within(dialog.getByRole("group", { name: "Quantisierung" }));
+  expect(quantizations.getByRole("radio", { name: /^F32/ })).toBeTruthy();
+  expect(quantizations.getByRole("radio", { name: /^Q8_0/ })).toBeTruthy();
+  expect(quantizations.queryByRole("radio", { name: /^F16/ })).toBeNull();
+  expandSources(dialog);
+  expect(dialog.getByRole("heading", { name: heartmula.name })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
   expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
   expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
   expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
   expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
-});
-
-it("shows the YuE2 terms on an unsupported computer without offering acquisition", async () => {
-  const catalog = catalogWithNativeProfiles();
-  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
-  const dialog = await openUnavailableProfile(catalog, yue2.name);
-  expect(dialog.getAllByRole("link", { name: "m-a-p/YuE2-3B" })).toHaveLength(2);
-  expect(dialog.getByRole("link", { name: "m-a-p/YuE2-Vae" })).toBeTruthy();
-  expect(dialog.getAllByRole("link", { name: "CC-BY-NC-4.0" })).toHaveLength(2);
-  expect(dialog.getByRole("link", { name: "Apache-2.0" })).toBeTruthy();
-  expect(dialog.getByText("Dieses Profil ist auf diesem Rechner nicht verfügbar.")).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  fireEvent.click(dialog.getByRole("button", { name: "HeartMuLa 3B" }));
+  const baseQuantizations = within(dialog.getByRole("group", { name: "Quantisierung" }));
+  expect(baseQuantizations.getByRole("radio", { name: /^Q8_0/ })).toBeTruthy();
+  expect(baseQuantizations.getByRole("radio", { name: /^F16/ })).toBeTruthy();
+  expect(baseQuantizations.queryByRole("radio", { name: /^F32/ })).toBeNull();
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
@@ -109,6 +100,7 @@ it("shows pinned Text2midi sources and permits local import in Simple Mode", asy
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expandSources(dialog);
   for (const source of profile.upstream_sources) {
     expect(dialog.getByRole("link", { name: source.repository }).getAttribute("href")).toBe(`https://huggingface.co/${source.repository}/tree/${source.revision}`);
   }
@@ -134,6 +126,7 @@ it("shows the one-time Text2midi runtime command before enabling the download", 
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expandSources(dialog);
   const command = dialog.getByRole("textbox", { name: "Einmaliger Terminalbefehl" }) as HTMLTextAreaElement;
   expect(command.readOnly).toBe(true);
   expect(command.value).toBe(profile.install_command);
@@ -179,6 +172,7 @@ it("discloses the Magenta weight license, attribution, output terms and import p
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expandSources(dialog);
   expect(dialog.getByRole("link", { name: "google/magenta-realtime-2" }).getAttribute("href")).toContain(profile.upstream_sources[0].revision);
   expect(dialog.getByRole("link", { name: "CC BY 4.0" })).toBeTruthy();
   expect(dialog.getByText(/Bei Weitergabe der Gewichte oder Änderungen Google LLC nennen/)).toBeTruthy();
@@ -207,6 +201,7 @@ it("shows the Stable Audio conditions and verifies imported files without activa
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expandSources(dialog);
   expect(dialog.getByText(/Stimme den Bedingungen auf der offiziellen Hugging-Face-Modellseite zu/)).toBeTruthy();
   expect(dialog.getByText(/Powered by Stability AI/)).toBeTruthy();
   expect(dialog.getByRole("link", { name: "Bezugsbedingungen auf Hugging Face prüfen" }).getAttribute("href")).toBe("https://huggingface.co/stabilityai/stable-audio-3-small-music");
@@ -232,6 +227,7 @@ it("refreshes locally imported Stable Audio files and activates the supported pr
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: small.name }));
+  expandSources(dialog);
   const activate = dialog.getByRole("button", { name: "Importierte Dateien prüfen und verwenden" }) as HTMLButtonElement;
   expect(activate.disabled).toBe(true);
   for (const file of catalog.models.filter(file => small.files.includes(file.file))) file.present = true;
@@ -262,6 +258,7 @@ it("verifies the pinned MiniMax import with the license visible and keeps the ac
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: "MiniMax-Music3" }));
+  expandSources(dialog);
   expect(dialog.getByRole("link", { name: "MiniMaxAI/MiniMax-Music3" }).getAttribute("href")).toContain("/tree/1b525ccb");
   expect(dialog.getByRole("link", { name: "audio-cpp/MiniMax-Music3-GGUF" }).getAttribute("href")).toContain("/tree/46fe77f8");
   expect(dialog.getByRole("link", { name: "MiniMax-Music3-GGUF/LICENSE" })).toBeTruthy();
@@ -292,6 +289,7 @@ it("shows Mimetic sources and terms, then refreshes locally imported files for v
   mountControls();
   const dialog = within(await open());
   fireEvent.click(await dialog.findByRole("button", { name: profile.name }));
+  expandSources(dialog);
   expect(dialog.getByText("1 / 2 / 4 Takte im 4/4-Takt, bis zu 16 Sekunden")).toBeTruthy();
   for (const { repository, revision } of profile.upstream_sources) {
     expect(dialog.getByRole("link", { name: repository }).getAttribute("href")).toBe(`https://huggingface.co/${repository}/tree/${revision}`);
@@ -314,6 +312,7 @@ it("discloses MuLaCover source pins and noncommercial output terms before acquis
   const dialog = within(await open());
   expect(dialog.queryByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeNull();
   fireEvent.click(await dialog.findByRole("button", { name: "MuLaCover" }));
+  expandSources(dialog);
   expect(dialog.getByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeTruthy();
   for (const source of ["HeartMuLa/MuLaCover", "HeartMuLa/HeartCodec-oss-20260123", "Qwen/Qwen3-Embedding-0.6B"]) {
     expect(dialog.getByRole("link", { name: source })).toBeTruthy();
@@ -339,8 +338,8 @@ it("does not expose advanced models when an old catalog arrives after Expert Mod
   act(() => handlers.get("settings-changed")!({ payload: undefined }));
   await waitFor(() => expect(ipc.invoke.mock.calls.filter(([name]) => name === "get_settings").length).toBe(2));
   act(() => finish(structuredClone(catalogFixture)));
-  const synthesis = await within(dialog).findByRole("combobox", { name: "Klangmodell" }) as HTMLSelectElement;
-  expect(Array.from(synthesis.options).some(option => option.value === turbo.synthesis)).toBe(false);
+  const synthesis = await within(dialog).findByRole("group", { name: "Quantisierung" }) ;
+  expect(within(synthesis).getAllByRole<HTMLInputElement>("radio").some(option => option.value === turbo.synthesis)).toBe(false);
   expect(within(dialog).queryByRole("combobox", { name: "Anbieter" })).toBeNull();
 });
 
@@ -379,7 +378,7 @@ it("preserves a later original-profile intent after a closed dialog installs ano
   const invoke = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation((name, args) => name === "use_models" ? new Promise(resolve => { finish = resolve; }) : name === "get_settings" ? Promise.resolve(settings) : invoke(name, args));
   mountControls(); const dialog = await open();
-  await within(dialog).findByRole("combobox", { name: "Klangmodell" });
+  await within(dialog).findByRole("group", { name: "Quantisierung" });
   fireEvent.click(within(dialog).getByRole("button", { name: "XL SFT" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "Auswahl verwenden" }));
   await waitFor(() => expect(typeof finish).toBe("function"));
@@ -420,8 +419,137 @@ it("shows download progress and allows cancellation without changing the durable
   await waitFor(() => expect(typeof fail).toBe("function"));
   act(() => handlers.get("model-download-progress")!({ payload: { file: "weights.gguf", phase: "downloading", downloaded: 1, total: 2, bytes_per_second: 0 } }));
   expect(await within(dialog).findByText(/weights.gguf/)).toBeTruthy();
-  expect((within(dialog).getByRole("button", { name: "Hardwaretest im Einrichtungsassistenten …" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(within(dialog).queryByRole("button", { name: "Hardwaretest im Einrichtungsassistenten …" })).toBeNull();
   fireEvent.click(within(dialog).getByRole("button", { name: "Download abbrechen" }));
   expect(await within(dialog).findByRole("alert")).toBeTruthy();
   expect(screen.getByLabelText("selection").textContent).toBe("acestep-v15-sft-Q8_0.gguf");
+});
+
+async function openUnavailableProfile(catalog: ModelCatalog, name: string) {
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return { ...saved(), expert_mode: false };
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name }));
+  expect(dialog.getByRole("heading", { name })).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  return dialog;
+}
+
+function expandSources(dialog: ReturnType<typeof within>) {
+  const summary = dialog.getByText("Quellen und Nutzung", { selector: "summary" });
+  const disclosure = summary.closest("details")!;
+  expect(disclosure.open).toBe(false);
+  disclosure.open = true;
+}
+
+it("shows pinned HeartMuLa sources and terms on an unsupported computer", async () => {
+  const catalog = catalogWithNativeProfiles();
+  const heartmula = catalog.profiles!.find(profile => profile.selection.provider === "heartmula")!;
+  heartmula.platforms = [];
+  heartmula.usage.policy_url = "https://example.com/pinned-usage-policy";
+  const dialog = await openUnavailableProfile(catalog, heartmula.name);
+  const ram = dialog.getByText("Geschätzter RAM-Bedarf", { selector: "dt" });
+  expect(ram.nextElementSibling?.textContent).toBe("28 GiB");
+  expandSources(dialog);
+  expect(dialog.getByText("Benötigte Dateien", { selector: "summary" }).closest("details")?.open).toBe(false);
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartMuLa-oss-3B-happy-new-year" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "HeartMuLa/HeartCodec-oss-20260123" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(heartmula.usage.policy_url);
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+});
+
+it("shows the YuE2 terms on an unsupported computer without offering acquisition", async () => {
+  const catalog = catalogWithNativeProfiles();
+  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+  const dialog = await openUnavailableProfile(catalog, yue2.name);
+  expandSources(dialog);
+  expect(dialog.getAllByRole("link", { name: "m-a-p/YuE2-3B" })).toHaveLength(2);
+  expect(dialog.getByRole("link", { name: "m-a-p/YuE2-Vae" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "CC-BY-NC-4.0" })).toHaveLength(2);
+  expect(dialog.getByRole("link", { name: "Apache-2.0" })).toBeTruthy();
+  expect(dialog.getByText("Dieses Profil ist auf diesem Rechner nicht verfügbar.")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it.each([false, true])("shows the YuE2 creator permission before acquisition (local files: %s)", async present => {
+  const catalog = catalogWithNativeProfiles();
+  const yue2 = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+  catalog.profiles!.filter(profile => profile.selection.provider === "yue2").forEach(profile => { profile.available = true; });
+  catalog.hardware.ram_bytes = 64 * 1024 ** 3;
+  catalog.models.forEach(model => { if (model.provider === "yue2") model.present = present; });
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: yue2.name }));
+  expect(dialog.getAllByRole("radio")).toHaveLength(4);
+  const quantization = dialog.getByRole<HTMLInputElement>("radio", { name: /^Q5_K_M/ });
+  fireEvent.click(quantization);
+  expect(quantization.checked).toBe(true);
+  expandSources(dialog);
+  expect(dialog.getByRole("link", { name: "Vollständige Gewichtslizenz und Zusatzgenehmigung" }).getAttribute("href")).toBe(yue2.usage.policy_url);
+  expect(dialog.getByText(/Unternehmen brauchen für die kommerzielle Modellnutzung eine separate Lizenz/)).toBeTruthy();
+  expect(dialog.getByText(/Einzelkreative dürfen erzeugte Songs ohne Lizenzgebühren/)).toBeTruthy();
+  expect(dialog.getByText(/Lege beim manuellen Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: present ? "Prüfen und verwenden" : "Herunterladen und verwenden" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("loads Hugging Face variants into their families and selects a pinned variant without activating it", async () => {
+  const catalog = { ...catalogWithNativeProfiles(), expert_mode: true };
+  const template = catalog.models.find(model => model.file === standard.synthesis)!;
+  const file = "acestep-v15-sft-Q5_K_M.gguf";
+  const installedFile = "acestep-v15-sft-Q5_K_M-hf-bbbbbbbbbbbbbbbb.gguf";
+  const newSelection = { ...standard, synthesis: installedFile };
+  const pin = {
+    source: { repository: "Serveurperso/ACE-Step-1.5-GGUF", revision: "a".repeat(40), path: file },
+    bytes: 1234567890, sha256: "b".repeat(64),
+  };
+  const yue = catalog.models.find(model => model.provider === "yue2" && model.role === "weights")!;
+  catalog.models = catalog.models.filter(model => model.file !== file);
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "get_settings") return { ...saved(), expert_mode: true };
+    if (name === "discover_hugging_face_models") return {
+      candidates: [
+        { pin, provider: template.provider, role: "synthesis", family: template.family, precision: "Q5_K_M", selection: null },
+        { pin: { ...pin, source: yue.source }, provider: yue.provider, role: "weights", family: yue.family, precision: "Q8_0", selection: null },
+        { pin: { ...pin, source: { ...pin.source, path: standard.synthesis } }, provider: template.provider, role: "synthesis", family: template.family, precision: "Q8_0", selection: standard },
+      ],
+      unavailable_repositories: ["audio-cpp/audio.cpp-gguf"],
+    };
+    if (name === "adopt_hugging_face_model") {
+      catalog.models.push({ ...template, file: installedFile, hf_discovered: true, source: pin.source, sha256: pin.sha256, estimated_bytes: pin.bytes, precision: "Q5_K_M", verified: false, present: false });
+      return newSelection;
+    }
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  const quantizations = () => within(dialog.getByRole("group", { name: "Quantisierung" }));
+  await dialog.findByRole("button", { name: "Prüfen und auswählen Q5_K_M" });
+  expect(quantizations().getAllByRole("button")).toHaveLength(1);
+  expect(dialog.getByText("Die Metadaten von Hugging Face sind gerade nicht erreichbar.")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "YuE2 3B" }));
+  expect(quantizations().getByRole("button", { name: "Prüfen und auswählen Q8_0" })).toBeTruthy();
+  expect(dialog.queryByRole("button", { name: "Prüfen und auswählen Q5_K_M" })).toBeNull();
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  const add = quantizations().getByRole("button", { name: "Prüfen und auswählen Q5_K_M" });
+  fireEvent.click(add);
+  await waitFor(() => expect(quantizations().queryByRole("button", { name: "Prüfen und auswählen Q5_K_M" })).toBeNull());
+  expect(ipc.invoke.mock.calls.filter(([command]) => command === "discover_hugging_face_models")).toHaveLength(1);
+  expect(ipc.invoke).toHaveBeenCalledWith("adopt_hugging_face_model", { pin, draft: standard });
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models" || command === "select_models")).toBe(false);
+  const chosen = dialog.getByRole("radio", { name: /^Q5_K_M.*Ungetestet/, checked: true }) as HTMLInputElement;
+  expect(chosen.value).toBe(installedFile);
 });

@@ -1,5 +1,5 @@
-import { useId, useState, type ReactNode } from "react";
-import { familyName, familySelection, modelFamilies, type ModelFilter } from "../../model-browser";
+import { useId, useRef, useState, type ReactNode } from "react";
+import { familyName, familySelection, modelFamilies, nativeProfileFamily, type ModelFilter } from "../../model-browser";
 import { profileKey } from "../../creator-models";
 import { modelProfile, profileModels } from "../../model-options";
 import type { ModelCatalog, ModelSelection } from "../../types";
@@ -8,24 +8,29 @@ import "./model-browser.css";
 
 export function ModelBrowser({ catalog, draft, currentSelection, onChange, compatibleOnly, onCompatibleChange, busy, children }: {
   catalog: ModelCatalog; draft: ModelSelection; onChange: (selection: ModelSelection) => void;
-  currentSelection?: ModelSelection | null; compatibleOnly: boolean; onCompatibleChange: (value: boolean) => void; busy: boolean; children: ReactNode;
+  currentSelection?: ModelSelection | null; compatibleOnly: boolean; onCompatibleChange: (value: boolean) => void; busy: boolean;
+  children: ReactNode;
 }) {
   const { t, language } = useI18n();
   const [query, setQuery] = useState(""), [filter, setFilter] = useState<ModelFilter>("all");
   const [previousLegacy, setPreviousLegacy] = useState<ModelSelection>();
   const detailsId = useId();
+  const detailsRef = useRef<HTMLDivElement>(null);
   const metadata = modelProfile(catalog, draft);
   const legacy = metadata ? previousLegacy ?? catalog.model_profiles?.["ace-step"] ?? catalog.recommended_profiles.find(selection => !modelProfile(catalog, selection)) : draft;
   const families = legacy ? modelFamilies(catalog, legacy, compatibleOnly, query, filter) : [];
-  const profiles = (catalog.profiles ?? []).filter(item => {
+  const profiles = new Map<string, NonNullable<ModelCatalog["profiles"]>[number]>();
+  for (const item of catalog.profiles ?? []) {
     if (filter === "installed") {
       const files = profileModels(catalog, item.selection);
-      if (!files.length || files.some(model => !model.verified)) return false;
+      if (!files.length || files.some(model => !model.verified)) continue;
     }
-    if (filter === "recommended" && !catalog.recommended_profiles.some(selection => profileKey(selection) === profileKey(item.selection))) return false;
+    if (filter === "recommended" && !catalog.recommended_profiles.some(selection => profileKey(selection) === profileKey(item.selection))) continue;
     const searchable = `${item.name} ${item.selection.provider} ${item.selection.synthesis}`.toLocaleLowerCase();
-    return query.trim().toLocaleLowerCase().split(/\s+/).every(term => searchable.includes(term));
-  });
+    if (!query.trim().toLocaleLowerCase().split(/\s+/).every(term => searchable.includes(term))) continue;
+    const key = nativeProfileFamily(item);
+    if (!profiles.has(key) || item === metadata) profiles.set(key, item);
+  }
   const model = catalog.models.find(item => item.file === draft.synthesis && item.provider === draft.provider);
   const provider = catalog.providers.find(item => item.id === draft.provider);
   const recommended = catalog.recommended_profiles.some(item => item.provider === draft.provider && item.synthesis === draft.synthesis);
@@ -34,6 +39,7 @@ export function ModelBrowser({ catalog, draft, currentSelection, onChange, compa
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
   function selectProfile(next: ModelSelection) {
     if (!metadata) setPreviousLegacy(draft);
+    if (detailsRef.current) detailsRef.current.scrollTop = 0;
     onChange(next);
   }
   function selectProvider(id: string) {
@@ -57,14 +63,14 @@ export function ModelBrowser({ catalog, draft, currentSelection, onChange, compa
         </>}
       </div>
       <ul className="model-family-list" aria-label={t("browser_catalog")}>
-        {legacy && families.map(family => <li key={family.id}><button type="button" className="model-family" aria-label={family.name} aria-describedby={`${detailsId}-${family.id}`} aria-pressed={!metadata && model?.family === family.id} aria-controls={detailsId} disabled={busy} onClick={() => onChange(familySelection(catalog, legacy, family))}>
+        {legacy && families.map(family => <li key={family.id}><button type="button" className="model-family" aria-label={family.name} aria-describedby={`${detailsId}-${family.id}`} aria-pressed={!metadata && model?.family === family.id} aria-controls={detailsId} disabled={busy} onClick={() => selectProfile(familySelection(catalog, legacy, family))}>
           <span className={`model-family-icon${family.id.includes("-xl-") ? " is-xl" : ""}`} aria-hidden="true">{family.id.includes("-xl-") ? "XL" : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M4 10v4m4-8v12m4-15v18m4-15v12m4-8v4" /></svg>}</span>
           <span className="model-family-copy"><span className="model-family-title">{family.name}{family.recommended && <span className="model-recommended-dot" title={t("desktop_recommended")} aria-label={t("desktop_recommended")}>✦</span>}</span>
             <span className="model-family-meta" id={`${detailsId}-${family.id}`}>{family.variants.length} {t("browser_variants")} · {family.variants.filter(item => item.verified).length} {t("browser_installed").toLocaleLowerCase()}{family.recommended && <span className="sr-only"> · {t("desktop_recommended")}</span>}</span>
           </span>
           <span className="model-family-chevron" aria-hidden="true">›</span>
         </button></li>)}
-        {profiles.map(item => <li key={profileKey(item.selection)}><button type="button" className="model-family" aria-label={item.name} aria-pressed={item === metadata} aria-controls={detailsId} disabled={busy} onClick={() => selectProfile(item.selection)}>
+        {[...profiles].map(([key, item]) => <li key={key}><button type="button" className="model-family" aria-label={item.name} aria-pressed={!!metadata && key === nativeProfileFamily(metadata)} aria-controls={detailsId} disabled={busy} onClick={() => selectProfile(item.selection)}>
           <span className="model-family-icon" aria-hidden="true">♪</span>
           <span className="model-family-copy"><span className="model-family-title">{item.name}</span>
             {!item.available && <span className="model-family-meta">{t("provider_unavailable_short")}</span>}
@@ -72,10 +78,10 @@ export function ModelBrowser({ catalog, draft, currentSelection, onChange, compa
           <span className="model-family-chevron" aria-hidden="true">›</span>
         </button></li>)}
       </ul>
-      {!families.length && !profiles.length && <p className="model-browser-empty" role="status">{t("browser_empty")}</p>}
-      <div className="model-browser-count">{families.length + profiles.length} {t("browser_families")}</div>
+      {!families.length && !profiles.size && <p className="model-browser-empty" role="status">{t("browser_empty")}</p>}
+      <div className="model-browser-count">{families.length + profiles.size} {t("browser_families")}</div>
     </aside>
-    <div className="model-browser-details" id={detailsId}>
+    <div className="model-browser-details" id={detailsId} ref={detailsRef}>
       <header className="model-detail-heading"><div>{(!metadata || provider?.name !== metadata.name) && <p>{provider?.name ?? draft.provider}</p>}<h4>{metadata?.name ?? familyName(model?.family ?? draft.synthesis)}</h4></div>{active && <span className="model-badge is-active">{t("browser_active")}</span>}</header>
       {!metadata && <div className="model-summary-card">
         <p className="model-description">{t("browser_profile_hint")}</p>

@@ -384,6 +384,14 @@ impl Database {
         )? > 0)
     }
 
+    pub(crate) fn pending_song_params(&self) -> Result<Vec<Value>> {
+        let con = self.lock();
+        let mut stmt =
+            con.prepare("SELECT params FROM songs WHERE status IN ('running','queued')")?;
+        let rows = stmt.query_map([], |row| parse_json(row.get(0)?))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn progress(&self, sid: &str, text: &str) -> Result<()> {
         self.lock().execute(
             "UPDATE songs SET message=?1 WHERE id=?2 AND status='running'",

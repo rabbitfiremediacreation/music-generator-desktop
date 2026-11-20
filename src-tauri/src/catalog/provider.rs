@@ -201,6 +201,8 @@ pub enum Acquisition {
 pub struct ProviderProfile {
     pub selection: Selection,
     pub name: String,
+    /// Planning estimate for this weight set, including inference and system headroom.
+    pub estimated_ram_bytes: u64,
     pub files: Vec<String>,
     pub capabilities: GenerationCapabilities,
     pub runtime: NativeRuntime,

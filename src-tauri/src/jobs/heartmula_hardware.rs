@@ -35,7 +35,11 @@ async fn offline_queue_library_export_and_cancel() {
     let data = root.join("data");
     let db = Database::open(&data).unwrap();
     let mut settings = db.settings().unwrap();
+    let synthesis = std::env::var("MUSIC_HEARTMULA_QA_PROFILE")
+        .unwrap_or_else(|_| "heartmula-oss-3b-hny".into());
+    let original = synthesis == "heartmula-oss-3b-hny";
     settings.setup_complete = true;
+    settings.expert_mode = !original;
     settings.models_dir = models.to_str().unwrap().into();
     settings.lm_model = crate::manifest::lm_file("0.6B");
     db.save_settings(&settings).unwrap();
@@ -47,7 +51,7 @@ async fn offline_queue_library_export_and_cancel() {
     );
     let selection = catalog::Selection {
         provider: "heartmula".into(),
-        synthesis: "heartmula-oss-3b-hny".into(),
+        synthesis,
         language: String::new(),
     };
     catalog::ensure_runtime(&selection, &resources, &db.root).unwrap();
@@ -68,7 +72,8 @@ async fn offline_queue_library_export_and_cancel() {
         ..Default::default()
     };
     let mut results = Vec::new();
-    for duration in [5.0, 30.0, 5.0] {
+    let durations: &[f64] = if original { &[5.0, 30.0, 5.0] } else { &[5.0] };
+    for &duration in durations {
         let id = crate::admission::generate(
             &state,
             GenerateRequest {
@@ -84,44 +89,55 @@ async fn offline_queue_library_export_and_cancel() {
         assert_eq!(song.seed, 42);
         let file = Path::new(&settings.songs_dir).join(song.file.unwrap());
         let audio = std::fs::read(&file).unwrap();
+        assert!(crate::audio_facts::is_stereo_48khz_pcm16(&audio));
+        assert!(audio[44..].iter().any(|byte| *byte != 0));
         let measured = crate::audio_facts::duration(&audio).unwrap();
         let meta = song.result_meta.unwrap();
         assert_eq!(meta["duration"], serde_json::json!(measured));
         assert_eq!(meta["duration_source"], "wav");
+        assert_eq!(meta["backend"], "metal");
+        let profile = catalog::generation_profile(&selection).unwrap();
+        assert_eq!(
+            meta["generation_profile"]["files"],
+            serde_json::json!(profile.files)
+        );
         let hash = format!("{:x}", Sha256::digest(&audio));
         println!(
-            "HeartMuLa: {duration}s cap, {measured}s WAV, {}s native runtime, {hash}, {}",
+            "HeartMuLa {}: {duration}s cap, {measured}s WAV, {}s native runtime, {hash}, {}",
+            selection.synthesis,
             meta["runtime_seconds"],
             file.display()
         );
         results.push((id, audio));
     }
 
-    let id = crate::admission::generate(
-        &state,
-        GenerateRequest {
-            duration: 30.0,
-            ..request
-        },
-    )
-    .unwrap()
-    .remove(0);
-    until_song(&state, &id, |_| {
-        state
+    if original {
+        let id = crate::admission::generate(
+            &state,
+            GenerateRequest {
+                duration: 30.0,
+                ..request
+            },
+        )
+        .unwrap()
+        .remove(0);
+        until_song(&state, &id, |_| {
+            state
+                .runtime
+                .progress()
+                .is_some_and(|update| update.job_id == id && update.progress.phase == "generation")
+        })
+        .await;
+        assert!(state
             .runtime
-            .progress()
-            .is_some_and(|update| update.job_id == id && update.progress.phase == "generation")
-    })
-    .await;
-    assert!(state
-        .runtime
-        .cancel_song(&id, || state.db.cancel_song(&id))
-        .unwrap());
-    let song = until_song(&state, &id, |song| song.status == "cancelled").await;
-    assert!(song.file.is_none());
-    assert!(!Path::new(&settings.songs_dir)
-        .join(format!("{id}.wav"))
-        .exists());
+            .cancel_song(&id, || state.db.cancel_song(&id))
+            .unwrap());
+        let song = until_song(&state, &id, |song| song.status == "cancelled").await;
+        assert!(song.file.is_none());
+        assert!(!Path::new(&settings.songs_dir)
+            .join(format!("{id}.wav"))
+            .exists());
+    }
     state.begin_shutdown();
     tokio::time::timeout(Duration::from_secs(10), worker)
         .await

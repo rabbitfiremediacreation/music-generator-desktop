@@ -13,6 +13,12 @@ export function profileModels(catalog: ModelCatalog, selection: ModelSelection):
     (m.role === "dependency" || m.file === selection.synthesis || m.file === selection.language));
 }
 
+export function aceStepMemory(models: CatalogModel[], replacement?: Pick<CatalogModel, "role" | "estimated_bytes">) {
+  const weights = models.reduce((total, model) => total + (model.role === replacement?.role ? replacement.estimated_bytes : model.estimated_bytes), 0);
+  const xl = models.some(model => model.role === "synthesis" && model.file.includes("-xl-"));
+  return weights + (xl ? 4 : 3) * 1024 ** 3;
+}
+
 export function profile(catalog: ModelCatalog, selection: ModelSelection) {
   const models = profileModels(catalog, selection);
   const metadata = modelProfile(catalog, selection);
@@ -24,11 +30,11 @@ export function profile(catalog: ModelCatalog, selection: ModelSelection) {
   const filesVerified = complete && models.every(m => m.verified);
   const platforms = [...(metadata?.platforms ?? []), ...(metadata?.evaluation_platforms ?? [])]
     .filter(platform => platform.os === catalog.hardware.platform);
-  const memory = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : models.reduce((n, m) => n + m.estimated_bytes, 0) +
-    (selection.synthesis.includes("-xl-") ? 4 : 3) * 1024 ** 3;
+  const memory = metadata?.estimated_ram_bytes ?? aceStepMemory(models);
+  const minimumRam = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : memory;
   const synthesis = models.find(m => m.role === "synthesis");
   return {
-    models, metadata, complete, valid, filesVerified, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && memory <= catalog.hardware.ram_bytes,
+    models, metadata, complete, valid, filesVerified, allowed: modelAllowed(selection, catalog.expert_mode, catalog.recommended_profiles), memory, compatible: valid && minimumRam <= catalog.hardware.ram_bytes,
     verified: valid && filesVerified,
     download: models.filter(m => !m.present).reduce((n, m) => n + Math.max(0, m.estimated_bytes - m.partial_bytes), 0),
     steps: synthesis?.suggested_steps ?? synthesis?.recommended_steps,
