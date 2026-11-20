@@ -812,6 +812,7 @@ pub struct PhoneGeneration {
     pub title: String,
     pub duration: f64,
     pub bpm: f64,
+    pub bars: Option<u32>,
     pub keyscale: String,
     pub timesignature: String,
     pub vocal_language: String,
@@ -835,6 +836,7 @@ impl Default for PhoneGeneration {
             title: String::new(),
             duration: 0.0,
             bpm: 0.0,
+            bars: None,
             keyscale: String::new(),
             timesignature: String::new(),
             vocal_language: String::new(),
@@ -850,6 +852,9 @@ impl Default for PhoneGeneration {
 impl PhoneGeneration {
     /// Map onto the desktop request; the desktop admission validates all limits afterwards.
     pub fn request(self, group_id: String) -> Result<GenerateRequest> {
+        if self.bars.is_some() && self.bpm.fract() != 0.0 {
+            return Err(message("Enter a whole-number BPM from 1 to 300"));
+        }
         let whole = |n: f64| {
             (n.is_finite() && n >= 0.0 && n <= f64::from(u32::MAX))
                 .then(|| n.round() as u32)
@@ -866,6 +871,7 @@ impl PhoneGeneration {
             title: self.title,
             duration: self.duration,
             bpm: whole(self.bpm)?,
+            bars: self.bars,
             keyscale: self.keyscale,
             timesignature: self.timesignature,
             vocal_language: self.vocal_language,

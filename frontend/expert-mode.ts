@@ -10,7 +10,10 @@ export function bundledProfile(selection: ModelSelection | null | undefined) {
 
 // Studio runtime availability is checked separately by the generation policy.
 export function modelAllowed(selection: ModelSelection | undefined, expertMode: boolean, recommendations: readonly ModelSelection[]): boolean {
-  return !selection || expertMode || Boolean(bundledProfile(selection)) || recommendations.some(profile =>
+  if (!selection || expertMode) return true;
+  const profile = bundledProfile(selection);
+  if (profile) return !profile.expert_only;
+  return recommendations.some(profile =>
     profile.provider === selection.provider && profile.synthesis === selection.synthesis && profile.language === selection.language);
 }
 

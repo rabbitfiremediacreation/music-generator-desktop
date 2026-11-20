@@ -14,7 +14,7 @@ pub fn list() -> ListResourcesResult {
 
 pub fn templates() -> ListResourceTemplatesResult {
     serde_json::from_value(json!({"resourceTemplates": [
-        {"uriTemplate":"music://songs/{id}", "name":"Song metadata, lyrics and audio path", "mimeType":"application/json"},
+        {"uriTemplate":"music://songs/{id}", "name":"Song metadata and local result path", "mimeType":"application/json"},
         {"uriTemplate":"music://operations/{id}", "name":"Background operation", "mimeType":"application/json"}
     ]})).expect("static resource templates")
 }
@@ -71,6 +71,6 @@ pub fn prompt(request: GetPromptRequestParams) -> Result<GetPromptResult, ErrorD
             ErrorData::invalid_params("Provide a non-empty brief (at most 32000 bytes)", None)
         })?;
     Ok(GetPromptResult::new(vec![PromptMessage::new_text(Role::User, format!(
-        "{INSTRUCTIONS}\n\nCreate music for this user brief:\n{brief}\n\nCheck readiness and installed models, translate the brief into explicit generation parameters, enqueue the requested variants, wait for completion, inspect any warnings and report the song IDs and audio paths. Export only to a destination requested by the user."
+        "{INSTRUCTIONS}\n\nCreate music for this user brief:\n{brief}\n\nCheck readiness and installed models, translate the brief into explicit generation parameters, enqueue the requested variants, wait for completion, inspect any warnings and report the song IDs, result types and file paths. Export only to a destination requested by the user."
     ))]))
 }

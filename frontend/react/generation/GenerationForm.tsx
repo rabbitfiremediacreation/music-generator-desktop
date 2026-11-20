@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { randomPrompt, randomStyle, randomTitle, STYLE_TAGS } from "../../prompts";
 import { bundledProfile, modelErrorText } from "../../expert-mode";
-import { ACE_STEP_ABILITIES, boundedDuration } from "../../generation-limits";
+import { ACE_STEP_ABILITIES, DEFAULT_CLIP_BPM, MAX_CLIP_BPM, boundedDuration, clipSeconds } from "../../generation-limits";
 import { profileKey } from "../../creator-models";
 import type { Generation, ModelSelection, Song } from "../../types";
 import { healthQuery, queueQuery } from "../data";
@@ -28,22 +28,32 @@ export interface GenerationFormProps {
   onPreferencesFlush?: (flush: () => Promise<void>) => void;
 }
 export function GenerationForm({ selection, onSelectionChange, settingsBlocked, modelAllowed = true, folderId = null, reuse, analysis, recommendedSteps, onReady, onPreferencesFlush }: GenerationFormProps) {
-  const { t } = useI18n(), admission = useGenerationAdmission(), client = useQueryClient();
+  const { t, language } = useI18n(), admission = useGenerationAdmission(), client = useQueryClient();
   const { values, setValues, ready, policy, policyUpdatedAt, failed, flush, reset } = useFormValues(selection);
   const [lyricsOpen, setLyricsOpen] = useState(false), [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<unknown>(null), [queued, setQueued] = useState<number | null>(null);
   const [profileDurations, setProfileDurations] = useState<Record<string, number>>({});
+  const [profileMeters, setProfileMeters] = useState<Record<string, { bars: number; tempo: string }>>({});
   const queue = useQuery({ ...queueQuery(), enabled: queued !== null, staleTime: 0 });
   const abilities = policy?.capabilities ?? bundledProfile(selection)?.capabilities ?? ACE_STEP_ABILITIES;
   const midi = abilities.output_kind === "midi";
+  const minimax = selection?.provider === "minimax-music3";
   const fixedProfile = !abilities.advanced || (selection && !selection.language);
   const maxVariants = fixedProfile ? abilities.max_variants : Math.min(10, abilities.max_variants);
   const durationKey = selection ? profileKey(selection) : "";
+  const barOptions = abilities.bars?.length ? abilities.bars : undefined;
+  const promptLabel = t(barOptions ? "clip_description" : minimax ? "minimax_music3_prompt" : "prompt");
+  const meter = profileMeters[durationKey];
+  const bars = barOptions?.find(count => count === meter?.bars) ?? barOptions?.[0];
+  const tempo = meter?.tempo ?? DEFAULT_CLIP_BPM;
+  const clipDuration = bars === undefined ? undefined : clipSeconds(bars, tempo);
+  const clipTooLong = clipDuration !== undefined && clipDuration > abilities.max_duration;
+  const durationLabel = t(selection?.provider === "magenta-realtime-2" ? "provider_recording_duration" : "length");
   const instrumental = !abilities.lyrics || (abilities.instrumental && (values.instrumental || isInstrumentalLyrics(values.lyrics)));
-  const duration = boundedDuration(fixedProfile ? profileDurations[durationKey] ?? values.duration : values.duration, abilities);
+  const duration = clipDuration ?? boundedDuration(fixedProfile ? profileDurations[durationKey] ?? values.duration : values.duration, abilities);
   const variants = Math.min(values.variants, maxVariants);
   const available = policy?.available !== false && (!fixedProfile || Boolean(policy?.capabilities));
-  const incomplete = (midi && !values.prompt.trim()) ||
+  const incomplete = ((midi || minimax) && !values.prompt.trim()) || (barOptions && (!values.prompt.trim().replace(/^,+|,+$/g, "").trim() || clipDuration === undefined || clipTooLong)) ||
     (!abilities.prompt && !values.style.split(",").some(tag => tag.trim())) ||
     (abilities.lyrics_required && (!values.lyrics.trim() || isInstrumentalLyrics(values.lyrics)));
   useEffect(() => {
@@ -67,9 +77,14 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     const savedProfile = reuse.song.params.model_selection;
     if (savedProfile) onSelectionChange?.(savedProfile);
     const next = songValues(reuse.song, selection);
-    if (savedProfile && (!savedProfile.language || reuse.song.output_kind === "midi")) {
-      const seconds = reuse.song.params.duration;
-      if (seconds && reuse.song.output_kind !== "midi") setProfileDurations(current => ({ ...current, [profileKey(savedProfile)]: seconds }));
+    if (savedProfile && (!savedProfile.language || reuse.song.params.bars !== undefined || reuse.song.output_kind === "midi")) {
+      const { bars, bpm, duration } = reuse.song.params;
+      const key = profileKey(savedProfile);
+      if (bars !== undefined && bpm !== undefined) {
+        setProfileMeters(current => ({ ...current, [key]: { bars, tempo: String(bpm) } }));
+      } else if (duration && reuse.song.output_kind !== "midi") {
+        setProfileDurations(current => ({ ...current, [key]: duration }));
+      }
       setValues(current => ({ ...next, ...numericValues(current) }));
     } else setValues(next);
     setLyricsOpen(!next.instrumental && Boolean(next.lyrics.trim())); setAdvancedOpen(true);
@@ -91,22 +106,33 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     if (fixedProfile) setProfileDurations(current => ({ ...current, [durationKey]: duration }));
     else update({ duration });
   }
+  function changeMeter(bars: number, tempo: string) {
+    setProfileMeters(current => ({ ...current, [durationKey]: { bars, tempo } }));
+  }
   async function submit() {
     if (!ready || !available || incomplete || settingsBlocked || admission.busy || submitting.current) return;
     if (!modelAllowed) { setError(new Error("expert_mode_required")); return; }
     submitting.current = true; setError(null); setQueued(null);
     const request: Generation = {
       model_selection: selection ?? undefined, folder_id: folderId && folderId !== "none" ? folderId : null,
-      title: values.title, instrumental, keep_caption: true,
-      seed: values.seed === "" ? -1 : Number(values.seed), variants,
+      title: values.title, instrumental: abilities.instrumental && instrumental,
+      keep_caption: true, seed: values.seed === "" ? -1 : Number(values.seed), variants,
     };
-    if (!midi) Object.assign(request, { style: values.style, lyrics: instrumental ? "" : values.lyrics, duration });
-    if (midi) request.prompt = values.prompt.trim();
-    else if (abilities.prompt) {
-      request.prompt = values.prompt.trim() ? values.prompt : randomPrompt(instrumental);
-      if (!values.prompt.trim()) update({ prompt: request.prompt, generated: true });
+    if (!midi) Object.assign(request, { lyrics: instrumental ? "" : values.lyrics, duration });
+    if (abilities.prompt) {
+      request.prompt = midi ? values.prompt.trim() : values.prompt;
+      if (!midi && !barOptions && !minimax && !values.prompt.trim()) {
+        request.prompt = randomPrompt(instrumental);
+        update({ prompt: request.prompt, generated: true });
+      }
     }
-    if (abilities.bpm) request.bpm = values.bpm;
+    if (bars !== undefined) {
+      request.bars = bars;
+      request.bpm = Number(tempo);
+    } else if (!midi) {
+      request.style = values.style;
+      if (abilities.bpm) request.bpm = values.bpm;
+    }
     if (abilities.advanced) Object.assign(request, {
       inference_steps: values.inference_steps, lm_temperature: values.lm_temperature, keyscale: values.keyscale,
       timesignature: values.timesignature, vocal_language: instrumental ? "" : values.vocal_language,
@@ -127,18 +153,53 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
   return <form id="genForm" ref={form} onSubmit={event => { event.preventDefault(); void submit(); }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault(); }} aria-busy={!ready || admission.busy}>
     <fieldset disabled={!ready} className="generation-fields">
       {midi && <h3 className="col-title">{t("midi_mode")}</h3>}
+      {minimax && <strong>MiniMax-Music3</strong>}
       <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-title" title={t("title_tip")}>{t("title")}</label><DiceButton id="titleDice" label={t("title_dice")} onClick={() => update({ title: randomTitle() })} /></div><input id="generation-title" name="title" value={values.title} placeholder={t("title_ph")} onChange={event => update({ title: event.target.value })} /></div>
-      {abilities.prompt && <div className="field"><div className="lblrow"><div className="prompt-label"><label className="lbl" htmlFor="generation-prompt" title={midi ? undefined : t("prompt_tip")}>{t("prompt")}</label>{!midi && values.generated && <span id="promptGenerated" className="generated-chip" role="status" title={t("prompt_generated")} aria-label={t("prompt_generated")}>GENERATED</span>}</div>{!midi && <DiceButton id="diceBtn" label={t("prompt_dice")} onClick={() => update({ prompt: randomPrompt(instrumental), generated: true })} />}</div>
-        <textarea id="generation-prompt" name="prompt" rows={midi ? 3 : 2} required={midi} aria-describedby={midi ? "midiPromptHint" : undefined} value={values.prompt} placeholder={t(midi ? "midi_prompt_placeholder" : "prompt_ph")} onChange={event => update({ prompt: event.target.value, generated: values.generated && event.target.value === values.prompt })} />
+      {abilities.prompt && <div className="field">
+        <div className="lblrow">
+          <div className="prompt-label">
+            <label className="lbl" htmlFor="generation-prompt" title={midi || minimax || barOptions ? undefined : t("prompt_tip")}>{promptLabel}</label>
+            {!midi && !minimax && !barOptions && values.generated && <span id="promptGenerated" className="generated-chip" role="status" title={t("prompt_generated")} aria-label={t("prompt_generated")}>GENERATED</span>}
+          </div>
+          {!midi && !minimax && !barOptions && <DiceButton id="diceBtn" label={t("prompt_dice")} onClick={() => update({ prompt: randomPrompt(instrumental), generated: true })} />}
+        </div>
+        <textarea id="generation-prompt" name="prompt" rows={midi || minimax ? 3 : 2} required={midi || minimax || Boolean(barOptions)}
+          aria-describedby={midi ? "midiPromptHint" : undefined} value={values.prompt}
+          placeholder={t(barOptions ? "clip_description_example" : minimax ? "minimax_music3_prompt_placeholder" : midi ? "midi_prompt_placeholder" : "prompt_ph")}
+          onChange={event => update({ prompt: event.target.value, generated: values.generated && event.target.value === values.prompt })} />
         {midi && <span className="small" id="midiPromptHint">{t("midi_prompt_hint")}</span>}
       </div>}
-      {!midi && <>
+      {!midi && !barOptions && <>
         <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(abilities.prompt ? "style_tip" : "provider_style_hint")}>{t(abilities.prompt ? "style" : "provider_style_tags")}</label><DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} /></div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} /></div>
         <details><summary>{t("styles")}</summary><div className="chips" id="tagChips">{STYLE_TAGS.map(tag => { const active = styles.some(value => value.toLowerCase() === tag.toLowerCase()); return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>; })}</div></details>
-        <div className="field"><span className="lbl">{t("length")}</span><Slider name="duration" label={t("length")} title={abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />{duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}</div>
       </>}
       <input name="instrumental" type="checkbox" hidden checked={instrumental} readOnly /><input name="keep_caption" type="checkbox" hidden checked readOnly />
-      {abilities.bpm && <div className="field"><span className="lbl" title={t("bpm_tip")}>BPM</span><Slider name="bpm" label="BPM" value={values.bpm} min={50} max={200} format="bpm" onChange={bpm => update({ bpm })} /></div>}
+      {barOptions && bars !== undefined ? <>
+        <div className="clip-meter">
+          <label className="field">
+            <span className="lbl">{t("clip_bars")}</span>
+            <select name="bars" value={bars} onChange={event => changeMeter(Number(event.target.value), tempo)}>
+              {barOptions.map(count => <option key={count}>{count}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span className="lbl">BPM</span>
+            <input name="bpm" type="number" min={1} max={MAX_CLIP_BPM} required value={tempo} onChange={event => changeMeter(bars, event.target.value)} />
+          </label>
+        </div>
+        <output className="small" aria-live="polite">
+          {clipDuration !== undefined && t("clip_length", clipDuration.toLocaleString(language, { maximumFractionDigits: 3 }))}
+          {clipTooLong && <span className="setup-error"> {t("clip_too_long", abilities.max_duration)}</span>}
+        </output>
+      </> : !midi && <>
+        <div className="field"><span className="lbl">{durationLabel}</span>
+          {abilities.min_duration === abilities.max_duration
+            ? <span>{t("provider_duration_hint", duration, duration)}</span>
+            : <Slider name="duration" label={durationLabel} title={minimax ? t("minimax_music3_duration_hint") : abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />}
+          {duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}
+        </div>
+        {abilities.bpm && <div className="field"><span className="lbl" title={t("bpm_tip")}>BPM</span><Slider name="bpm" label="BPM" value={values.bpm} min={50} max={200} format="bpm" onChange={bpm => update({ bpm })} /></div>}
+      </>}
       {abilities.lyrics && <LyricsFields values={values} update={update} open={lyricsOpen} setOpen={setLyricsOpen} required={abilities.lyrics_required} />}
       {abilities.advanced ? <AdvancedFields values={values} update={update} risk={risk} open={advancedOpen} setOpen={setAdvancedOpen} /> :
         <label className="field"><span className="lbl">Seed</span><input name="seed" type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} placeholder={t("seed_ph")} value={values.seed} onChange={event => update({ seed: event.target.value })} /></label>}

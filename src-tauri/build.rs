@@ -72,16 +72,28 @@ fn main() {
             .map(String::as_str)
             .collect();
         provider_files.sort_unstable();
-        let expected_provider_files: &[&str] = if platform == "macos" && arch == "aarch64" {
-            &[
-                "providers/audio.cpp/LICENSE",
-                "providers/audio.cpp/audiocpp_cli",
-                "providers/audio.cpp/libaudiocpp.0.dylib",
-                "providers/audio.cpp/model_specs/heartmula.json",
-            ]
-        } else {
-            &[]
-        };
+        let mut expected_provider_files = Vec::new();
+        if platform == "macos" && arch == "aarch64" {
+            assert!(
+                files.contains_key("mimetic-synth")
+                    && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),
+                "Mimetic A0 runtime is missing: run npm run engine:prepare"
+            );
+            let pin: serde_json::Value =
+                serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))
+                    .expect("Invalid audio.cpp runtime pin");
+            expected_provider_files.extend(
+                ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib"]
+                    .into_iter()
+                    .chain(
+                        pin["model_specs"].as_array().unwrap().iter().map(|spec| {
+                            spec["path"].as_str().expect("Missing audio.cpp spec path")
+                        }),
+                    )
+                    .map(|path| format!("providers/audio.cpp/{path}")),
+            );
+            expected_provider_files.sort_unstable();
+        }
         assert_eq!(
             provider_files, expected_provider_files,
             "Unexpected audio.cpp runtime inventory: run npm run engine:prepare"

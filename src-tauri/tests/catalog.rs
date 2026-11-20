@@ -5,6 +5,7 @@ use music_generator::{
     types::{GenerateRequest, Settings},
 };
 use serde_json::json;
+use std::collections::HashSet;
 
 fn selection() -> Selection {
     Selection::from_settings(&Settings {
@@ -41,7 +42,7 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
             .count(),
         2
     );
-    let mut files = std::collections::HashSet::new();
+    let mut files = HashSet::new();
     for model in &catalog.models {
         assert!(files.insert(&model.file));
         assert!(!model.file.contains('\\'));
@@ -77,6 +78,266 @@ fn pinned_catalog_covers_all_generation_variants_and_matches_starter_checksums()
     assert!(!files.contains(&"acestep-5Hz-lm-4B-Q4_K_M.gguf".to_string()));
 }
 
+fn audiocraft_selection(synthesis: &str) -> Selection {
+    Selection {
+        provider: "audiocraft".into(),
+        synthesis: synthesis.into(),
+        language: String::new(),
+    }
+}
+
+#[test]
+fn audiocraft_profiles_pin_both_checkpoints_and_the_shared_t5_dependency() {
+    let catalog = catalog::catalog();
+    let syntheses = catalog
+        .profiles
+        .iter()
+        .filter(|profile| profile.selection.provider == "audiocraft")
+        .map(|profile| profile.selection.synthesis.as_str())
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        syntheses,
+        HashSet::from(["musicgen-small", "magnet-small-30secs"])
+    );
+
+    let t5_pins = [
+        (
+            "config.json",
+            1_208,
+            "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+        ),
+        (
+            "spiece.model",
+            791_656,
+            "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+        ),
+        (
+            "model.safetensors",
+            891_646_390,
+            "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+        ),
+    ];
+    for (synthesis, revision, min_duration, state_pin, codec_pin) in [
+        (
+            "musicgen-small",
+            "4c8334b02c6ec4e8664a91979669a501ec497792",
+            1,
+            (
+                "state_dict.bin",
+                840_843_863,
+                "830fe5771e2835cbd305f3ffdda22d3ff38718fbbe8274bd19dc203265de7244",
+            ),
+            (
+                "compression_state_dict.bin",
+                236_001_935,
+                "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30",
+            ),
+        ),
+        (
+            "magnet-small-30secs",
+            "7d62a3ef839d51abb5f087ac72732d6f45301460",
+            30,
+            (
+                "state_dict.bin",
+                840_844_851,
+                "965b4d537d691483918ccc6d97e738c0177191900c2e2cd3272d29fa3c9a44d0",
+            ),
+            (
+                "compression_state_dict.bin",
+                236_003_715,
+                "91598c7da3d183eb8e0cc19cbbdc4f64f2d0c53069f9c8aa84185d0e33873c67",
+            ),
+        ),
+    ] {
+        let selection = audiocraft_selection(synthesis);
+        let profile = catalog.profile(&selection).unwrap();
+        let snapshot = catalog::generation_profile(&selection).unwrap();
+        let repository = format!("facebook/{synthesis}");
+        let t5_revision = "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1";
+        assert!(profile.name.contains("CC BY-NC 4.0"));
+        assert!(profile.upstream_sources.iter().any(|source| {
+            source.repository == repository
+                && source.revision == revision
+                && source.license == "CC BY-NC 4.0"
+        }));
+        assert!(profile.upstream_sources.iter().any(|source| {
+            source.repository == "google-t5/t5-base"
+                && source.revision == t5_revision
+                && source.license == "Apache-2.0"
+        }));
+        assert_eq!(snapshot.model_revision, revision);
+        assert_eq!(
+            profile.runtime.executable,
+            "engine/audiocraft/audiocraft-synth"
+        );
+        assert_eq!(snapshot.capabilities, profile.capabilities);
+        assert_eq!(profile.capabilities.min_duration, min_duration);
+        assert_eq!(profile.capabilities.max_duration, 30);
+        assert_eq!(profile.capabilities.max_variants, 1);
+        assert!(profile.capabilities.prompt);
+        assert!(!profile.capabilities.lyrics);
+        assert!(!profile.capabilities.advanced);
+        assert!(!profile.capabilities.analysis);
+        assert_eq!(snapshot.files.len(), 5);
+        for (folder, repository, revision, pins) in [
+            (
+                synthesis,
+                repository.as_str(),
+                revision,
+                &[state_pin, codec_pin][..],
+            ),
+            ("t5-base", "google-t5/t5-base", t5_revision, &t5_pins[..]),
+        ] {
+            for &(path, bytes, sha256) in pins {
+                let file = format!("audiocraft/{folder}/{path}");
+                let pin = snapshot.files.iter().find(|pin| pin.file == file).unwrap();
+                assert_eq!(pin.bytes, bytes, "{file}");
+                assert_eq!(pin.sha256, sha256, "{file}");
+                let source = pin.source.as_ref().unwrap();
+                assert_eq!(source.path, path);
+                assert_eq!(source.revision, revision);
+                assert_eq!(source.repository, repository);
+                assert_eq!(
+                    source.url(),
+                    format!("https://huggingface.co/{repository}/resolve/{revision}/{path}")
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn audiocraft_profiles_stay_out_of_automatic_and_legacy_selection() {
+    let mut settings = Settings {
+        lm_model: selection().language,
+        ..Settings::default()
+    };
+    let hardware = Hardware {
+        ram_bytes: u64::MAX,
+        gpu: "CPU".into(),
+        vram_bytes: None,
+        recommended_lm: "0.6B".into(),
+        vae_chunk: None,
+        platform: std::env::consts::OS,
+        cpu_only: true,
+        nvidia: None,
+        cuda: None,
+    };
+    let catalog = catalog::catalog();
+    let recommended = catalog.recommended_profiles(&hardware);
+    assert!(!recommended.is_empty());
+    for name in ["musicgen-small", "magnet-small-30secs"] {
+        let profile = audiocraft_selection(name);
+        assert!(!recommended.contains(&profile));
+        assert_eq!(
+            catalog
+                .ensure_allowed(&profile, false, Some(&hardware))
+                .unwrap_err()
+                .to_string(),
+            "expert_mode_required"
+        );
+        catalog.ensure_allowed(&profile, true, None).unwrap();
+    }
+    assert_eq!(Selection::from_settings(&settings), selection());
+    let profile = audiocraft_selection("musicgen-small");
+    profile.apply(&mut settings).unwrap();
+    assert_eq!(Selection::from_settings(&settings), profile);
+    assert_eq!(catalog::legacy_selection(&settings), selection());
+    let untested = Hardware {
+        platform: "untested-platform",
+        ..hardware
+    };
+    assert!(!catalog::compatible(&profile, &untested).unwrap());
+    assert!(catalog
+        .required(&audiocraft_selection("musicgen-melody"))
+        .is_err());
+    assert!(catalog
+        .required(&audiocraft_selection("magnet-small-10secs"))
+        .is_err());
+}
+
+#[tokio::test]
+async fn imports_audiocraft_profiles_from_local_files_through_the_pinned_downloader() {
+    use sha2::{Digest, Sha256};
+
+    let models = tempfile::tempdir().unwrap();
+    let mut catalog = catalog::catalog();
+    let contents = b"model fixture";
+    let sha256 = format!("{:x}", Sha256::digest(contents));
+    for asset in catalog
+        .models
+        .iter_mut()
+        .filter(|asset| asset.provider == "audiocraft")
+    {
+        asset.estimated_bytes = contents.len() as u64;
+        asset.sha256.clone_from(&sha256);
+        let path = models.path().join(&asset.file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+    assert_audiocraft_offline_imports(catalog, models.path()).await;
+}
+
+#[tokio::test]
+#[ignore = "requires both complete AudioCraft profiles in AUDIOCRAFT_TEST_MODELS"]
+async fn imports_both_audiocraft_profiles_offline_and_reuses_t5_verification() {
+    let models =
+        std::path::PathBuf::from(std::env::var_os("AUDIOCRAFT_TEST_MODELS").expect("model folder"));
+    assert_audiocraft_offline_imports(catalog::catalog(), &models).await;
+}
+
+async fn assert_audiocraft_offline_imports(
+    mut catalog: catalog::Catalog,
+    models: &std::path::Path,
+) {
+    use music_generator::verification::ModelVerifier;
+    use std::sync::Mutex;
+    use tokio_util::sync::CancellationToken;
+
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = models.to_string_lossy().into();
+    settings.expert_mode = true;
+    settings.setup_complete = true;
+    db.save_settings(&settings).unwrap();
+
+    // The shared installer must finish from the local files even with unusable source URLs.
+    for asset in catalog
+        .models
+        .iter_mut()
+        .filter(|asset| asset.provider == "audiocraft")
+    {
+        asset.source.as_mut().unwrap().repository = "invalid-repository".into();
+    }
+    let cancel = CancellationToken::new();
+    for (synthesis, new_files) in [("musicgen-small", 5), ("magnet-small-30secs", 2)] {
+        let selection = audiocraft_selection(synthesis);
+        let required = catalog.required(&selection).unwrap();
+        for asset in &required {
+            let path = models.join(&asset.file);
+            assert_eq!(
+                path.metadata().unwrap().len(),
+                asset.estimated_bytes,
+                "{path:?}"
+            );
+        }
+        let hashed = Mutex::new(HashSet::new());
+        catalog::install_profile(&catalog, &db, &selection, &cancel, |progress| {
+            assert_eq!(progress.phase, "verifying");
+            hashed.lock().unwrap().insert(progress.file);
+        })
+        .await
+        .unwrap();
+        assert_eq!(hashed.into_inner().unwrap().len(), new_files);
+        let verifier = ModelVerifier::open(root.path());
+        for asset in required {
+            assert!(verifier.is_verified(&models.join(asset.file), &asset.sha256));
+        }
+        assert_eq!(Selection::from_settings(&db.settings().unwrap()), selection);
+    }
+}
+
 #[test]
 fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_step() {
     let mut s = selection();
@@ -92,6 +353,50 @@ fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_ste
     let before = serde_json::to_value(&settings).unwrap();
     assert!(s.apply(&mut settings).is_err());
     assert_eq!(serde_json::to_value(settings).unwrap(), before);
+}
+
+#[test]
+fn mimetic_catalog_pins_the_complete_runtime_inputs_to_both_publishers() {
+    let catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter()
+        .find(|profile| profile.selection.provider == "mimetic-a0")
+        .unwrap();
+    let files = catalog.required(&profile.selection).unwrap();
+    assert!(profile.selection.language.is_empty());
+    assert_eq!(files.len(), 5);
+    assert_eq!(
+        profile.capabilities.bars.as_deref(),
+        Some([1, 2, 4].as_slice())
+    );
+    assert_eq!(
+        files.iter().map(|file| file.estimated_bytes).sum::<u64>(),
+        1_914_701_826
+    );
+    for asset in files {
+        let source = asset.source.as_ref().unwrap();
+        let upstream = profile
+            .upstream_sources
+            .iter()
+            .find(|upstream| upstream.repository == source.repository)
+            .unwrap();
+        assert_eq!(source.revision, upstream.revision);
+        assert_eq!(source.revision.len(), 40);
+        assert_eq!(
+            source.url(),
+            format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                upstream.repository, upstream.revision, source.path
+            )
+        );
+    }
+    let snapshot = catalog::generation_profile(&profile.selection).unwrap();
+    assert_eq!(
+        snapshot.model_revision,
+        profile.upstream_sources[0].revision
+    );
+    assert_eq!(snapshot.runtime_revision, profile.runtime.revision);
 }
 
 #[test]
@@ -246,8 +551,8 @@ fn retired_provider_settings_restore_ace_step_without_rewriting_old_songs_or_fil
     settings
         .model_profiles
         .insert("ace-step".into(), ace.clone());
-    settings.model_provider = "heartmula".into();
-    settings.synthesis_model = "heartmula-q8_0.gguf".into();
+    settings.model_provider = "retired-provider".into();
+    settings.synthesis_model = "retired-model.gguf".into();
     settings.lm_model.clear();
     settings.setup_complete = true;
     db.save_settings(&settings).unwrap();
@@ -273,7 +578,7 @@ fn retired_provider_settings_restore_ace_step_without_rewriting_old_songs_or_fil
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(raw, "\"heartmula\"");
+    assert_eq!(raw, "\"retired-provider\"");
 }
 
 #[test]
@@ -282,8 +587,8 @@ fn removed_profiles_cannot_enter_the_queue() {
     let db = Database::open(root.path()).unwrap();
     let request = GenerateRequest {
         model_selection: Some(Selection {
-            provider: "heartmula".into(),
-            synthesis: "heartmula-q8_0.gguf".into(),
+            provider: "retired-provider".into(),
+            synthesis: "retired-model.gguf".into(),
             language: String::new(),
         }),
         ..Default::default()

@@ -349,3 +349,73 @@ async fn pinned_files_reject_wrong_remote_size_and_resume_in_nested_folders() {
     assert!(verifier.is_verified(&target, &asset.sha256));
     assert!(!partial.exists());
 }
+
+#[tokio::test]
+#[ignore = "requires the MusicGen codec in AUDIOCRAFT_TEST_MODELS and access to Hugging Face"]
+async fn resumes_musicgen_codec_from_its_pinned_hugging_face_revision() {
+    use music_generator::catalog;
+    use std::{fs::File, io::Read, path::PathBuf, time::Duration};
+
+    let models = PathBuf::from(std::env::var_os("AUDIOCRAFT_TEST_MODELS").expect("model folder"));
+    let file = "audiocraft/musicgen-small/compression_state_dict.bin";
+    let asset = catalog::catalog()
+        .models
+        .into_iter()
+        .find(|asset| asset.file == file)
+        .unwrap();
+    let model = asset.download();
+    let url = asset.source.unwrap().url();
+    let offset = model.estimated_bytes - 1024 * 1024;
+    let dir = tempfile::tempdir().unwrap();
+    let part = dir.path().join(format!("{file}.part"));
+    std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+    let source = File::open(models.join(file)).unwrap();
+    assert_eq!(source.metadata().unwrap().len(), model.estimated_bytes);
+    assert_eq!(
+        std::io::copy(&mut source.take(offset), &mut File::create(&part).unwrap()).unwrap(),
+        offset
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap();
+    let response = client
+        .get(&url)
+        .header(reqwest::header::RANGE, format!("bytes={offset}-"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    let range = response.headers()[CONTENT_RANGE].to_str().unwrap();
+    assert_eq!(
+        range,
+        format!(
+            "bytes {offset}-{}/{}",
+            model.estimated_bytes - 1,
+            model.estimated_bytes
+        )
+    );
+    drop(response);
+
+    let mut verifier = ModelVerifier::open(dir.path());
+    let target = download_pinned_model(
+        &client,
+        &url,
+        dir.path(),
+        &model,
+        &mut verifier,
+        &CancellationToken::new(),
+        |progress| {
+            if progress.phase == "downloading" {
+                assert!(progress.downloaded >= offset);
+            }
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(target, dir.path().join(file));
+    assert_eq!(target.metadata().unwrap().len(), model.estimated_bytes);
+    assert!(verifier.is_verified(&target, &model.sha256));
+    assert!(!part.exists());
+}

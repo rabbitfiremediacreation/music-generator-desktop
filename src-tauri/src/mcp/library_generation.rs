@@ -114,7 +114,7 @@ fn from_song(state: &AppState, song: &Song) -> Result<GenerateRequest> {
     if song.params.get("keep_caption").is_none() {
         request.keep_caption = song.params["use_cot_caption"] != true;
     }
-    request.caption = if capabilities.prompt {
+    request.caption = if capabilities.prompt && capabilities.bars.is_none() {
         song.caption.clone()
     } else {
         String::new()

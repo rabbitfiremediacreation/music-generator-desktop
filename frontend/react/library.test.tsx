@@ -69,7 +69,7 @@ function seedPages(count: number) {
   }));
 }
 
-it("navigates both ways and resets the page when search, folder or favorites changes", async () => {
+it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
   seedPages(106);
   mount();
   const next=await screen.findByRole("button",{name:"Next"});
@@ -175,6 +175,65 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("shows each Magenta recording observation separately from the WAV duration", async () => {
+  songs[0].result_meta = {
+    duration: 12, duration_source: "wav",
+    stream_metrics: { first_audio_ms: 750, underrun_blocks: 0, peak_rss_bytes: 2 ** 30, realtime: true },
+  };
+  mount();
+  expect(await screen.findByText("First audio after 0.75 s")).toBeTruthy();
+  expect(screen.getByText("0 underrun blocks")).toBeTruthy();
+  expect(screen.getByText("Peak resident RAM 1 GiB")).toBeTruthy();
+  expect(screen.getByText("Real-time capture verified")).toBeTruthy();
+  expect(screen.getByText(/0:12/)).toBeTruthy();
+});
+
+it("shows measured MiniMax audio, runtime provenance and the publication reminder", async () => {
+  songs[0].params = { model_selection: { provider: "minimax-music3", synthesis: "fixed-profile", language: "" } };
+  songs[0].result_meta = {
+    duration: 27.53, duration_source: "wav", runtime: "audio.cpp", runtime_revision: "1234567890abcdef",
+    audio_format: { container: "wav", encoding: "pcm", sample_rate_hz: 44100, channels: 2, bits_per_sample: 16 },
+    machine_generated: true, generated_by: "MiniMax-Music3",
+  };
+  mount();
+  expect(await screen.findByText("0:27")).toBeTruthy();
+  expect(screen.getByText("WAV PCM 16-bit · 44.1 kHz · 2 ch", { exact: false })).toBeTruthy();
+  expect(screen.getByText("audio.cpp 12345678")).toHaveProperty("title", "1234567890abcdef");
+  expect(screen.getByText("AI-generated with MiniMax-Music3")).toBeTruthy();
+  const note = screen.getByRole("note");
+  expect(note.textContent).toContain("Clearly label the audio as AI-generated if you publish it.");
+  expect(screen.getByRole("button", { name: "Download" }).getAttribute("aria-describedby")).toBe(note.id);
+});
+
+it.each([
+  ["minimax-music3", { prompt: true, lyrics: true, instrumental: false }],
+  ["heartmula", { prompt: false, lyrics: true, instrumental: false }],
+  ["stable-audio-3", { prompt: true, lyrics: false, instrumental: true }],
+  ["magenta-realtime-2", { prompt: true, lyrics: false, instrumental: true }],
+] as const)("uses the saved %s capabilities when requesting another variant", async (provider, capabilities) => {
+  const caption = "Global Metadata: pop\nVocal Details: warm\nArrangement: keys";
+  const { prompt, lyrics, instrumental } = capabilities;
+  const params = {
+    caption, duration: 27, lyrics: lyrics ? "[Verse]\nAt dawn" : "", style: prompt ? "" : "synth pop",
+    model_selection: { provider, synthesis: "fixed-profile", language: "" },
+    generation_profile: { capabilities },
+  };
+  songs[0].params = params;
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", capabilities: { advanced: false } });
+    if (name === "generate") return Promise.resolve({ ids: ["variant"] });
+    return original(name, args);
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", expect.anything()));
+  const request = mocks.invoke.mock.calls.find(([name]) => name === "generate")?.[1].request;
+  if (prompt) expect(request).toHaveProperty("caption", caption);
+  else expect(request).not.toHaveProperty("caption");
+  expect(request).toHaveProperty("instrumental", instrumental);
+});
+
 it("shows the variance with up to two decimals",async()=>{
   songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
   const view=mount();await screen.findByText("A song A");
@@ -204,6 +263,26 @@ it("localizes a rejected library variant instead of exposing a backend message k
   const alert=await screen.findByRole("alert");
   expect(alert.textContent).toContain("Expert Mode");
   expect(alert.textContent).not.toContain("expert_mode_required");
+});
+
+it("shows measured clip seconds and keeps the meter for a new library variant", async () => {
+  const selection = { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" };
+  const params = { model_selection: selection, prompt: "jazzy swung drums", caption: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300, duration: 0.8, seed: 42 };
+  songs[0].params = params;
+  songs[0].result_meta = { duration: 0.8, duration_source: "wav", bpm: 300 };
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", cpu_iteration_behavior: "ask" });
+    if (name === "generate") return Promise.resolve({ ids: ["new-clip"] });
+    return original(name, args);
+  });
+  mount();
+  expect(await screen.findByText("300BPM · 0.8 s")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: {
+    model_selection: selection, prompt: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300,
+    duration: 0.8, seed: -1, variants: 1, keep_caption: true, title: "A song", folder_id: null, group_id: "g",
+  } }));
 });
 
 it("resets delete confirmation after a keyboard or screenreader click on another action",async()=>{

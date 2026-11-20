@@ -54,7 +54,8 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     result["model_profiles"] = json!(settings.model_profiles);
     result["expert_mode"] = json!(settings.expert_mode);
     let hardware = crate::hardware::inspect();
-    result["recommended_profiles"] = json!(catalog.recommended_profiles(hardware));
+    result["recommended_profiles"] =
+        json!(catalog.recommendations_for_build(hardware, &state.resources, &state.db.root));
     result["profiles"] = Value::Array(
         catalog
             .profiles
@@ -110,6 +111,28 @@ pub async fn use_models(
     drop(operation);
     let _ = app.emit("models-changed", ());
     state.changed(&app);
+    outcome
+}
+
+#[tauri::command]
+pub async fn verify_imported_models(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    selection: Selection,
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let outcome = catalog::verify_manual_profile(
+        &catalog::catalog(),
+        &state.db,
+        &selection,
+        &operation.cancellation(),
+        |p| {
+            let _ = app.emit("model-download-progress", p);
+        },
+    )
+    .await;
+    drop(operation);
+    let _ = app.emit("models-changed", ());
     outcome
 }
 

@@ -9,6 +9,9 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio_util::sync::CancellationToken;
 
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod magenta_qa;
+
 fn report_progress<R: Runtime>(
     state: &AppState,
     app: &AppHandle<R>,
@@ -259,3 +262,7 @@ mod tests {
 
 #[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
 mod text2midi_acceptance;
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+#[path = "jobs/heartmula_hardware.rs"]
+mod heartmula_hardware;

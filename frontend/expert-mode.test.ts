@@ -23,6 +23,12 @@ it("allows the exact Text2midi selection in Simple Mode", () => {
   expect(modelAllowed({ ...midi, language: "another-encoder" }, false, [selection])).toBe(false);
 });
 
+it("keeps expert-only native profiles restricted in Simple Mode", () => {
+  const audiocraft = { provider: "audiocraft", synthesis: "musicgen-small", language: "" };
+  expect(modelAllowed(audiocraft, false, [])).toBe(false);
+  expect(modelAllowed(audiocraft, true, [])).toBe(true);
+});
+
 it("uses simple labels while the expert view retains family and precision", () => {
   expect(modelLabel(selection.synthesis, false)).toBe("Standard");
   expect(modelLabel("acestep-v15-xl-sft-Q8_0.gguf", false)).toBe("XL");

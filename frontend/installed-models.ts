@@ -12,7 +12,7 @@ export function installedModels(catalog: ModelCatalog): InstalledModel[] {
   if ((catalog.title_model.present || catalog.title_model.verified) && !files.some(model => model.file === catalog.title_model.file)) {
     files.push({ ...catalog.title_model, role: "title", precision: catalog.title_model.file.match(/-(BF16|Q\d_[\w]+)\.gguf$/)?.[1] ?? "—" });
   }
-  const order = { synthesis: 0, weights: 0, language: 1, dependency: 2, codec: 2, tokenizer: 2, title: 3 };
+  const order = { synthesis: 0, weights: 0, language: 1, dependency: 2, codec: 2, tokenizer: 2, config: 2, license: 2, title: 3 };
   return files.sort((a, b) => order[a.role] - order[b.role] || modelName(a.file).localeCompare(modelName(b.file)));
 }
 

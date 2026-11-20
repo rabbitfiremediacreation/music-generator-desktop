@@ -1,5 +1,6 @@
-import { saveExport } from "./path-dialogs";
+import { saveExport, type ExportPurpose } from "./path-dialogs";
 import { backend } from "./backend";
+import { songMachineGeneratedBy } from "./song-result";
 import type { Song } from "./types";
 import { t } from "./i18n.js";
 
@@ -9,7 +10,8 @@ export async function exportSong(song: Song, lyrics = false): Promise<void> {
   const kind = lyrics ? "lyrics" : song.output_kind === "midi" ? "midi" : "audio";
   const format = kind === "audio" ? (await backend.settings()).export_format : null;
   const ext = kind === "lyrics" ? "txt" : kind === "midi" ? "mid" : format === "mp3" ? "mp3" : song.file?.split(".").pop() || "wav";
-  const path = await saveExport(`export_${kind}`, `${safeName(song.title || song.caption)}.${ext}`, ext);
+  const purpose: ExportPurpose = kind === "audio" && songMachineGeneratedBy(song) ? "export_generated_audio" : `export_${kind}`;
+  const path = await saveExport(purpose, `${safeName(song.title || song.caption)}.${ext}`, ext);
   if (path) await performExport(kind, path, song.id);
 }
 
