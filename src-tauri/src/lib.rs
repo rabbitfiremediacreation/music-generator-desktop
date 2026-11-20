@@ -87,7 +87,14 @@ pub fn run() {
         )
         .setup(move |app| {
             #[cfg(target_os = "macos")]
-            menu::install(app)?;
+            {
+                use tauri::Listener;
+                menu::install(app)?;
+                let handle = app.handle().clone();
+                app.listen("settings-changed", move |_| {
+                    updates::macos::configure(&handle)
+                });
+            }
             #[cfg(target_os = "macos")]
             let root = sandbox::data_root();
             #[cfg(not(target_os = "macos"))]

@@ -86,7 +86,7 @@ Bibliothek und Einstellungen liegen in `music.db`; Modelle und Songs bleiben au�
 
 Modell- und Song-Ordner lassen sich separat wählen. Beim Wechsel des Song-Ordners werden bestehende Songs an den neuen Ort verschoben; den Hinweis im Assistenten vor dem Fortfahren beachten. Auf macOS externe Ordner über den Auswahldialog freigeben. Protokolle stehen unter `logs/`, insbesondere `desktop.log`, `ace-server.log` und bei separatem Sprachmodell `ace-lm.log`.
 
-Updates erfolgen durch Austausch des Bundles oder bei einer MSI-Installation durch Ausführen des neueren MSI-Installers. Für eine Sicherung die App schließen und den Datenordner sowie separat gewählte Song-Ordner kopieren; Modelle können zusätzlich gesichert oder erneut geladen werden. Beim Wechsel von älteren Installationen die Importfunktion verwenden, damit die ursprünglichen Daten erhalten bleiben. Details zu Ordnerfreigaben und Profilwechseln: [Daten und Updates](docs/desktop.md#data-and-updates).
+Die notarisierten macOS-Stable-Versionen laden Updates im Hintergrund und installieren sie beim Beenden. Installiere die erste Version mit Autoupdater einmalig aus dem DMG in „Programme“. Für Daily, Develop, Windows und Linux erfolgt das Update weiterhin über das jeweilige Paket. Für eine Sicherung die App schließen und den Datenordner sowie separat gewählte Song-Ordner kopieren; Modelle können zusätzlich gesichert oder erneut geladen werden. Beim Wechsel von älteren Installationen die Importfunktion verwenden, damit die ursprünglichen Daten erhalten bleiben. Details zu Ordnerfreigaben und Profilwechseln: [Daten und Updates](docs/desktop.md#data-and-updates).
 
 ## Erprobung und bekannte Grenzen
 
@@ -96,7 +96,7 @@ Automatisierte Frontend-, Rust- und Pakettests sowie native CI-Prüfungen sind i
 - Echte Generierung mit allen Modellfamilien und Quantisierungen sowie mit der Linux-CUDA-Ausgabe auf unterstützter NVIDIA-Hardware bleibt gesondert zu prüfen.
 - Zehn-Minuten-Songs auf Intel-Macs und Rechnern mit 8 GB sowie vollständige GUI-/Audio-Tests auf den Mindestversionen der Betriebssysteme stehen noch aus.
 - Physische Mikrofonaufnahme und tatsächliche VoiceOver-/NVDA-/JAWS-Bedienung sind in der dokumentierten Abnahme noch offen.
-- Die Testausgaben haben keine Developer-ID-Signierung/Notarisierung für macOS; Warnungen des Betriebssystems sind möglich.
+- Ältere macOS-Testausgaben und PR-Builds können beim Start eine Prüfung durch macOS erfordern.
 
 ## Entwickeln und bauen
 

@@ -1,5 +1,8 @@
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
+import { macSigningSettings, withMacSigning } from "./macos-signing.mjs";
+import { installSparkle, macUpdaterSettings, writeAppcast } from "./macos-updater.mjs";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
@@ -7,49 +10,72 @@ import { createMacDiskImage } from "./macos-dmg.mjs";
 import { recordTitle } from "./prepare-title.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
-await prepareEngine(); await verifyEngine(engineFolder);
 const output = path.join(root, "release"); await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await (await import("node:fs/promises")).readFile(path.join(root,"package.json"),"utf8"));
+const signing = platform === "macos" ? macSigningSettings(process.env) : null;
+const updater = platform === "macos" ? macUpdaterSettings(process.env, pkg.version) : null;
+for (const key of Object.keys(process.env)) {
+  if (key.startsWith("APPLE_") || key === "SPARKLE_PRIVATE_KEY") delete process.env[key];
+}
+await prepareEngine(); await verifyEngine(engineFolder);
 const name = `Music-Generator-${pkg.version}`;
 const cli = path.join(root,"node_modules/@tauri-apps/cli/tauri.js");
 const target = path.join(root,"src-tauri/target/release");
 let artifact;
 const artifacts = [];
 if (platform === "macos") {
-  // GitHub exposes absent secrets as empty strings; Tauri treats even an empty certificate as configured.
-  for (const key of Object.keys(process.env)) if (key.startsWith("APPLE_") && !process.env[key]) delete process.env[key];
-  // Match the engine's deployment target, including the Rust supervisor and MP3 helper.
   process.env.MACOSX_DEPLOYMENT_TARGET = desktop.minimumSystemVersion;
   const config = JSON.stringify({ bundle: { macOS: { minimumSystemVersion: desktop.minimumSystemVersion } } });
-  await run(process.execPath, [cli,"build","--bundles","app","--config",config]);
-  const app = path.join(target,"bundle/macos/Music Generator.app");
+  await run(process.execPath, [cli, "build", "--bundles", "app", "--no-sign", "--config", config]);
+  const app = path.join(target, "bundle/macos/Music Generator.app");
   // Tauri includes every Cargo binary; macOS uses the main executable for MCP stdio.
-  await rm(path.join(app,"Contents/MacOS/music-generator-mcp"),{force:true});
-  const identity = process.env.APPLE_SIGNING_IDENTITY || "-";
-  const helper = path.join(app,"Contents/MacOS/music-engine-supervisor");
-  await cp(path.join(target,"music-engine-supervisor"),helper);
-  const bundledEngine = path.join(app,"Contents/Resources/engine");
-  await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true});
-  for (const file of await files(bundledEngine)) {
-    const bytes = await readFile(file);
-    if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", yue2.executable].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
-    await run("codesign",["--force","--sign",identity,...entitlements,file]);
+  await rm(path.join(app, "Contents/MacOS/music-generator-mcp"), { force: true });
+  const helper = path.join(app, "Contents/MacOS/music-engine-supervisor");
+  await cp(path.join(target, "music-engine-supervisor"), helper);
+  const bundledEngine = path.join(app, "Contents/Resources/engine");
+  await rm(bundledEngine, { recursive: true, force: true });
+  await cp(engineFolder, bundledEngine, { recursive: true });
+
+  const work = await mkdtemp(path.join(tmpdir(), "music-mac-release-"));
+  try {
+    await withMacSigning(signing, async (sign, notarize) => {
+      const executableNames = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", yue2.executable];
+      const inherit = ["--entitlements", path.join(root, "src-tauri/Engine.entitlements")];
+      for (const file of await files(bundledEngine)) {
+        const bytes = await readFile(file);
+        if (bytes.length < 4 || ![0xfeedfacf, 0xcffaedfe, 0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
+        await sign(file, executableNames.includes(path.basename(file)) ? inherit : []);
+      }
+      await recordTitle(path.join(bundledEngine, "title"));
+      const { files: preparedFiles, ...provenance } = await verifyEngine(engineFolder);
+      await recordHashes(bundledEngine, { ...provenance, prepared_files: preparedFiles });
+      await sign(helper, inherit);
+      const signer = updater ? await installSparkle(app, work, updater, sign) : null;
+      // Seal the final application after every resource and nested executable is in place.
+      await sign(app, ["--entitlements", path.join(root, "src-tauri/Entitlements.plist")]);
+      await run("codesign", ["--verify", "--deep", "--strict", app]);
+      const zip = destination => run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", app, destination]);
+      if (notarize) {
+        const submission = path.join(work, "notary-submission.zip");
+        await zip(submission);
+        await notarize(submission, app);
+        await rm(submission);
+        await run("spctl", ["--assess", "--type", "execute", "--verbose=2", app]);
+      }
+      artifact = path.join(output, `${name}-macos-${architecture}.zip`);
+      await zip(artifact);
+      const dmg = path.join(output, `${name}-macos-${architecture}.dmg`);
+      await createMacDiskImage(app, dmg);
+      if (notarize) {
+        await sign(dmg);
+        await notarize(dmg, dmg);
+      }
+      artifacts.push(dmg);
+      if (signer) artifacts.push(await writeAppcast(signer, output, artifact, updater, desktop.minimumSystemVersion));
+    });
+  } finally {
+    await rm(work, { recursive: true, force: true });
   }
-  await recordTitle(path.join(bundledEngine,"title"));
-  const { files: preparedFiles, ...provenance } = await verifyEngine(engineFolder);
-  await recordHashes(bundledEngine,{...provenance,prepared_files:preparedFiles});
-  await run("codesign",["--force","--sign",identity,"--entitlements",path.join(root,"src-tauri/Engine.entitlements"),helper]);
-  // Sign inside out; --deep signing would replace the children's inheritance entitlements.
-  await run("codesign",["--force","--sign",identity,"--entitlements",path.join(root,"src-tauri/Entitlements.plist"),app]);
-  await run("codesign",["--verify","--deep","--strict",app]);
-  if (process.env.APPLE_SIGNING_IDENTITY && process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID) {
-    console.log("Tauri signs and notarizes using the configured Apple credentials.");
-  }
-  artifact = path.join(output,`${name}-macos-${architecture}.zip`);
-  await run("ditto",["-c","-k","--sequesterRsrc","--keepParent",app,artifact]);
-  const dmg = path.join(output,`${name}-macos-${architecture}.dmg`);
-  await createMacDiskImage(app, dmg); artifacts.push(dmg);
 } else if (platform === "windows") {
   const runtimeDir = path.join(root,"src-tauri/resources/WebView2");
   if (!await exists(runtimeDir)) {

@@ -502,6 +502,7 @@ pub async fn export_file(
 
 #[tauri::command]
 pub async fn check_update(
+    _app: AppHandle,
     state: Desktop<'_>,
     stream: Option<crate::types::UpdateStream>,
 ) -> Result<Value> {
@@ -509,6 +510,12 @@ pub async fn check_update(
         Some(stream) => stream,
         None => state.db.settings()?.update_stream,
     };
+    #[cfg(target_os = "macos")]
+    if stream == crate::types::UpdateStream::Stable && crate::updates::macos::check(&_app).await? {
+        return Ok(
+            json!({"native": true, "available": false, "current": env!("CARGO_PKG_VERSION")}),
+        );
+    }
     crate::updates::check(stream).await
 }
 

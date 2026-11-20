@@ -1,3 +1,6 @@
+#[cfg(target_os = "macos")]
+pub mod macos;
+
 use crate::{error::Result, types::UpdateStream};
 use semver::Version;
 use serde_json::{json, Value};
