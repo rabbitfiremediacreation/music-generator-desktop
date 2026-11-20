@@ -143,6 +143,7 @@ mod tests {
             advanced: false,
             analysis: false,
             max_seed: None,
+            output_kind: crate::types::OutputKind::Audio,
             bars: None,
         }
     }

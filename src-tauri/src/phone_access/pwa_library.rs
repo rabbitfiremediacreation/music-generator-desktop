@@ -4,6 +4,7 @@ use crate::{
     audio_facts::file_duration,
     db::{safe_song_path, Database},
     error::Result,
+    types::OutputKind,
 };
 use axum::{
     body::Body,
@@ -42,6 +43,10 @@ struct SongCard {
     duration: Option<f64>,
     bpm: Option<f64>,
     has_audio: bool,
+    #[serde(skip_serializing_if = "OutputKind::is_audio")]
+    output_kind: OutputKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    has_midi: Option<bool>,
 }
 
 fn number(json: Option<String>) -> Option<f64> {
@@ -61,7 +66,7 @@ fn song_cards(db: &Database, filter: &Filter) -> Result<Vec<SongCard>> {
         let mut stmt = con.prepare_cached(
             "SELECT id, COALESCE(NULLIF(title, ''), NULLIF(caption, ''), 'Song') AS display_title,
                     status, CASE WHEN status='error' THEN message END AS error_message,
-                    favorite, folder_id, file, audio_missing,
+                    favorite, folder_id, file, audio_missing, output_kind,
                     params -> 'duration' AS requested_duration, result_meta -> 'bpm' AS bpm
              FROM songs
              WHERE (?1='' OR title LIKE ?2 OR caption LIKE ?2 OR lyrics LIKE ?2)
@@ -89,6 +94,8 @@ fn song_cards(db: &Database, filter: &Filter) -> Result<Vec<SongCard>> {
                         duration: number(row.get("requested_duration")?),
                         bpm: number(row.get("bpm")?),
                         has_audio: false,
+                        output_kind: row.get("output_kind")?,
+                        has_midi: None,
                     },
                     row.get::<_, Option<String>>("file")?,
                     row.get::<_, bool>("audio_missing")?,
@@ -100,13 +107,22 @@ fn song_cards(db: &Database, filter: &Filter) -> Result<Vec<SongCard>> {
     Ok(rows
         .into_iter()
         .map(|(mut card, file, audio_missing)| {
+            if card.output_kind == OutputKind::Midi {
+                card.duration = None;
+                card.has_midi = Some(false);
+            }
             if card.status == "done" && !audio_missing {
                 if let Some(path) =
                     file.and_then(|file| safe_song_path(Path::new(&songs_dir), &file).ok())
                 {
-                    card.has_audio = true;
-                    // As in the detail API, prefer the measured WAV length for historical songs.
-                    card.duration = file_duration(&path).ok().or(card.duration);
+                    match card.output_kind {
+                        OutputKind::Audio => {
+                            card.has_audio = true;
+                            // Prefer the measured WAV length for historical songs.
+                            card.duration = file_duration(&path).ok().or(card.duration);
+                        }
+                        OutputKind::Midi => card.has_midi = Some(path.is_file()),
+                    }
                 }
             }
             card

@@ -125,19 +125,20 @@ fn recommends_magenta_only_when_the_build_contains_its_runtime() {
         ..music_generator::hardware::inspect().clone()
     };
     let resources = tempfile::tempdir().unwrap();
+    let data = tempfile::tempdir().unwrap();
     let executable = runtime.executable(resources.path());
     std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
     std::fs::write(executable, []).unwrap();
 
     assert!(catalog.recommended_profiles(&hardware).contains(&selection));
     assert!(!catalog
-        .recommendations_for_build(&hardware, resources.path())
+        .recommendations_for_build(&hardware, resources.path(), data.path())
         .contains(&selection));
 
     for file in &runtime.required_files {
         std::fs::write(resources.path().join(file), []).unwrap();
     }
     assert!(catalog
-        .recommendations_for_build(&hardware, resources.path())
+        .recommendations_for_build(&hardware, resources.path(), data.path())
         .contains(&selection));
 }

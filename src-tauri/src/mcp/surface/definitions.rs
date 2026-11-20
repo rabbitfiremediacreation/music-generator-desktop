@@ -39,7 +39,7 @@ pub(super) fn tools() -> Vec<Value> {
     });
 
     let mut generate = originals["generate_music"].clone();
-    generate["description"] = json!("Queue music and return durable song IDs. Read get_context sections=[policy] for the selected profile's supported inputs and limits. AudioCraft accepts a prompt, style or caption and a profile-specific duration. Stable Audio 3 accepts an instrumental prompt and duration. HeartMuLa accepts style tags and lyrics. Mimetic A0 takes a prompt, BPM and 1, 2 or 4 bars. ACE-Step uses saved sampling preferences and may download the title model for a blank title. Other profiles use the local title cache or a fallback title. With source_song_id, inherit that song's parameters, current title, folder and group, use random seeds and default to one variant. Supplied flat parameters override inherited values. Setup and verified models are required. Poll get_song with optional wait_seconds or get_context sections=[queue].");
+    generate["description"] = json!("Queue music and return durable song IDs. Read get_context sections=[policy] for the selected profile's supported inputs and limits. AudioCraft accepts a prompt, style or caption and a profile-specific duration. Stable Audio 3 accepts an instrumental prompt and duration. HeartMuLa accepts style tags and lyrics. Mimetic A0 takes a prompt, BPM and 1, 2 or 4 bars. Text2midi takes a text prompt and returns an editable MIDI file. ACE-Step uses saved sampling preferences and may download the title model for a blank title. Other audio profiles use the local title cache or a fallback title. MIDI uses a local fallback title. With source_song_id, inherit that song's parameters, current title, folder and group, use random seeds and default to one variant. Supplied flat parameters override inherited values. Setup and verified models are required. Poll get_song with optional wait_seconds or get_context sections=[queue].");
     generate["inputSchema"]["properties"]["source_song_id"] = id();
     generate["inputSchema"]["properties"]["variants"]["description"] = json!("Number of versions within the selected profile's limit. Omit for one when reusing a song or using a fixed profile. New ACE-Step requests use the saved preference.");
     for name in ["instrumental", "keep_caption", "seed"] {
@@ -49,7 +49,7 @@ pub(super) fn tools() -> Vec<Value> {
             .remove("default");
     }
     for (name, description) in [
-        ("duration", "Requested seconds within the profile's limits. Metered profiles derive duration from bars and BPM. For other profiles, omit to inherit the source song or use the selected profile's default."),
+        ("duration", "Requested seconds for audio profiles, within the profile's limits. Metered profiles derive duration from bars and BPM. For other audio profiles, omit to inherit the source song or use the selected profile's default. Omit this field for MIDI."),
         ("inference_steps", "ACE-Step sampling control. Omit to inherit the source song or use the saved studio or device default. CPU iteration policy still applies."),
         ("lm_temperature", "ACE-Step language-model control. Omit to inherit the source song or use the saved studio preference."),
         ("instrumental", "Omit to inherit the source song or use the selected profile's default. Stable Audio 3 and Mimetic A0 generate instrumentals. Vocal tag-based profiles require lyrics."),
@@ -60,7 +60,7 @@ pub(super) fn tools() -> Vec<Value> {
     }
 
     let mut song = originals["get_song"].clone();
-    song["description"] = json!("Read flat song metadata, status, lyrics, generation parameters and local audio path. Optionally wait_seconds (0–30) waits for done, error or cancelled; zero returns immediately. completed, timed_out and progress are always included. A positive wait timeout leaves generation running. Audio is ready only when status=done and audio_missing=false.");
+    song["description"] = json!("Read flat song metadata, status, lyrics, generation parameters, output_kind and the local result path. Set wait_seconds to 0–30 to wait for done, error or cancelled. Zero returns immediately. completed, timed_out and progress are always included. A positive wait timeout leaves generation running. The result is ready when status=done, audio_missing=false and path is present.");
     song["inputSchema"]["properties"]["wait_seconds"] =
         json!({"type":"integer","minimum":0,"maximum":30,"default":0});
 
@@ -74,7 +74,7 @@ pub(super) fn tools() -> Vec<Value> {
     models["annotations"]["destructiveHint"] = true.into();
     models["annotations"]["openWorldHint"] = true.into();
 
-    let mut cancel = tool("cancel_job", "Cancel exactly a queued/running song (target=song) or a background MCP operation (target=operation) by id. Safe to repeat. Finished songs, audio and completed operation results remain intact. Cancellation is asynchronous; poll get_song or get_operations until terminal.",json!({"target":{"enum":["song","operation"]},"id":id()}),&["target","id"],false,true);
+    let mut cancel = tool("cancel_job", "Cancel exactly a queued/running song (target=song) or a background MCP operation (target=operation) by id. Safe to repeat. Finished songs, their result files and completed operation results remain intact. Poll get_song or get_operations until cancellation finishes.",json!({"target":{"enum":["song","operation"]},"id":id()}),&["target","id"],false,true);
     cancel["annotations"]["idempotentHint"] = true.into();
 
     let mut tools = vec![context, generate, song, operations, models, cancel];

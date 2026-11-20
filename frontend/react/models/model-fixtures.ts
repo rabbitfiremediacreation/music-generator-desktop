@@ -1,5 +1,5 @@
 import source from "../../../models/catalog.json";
-import type { CatalogModel, ModelCatalog, Settings } from "../../types";
+import type { CatalogModel, CatalogProfile, ModelCatalog, Settings } from "../../types";
 import { setupFixture, standard } from "../setup/fixtures";
 
 export const xl = { ...standard, synthesis: "acestep-v15-xl-sft-Q8_0.gguf" };
@@ -15,6 +15,10 @@ export const catalogFixture: ModelCatalog = { ...source, expert_mode: true, reco
 
 export function catalogWithHeartMuLa(): ModelCatalog {
   return catalogWithProvider("heartmula");
+}
+
+export function catalogWithText2midi(available = false): ModelCatalog {
+  return catalogWithProvider("text2midi", available);
 }
 
 export function catalogWithAudioCraft(available = false): ModelCatalog {
@@ -46,7 +50,14 @@ function catalogWithProvider(id: string, available = false): ModelCatalog {
   return {
     ...structuredClone(catalogFixture),
     providers: source.providers.filter(provider => provider.id === "ace-step" || provider.id === id).map(provider => ({ ...provider, status: provider.status === "preview" ? "preview" : "available" })),
-    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({ ...profile, platforms: available ? profile.platforms : [], available, unavailable_reason: profile.release_hold, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({
+      ...profile,
+      capabilities: profile.capabilities as CatalogProfile["capabilities"],
+      platforms: available ? profile.platforms : [],
+      available,
+      unavailable_reason: profile.release_hold,
+      acquisition: profile.acquisition === "manual" ? "manual" : "download",
+    })),
     models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }

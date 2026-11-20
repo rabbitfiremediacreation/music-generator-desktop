@@ -100,7 +100,7 @@ fn defaults_and_legacy_settings_are_disabled_and_both_values_survive_restart() {
 }
 
 #[test]
-fn all_families_and_precisions_require_expert_mode_except_hardware_recommendations() {
+fn all_ace_step_families_and_precisions_require_expert_mode_except_hardware_recommendations() {
     let catalog = catalog::catalog();
     assert_eq!(catalog.expert_families.len(), 7);
     for family in [
@@ -119,9 +119,9 @@ fn all_families_and_precisions_require_expert_mode_except_hardware_recommendatio
     for gib in [8, 16, 32] {
         let hw = hardware(gib);
         let recommendations = catalog.recommended_profiles(&hw);
-        let ace_step = catalog.models.iter().filter(|m| m.provider == "ace-step");
-        for synthesis in ace_step.clone().filter(|m| m.role == "synthesis") {
-            for language in ace_step.clone().filter(|m| m.role == "language") {
+        let ace_step_models = catalog.models.iter().filter(|m| m.provider == "ace-step");
+        for synthesis in ace_step_models.clone().filter(|m| m.role == "synthesis") {
+            for language in ace_step_models.clone().filter(|m| m.role == "language") {
                 let selection = Selection {
                     provider: "ace-step".into(),
                     synthesis: synthesis.file.clone(),

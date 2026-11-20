@@ -101,6 +101,7 @@ fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
         advanced: false,
         analysis: false,
         max_seed: Some(u32::MAX),
+        output_kind: Default::default(),
         bars: None,
     };
     let request = GenerateRequest {

@@ -72,7 +72,7 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
       <h5>{t("browser_download_options")}</h5>
       {!metadata && <ModelSelectFields catalog={catalog} draft={draft} onChange={state.setDraft} compatibleOnly={compatible} busy={busy || disabled} />}
       {!verifyOnly && !selected.allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p>{catalog.recommended_profiles.length > 0 && <button type="button" className="sek" disabled={busy} onClick={() => state.setDraft(catalog.recommended_profiles.find(item => item.synthesis === draft.synthesis) || catalog.recommended_profiles[0])}>{t("expert_use_recommended")}</button>}{onOpenSettings && <button type="button" className="sek" onClick={onOpenSettings}>{t("expert_settings")}</button>}</div>}
-      {!verifyOnly && !catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
+      {!metadata && !catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
         <dl className="model-requirements">{!verifyOnly && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
         {metadata && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}

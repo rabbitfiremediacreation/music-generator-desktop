@@ -201,12 +201,16 @@ impl Catalog {
         &self,
         hardware: &Hardware,
         resources: &Path,
+        data_root: &Path,
     ) -> Vec<Selection> {
         self.recommended_profiles(hardware)
             .into_iter()
             .filter(|selection| {
-                self.profile(selection)
-                    .is_none_or(|profile| profile.ensure_runtime(resources, hardware).is_ok())
+                self.profile(selection).is_none_or(|profile| {
+                    profile
+                        .ensure_runtime(resources, data_root, hardware)
+                        .is_ok()
+                })
             })
             .collect()
     }

@@ -50,7 +50,7 @@ async fn offline_queue_library_export_and_cancel() {
         synthesis: "heartmula-oss-3b-hny".into(),
         language: String::new(),
     };
-    catalog::ensure_runtime(&selection, &resources).unwrap();
+    catalog::ensure_runtime(&selection, &resources, &db.root).unwrap();
     let cancel = CancellationToken::new();
     catalog::install_profile(&catalog::catalog(), &db, &selection, &cancel, |_| {})
         .await

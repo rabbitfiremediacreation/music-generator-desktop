@@ -14,6 +14,7 @@ pub mod process;
 pub mod progress;
 mod response;
 pub(crate) mod stable_audio;
+pub mod text2midi;
 use crate::{
     error::{message, Error, Result},
     types::Settings,

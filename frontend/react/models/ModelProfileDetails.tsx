@@ -1,4 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useId } from "react";
 import type { CatalogProfile } from "../../types";
 import { useI18n } from "../i18n";
 
@@ -8,11 +9,18 @@ export function ProfileLink({ url, children }: { url: string; children: string }
 
 export function ModelProfileDetails({ profile, bytes, total }: { profile: CatalogProfile; bytes: (value: number) => string; total: number }) {
   const { t } = useI18n();
-  const { bars, min_duration, max_duration } = profile.capabilities;
+  const commandId = useId();
+  const { bars, min_duration, max_duration, output_kind } = profile.capabilities;
   return <section className="model-summary-card model-profile-details" aria-label={t("provider_license_usage")}>
     <dl>
-      <div><dt>{t("length")}</dt><dd>{bars?.length ? t("clip_duration_hint", bars.join(" / "), max_duration) : t("provider_duration_hint", min_duration, max_duration)}</dd></div>
+      {output_kind === "midi"
+        ? <div><dt>{t("browser_format")}</dt><dd>{t("midi_format")}</dd></div>
+        : <div><dt>{t("length")}</dt><dd>{bars?.length ? t("clip_duration_hint", bars.join(" / "), max_duration) : t("provider_duration_hint", min_duration, max_duration)}</dd></div>}
       <div><dt>{t("provider_runtime")}</dt><dd><ProfileLink url={profile.runtime.source}>{profile.runtime.name}</ProfileLink>{" "}<code>{profile.runtime.revision}</code> · <ProfileLink url={profile.runtime.license_url}>{profile.runtime.license}</ProfileLink></dd></div>
+      {profile.install_command && <div>
+        <dt><label htmlFor={commandId}>{t("provider_runtime_install")}</label></dt>
+        <dd><textarea id={commandId} className="model-runtime-command" readOnly rows={3} spellCheck={false} value={profile.install_command} onFocus={event => event.currentTarget.select()} /></dd>
+      </div>}
       {profile.upstream_sources.map(source => <div key={source.id}>
         <dt>{t(`provider_source_${source.role}`)}</dt>
         <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink>

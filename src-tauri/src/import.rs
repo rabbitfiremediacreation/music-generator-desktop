@@ -76,7 +76,7 @@ pub fn import_library(
             con.execute("UPDATE songs SET audio_missing=1,status=CASE WHEN status IN ('queued','running') THEN 'cancelled' ELSE status END WHERE id=?1", [id])?;
         }
     }
-    let names = source.db.audio_files()?;
+    let names = source.db.result_files()?;
     let dest = Path::new(&request.songs_dir);
     std::fs::create_dir_all(dest)?;
     let mut copies = Copies::default();
@@ -142,7 +142,7 @@ pub fn import_library(
         {
             return Err(message("import_library_not_empty"));
         }
-        let count = tx.execute("INSERT INTO songs(id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing) SELECT id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing FROM legacy.songs ORDER BY rowid", [])?;
+        let count = tx.execute("INSERT INTO songs(id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing,output_kind) SELECT id,group_id,created_at,finished_at,status,message,title,caption,lyrics,seed,params,result_meta,engine,file,favorite,folder_id,started_at,audio_missing,output_kind FROM legacy.songs ORDER BY rowid", [])?;
         tx.execute(
             "INSERT INTO folders SELECT id,name,created_at FROM legacy.folders",
             [],
@@ -154,7 +154,7 @@ pub fn import_library(
         tx.commit()?;
         Ok(count)
     })();
-    // Once committed, a detach error must never delete successfully imported audio.
+    // Once committed, a detach error must never delete successfully imported files.
     if imported.is_ok() {
         copies.committed = true;
     }

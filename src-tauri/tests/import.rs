@@ -1,7 +1,7 @@
 use music_generator::{
     db::Database,
     import::import_legacy,
-    types::{GenerateRequest, SongFilter},
+    types::{GenerateRequest, OutputKind, SongFilter},
 };
 use serde_json::json;
 
@@ -66,10 +66,13 @@ fn import_old_library_adds_start_time_only_to_the_copy() {
     let con = rusqlite::Connection::open(old.path().join("music.db")).unwrap();
     con.execute("ALTER TABLE songs DROP COLUMN started_at", [])
         .unwrap();
+    con.execute("ALTER TABLE songs DROP COLUMN output_kind", [])
+        .unwrap();
     let target = tempfile::tempdir().unwrap();
     let db = Database::open(target.path()).unwrap();
     import_legacy(&db, old.path()).unwrap();
     assert!(db.song(&id).unwrap().started_at.is_none());
+    assert_eq!(db.song(&id).unwrap().output_kind, OutputKind::Audio);
     assert_eq!(db.song(&id).unwrap().params, original);
     let columns = con
         .prepare("PRAGMA table_info(songs)")
@@ -79,6 +82,7 @@ fn import_old_library_adds_start_time_only_to_the_copy() {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     assert!(!columns.iter().any(|c| c == "started_at"));
+    assert!(!columns.iter().any(|c| c == "output_kind"));
     let params: String = con
         .query_row("SELECT params FROM songs WHERE id=?1", [&id], |r| r.get(0))
         .unwrap();
@@ -90,6 +94,39 @@ fn import_old_library_adds_start_time_only_to_the_copy() {
         std::fs::read(old.path().join("songs/old.wav")).unwrap(),
         b"old audio"
     );
+}
+
+#[test]
+fn import_preserves_midi_result_type_and_file() {
+    let old = tempfile::tempdir().unwrap();
+    let source = Database::open(old.path()).unwrap();
+    let id = source
+        .enqueue(&GenerateRequest {
+            prompt: "solo cello".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    source.claim_next().unwrap();
+    source
+        .finish_output(
+            &id,
+            "original.mid",
+            &json!({}),
+            "text2midi",
+            OutputKind::Midi,
+        )
+        .unwrap();
+    let songs = old.path().join("songs");
+    std::fs::create_dir_all(&songs).unwrap();
+    std::fs::write(songs.join("original.mid"), b"MThd fixture").unwrap();
+
+    let new = tempfile::tempdir().unwrap();
+    let db = Database::open(new.path()).unwrap();
+    assert_eq!(import_legacy(&db, old.path()).unwrap()["songs"], 1);
+    let song = db.song(&id).unwrap();
+    assert_eq!(song.output_kind, OutputKind::Midi);
+    assert_eq!(std::fs::read(song.path.unwrap()).unwrap(), b"MThd fixture");
 }
 
 #[test]

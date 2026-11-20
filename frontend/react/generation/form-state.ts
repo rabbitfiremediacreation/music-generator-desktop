@@ -31,8 +31,8 @@ export function songValues(song: Song, selection: ModelSelection | null): FormVa
   return {
     ...INITIAL_VALUES, ...sampling,
     title: song.title || "",
-    style: useSavedCaption ? "" : p.style ?? (minimax ? "" : p.caption ?? ""),
-    prompt: useSavedCaption ? p.caption || song.caption : p.prompt ?? "",
+    style: song.output_kind === "midi" || useSavedCaption ? "" : p.style ?? (minimax ? "" : p.caption ?? ""),
+    prompt: song.output_kind === "midi" ? p.prompt || p.caption || song.caption : useSavedCaption ? p.caption || song.caption : p.prompt ?? "",
     instrumental, lyrics: instrumental ? "" : p.lyrics || "",
     duration: Math.min(600, Math.max(10, p.duration || 90)),
     bpm: !p.bpm || p.bpm <= 50 ? 0 : Math.min(200, p.bpm),

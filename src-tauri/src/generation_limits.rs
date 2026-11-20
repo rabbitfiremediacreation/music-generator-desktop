@@ -30,6 +30,25 @@ pub fn validate_request(
             )));
         }
     }
+    if !capabilities.output_kind.is_audio() {
+        let prompt = request.prompt.trim();
+        let prompt = if prompt.is_empty() {
+            request.caption.trim()
+        } else {
+            prompt
+        };
+        if prompt.trim_matches(',').trim().is_empty() {
+            return Err(message("Enter a text prompt for MIDI generation"));
+        }
+        if prompt.len() > MAX_NATIVE_TEXT_BYTES || prompt.contains('\0') {
+            return Err(message(
+                "The MIDI prompt must be at most 8 KiB and cannot contain NUL characters",
+            ));
+        }
+        if !request.style.trim().is_empty() {
+            return Err(message("Describe musical styles in the MIDI prompt"));
+        }
+    }
     let duration = match (&capabilities.bars, request.bars) {
         (Some(choices), Some(bars)) if choices.contains(&bars) => {
             if !(1..=300).contains(&request.bpm) {

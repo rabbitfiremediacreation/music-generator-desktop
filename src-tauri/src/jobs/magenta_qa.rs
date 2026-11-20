@@ -26,7 +26,7 @@ async fn magenta_offline_queue() {
         language: String::new(),
     };
     let operation = state.runtime.try_begin(OperationKind::Models).unwrap();
-    catalog::ensure_runtime(&selection, &state.resources).unwrap();
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root).unwrap();
     catalog::install_profile(
         &catalog::catalog(),
         &state.db,

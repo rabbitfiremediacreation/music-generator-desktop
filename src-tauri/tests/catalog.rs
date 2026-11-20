@@ -611,3 +611,125 @@ fn retired_provider_without_a_saved_ace_profile_uses_verified_catalog_defaults()
     assert_eq!(catalog::required(&selection).unwrap().len(), 4);
     assert!(!settings.setup_complete);
 }
+
+fn midi_selection() -> Selection {
+    Selection {
+        provider: "text2midi".into(),
+        synthesis: "text2midi".into(),
+        language: "flan-t5-base".into(),
+    }
+}
+
+#[test]
+fn text2midi_snapshot_pins_both_upstreams_and_only_runtime_files() {
+    let catalog = catalog::catalog();
+    let selection = midi_selection();
+    let profile = catalog.profile(&selection).unwrap();
+    assert_eq!(profile.upstream_sources.len(), 2);
+    let snapshot = catalog::generation_profile(&selection).unwrap();
+    assert_eq!(
+        snapshot.capabilities.output_kind,
+        music_generator::types::OutputKind::Midi
+    );
+    assert!(!snapshot.capabilities.analysis);
+    assert_eq!(snapshot.files.len(), 5);
+    assert!(snapshot
+        .files
+        .iter()
+        .any(|file| file.file == "text2midi/pytorch_model.bin"));
+    assert!(snapshot
+        .files
+        .iter()
+        .all(|file| !file.file.ends_with(".pkl")));
+    for file in snapshot.files {
+        let source = file.source.unwrap();
+        let upstream = profile
+            .upstream_sources
+            .iter()
+            .find(|upstream| upstream.repository == source.repository)
+            .unwrap();
+        assert_eq!(source.revision, upstream.revision);
+        assert_eq!(source.revision.len(), 40);
+        assert!(source.revision.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert!(file.file.ends_with(&source.path));
+    }
+    let ace =
+        serde_json::to_value(catalog::generation_profile(&self::selection()).unwrap()).unwrap();
+    assert!(ace["capabilities"].get("output_kind").is_none());
+}
+
+#[test]
+fn text2midi_admission_requires_caption_and_disallows_audio_controls() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut request = GenerateRequest {
+        model_selection: Some(midi_selection()),
+        ..Default::default()
+    };
+    assert!(db.enqueue(&request).is_err());
+    request.prompt = "--- Quiet piano in G minor".into();
+    request.duration = 20.0;
+    assert!(db.enqueue(&request).is_err());
+    request.duration = 0.0;
+    request.style = "Piano".into();
+    assert!(db.enqueue(&request).is_err());
+    request.style.clear();
+    request.prompt.push('\0');
+    assert!(db.enqueue(&request).is_err());
+    request.prompt.pop();
+    let song = db.song(&db.enqueue(&request).unwrap().remove(0)).unwrap();
+    assert_eq!(song.output_kind, music_generator::types::OutputKind::Midi);
+    assert_eq!(song.params["caption"], request.prompt);
+    assert!(song.lyrics.is_none());
+}
+
+#[tokio::test]
+async fn text2midi_accepts_local_files_only_after_verification() {
+    use sha2::{Digest, Sha256};
+    use tokio_util::sync::CancellationToken;
+
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = root.path().to_string_lossy().into();
+    settings.setup_complete = true;
+    settings.expert_mode = true;
+    db.save_settings(&settings).unwrap();
+
+    let selection = midi_selection();
+    let mut fixture = catalog::catalog();
+    let assets = fixture.required(&selection).unwrap();
+    for asset in fixture
+        .models
+        .iter_mut()
+        .filter(|m| m.provider == selection.provider)
+    {
+        let contents = asset.file.as_bytes();
+        asset.estimated_bytes = contents.len() as u64;
+        asset.sha256 = format!("{:x}", Sha256::digest(contents));
+        let path = root.path().join(&asset.file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, contents).unwrap();
+    }
+    let asset = &assets[0];
+    let checkpoint = root.path().join(&asset.file);
+    std::fs::write(&checkpoint, vec![0; asset.file.len()]).unwrap();
+    let cancel = CancellationToken::new();
+    assert!(
+        catalog::install_profile(&fixture, &db, &selection, &cancel, |_| {})
+            .await
+            .is_err()
+    );
+    assert_eq!(db.settings().unwrap().model_provider, "ace-step");
+
+    std::fs::write(checkpoint, &asset.file).unwrap();
+    catalog::install_profile(&fixture, &db, &selection, &cancel, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(Selection::from_settings(&db.settings().unwrap()), selection);
+    assert!(catalog::catalog()
+        .required(&self::selection())
+        .unwrap()
+        .iter()
+        .all(|asset| asset.provider == "ace-step"));
+}

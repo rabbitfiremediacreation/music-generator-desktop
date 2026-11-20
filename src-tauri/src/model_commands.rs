@@ -55,17 +55,26 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     result["expert_mode"] = json!(settings.expert_mode);
     let hardware = crate::hardware::inspect();
     result["recommended_profiles"] =
-        json!(catalog.recommendations_for_build(hardware, &state.resources));
+        json!(catalog.recommendations_for_build(hardware, &state.resources, &state.db.root));
     result["profiles"] = Value::Array(
         catalog
             .profiles
             .iter()
             .map(|profile| {
                 let mut value = serde_json::to_value(profile).expect("profile serialization");
-                let availability = profile.ensure_runtime(&state.resources, hardware);
+                let availability =
+                    profile.ensure_runtime(&state.resources, &state.db.root, hardware);
                 value["available"] = json!(availability.is_ok());
                 value["unavailable_reason"] =
                     json!(availability.err().map(|error| error.to_string()));
+                if profile.platform(hardware).is_ok() {
+                    if let Some(command) = profile
+                        .runtime
+                        .install_command(&state.resources, &state.db.root)
+                    {
+                        value["install_command"] = json!(command);
+                    }
+                }
                 value
             })
             .collect(),
@@ -88,7 +97,7 @@ pub async fn use_models(
     let operation = state.runtime.try_begin(OperationKind::Models)?;
     let settings = state.db.settings()?;
     catalog::validate_activation(&settings, &selection, crate::hardware::inspect())?;
-    catalog::ensure_runtime(&selection, &state.resources)?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     let cancel = operation.cancellation();
     // Stopping first releases resident model memory and refreshes the engine's file
     // registry on the next generation, including newly downloaded models.
@@ -135,7 +144,7 @@ pub fn select_models(
     selection: Selection,
 ) -> Result<Selection> {
     let operation = state.runtime.try_begin(OperationKind::Models)?;
-    catalog::ensure_runtime(&selection, &state.resources)?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     catalog::activate_cached_profile(&state.db, &selection, crate::hardware::inspect())?;
     state.stop_engine();
     drop(operation);

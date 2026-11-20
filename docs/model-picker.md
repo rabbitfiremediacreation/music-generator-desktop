@@ -79,6 +79,11 @@ The optional `mrt2_small` profile records prompted instrumentals as timed 48 kHz
 
 MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the Apple Silicon AudioCraft bundle. The ModelPicker displays the CC BY-NC terms and requires explicit selection. [AudioCraft runtime, model requirements and acceptance](qa/issue-132/README.md)
 
+
+## Text2midi
+
+Choose **Text2midi** in the add-model catalog. The profile shows both model sources, file sizes and checksums, usage terms, and the tested CPU backend. On macOS arm64 the picker shows the one-time terminal command when its Python 3.12 environment is missing. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
+
 ## Downloads and persistence
 
 The existing Rust streaming downloader provides checked HTTP ranges, `.part` resumption, disk-space checks, SHA-256 verification and promotion only after success. Progress includes filename, verification phase, bytes and MiB/s. The picker stays open on errors and supports cancel/retry. Downloads and activation run under the existing operation lock, so they cannot race an engine operation or wizard. Only a complete verified profile replaces the saved default; failure/cancel leaves the previous profile and completed setup intact. The engine is stopped before activation and scans the expanded model folder on its next lazy start. Cached proofs avoid rehashing unchanged files when browsing or reusing installed models; verified offline selection needs no network or extra model-sized disk space.
