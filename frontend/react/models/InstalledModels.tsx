@@ -24,6 +24,7 @@ export function InstalledModels({ active, expertMode, manager, adding, onAdd }: 
   const cancel = useMutation({ mutationFn: backend.cancelModelDownload, networkMode: "always" });
   const catalog = query.data ? { ...query.data, expert_mode: expertMode } : undefined;
   const files = catalog ? installedModels(catalog) : [];
+  const profileNames = new Map(catalog?.profiles?.map(profile => [profile.files[0], profile.name]));
   const current = manager.currentSelection ?? catalog?.selection;
   const activeFixed = current && catalog && modelProfile(catalog, current);
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
@@ -39,7 +40,7 @@ export function InstalledModels({ active, expertMode, manager, adding, onAdd }: 
       <tbody>{files.map(model => {
         const selected = !!current && (model.file === current.synthesis || model.file === current.language || model.file === (activeFixed && activeFixed.files[0]));
         const next = current && installedSelection(catalog, model.file, current);
-        return <tr key={model.file}><td><span className="installed-model-name" title={model.file}>{modelName(model.file)} {selected && <span className="installed-active">{t("browser_active")}</span>}</span>
+        return <tr key={model.file}><td><span className="installed-model-name" title={model.file}>{profileNames.get(model.file) ?? modelName(model.file)} {selected && <span className="installed-active">{t("browser_active")}</span>}</span>
           <span className="small">{t(modelRoleLabel(model.role))} · {t(model.verified ? "picker_installed" : "picker_verify")}</span></td>
           <td><code>{model.precision}</code></td><td>{bytes(model.estimated_bytes)}</td>
           <td>{next && !selected && <button type="button" className="sek" disabled={busy || manager.disabled} onClick={() => activate.mutate({ next, before: manager.selectionRevision })}>{t("picker_use")}</button>}</td>

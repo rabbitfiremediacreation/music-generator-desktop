@@ -17,6 +17,13 @@ export function catalogWithHeartMuLa(): ModelCatalog {
   return catalogWithProvider("heartmula");
 }
 
+export function catalogWithAudioCraft(available = false): ModelCatalog {
+  const catalog = catalogWithProvider("audiocraft", available);
+  const minimums = catalog.profiles!.flatMap(profile => profile.platforms.map(platform => platform.minimum_ram_bytes));
+  catalog.hardware = { ...catalog.hardware, ram_bytes: Math.max(catalog.hardware.ram_bytes, ...minimums) };
+  return catalog;
+}
+
 export function catalogWithStableAudio(available = false): ModelCatalog {
   return catalogWithProvider("stable-audio-3", available);
 }

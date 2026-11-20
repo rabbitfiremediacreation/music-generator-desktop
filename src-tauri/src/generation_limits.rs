@@ -52,7 +52,11 @@ pub fn validate_request(
         }
     }
     if request.instrumental && !capabilities.instrumental {
-        return Err(message("This model requires a vocal song"));
+        return Err(message(if capabilities.lyrics_required {
+            "This model requires a vocal song"
+        } else {
+            "This model does not support the instrumental control"
+        }));
     }
     if capabilities.instrumental && !capabilities.lyrics && !request.instrumental {
         return Err(message("This model generates instrumental music only"));

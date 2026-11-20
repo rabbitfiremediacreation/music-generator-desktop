@@ -4,6 +4,7 @@ use crate::{
     types::Settings,
 };
 use std::path::Path;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 /// Exercise the real startup detector inside a signed bundle without opening user data or windows.
@@ -57,6 +58,7 @@ pub fn run(forbidden: &Path) -> Result<()> {
         let title = crate::titles::probe(&resources,&CancellationToken::new()).await?;
         if !title.contains("[Desktop Sandbox] Unselected file access denied") || !title.contains("music-title=ready") { return Err(message("Title runtime sandbox enforcement was not confirmed")); }
         println!("App Sandbox: native title runtime starts; unselected file access denied.");
+        verify_audiocraft(&resources).await?;
         #[cfg(target_arch = "aarch64")]
         verify_audio_cpp(&resources, &root).await?;
         // Optional real-model acceptance; fixture must already be inside this app's container.
@@ -80,10 +82,35 @@ pub fn run(forbidden: &Path) -> Result<()> {
     result
 }
 
+async fn verify_audiocraft(resources: &Path) -> Result<()> {
+    let executable = resources.join("engine/audiocraft/audiocraft-synth");
+    if !executable.is_file() {
+        return Ok(());
+    }
+    let mut launcher = tokio::process::Command::new(executable);
+    launcher
+        .arg("--self-test")
+        .env("PATH", "")
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(Duration::from_secs(60), launcher.output())
+        .await
+        .map_err(|_| message("AudioCraft runtime self-test timed out"))??;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success()
+        || String::from_utf8_lossy(&output.stdout).trim() != "audiocraft-synth/1"
+        || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
+    {
+        return Err(message(format!(
+            "AudioCraft runtime self-test failed: {stderr}"
+        )));
+    }
+    println!("App Sandbox: packaged AudioCraft starts with an empty PATH; unselected file access denied.");
+    Ok(())
+}
+
 #[cfg(target_arch = "aarch64")]
 async fn verify_audio_cpp(resources: &Path, root: &Path) -> Result<()> {
     use crate::engine::process::OwnedProcess;
-    use std::time::Duration;
 
     let launcher = resources.join("engine/providers/audio.cpp/audiocpp_cli");
     let log = root.join("logs/audio-cpp-probe.log");

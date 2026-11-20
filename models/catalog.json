@@ -57,6 +57,13 @@
       "status": "available",
       "adapter": "magenta-realtime-cpp",
       "source": "https://huggingface.co/google/magenta-realtime-2"
+    },
+    {
+      "id": "audiocraft",
+      "name": "AudioCraft",
+      "status": "available",
+      "adapter": "audiocraft",
+      "source": "https://github.com/facebookresearch/audiocraft"
     }
   ],
   "profiles": [
@@ -447,6 +454,146 @@
       ],
       "runtime_note": "provider_magenta_capture_status",
       "acquisition": "download"
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "musicgen-small",
+        "language": ""
+      },
+      "name": "MusicGen Small · CC BY-NC 4.0",
+      "expert_only": true,
+      "files": [
+        "audiocraft/musicgen-small/state_dict.bin",
+        "audiocraft/musicgen-small/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 1,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "musicgen-small",
+          "role": "weights_codec",
+          "repository": "facebook/musicgen-small",
+          "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/musicgen-small/blob/4c8334b02c6ec4e8664a91979669a501ec497792/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
+    },
+    {
+      "selection": {
+        "provider": "audiocraft",
+        "synthesis": "magnet-small-30secs",
+        "language": ""
+      },
+      "name": "MAGNeT Small 30s · CC BY-NC 4.0",
+      "expert_only": true,
+      "files": [
+        "audiocraft/magnet-small-30secs/state_dict.bin",
+        "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+        "audiocraft/t5-base/config.json",
+        "audiocraft/t5-base/spiece.model",
+        "audiocraft/t5-base/model.safetensors"
+      ],
+      "capabilities": {
+        "min_duration": 30,
+        "max_duration": 30,
+        "max_variants": 1,
+        "prompt": true,
+        "lyrics": false,
+        "lyrics_required": false,
+        "instrumental": false,
+        "bpm": false,
+        "advanced": false,
+        "analysis": false,
+        "max_seed": 4294967295
+      },
+      "runtime": {
+        "name": "AudioCraft 1.3.0",
+        "revision": "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",
+        "source": "https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c",
+        "license": "MIT",
+        "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE",
+        "executable": "engine/audiocraft/audiocraft-synth"
+      },
+      "upstream_sources": [
+        {
+          "id": "magnet-small-30secs",
+          "role": "weights_codec",
+          "repository": "facebook/magnet-small-30secs",
+          "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+          "license": "CC BY-NC 4.0",
+          "license_url": "https://github.com/facebookresearch/audiocraft/blob/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c/LICENSE_weights"
+        },
+        {
+          "id": "t5-base",
+          "role": "encoder",
+          "repository": "google-t5/t5-base",
+          "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+          "license": "Apache-2.0",
+          "license_url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ],
+      "usage": {
+        "model_use": "audiocraft_model_use",
+        "redistribution": "audiocraft_redistribution",
+        "outputs": "audiocraft_outputs",
+        "policy_url": "https://huggingface.co/facebook/magnet-small-30secs/blob/7d62a3ef839d51abb5f087ac72732d6f45301460/README.md"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "backend": "cpu",
+          "minimum_ram_bytes": 68719476736,
+          "minimum_vram_bytes": null
+        }
+      ]
     }
   ],
   "models": [
@@ -1803,6 +1950,111 @@
         "repository": "google/magenta-realtime-2",
         "revision": "010aa0dcb0dfd27b24f0ad07b4dad63e8f9521cc",
         "path": "resources/spectrostream/spectrostream_encoder.mlxfn"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/config.json",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "JSON",
+      "estimated_bytes": 1208,
+      "sha256": "46dd7cb62d29c81fb551e0ef1ea274c24a46ba441eeb948897706252933df033",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "config.json"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/spiece.model",
+      "provider": "audiocraft",
+      "role": "tokenizer",
+      "family": "T5-base",
+      "precision": "SentencePiece",
+      "estimated_bytes": 791656,
+      "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "spiece.model"
+      }
+    },
+    {
+      "file": "audiocraft/t5-base/model.safetensors",
+      "provider": "audiocraft",
+      "role": "dependency",
+      "family": "T5-base",
+      "precision": "FP32",
+      "estimated_bytes": 891646390,
+      "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4",
+      "recommended_steps": null,
+      "source": {
+        "repository": "google-t5/t5-base",
+        "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1",
+        "path": "model.safetensors"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "musicgen-small",
+      "precision": "PyTorch",
+      "estimated_bytes": 840843863,
+      "sha256": "830fe5771e2835cbd305f3ffdda22d3ff38718fbbe8274bd19dc203265de7244",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/musicgen-small/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236001935,
+      "sha256": "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/musicgen-small",
+        "revision": "4c8334b02c6ec4e8664a91979669a501ec497792",
+        "path": "compression_state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/state_dict.bin",
+      "provider": "audiocraft",
+      "role": "weights",
+      "family": "magnet-small-30secs",
+      "precision": "PyTorch",
+      "estimated_bytes": 840844851,
+      "sha256": "965b4d537d691483918ccc6d97e738c0177191900c2e2cd3272d29fa3c9a44d0",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "state_dict.bin"
+      }
+    },
+    {
+      "file": "audiocraft/magnet-small-30secs/compression_state_dict.bin",
+      "provider": "audiocraft",
+      "role": "codec",
+      "family": "EnCodec-32kHz",
+      "precision": "PyTorch",
+      "estimated_bytes": 236003715,
+      "sha256": "91598c7da3d183eb8e0cc19cbbdc4f64f2d0c53069f9c8aa84185d0e33873c67",
+      "recommended_steps": null,
+      "source": {
+        "repository": "facebook/magnet-small-30secs",
+        "revision": "7d62a3ef839d51abb5f087ac72732d6f45301460",
+        "path": "compression_state_dict.bin"
       }
     }
   ]

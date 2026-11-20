@@ -1,3 +1,4 @@
+pub(crate) mod audiocraft;
 pub mod backend_status;
 pub mod client;
 pub mod device;

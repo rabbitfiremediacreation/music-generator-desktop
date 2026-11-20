@@ -139,6 +139,9 @@ impl Catalog {
         self.required(selection)?;
         if let Some(profile) = self.profile(selection) {
             profile.ensure_released()?;
+            if profile.expert_only && !expert_mode {
+                return Err(message("expert_mode_required"));
+            }
             if let Some(hardware) = hardware {
                 profile.platform(hardware)?;
             }
@@ -185,7 +188,9 @@ impl Catalog {
             .profiles
             .iter()
             .filter(|profile| {
-                profile.ensure_released().is_ok() && profile.platform(hardware).is_ok()
+                !profile.expert_only
+                    && profile.ensure_released().is_ok()
+                    && profile.platform(hardware).is_ok()
             })
             .map(|profile| profile.selection.clone());
         ace_step.chain(native).collect()

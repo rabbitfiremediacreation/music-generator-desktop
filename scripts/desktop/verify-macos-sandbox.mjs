@@ -15,6 +15,8 @@ export async function verifyMacSandbox(app, engine) {
   if (audioCppSupported(target)) helpers.push(path.join(engine, audioCppDirectory, "audiocpp_cli"));
   const magenta = path.join(engine, "magenta");
   if (await exists(magenta)) helpers.push(path.join(magenta, "mrt2-record"));
+  const audioCraft = path.join(engine, "audiocraft", "audiocraft-synth");
+  if (await exists(audioCraft)) helpers.push(audioCraft);
   for (const file of helpers) {
     const child = entitlements(file);
     assert(enabled(child,"com.apple.security.app-sandbox") && enabled(child,"com.apple.security.inherit"), "Engine helper must inherit the app sandbox");

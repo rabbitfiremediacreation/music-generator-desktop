@@ -290,7 +290,8 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
     event.preventDefault(); if (pending || analyzing || incomplete || profileError || !profile?.available || !abilities) return;
     setPending(true); setError(null); setNotice(false);
     const request: Generation = {
-      model_selection: profile.selection, title: draft.title, style: draft.style, lyrics: instrumental ? "" : draft.lyrics, instrumental,
+      model_selection: profile.selection, title: draft.title, style: draft.style, lyrics: instrumental ? "" : draft.lyrics,
+      instrumental: abilities.instrumental && instrumental,
       duration: Number(draft.duration), variants: Math.min(maxVariants, draft.variants),
       folder_id: draft.folder_id || null, keep_caption: true,
     };
@@ -325,7 +326,7 @@ function CreateForm({ active, api, folders, t, onQueued }: { active: boolean; ap
       {abilities.lyrics && abilities.instrumental && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
       {!instrumental && <Field title={t("lyrics")}><textarea rows={4} required={abilities.lyrics_required} value={draft.lyrics} onChange={event => setDraft(value => ({ ...value, lyrics: event.target.value }))} /></Field>}
       <div className="field-grid">
-        <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
+        <Field title={t("duration")}><input type="number" min={abilities.min_duration} max={abilities.max_duration} readOnly={abilities.min_duration === abilities.max_duration} required value={draft.duration} onChange={event => setDraft(value => ({ ...value, duration: event.target.value }))} /></Field>
         {abilities.bpm && <Field title={t("bpm")}><input type="number" min={0} max={300} required value={draft.bpm} onChange={event => setDraft(value => ({ ...value, bpm: Number(event.target.value) }))} /></Field>}
         {maxVariants > 1 && <Field title={t("variants")}><input type="number" min={1} max={maxVariants} required value={Math.min(maxVariants, draft.variants)} onChange={event => setDraft(value => ({ ...value, variants: Number(event.target.value) }))} /></Field>}
         {!abilities.advanced && <Field title={t("seed")}><input type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} value={draft.seed} onChange={event => setDraft(value => ({ ...value, seed: event.target.value }))} /></Field>}

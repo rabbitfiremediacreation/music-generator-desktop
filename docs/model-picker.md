@@ -1,6 +1,6 @@
 # ModelPicker
 
-The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. The picker also shows optional profiles and checks their native runtime and hardware requirements before activation.
+The Creator view has a model drop-down for recommended Standard/XL profiles and displays the automatically assigned language model. **Settings → Models and hardware** initially lists installed local model files, their roles, sizes and verification status. Verified compatible profiles can be activated from this list without downloading. **Add model** opens extended selection, verification and downloads in an additional dialog above Settings. **Choose models** in the Creator opens the settings page with the requested profile ready for the add dialog. ACE-Step provides the starter profiles. The picker checks each optional profile's native runtime and hardware requirements before activation.
 
 The additional downloader dialog uses a split catalog and detail view. Search and **All / Installed / Recommended** filters browse sound-model families on the left; Installed requires a verified local file, and Recommended uses the actual hardware recommendations. The detail pane shows quantization variants for the chosen family, its companion language model, file size, total profile download, memory estimate, required files and the explicit download/activation action. Choosing a family only changes the preview. On narrow layouts the catalog appears above the details. Escape closes only the add dialog and returns focus to Add model; Settings and its unsaved drafts remain open. Download progress and cancellation stay available on the installed-models page when the additional dialog is closed.
 
@@ -74,6 +74,10 @@ The initial HeartMuLa profile accepts 5–30 requested seconds per vocal track a
 ## Magenta RealTime 2
 
 The optional `mrt2_small` profile records prompted instrumentals as timed 48 kHz stereo WAVs. The ModelPicker shows the pinned downloads and license terms. The verified Apple Silicon path and its measured dropouts are documented separately. [Magenta RealTime 2](magenta-realtime-2.md)
+
+## AudioCraft
+
+MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the Apple Silicon AudioCraft bundle. The ModelPicker displays the CC BY-NC terms and requires explicit selection. [AudioCraft runtime, model requirements and acceptance](qa/issue-132/README.md)
 
 ## Downloads and persistence
 

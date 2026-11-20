@@ -148,6 +148,8 @@ pub struct ProviderProfile {
     pub release_hold: Option<String>,
     #[serde(default)]
     pub acquisition: Acquisition,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub expert_only: bool,
 }
 
 impl ProviderProfile {

@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "./model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -40,6 +40,32 @@ it("shows pinned HeartMuLa sources and terms before offering a download on suppo
   fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
   expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("lists both AudioCraft NC profiles and downloads only the one explicitly confirmed", async () => {
+  const catalog = catalogWithAudioCraft(true);
+  const magnet = catalog.profiles!.find(profile => profile.selection.synthesis === "magnet-small-30secs")!;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(await dialog.findByRole("button", { name: "MusicGen Small · CC BY-NC 4.0" })).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "MAGNeT Small 30s · CC BY-NC 4.0" }));
+  expect(dialog.getByRole("link", { name: "facebook/magnet-small-30secs" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "google-t5/t5-base" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toBe(magnet.usage.policy_url);
+  expect(dialog.getByText(/nichtkommerzielle Nutzung mit Namensnennung/)).toBeTruthy();
+  expect(dialog.getByText("/models")).toBeTruthy();
+  expect(dialog.getByText(/Lege für den Offline-Import/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Modelldateien neu einlesen" })).toBeTruthy();
+  expect(dialog.queryByRole("link", { name: "facebook/musicgen-small" })).toBeNull();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  const download = dialog.getByRole("button", { name: /Herunterladen und verwenden/i }) as HTMLButtonElement;
+  expect(download.disabled).toBe(false);
+  fireEvent.click(download);
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", {
+    selection: { provider: "audiocraft", synthesis: "magnet-small-30secs", language: "" },
+  }));
 });
 
 it("discloses the Magenta weight license, attribution, output terms and import path before acquisition", async () => {

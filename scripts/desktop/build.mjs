@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
@@ -7,6 +7,10 @@ import { recordTitle } from "./prepare-title.mjs";
 import { recordMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { architecture, download, exists, files, hash, platform, recordHashes, root, run, target as desktop, verifyEngine } from "./common.mjs";
 
+const audioCraft = process.argv.includes("--audiocraft");
+if (audioCraft && (platform !== "macos" || architecture !== "arm64")) {
+  throw new Error("The experimental AudioCraft bundle requires macOS arm64");
+}
 await prepareEngine(); await verifyEngine(engineFolder);
 const output = path.join(root, "release"); await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await (await import("node:fs/promises")).readFile(path.join(root,"package.json"),"utf8"));
@@ -30,10 +34,22 @@ if (platform === "macos") {
   await cp(path.join(target,"music-engine-supervisor"),helper);
   const bundledEngine = path.join(app,"Contents/Resources/engine");
   await rm(bundledEngine,{recursive:true,force:true}); await cp(engineFolder,bundledEngine,{recursive:true});
+  if (audioCraft) {
+    await run(process.execPath, [
+      path.join(root, "scripts/desktop/audiocraft-runtime/prepare.mjs"),
+      path.join(bundledEngine, "audiocraft"),
+    ]);
+  }
+  const inheritingHelpers = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth"];
   for (const file of await files(bundledEngine)) {
-    const bytes = await readFile(file);
-    if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const entitlements = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
+    const handle = await open(file);
+    const magic = Buffer.alloc(4);
+    try {
+      const { bytesRead } = await handle.read(magic);
+      if (bytesRead < magic.length) continue;
+    } finally { await handle.close(); }
+    if (![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(magic.readUInt32BE(0))) continue;
+    const entitlements = inheritingHelpers.includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
     await run("codesign",["--force","--sign",identity,...entitlements,file]);
   }
   await recordTitle(path.join(bundledEngine,"title"));
@@ -51,9 +67,10 @@ if (platform === "macos") {
   if (process.env.APPLE_SIGNING_IDENTITY && process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID) {
     console.log("Tauri signs and notarizes using the configured Apple credentials.");
   }
-  artifact = path.join(output,`${name}-macos-${architecture}.zip`);
+  const suffix = audioCraft ? "-audiocraft" : "";
+  artifact = path.join(output,`${name}-macos-${architecture}${suffix}.zip`);
   await run("ditto",["-c","-k","--sequesterRsrc","--keepParent",app,artifact]);
-  const dmg = path.join(output,`${name}-macos-${architecture}.dmg`);
+  const dmg = path.join(output,`${name}-macos-${architecture}${suffix}.dmg`);
   await createMacDiskImage(app, dmg); artifacts.push(dmg);
 } else if (platform === "windows") {
   const runtimeDir = path.join(root,"src-tauri/resources/WebView2");

@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "../models/model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -83,6 +83,20 @@ it("submits only the supported HeartMuLa controls and preserves ACE-Step duratio
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+it("submits a MAGNeT prompt at the checkpoint's fixed duration", async () => {
+  const profile = catalogWithAudioCraft(true).profiles!.find(item => item.selection.synthesis === "magnet-small-30secs")!;
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: profile.capabilities };
+  mount({ selection: profile.selection });
+  await screen.findByText("30 Sekunden");
+  expect(screen.queryByRole("slider", { name: "Länge" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "instrumental funk" } });
+  fireEvent.submit(screen.getByRole("button", { name: "GENERIEREN" }).closest("form")!);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({ model_selection: profile.selection, prompt: "instrumental funk",
+    duration: 30, variants: 1, lyrics: "", instrumental: false });
+  expect(requests[0].inference_steps).toBeUndefined();
 });
 
 it("queues a timed instrumental Magenta recording with a text prompt", async () => {

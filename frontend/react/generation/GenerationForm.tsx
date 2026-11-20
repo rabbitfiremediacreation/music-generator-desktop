@@ -98,7 +98,8 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
     submitting.current = true; setError(null); setQueued(null);
     const request: Generation = {
       model_selection: selection ?? undefined, folder_id: folderId && folderId !== "none" ? folderId : null,
-      title: values.title, style: values.style, lyrics: instrumental ? "" : values.lyrics, instrumental,
+      title: values.title, style: values.style, lyrics: instrumental ? "" : values.lyrics,
+      instrumental: abilities.instrumental && instrumental,
       keep_caption: true, duration, seed: values.seed === "" ? -1 : Number(values.seed), variants,
     };
     if (abilities.prompt) {
@@ -142,7 +143,12 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
       <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(abilities.prompt ? "style_tip" : "provider_style_hint")}>{t(abilities.prompt ? "style" : "provider_style_tags")}</label><DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} /></div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} /></div>
       <details><summary>{t("styles")}</summary><div className="chips" id="tagChips">{STYLE_TAGS.map(tag => { const active = styles.some(value => value.toLowerCase() === tag.toLowerCase()); return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>; })}</div></details>
       <input name="instrumental" type="checkbox" hidden checked={instrumental} readOnly /><input name="keep_caption" type="checkbox" hidden checked readOnly />
-      <div className="field"><span className="lbl">{durationLabel}</span><Slider name="duration" label={durationLabel} title={minimax ? t("minimax_music3_duration_hint") : abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />{duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}</div>
+      <div className="field"><span className="lbl">{durationLabel}</span>
+        {abilities.min_duration === abilities.max_duration
+          ? <span>{t("provider_duration_hint", duration, duration)}</span>
+          : <Slider name="duration" label={durationLabel} title={minimax ? t("minimax_music3_duration_hint") : abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={abilities.min_duration} max={abilities.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />}
+        {duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}
+      </div>
       {abilities.bpm && <div className="field"><span className="lbl" title={t("bpm_tip")}>BPM</span><Slider name="bpm" label="BPM" value={values.bpm} min={50} max={200} format="bpm" onChange={bpm => update({ bpm })} /></div>}
       {abilities.lyrics && <LyricsFields values={values} update={update} open={lyricsOpen} setOpen={setLyricsOpen} required={abilities.lyrics_required} />}
       {abilities.advanced ? <AdvancedFields values={values} update={update} risk={risk} open={advancedOpen} setOpen={setAdvancedOpen} /> :

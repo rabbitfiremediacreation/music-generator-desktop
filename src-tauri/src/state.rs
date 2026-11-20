@@ -135,6 +135,18 @@ impl AppState {
             .profile(selection)
             .ok_or_else(|| message("Unknown native generation profile"))?;
         match selection.provider.as_str() {
+            "audiocraft" => {
+                crate::engine::audiocraft::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "heartmula" => {
                 crate::engine::heartmula::generate(
                     &self.resources,
