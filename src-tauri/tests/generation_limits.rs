@@ -94,6 +94,7 @@ fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
         max_duration: 30,
         max_variants: 1,
         prompt: false,
+        style_description: false,
         lyrics: true,
         lyrics_required: true,
         instrumental: false,

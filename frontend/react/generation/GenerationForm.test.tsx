@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio } from "../models/model-fixtures";
+import { catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -61,29 +61,29 @@ it("generates the displayed automatic prompt with saved numeric preferences and 
   fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "A quiet lake" } });
   expect(screen.queryByText("GENERATED")).toBeNull();
 });
-it("submits only the supported HeartMuLa controls and preserves ACE-Step duration preferences", async () => {
-  const heartmula = catalogWithHeartMuLa().profiles![0];
-  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: heartmula.capabilities };
-  mount({ selection: heartmula.selection });
-  const style = await screen.findByRole("textbox", { name: "Stil-Tags" });
+it("submits DiffRhythm lyrics and style text with the selected duration and seed", async () => {
+  const diffrhythm = catalogWithDiffRhythm2().profiles![0];
+  currentPolicy = { ...policy, backend: "unknown", available: true, capabilities: diffrhythm.capabilities };
+  mount({ selection: diffrhythm.selection });
+  const style = await screen.findByRole("textbox", { name: "Stilbeschreibung" });
   const lyrics = screen.getByRole("textbox", { name: "Lyrics" });
   expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
   expect(screen.queryByRole("slider", { name: "BPM" })).toBeNull();
   expect(screen.queryByRole("slider", { name: "Iterationen" })).toBeNull();
   const generate = screen.getByRole("button", { name: "GENERIEREN" }) as HTMLButtonElement;
   expect(generate.disabled).toBe(true);
-  fireEvent.change(style, { target: { value: "soul, piano" } });
-  fireEvent.change(lyrics, { target: { value: "[verse]\nThe rain is falling" } });
+  fireEvent.change(style, { target: { value: "Soft piano under an intimate folk vocal" } });
+  fireEvent.change(lyrics, { target: { value: "一场雨落下\nThe rain is falling" } });
   const duration = screen.getByRole("slider", { name: "Länge" }) as HTMLInputElement;
-  expect(Number(duration.min)).toBe(heartmula.capabilities.min_duration);
-  expect(Number(duration.max)).toBe(heartmula.capabilities.max_duration);
+  expect(Number(duration.min)).toBe(diffrhythm.capabilities.min_duration);
+  expect(Number(duration.max)).toBe(diffrhythm.capabilities.max_duration);
   fireEvent.change(duration, { target: { value: duration.min } });
   fireEvent.change(screen.getByRole("spinbutton", { name: "Seed" }), { target: { value: "123" } });
   fireEvent.submit(generate.closest("form")!);
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toEqual({
-    model_selection: heartmula.selection, folder_id: null, title: "", style: "soul, piano",
-    lyrics: "[verse]\nThe rain is falling", duration: Number(duration.min), seed: 123,
+    model_selection: diffrhythm.selection, folder_id: null, title: "", style: "Soft piano under an intimate folk vocal",
+    lyrics: "一场雨落下\nThe rain is falling", duration: Number(duration.min), seed: 123,
     variants: 1, instrumental: false, keep_caption: true,
   });
   expect(ipc.invoke.mock.calls.some(([command]) => command === "save_generation_form_preferences")).toBe(false);

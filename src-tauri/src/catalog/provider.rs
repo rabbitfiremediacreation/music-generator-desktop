@@ -44,6 +44,8 @@ pub struct GenerationCapabilities {
     pub max_duration: u32,
     pub max_variants: u32,
     pub prompt: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub style_description: bool,
     pub lyrics: bool,
     pub lyrics_required: bool,
     pub instrumental: bool,
@@ -68,6 +70,7 @@ impl GenerationCapabilities {
             max_duration: 600,
             max_variants: 50,
             prompt: true,
+            style_description: false,
             lyrics: true,
             lyrics_required: false,
             instrumental: true,
@@ -83,6 +86,15 @@ impl GenerationCapabilities {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeComponent {
+    pub name: String,
+    pub revision: String,
+    pub source: String,
+    pub license: String,
+    pub license_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NativeRuntime {
     pub name: String,
     pub revision: String,
@@ -91,6 +103,8 @@ pub struct NativeRuntime {
     pub license_url: String,
     /// Path within the application's resource directory. Native executables omit the Windows suffix.
     pub executable: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub components: Vec<RuntimeComponent>,
     /// Optional Python venv interpreter, relative to the application data directory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interpreter: Option<String>,
@@ -146,6 +160,8 @@ pub struct Usage {
     pub model_use: String,
     pub redistribution: String,
     pub outputs: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub noncommercial_evaluation: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_url: Option<String>,
 }
@@ -163,6 +179,7 @@ impl TestedPlatform {
     pub fn matches(&self, hardware: &Hardware) -> bool {
         self.os == hardware.platform
             && self.arch == std::env::consts::ARCH
+            && (self.backend != "cuda" || hardware.has_nvidia())
             && hardware.ram_bytes >= self.minimum_ram_bytes
             && self.minimum_vram_bytes.is_none_or(|min| {
                 hardware
@@ -190,6 +207,9 @@ pub struct ProviderProfile {
     pub upstream_sources: Vec<UpstreamSource>,
     pub usage: Usage,
     pub platforms: Vec<TestedPlatform>,
+    /// Targets for explicitly packaged evaluation builds whose hardware acceptance is pending.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evaluation_platforms: Vec<TestedPlatform>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -211,8 +231,14 @@ impl ProviderProfile {
     pub fn platform(&self, hardware: &Hardware) -> Result<&TestedPlatform> {
         self.platforms
             .iter()
+            .chain(&self.evaluation_platforms)
             .find(|platform| platform.matches(hardware))
             .ok_or_else(|| {
+                if !self.evaluation_platforms.is_empty() {
+                    return message(
+                        "This computer does not match an evaluation target for this profile.",
+                    );
+                }
                 message("This model profile has no tested runtime for this platform and hardware")
             })
     }
@@ -232,6 +258,11 @@ impl ProviderProfile {
                 .iter()
                 .any(|file| !resources.join(file).is_file())
         {
+            if !self.evaluation_platforms.is_empty() {
+                return Err(message(
+                    "This build does not include the optional evaluation runner.",
+                ));
+            }
             return Err(message(
                 "The native runtime for this model is missing from this app build",
             ));

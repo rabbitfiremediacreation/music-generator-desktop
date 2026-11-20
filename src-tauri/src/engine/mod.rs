@@ -3,6 +3,7 @@ pub mod backend_status;
 pub mod client;
 pub mod device;
 mod diagnostics;
+pub(crate) mod diffrhythm2;
 mod generation;
 pub(crate) mod heartmula;
 pub mod magenta;

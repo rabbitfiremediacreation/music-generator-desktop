@@ -75,6 +75,10 @@ The initial HeartMuLa profile accepts 5–30 requested seconds per vocal track a
 
 The optional `mrt2_small` profile records prompted instrumentals as timed 48 kHz stereo WAVs. The ModelPicker shows the pinned downloads and license terms. The verified Apple Silicon path and its measured dropouts are documented separately. [Magenta RealTime 2](magenta-realtime-2.md)
 
+## DiffRhythm 2
+
+DiffRhythm 2 is an opt-in profile for noncommercial evaluation in Expert Mode. It uses English or Mandarin lyrics and a text style description to generate a mono WAV. The optional Linux x86-64 CUDA evaluation build includes the local runner. The picker shows the model licenses and publisher guidance before download or local verification. [Sources, runtime and acceptance procedure](qa/issue-131/README.md)
+
 ## AudioCraft
 
 MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the Apple Silicon AudioCraft bundle. The ModelPicker displays the CC BY-NC terms and requires explicit selection. [AudioCraft runtime, model requirements and acceptance](qa/issue-132/README.md)

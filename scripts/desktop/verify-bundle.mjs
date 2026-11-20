@@ -12,6 +12,7 @@ import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
 import { msiArguments } from "./windows-msi.mjs";
 import { pathTestGguf } from "./windows-unicode.mjs";
+import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, verifyDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -21,12 +22,14 @@ function startupLocation(app) {
 const output = path.join(root, "release");
 const diskImage = process.argv.includes("--dmg");
 const installer = process.argv.includes("--msi");
+const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, target);
 const audioCraft = process.argv.includes("--audiocraft");
 assert(!installer || platform === "windows", "MSI verification requires Windows");
 assert(!diskImage || platform === "macos", "DMG verification requires macOS");
 assert(!audioCraft || (platform === "macos" && architecture === "arm64"), "AudioCraft bundle verification requires macOS arm64");
 const packageKind = audioCraft ? "-audiocraft" : "";
-const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}${packageKind}.dmg` : platform === "linux" ? `-${target.artifactSuffix}` : `-${platform}-${architecture}${packageKind}.zip`;
+const linuxSuffix = diffRhythm2 ? diffrhythm2ArtifactSuffix : target.artifactSuffix;
+const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}${packageKind}.dmg` : platform === "linux" ? `-${linuxSuffix}` : `-${platform}-${architecture}${packageKind}.zip`;
 const { version } = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const filename = `Music-Generator-${version}${suffix}`;
 const artifact = path.join(output, filename);
@@ -88,7 +91,8 @@ try {
   const record = extracted.find(file => path.basename(file) === "VERSION.desktop.json");
   assert(record, "Bundled engine manifest is missing");
   const engine = path.dirname(record);
-  await verifyEngine(engine);
+  const provenance = await verifyEngine(engine);
+  await verifyDiffRhythm2(engine, provenance, diffRhythm2);
   assert.equal(await exists(path.join(engine, "audiocraft/audiocraft-synth")), audioCraft, "Unexpected AudioCraft runtime availability");
   if (audioCraft) {
     const catalog = JSON.parse(await readFile(path.join(root, "models/catalog.json"), "utf8"));

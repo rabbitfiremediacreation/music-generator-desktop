@@ -101,7 +101,7 @@ impl NativeJob<'_> {
         } else {
             "synth"
         };
-        loop {
+        let runtime_seconds = loop {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
@@ -118,7 +118,7 @@ impl NativeJob<'_> {
                         self.log_name
                     )));
                 }
-                break;
+                break started.elapsed().as_secs_f64();
             }
             let seconds = started.elapsed().as_secs();
             if elapsed != Some(seconds) {
@@ -132,8 +132,7 @@ impl NativeJob<'_> {
                 _ = cancel.cancelled() => return Err(Error::Cancelled),
                 _ = tokio::time::sleep(Duration::from_millis(200)) => {}
             }
-        }
-        let runtime_seconds = started.elapsed().as_secs_f64();
+        };
         let (bytes, report) = tokio::select! {
             biased;
             _ = cancel.cancelled() => return Err(Error::Cancelled),

@@ -178,7 +178,8 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
   const styles = values.style.split(",").map(value => value.trim()).filter(Boolean);
   const errorText = error instanceof Error ? error.message : String(error);
   const displayedError = errorText.startsWith("mulacover_reference_") ? t(errorText) : modelErrorText(error, t);
-  const styleHint = abilities.reference_audio ? "mulacover_style_hint" : abilities.prompt ? "style_tip" : "provider_style_hint";
+  const styleLabel = abilities.style_description ? "provider_style_description" : abilities.prompt || abilities.reference_audio ? "style" : "provider_style_tags";
+  const styleHint = abilities.style_description ? "provider_style_description_hint" : abilities.reference_audio ? "mulacover_style_hint" : abilities.prompt ? "style_tip" : "provider_style_hint";
   return <form id="genForm" ref={form} onSubmit={event => { event.preventDefault(); void submit(); }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault(); }} aria-busy={!ready || admission.busy}>
     <fieldset disabled={!ready} className="generation-fields">
       {midi && <h3 className="col-title">{t("midi_mode")}</h3>}
@@ -207,7 +208,7 @@ export function GenerationForm({ selection, onSelectionChange, settingsBlocked, 
         </>}
       </div>}
       {!midi && !barOptions && <>
-        <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(styleHint)}>{t(abilities.prompt || abilities.reference_audio ? "style" : "provider_style_tags")}</label>{!abilities.reference_audio && <DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} />}</div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} />{abilities.reference_audio && <span className="small">{t(styleHint)}</span>}</div>
+        <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(styleHint)}>{t(styleLabel)}</label>{!abilities.reference_audio && <DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} />}</div><textarea id="generation-style" name="style" required={!abilities.prompt} rows={2} value={values.style} onChange={event => update({ style: event.target.value })} />{abilities.reference_audio && <span className="small">{t(styleHint)}</span>}</div>
         {!abilities.reference_audio && <details><summary>{t("styles")}</summary><div className="chips" id="tagChips">{STYLE_TAGS.map(tag => { const active = styles.some(value => value.toLowerCase() === tag.toLowerCase()); return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>; })}</div></details>}
       </>}
       <input name="instrumental" type="checkbox" hidden checked={instrumental} readOnly /><input name="keep_caption" type="checkbox" hidden checked readOnly />

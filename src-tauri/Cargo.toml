@@ -74,6 +74,10 @@ rmcp = { version = "3.8.0", default-features = false, features = ["client", "tra
 name = "export_lifecycle"
 harness = false
 
+[[test]]
+name = "native_generation"
+harness = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

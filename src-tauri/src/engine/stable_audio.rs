@@ -136,6 +136,7 @@ mod tests {
             max_duration,
             max_variants: 1,
             prompt: true,
+            style_description: false,
             lyrics: false,
             lyrics_required: false,
             instrumental: true,

@@ -467,6 +467,106 @@ fn provider_role_and_path_validation_cannot_route_unsupported_weights_to_ace_ste
     assert_eq!(serde_json::to_value(settings).unwrap(), before);
 }
 
+fn diffrhythm2_selection() -> Selection {
+    Selection {
+        provider: "diffrhythm2".into(),
+        synthesis: "diffrhythm2/model.safetensors".into(),
+        language: String::new(),
+    }
+}
+
+#[test]
+fn diffrhythm2_pins_each_required_file_and_keeps_evaluation_out_of_recommendations() {
+    let selection = diffrhythm2_selection();
+    let catalog = catalog::catalog();
+    let profile = catalog.profile(&selection).unwrap();
+    let files = catalog.required(&selection).unwrap();
+    assert_eq!(files.len(), 12);
+    assert_eq!(
+        files
+            .iter()
+            .map(|file| file.file.clone())
+            .collect::<Vec<_>>(),
+        profile.files
+    );
+    for file in &files {
+        let source = file.source.as_ref().unwrap();
+        assert!(profile.upstream_sources.iter().any(|upstream| {
+            upstream.repository == source.repository && upstream.revision == source.revision
+        }));
+        assert!(source.url().starts_with("https://huggingface.co/"));
+        assert_eq!(source.revision.len(), 40);
+    }
+    assert!(profile.usage.noncommercial_evaluation);
+    assert!(profile.expert_only);
+    assert!(profile.platforms.is_empty());
+    assert_eq!(profile.evaluation_platforms[0].backend, "cuda");
+    let mut hardware = music_generator::hardware::inspect().clone();
+    let mut target = profile.evaluation_platforms[0].clone();
+    target.os = hardware.platform.into();
+    target.arch = std::env::consts::ARCH.into();
+    hardware.gpu = "AMD".into();
+    hardware.vram_bytes = Some(24 * 1024u64.pow(3));
+    hardware.nvidia = None;
+    assert!(!target.matches(&hardware));
+    hardware.gpu = "NVIDIA RTX 4090, NVIDIA RTX 4090".into();
+    assert!(target.matches(&hardware));
+    assert!(profile.capabilities.style_description && profile.capabilities.lyrics_required);
+    assert!(!profile.capabilities.analysis && !profile.capabilities.instrumental);
+    assert!(!catalog.recommended_profiles(&hardware).contains(&selection));
+    assert!(catalog
+        .required(&Selection {
+            synthesis: "diffrhythm2/decoder.bin".into(),
+            ..selection.clone()
+        })
+        .is_err());
+    let snapshot = catalog::generation_profile(&selection).unwrap();
+    assert_eq!(snapshot.files.len(), files.len());
+    assert_eq!(snapshot.runtime_revision, profile.runtime.revision);
+}
+
+#[tokio::test]
+async fn diffrhythm2_import_verifies_all_nested_files_before_switching_profile() {
+    use tokio_util::sync::CancellationToken;
+
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let mut settings = db.settings().unwrap();
+    settings.models_dir = root.path().to_string_lossy().into();
+    settings.setup_complete = true;
+    settings.expert_mode = true;
+    db.save_settings(&settings).unwrap();
+    let previous = Selection::from_settings(&settings);
+    let selection = diffrhythm2_selection();
+    let mut fixture = catalog::catalog();
+    for asset in fixture
+        .models
+        .iter_mut()
+        .filter(|asset| asset.provider == "diffrhythm2")
+    {
+        asset.estimated_bytes = 3;
+        asset.sha256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into();
+        let file = root.path().join(&asset.file);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, b"abc").unwrap();
+    }
+    let tokenizer = root.path().join("diffrhythm2/xlm-roberta/tokenizer.json");
+    std::fs::write(&tokenizer, b"bad").unwrap();
+    let cancellation = CancellationToken::new();
+    let failure = catalog::install_profile(&fixture, &db, &selection, &cancellation, |_| {})
+        .await
+        .unwrap_err();
+    assert!(failure.to_string().contains("tokenizer.json"));
+    assert_eq!(Selection::from_settings(&db.settings().unwrap()), previous);
+    std::fs::write(&tokenizer, b"abc").unwrap();
+    catalog::install_profile(&fixture, &db, &selection, &cancellation, |progress| {
+        assert_eq!(progress.phase, "verifying");
+    })
+    .await
+    .unwrap();
+    assert_eq!(Selection::from_settings(&db.settings().unwrap()), selection);
+}
+
 #[test]
 fn mimetic_catalog_pins_the_complete_runtime_inputs_to_both_publishers() {
     let catalog = catalog::catalog();

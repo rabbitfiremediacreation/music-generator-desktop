@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
+import { catalogWithAudioCraft, catalogWithDiffRhythm2, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -15,6 +15,41 @@ async function open() {
   fireEvent.click(screen.getByRole("button", { name: "Modelle wählen" }));
   return screen.findByRole("dialog", { name: "Modelle" });
 }
+
+it.each([false, true])("shows DiffRhythm terms before download (evaluation runner available: %s)", async available => {
+  const catalog = catalogWithDiffRhythm2();
+  const diffrhythm = catalog.profiles![0];
+  diffrhythm.available = available;
+  catalog.hardware = { ...catalog.hardware, platform: "linux", ram_bytes: 32 * 1024 ** 3, vram_bytes: 24 * 1024 ** 3 };
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "get_settings") return saved();
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: diffrhythm.name }));
+  expect(dialog.getByRole("heading", { name: diffrhythm.name })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "ASLP-lab/DiffRhythm2" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "OpenMuQ/MuQ-MuLan-large" })).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "Apache-2.0" }).length).toBeGreaterThan(1);
+  expect(dialog.getByText("Hardware-Abnahme steht aus")).toBeTruthy();
+  expect(dialog.getAllByRole("link", { name: "CC BY-NC 4.0" })).toHaveLength(2);
+  expect(dialog.getByText(/Mono-WAV/)).toBeTruthy();
+  expect(dialog.queryByRole("combobox", { name: "Sprachmodell" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Herunterladen und verwenden" })).toBeNull();
+  const optIn = dialog.queryByRole("button", { name: "Für nichtkommerzielle Evaluation herunterladen" });
+  expect(Boolean(optIn)).toBe(available);
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+  if (optIn) {
+    fireEvent.click(optIn);
+    await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: diffrhythm.selection }));
+    return;
+  }
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  expect(dialog.getByRole("heading", { name: "SFT" })).toBeTruthy();
+});
 
 it("shows pinned HeartMuLa sources and terms before offering a download on supported builds", async () => {
   const catalog = catalogWithHeartMuLa();

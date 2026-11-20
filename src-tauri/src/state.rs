@@ -147,6 +147,17 @@ impl AppState {
                 )
                 .await
             }
+            "diffrhythm2" => {
+                crate::engine::diffrhythm2::generate(
+                    &profile.runtime.executable(&self.resources),
+                    &self.db.root,
+                    settings,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "audiocraft" => {
                 crate::engine::audiocraft::generate(
                     &self.resources,

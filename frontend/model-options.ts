@@ -22,7 +22,8 @@ export function profile(catalog: ModelCatalog, selection: ModelSelection) {
     models.some(m => m.role === "language" && m.file === selection.language);
   const valid = complete && (metadata?.available ?? true);
   const filesVerified = complete && models.every(m => m.verified);
-  const platforms = metadata?.platforms.filter(platform => platform.os === catalog.hardware.platform) ?? [];
+  const platforms = [...(metadata?.platforms ?? []), ...(metadata?.evaluation_platforms ?? [])]
+    .filter(platform => platform.os === catalog.hardware.platform);
   const memory = metadata ? (platforms.length ? Math.min(...platforms.map(platform => platform.minimum_ram_bytes)) : 0) : models.reduce((n, m) => n + m.estimated_bytes, 0) +
     (selection.synthesis.includes("-xl-") ? 4 : 3) * 1024 ** 3;
   const synthesis = models.find(m => m.role === "synthesis");

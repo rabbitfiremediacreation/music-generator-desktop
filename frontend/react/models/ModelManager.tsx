@@ -39,6 +39,7 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
   const selected = catalog && draft ? profile(catalog, draft) : null;
   const metadata = selected?.metadata;
   const manual = metadata?.acquisition === "manual";
+  const evaluation = metadata?.usage.noncommercial_evaluation;
   const canInstall = metadata?.available ?? (catalog?.providers.some(provider => provider.id === draft?.provider && provider.status === "available") || false);
   const verifyOnly = manual && !canInstall;
   const existing = catalog && draft && catalog.selection.provider === draft.provider && catalog.selection.synthesis === draft.synthesis && catalog.selection.language === draft.language;
@@ -60,23 +61,25 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
     finally { if (mounted.current) setLoadingSteps(false); }
   }
   const failure = error || state.install.error || state.title.error || state.cancel.error;
-  let actionLabel = selected?.verified ? "picker_use" : selected?.download ? "picker_download_use" : "picker_verify_use";
-  if (manual && !selected?.verified) actionLabel = "provider_verify_import";
+  const verifyLabel = evaluation ? "provider_evaluation_verify" : manual ? "provider_verify_import" : "picker_verify_use";
+  let actionLabel = verifyLabel;
   if (verifyOnly) actionLabel = selected?.filesVerified ? "provider_import_verified" : "provider_verify_only";
+  else if (selected?.verified) actionLabel = evaluation ? "provider_evaluation_use" : "picker_use";
+  else if (!manual && selected?.download) actionLabel = evaluation ? "provider_evaluation_download" : "picker_download_use";
   return <section className="model-manager" aria-label={t("picker_title")}>
     {state.catalog.isPending && <p role="status">{t("desktop_checking")}</p>}
     {state.catalog.error && <div><p role="alert" className="setup-error">{modelErrorText(state.catalog.error, t)}</p><button type="button" className="sek" onClick={() => void state.catalog.refetch()}>{t("settings_retry")}</button></div>}
     {catalog && draft && selected && <ModelBrowser catalog={catalog} draft={draft} currentSelection={currentSelection} onChange={state.setDraft} compatibleOnly={compatible} onCompatibleChange={setCompatible} busy={busy || disabled}>
-      {metadata && <ModelProfileDetails profile={metadata} bytes={bytes} total={selected.models.reduce((total, file) => total + file.estimated_bytes, 0)} />}
+      {metadata && <ModelProfileDetails profile={metadata} bytes={bytes} total={selected.models.reduce((total, file) => total + file.estimated_bytes, 0)} folder={evaluation && !canInstall && !verifyOnly ? catalog.models_dir : undefined} />}
       {(canInstall || verifyOnly) && <section className="model-download-card" aria-label={t("browser_download_options")}>
       <h5>{t("browser_download_options")}</h5>
       {!metadata && <ModelSelectFields catalog={catalog} draft={draft} onChange={state.setDraft} compatibleOnly={compatible} busy={busy || disabled} />}
       {!verifyOnly && !selected.allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p>{catalog.recommended_profiles.length > 0 && <button type="button" className="sek" disabled={busy} onClick={() => state.setDraft(catalog.recommended_profiles.find(item => item.synthesis === draft.synthesis) || catalog.recommended_profiles[0])}>{t("expert_use_recommended")}</button>}{onOpenSettings && <button type="button" className="sek" onClick={onOpenSettings}>{t("expert_settings")}</button>}</div>}
       {!metadata && !catalog.expert_mode && !catalog.recommended_profiles.length && <p className="setup-error" role="status">{t("expert_no_recommendation")}</p>}
-        <dl className="model-requirements">{!verifyOnly && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
+        <dl className="model-requirements">{!verifyOnly && (!evaluation || selected.memory > 0) && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}{!manual && <div><dt>{t("picker_download")}</dt><dd>{bytes(selected.download)}</dd></div>}<div><dt>{t("desktop_space")}</dt><dd>{catalog.free_bytes === null ? "—" : bytes(catalog.free_bytes)}</dd></div></dl>
         {!metadata && <p className="small">{t("picker_memory_hint")}</p>}
         {metadata && <p className="small">{t("provider_model_folder")} <code>{catalog.models_dir}</code></p>}
-        {metadata && !manual && missingFiles && <p className="small">{t("provider_download_import_hint", t("provider_refresh_files"), t("picker_verify_use"))}</p>}
+        {metadata && !manual && missingFiles && <p className="small">{t("provider_download_import_hint", t("provider_refresh_files"), t(verifyLabel))}</p>}
         {metadata && missingFiles && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         {!verifyOnly && selected.allowed && !selected.compatible && <p className="setup-error">{t("picker_low_ram")}</p>}
         {spaceLow && <p className="setup-error">{t("browser_space_low")}</p>}

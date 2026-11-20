@@ -93,12 +93,18 @@ pub fn validate_request(
     }
     if !capabilities.prompt {
         if !request.prompt.trim().is_empty() || !request.caption.trim().is_empty() {
-            return Err(message(
-                "This model accepts style tags instead of prompts or captions",
-            ));
+            return Err(message(if capabilities.style_description {
+                "This model accepts a style description in the Style field"
+            } else {
+                "This model accepts style tags instead of prompts or captions"
+            }));
         }
         if !request.style.split(',').any(|tag| !tag.trim().is_empty()) {
-            return Err(message("Enter at least one style tag"));
+            return Err(message(if capabilities.style_description {
+                "Enter a style description for this model"
+            } else {
+                "Enter at least one style tag"
+            }));
         }
     }
     if request.instrumental && !capabilities.instrumental {
