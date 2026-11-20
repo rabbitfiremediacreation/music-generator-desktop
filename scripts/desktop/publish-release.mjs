@@ -30,9 +30,9 @@ function githubClient(repository, tag) {
 }
 
 // Compare all existing assets before uploading; retries only fill missing files.
-export async function publishRelease({ repository, tag, target, directory }, client = githubClient(repository, tag)) {
+export async function publishRelease({ repository, tag, target, directory, requireAppcast }, client = githubClient(repository, tag)) {
   assert(/^[\w.-]+\/[\w.-]+$/.test(repository), "Invalid release repository");
-  const assets = await validateAssets(tag, target, directory);
+  const assets = await validateAssets(tag, target, directory, { requireAppcast });
   const release = await client.release();
   assert.equal(release.tag_name, tag, "Unexpected release tag");
   assert.equal(release.draft, false, "Release must already be published");
@@ -53,5 +53,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const { values } = parseArgs({ options: Object.fromEntries(["repository", "tag", "target", "directory"].map(name => [name, { type: "string" }])) });
   for (const name of ["repository", "tag", "target", "directory"]) assert(values[name], `Missing --${name}`);
   validateReleaseVersion(values.tag, await applicationVersions(fileURLToPath(new URL("../../", import.meta.url))));
-  await publishRelease({ ...values, directory: path.resolve(values.directory) });
+  await publishRelease({ ...values, directory: path.resolve(values.directory), requireAppcast: process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true" });
 }

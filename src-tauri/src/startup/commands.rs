@@ -208,6 +208,8 @@ pub async fn startup_complete<R: Runtime>(
         })
         .await?;
     startup.report(&app, attempt, "ready", None);
+    #[cfg(target_os = "macos")]
+    crate::updates::macos::configure(&app);
     if let Some(splash) = app.get_webview_window("splash") {
         splash.destroy().map_err(|e| message(e.to_string()))?;
     }

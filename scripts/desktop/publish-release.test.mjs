@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { applicationVersions, expectedAssets, sha256, validateAssets, validateReleaseVersion } from "./release-assets.mjs";
+import { appcastName, applicationVersions, expectedAssets, sha256, validateAssets, validateReleaseVersion } from "./release-assets.mjs";
 import { publishRelease } from "./publish-release.mjs";
 
 const tag = "v0.1.0";
@@ -40,6 +40,19 @@ for (const target of targets) {
     assert.deepEqual(client.uploaded, expectedAssets(tag, target));
   });
 }
+
+test("requires a checksummed stable macOS appcast and uploads it after the archive", async t => {
+  const options = { ...await fixture(t, "macos-arm64"), requireAppcast: true };
+  const client = fakeClient();
+  await assert.rejects(publishRelease(options, client), /missing or unexpected/);
+  assert.deepEqual(client.uploaded, []);
+  const name = appcastName(options.target);
+  const file = path.join(options.directory, name);
+  await writeFile(file, "Signed appcast fixture");
+  await writeFile(`${file}.sha256`, `${await sha256(file)}  ${name}\n`);
+  await publishRelease(options, client);
+  assert.deepEqual(client.uploaded, [...expectedAssets(tag, options.target), name, `${name}.sha256`]);
+});
 
 test("platform asset sets contain eight distinct bundles and eight checksums", () => {
   const names = targets.flatMap(target => expectedAssets(tag, target));

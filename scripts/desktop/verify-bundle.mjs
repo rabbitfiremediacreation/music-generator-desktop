@@ -110,8 +110,10 @@ try {
     for (const file of extracted) {
       const bytes = await readFile(file);
       if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-      assert.equal(execFileSync("lipo", ["-archs", file], { encoding: "utf8" }).trim(), expectedArch, `Wrong Mach-O architecture: ${file}`);
-      const headers = execFileSync("otool", ["-l", file], { encoding: "utf8" });
+      const archs = execFileSync("lipo", ["-archs", file], { encoding: "utf8" }).trim().split(/\s+/);
+      const sparkle = file.includes("/Contents/Frameworks/Sparkle.framework/");
+      assert(archs.includes(expectedArch) && (sparkle || archs.length === 1), `Wrong Mach-O architecture: ${file}`);
+      const headers = execFileSync("otool", ["-arch", expectedArch, "-l", file], { encoding: "utf8" });
       const versions = [...headers.matchAll(/cmd LC_BUILD_VERSION[\s\S]*?\n\s+minos ([\d.]+)|cmd LC_VERSION_MIN_MACOSX[\s\S]*?\n\s+version ([\d.]+)/g)];
       assert(versions.length, `No macOS deployment target in ${file}`);
       for (const version of versions) {
@@ -125,6 +127,12 @@ try {
     assert.equal(minimum, target.minimumSystemVersion);
     const identifier = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(identifier, "de.alphatester.music-generator", "Unexpected package identifier");
+    if (process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true") {
+      await run("xcrun", ["stapler", "validate", bundle]);
+      if (diskImage) await run("xcrun", ["stapler", "validate", artifact]);
+      const feed = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :SUFeedURL", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+      assert.equal(feed, `https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/latest/download/appcast-macos-${architecture}.xml`);
+    }
     if (target.cpuOnly) assert(!extracted.some(file => /ggml-metal/i.test(path.basename(file))), "Intel bundle must not include a Metal backend");
     await verifyMacSandbox(app, engine);
   } else {

@@ -15,6 +15,7 @@ export function AboutSettings({ state, onError }: {
   const result = update.data;
   const status = update.isPending ? t("upd_search")
     : update.error ? String(update.error)
+    : result?.native ? ""
     : result?.available ? `${result.current} → ${result.latest}`
     : result?.latest ? t("upd_current", result.current)
     : result ? t("upd_no_build") : "";

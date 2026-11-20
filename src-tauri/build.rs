@@ -1,4 +1,12 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rerun-if-changed=src/macos_updater.m");
+        cc::Build::new()
+            .file("src/macos_updater.m")
+            .flag("-fobjc-arc")
+            .compile("music_macos_updater");
+        println!("cargo:rustc-link-lib=framework=Foundation");
+    }
     embed_mobile_assets();
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     let revision = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "local".into());

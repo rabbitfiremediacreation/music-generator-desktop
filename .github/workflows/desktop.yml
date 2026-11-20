@@ -41,12 +41,7 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_min }}
       MUSIC_GENERATOR_LINUX_BACKEND: ${{ matrix.linux_backend || 'vulkan' }}
-      APPLE_SIGNING_IDENTITY: ${{ github.event_name != 'pull_request' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-      APPLE_CERTIFICATE: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE || '' }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-      APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
-      APPLE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_PASSWORD || '' }}
-      APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
+      MUSIC_GENERATOR_REQUIRE_NOTARIZATION: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,6 +110,14 @@ jobs:
       - run: npm run bundle
         env:
           MUSIC_GENERATOR_UPDATE_BUILD: ${{ env.UPDATE_STREAM != '' && format('{0}-{1}', env.UPDATE_STREAM, github.run_number) || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_TEAM_ID || '' }}
+          SPARKLE_PUBLIC_KEY: ${{ runner.os == 'macOS' && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION == 'true' && vars.SPARKLE_PUBLIC_KEY || '' }}
+          SPARKLE_PRIVATE_KEY: ${{ runner.os == 'macOS' && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION == 'true' && secrets.SPARKLE_PRIVATE_KEY || '' }}
       - name: Verify relocated portable bundle
         run: node scripts/desktop/verify-bundle.mjs
       - name: Verify Windows MSI installation and removal
