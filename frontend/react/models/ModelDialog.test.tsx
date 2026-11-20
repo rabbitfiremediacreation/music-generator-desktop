@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMimetic, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio, catalogWithText2midi } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -248,6 +248,24 @@ it("shows Mimetic sources and terms, then refreshes locally imported files for v
   catalog = { ...catalog, models: catalog.models.map(model => ({ ...model, present: true })) };
   fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
   expect(await dialog.findByRole("button", { name: "Prüfen und verwenden" })).toBeTruthy();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("discloses MuLaCover source pins and noncommercial output terms before acquisition", async () => {
+  const catalog = catalogWithMuLaCover();
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  expect(dialog.queryByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeNull();
+  fireEvent.click(await dialog.findByRole("button", { name: "MuLaCover" }));
+  expect(dialog.getByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeTruthy();
+  for (const source of ["HeartMuLa/MuLaCover", "HeartMuLa/HeartCodec-oss-20260123", "Qwen/Qwen3-Embedding-0.6B"]) {
+    expect(dialog.getByRole("link", { name: source })).toBeTruthy();
+  }
+  expect(dialog.getByRole("link", { name: "mimbres/YourMT3" }).getAttribute("href")).toContain("/spaces/mimbres/YourMT3/");
+  expect(dialog.getByRole("link", { name: "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition" }).getAttribute("href")).toContain("https://github.com/");
+  expect((dialog.getByRole("button", { name: "Herunterladen und verwenden" }) as HTMLButtonElement).disabled).toBe(false);
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
 });
 

@@ -83,14 +83,23 @@ fn main() {
                 serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))
                     .expect("Invalid audio.cpp runtime pin");
             expected_provider_files.extend(
-                ["LICENSE", "audiocpp_cli", "libaudiocpp.0.dylib"]
-                    .into_iter()
-                    .chain(
-                        pin["model_specs"].as_array().unwrap().iter().map(|spec| {
-                            spec["path"].as_str().expect("Missing audio.cpp spec path")
-                        }),
-                    )
-                    .map(|path| format!("providers/audio.cpp/{path}")),
+                [
+                    "LICENSE",
+                    "LICENSE.soxr",
+                    "audiocpp_cli",
+                    "libaudiocpp.0.dylib",
+                    "libsoxr.dylib",
+                    "soxr-0.1.3-Source.tar.xz",
+                ]
+                .into_iter()
+                .chain(
+                    pin["model_specs"]
+                        .as_array()
+                        .expect("Missing audio.cpp model specs")
+                        .iter()
+                        .map(|spec| spec["path"].as_str().expect("Missing audio.cpp spec path")),
+                )
+                .map(|path| format!("providers/audio.cpp/{path}")),
             );
             expected_provider_files.sort_unstable();
         }

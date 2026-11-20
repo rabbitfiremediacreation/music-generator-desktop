@@ -142,6 +142,7 @@ mod tests {
             bpm: false,
             advanced: false,
             analysis: false,
+            reference_audio: false,
             max_seed: None,
             output_kind: crate::types::OutputKind::Audio,
             bars: None,

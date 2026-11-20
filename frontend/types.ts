@@ -25,6 +25,7 @@ export interface GenerationFormPreferences {
 }
 export interface Generation {
   model_selection?: ModelSelection;
+  reference_audio?: string;
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;
   keep_caption?: boolean; title?: string; duration?: number; bpm?: number; bars?: number; keyscale?: string;
   timesignature?: string; vocal_language?: string; seed?: number; variants?: number;
@@ -86,12 +87,14 @@ export interface ModelAbilities {
   min_duration: number; max_duration: number; max_variants: number;
   prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
   bpm: boolean; advanced: boolean; analysis: boolean;
+  reference_audio?: boolean;
   max_seed?: number;
   bars?: number[];
   output_kind?: OutputKind;
 }
 export interface ProfileSource {
   id: string; role: string; repository: string; revision: string; license: string; license_url: string;
+  source_url?: string;
   gated?: boolean;
 }
 export interface ProfilePlatform {

@@ -102,6 +102,9 @@ pub fn retry(state: &AppState, id: &str) -> Result<()> {
                 request.caption.clear();
             }
             crate::generation_limits::validate_request(&request, &capabilities)?;
+            if let Some(reference) = &request.reference_audio {
+                crate::reference_audio::resolve(&state.db.root, reference)?;
+            }
             ensure_cached(state, &settings, &selection)?;
         }
         state.db.retry(id)

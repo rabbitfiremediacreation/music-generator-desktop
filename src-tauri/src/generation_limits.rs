@@ -14,6 +14,17 @@ pub fn validate_request(
     request: &GenerateRequest,
     capabilities: &GenerationCapabilities,
 ) -> Result<f64> {
+    match (
+        capabilities.reference_audio,
+        request.reference_audio.as_deref(),
+    ) {
+        (true, None) => return Err(message("mulacover_reference_required")),
+        (true, Some(id)) if !crate::reference_audio::valid_id(id) => {
+            return Err(message("mulacover_reference_invalid"));
+        }
+        (false, Some(_)) => return Err(message("This model does not support reference audio")),
+        _ => {}
+    }
     if request.variants == 0 || request.variants > capabilities.max_variants {
         return Err(message(format!(
             "This model supports 1 to {} variants",

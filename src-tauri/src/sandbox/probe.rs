@@ -112,18 +112,31 @@ async fn verify_audiocraft(resources: &Path) -> Result<()> {
 
 #[cfg(target_arch = "aarch64")]
 async fn verify_audio_cpp(resources: &Path, root: &Path) -> Result<()> {
+    let launcher = resources.join("engine/providers/audio.cpp/audiocpp_cli");
+    let pin: serde_json::Value =
+        serde_json::from_str(include_str!("../../../models/audio-cpp-runtime.json"))?;
+    let expected_version = format!("audio.cpp {}", pin["version"].as_str().unwrap_or_default());
+    probe_audio_cpp(&launcher, root, "--version", &expected_version).await?;
+    probe_audio_cpp(&launcher, root, "--check-soxr", "libsoxr-0.1.3").await?;
+    println!(
+        "App Sandbox: native audio.cpp launcher and SoXR work; unselected file access denied."
+    );
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn probe_audio_cpp(launcher: &Path, root: &Path, option: &str, expected: &str) -> Result<()> {
     use crate::engine::process::OwnedProcess;
 
-    let launcher = resources.join("engine/providers/audio.cpp/audiocpp_cli");
-    let log = root.join("logs/audio-cpp-probe.log");
+    let log = root.join("logs").join(format!("audio-cpp{option}.log"));
     let mut process = OwnedProcess::spawn_with_model_folder(
-        &launcher,
-        &["--version".into()],
+        launcher,
+        &[option.into()],
         false,
         &log,
         Some(&root.join("models")),
     )?;
-    let status = tokio::time::timeout(Duration::from_secs(15), async {
+    let status = tokio::time::timeout(Duration::from_secs(300), async {
         loop {
             if let Some(status) = process.status()? {
                 return Ok::<_, crate::error::Error>(status);
@@ -134,16 +147,12 @@ async fn verify_audio_cpp(resources: &Path, root: &Path) -> Result<()> {
     .await
     .map_err(|_| message("audio.cpp sandbox probe timed out"))??;
     let log = std::fs::read_to_string(log)?;
-    let pin: serde_json::Value =
-        serde_json::from_str(include_str!("../../../models/audio-cpp-runtime.json"))?;
-    let expected = format!("audio.cpp {}", pin["version"].as_str().unwrap_or_default());
     if !status.success()
         || !log.contains("[Desktop Sandbox] Unselected file access denied")
         || !log.lines().any(|line| line == expected)
     {
         return Err(message(format!("audio.cpp sandbox probe failed: {log}")));
     }
-    println!("App Sandbox: native audio.cpp launcher starts; unselected file access denied.");
     Ok(())
 }
 

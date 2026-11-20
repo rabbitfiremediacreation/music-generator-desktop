@@ -171,6 +171,18 @@ impl AppState {
                 )
                 .await
             }
+            "mulacover" => {
+                crate::engine::mulacover::generate(
+                    &self.resources,
+                    &self.db.root,
+                    settings,
+                    profile,
+                    params,
+                    cancel,
+                    progress,
+                )
+                .await
+            }
             "stable-audio-3" => {
                 crate::engine::stable_audio::generate(
                     &self.resources,

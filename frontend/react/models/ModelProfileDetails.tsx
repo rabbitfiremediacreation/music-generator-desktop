@@ -13,9 +13,14 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
   const { bars, min_duration, max_duration, output_kind } = profile.capabilities;
   return <section className="model-summary-card model-profile-details" aria-label={t("provider_license_usage")}>
     <dl>
+      <div><dt>{t("provider_model_use")}</dt><dd>
+        {t(profile.usage.model_use)}
+        {profile.usage.policy_url && <> · <ProfileLink url={profile.usage.policy_url}>{t("provider_usage_policy")}</ProfileLink></>}
+      </dd></div>
+      <div><dt>{t("provider_outputs")}</dt><dd>{t(profile.usage.outputs)}</dd></div>
       {output_kind === "midi"
         ? <div><dt>{t("browser_format")}</dt><dd>{t("midi_format")}</dd></div>
-        : <div><dt>{t("length")}</dt><dd>{bars?.length ? t("clip_duration_hint", bars.join(" / "), max_duration) : t("provider_duration_hint", min_duration, max_duration)}</dd></div>}
+        : <div><dt>{t(profile.capabilities.reference_audio ? "mulacover_maximum_duration" : "length")}</dt><dd>{bars?.length ? t("clip_duration_hint", bars.join(" / "), max_duration) : t("provider_duration_hint", min_duration, max_duration)}</dd></div>}
       <div><dt>{t("provider_runtime")}</dt><dd><ProfileLink url={profile.runtime.source}>{profile.runtime.name}</ProfileLink>{" "}<code>{profile.runtime.revision}</code> · <ProfileLink url={profile.runtime.license_url}>{profile.runtime.license}</ProfileLink></dd></div>
       {profile.install_command && <div>
         <dt><label htmlFor={commandId}>{t("provider_runtime_install")}</label></dt>
@@ -23,16 +28,11 @@ export function ModelProfileDetails({ profile, bytes, total }: { profile: Catalo
       </div>}
       {profile.upstream_sources.map(source => <div key={source.id}>
         <dt>{t(`provider_source_${source.role}`)}</dt>
-        <dd><ProfileLink url={`https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink>
+        <dd><ProfileLink url={source.source_url ?? `https://huggingface.co/${source.repository}/tree/${source.revision}`}>{source.repository}</ProfileLink>{" "}<code>{source.revision}</code> · <ProfileLink url={source.license_url}>{source.license}</ProfileLink>
           {source.gated && <> · <ProfileLink url={`https://huggingface.co/${source.repository}`}>{t("provider_review_download_terms")}</ProfileLink></>}
         </dd>
       </div>)}
-      <div><dt>{t("provider_model_use")}</dt><dd>
-        {t(profile.usage.model_use)}
-        {profile.usage.policy_url && <> · <ProfileLink url={profile.usage.policy_url}>{t("provider_usage_policy")}</ProfileLink></>}
-      </dd></div>
       <div><dt>{t("provider_redistribution")}</dt><dd>{t(profile.usage.redistribution)}</dd></div>
-      <div><dt>{t("provider_outputs")}</dt><dd>{t(profile.usage.outputs)}</dd></div>
       <div><dt>{t("provider_acquisition")}</dt><dd>{t(profile.acquisition === "manual" ? "provider_manual_hint" : "provider_download_hint")}</dd></div>
       {total > 0 && <div><dt>{t(profile.acquisition === "manual" ? "browser_size" : "provider_total_download")}</dt><dd>{bytes(total)}</dd></div>}
       <div><dt>{t("provider_tested_platforms")}</dt><dd>

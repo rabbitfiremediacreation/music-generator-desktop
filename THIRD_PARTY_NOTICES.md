@@ -36,6 +36,12 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 - audio.cpp v0.9.5 by 0xShug0 and contributors (Apache-2.0). The Apple Silicon package includes the upstream C ABI library and its license under `engine/providers/audio.cpp/`. The app supplies the launcher and uses the sandbox bookmark bridge described above. [Pinned runtime source and license](https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535) · [SDK archive and spec pins](models/audio-cpp-runtime.json)
 - HeartMuLa HNY, HeartCodec 20260123 and HeartMuLaGen (Apache-2.0). These files are acquired separately through the ModelPicker. [Model revisions and licenses](docs/model-picker.md#heartmula-3b-happy-new-year)
 
+## MuLaCover
+
+- MuLaCover by MuLa Labs. The quantized checkpoint is acquired separately by the user. The weights are CC BY-NC 4.0, and MuLa Labs restricts generated outputs to noncommercial use. [Official project](https://github.com/HeartMuLa/MuLaCover) · [Weight and output terms](https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE)
+- SoXR 0.1.3 by Rob Sykes is used for reference-audio resampling. The Apple Silicon runtime includes the dynamically loaded `libsoxr.dylib`, `LICENSE.soxr` (LGPL-2.1-or-later), and the corresponding `soxr-0.1.3-Source.tar.xz`. [SoX Resampler project](https://sourceforge.net/projects/soxr/)
+- The native GGUF carries its upstream component notices. See the checkpoint pins, source comparison, and YourMT3 source-license status in [MuLaCover provenance](docs/mulacover.md).
+
 ## MiniMax-Music3 development profile
 
 - The local adapter targets audio.cpp v0.9.4 by ShugoAI LLC under Apache-2.0. [Runtime release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4) · [Runtime license](https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE)

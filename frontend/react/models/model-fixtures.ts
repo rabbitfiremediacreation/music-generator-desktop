@@ -17,6 +17,13 @@ export function catalogWithHeartMuLa(): ModelCatalog {
   return catalogWithProvider("heartmula");
 }
 
+export function catalogWithMuLaCover(): ModelCatalog {
+  const catalog = catalogWithProvider("mulacover", true);
+  const platform = catalog.profiles![0].platforms[0];
+  catalog.hardware = { ...catalog.hardware, platform: platform.os, ram_bytes: platform.minimum_ram_bytes };
+  return catalog;
+}
+
 export function catalogWithText2midi(available = false): ModelCatalog {
   return catalogWithProvider("text2midi", available);
 }

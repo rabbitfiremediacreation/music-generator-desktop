@@ -7,7 +7,7 @@ import { I18N, LANGS, setLang } from "../../i18n.js";
 import { GenerationAdmissionProvider } from "./admission";
 import { GenerationForm, type GenerationFormProps } from "./GenerationForm";
 import type { Generation, GenerationPolicy, Song } from "../../types";
-import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithStableAudio } from "../models/model-fixtures";
+import { catalogWithAudioCraft, catalogWithHeartMuLa, catalogWithMagenta, catalogWithMiniMax, catalogWithMuLaCover, catalogWithStableAudio } from "../models/model-fixtures";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (p: string) => p }));
@@ -237,6 +237,39 @@ it("submits a MIDI composition prompt without audio-only controls", async () => 
   });
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+it("queues a MuLaCover remix only after choosing an approved reference", async () => {
+  const profile = catalogWithMuLaCover().profiles![0];
+  currentPolicy = { ...policy, available: true, capabilities: profile.capabilities };
+  const original = ipc.invoke.getMockImplementation()!;
+  const id = "a".repeat(64);
+  ipc.invoke.mockImplementation((name, args) => name === "pick_reference_audio"
+    ? Promise.resolve({ id, name: "Meine Aufnahme.wav" })
+    : original(name, args));
+  mount({ selection: profile.selection });
+  const pick = await screen.findByRole("button", { name: "Referenz-WAV auswählen" });
+  const generate = screen.getByRole("button", { name: "GENERIEREN" });
+  const form = generate.closest("form")!;
+  fireEvent.change(screen.getByRole("textbox", { name: "Stil" }), { target: { value: "genre:[folk]; instrument:[piano]" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: "[Verse]\nAm Ufer ist es leise" } });
+  fireEvent.submit(form);
+  expect(requests).toHaveLength(0);
+  fireEvent.click(pick);
+  expect(await screen.findByText("Meine Aufnahme.wav")).toBeTruthy();
+  fireEvent.submit(form);
+  expect(requests).toHaveLength(0);
+  fireEvent.click(screen.getByRole("checkbox", { name: /Die Referenz gehört mir/ }));
+  fireEvent.submit(form);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0]).toMatchObject({
+    model_selection: profile.selection,
+    reference_audio: id,
+    style: "genre:[folk]; instrument:[piano]",
+    lyrics: "[Verse]\nAm Ufer ist es leise",
+    instrumental: false,
+  });
+  expect(requests[0]).not.toHaveProperty("prompt");
+});
+
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {
   currentPolicy = { ...policy, backend: "cpu" };
   mount();

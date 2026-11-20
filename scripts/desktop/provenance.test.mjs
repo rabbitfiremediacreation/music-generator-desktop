@@ -70,11 +70,20 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
 
     await writeFile(path.join(runtime, "model_specs/heartmula.json"), "test resource");
+    await writeFile(path.join(runtime, "LICENSE.soxr"), "test license");
+    await writeFile(path.join(runtime, "soxr-0.1.3-Source.tar.xz"), "test source archive");
+    await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
+
+    await writeFile(path.join(runtime, "libsoxr.dylib"), "test resampler");
+    await recordHashes(work, metadata);
+    await verifyEngine(work, macos);
+
+    await rm(path.join(runtime, "model_specs/stable_audio.json"));
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Unexpected audio.cpp runtime inventory/);
     await writeFile(path.join(runtime, "model_specs/stable_audio.json"), "test resource");
-    await recordHashes(work, metadata);
-    await verifyEngine(work, macos);
 
     await writeFile(path.join(runtime, "weights.gguf"), "test weights");
     await recordHashes(work, metadata);

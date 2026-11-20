@@ -298,7 +298,7 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
     return () => { mounted = false; clearInterval(interval); document.removeEventListener("visibilitychange", visible); };
   }, [active, api, refresh]);
   async function generate(event: FormEvent) {
-    event.preventDefault(); if (pending || analyzing || incomplete || profileError || !profile?.available || !abilities) return;
+    event.preventDefault(); if (pending || analyzing || incomplete || profileError || !profile?.available || !abilities || abilities.reference_audio) return;
     setPending(true); setError(null); setNotice(false);
     const request: Generation = {
       model_selection: profile.selection, title: draft.title,
@@ -337,7 +337,8 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
     {profileError ? <Failure t={t} retry={() => setRefresh(value => value + 1)}>{profileError}</Failure> : !profile && <p role="status">{t("loading")}</p>}
     {profile && <p className="muted">{profile.name}</p>}
     {profile?.available === false && <p className="notice" role="status">{t("profileUnavailable")}</p>}
-    {abilities && <fieldset disabled={pending || analyzing || Boolean(profileError) || !profile?.available}>
+    {profile?.available && abilities?.reference_audio && <p className="notice" role="status">{t("profileDesktopReference")}</p>}
+    {abilities && !abilities.reference_audio && <fieldset disabled={pending || analyzing || Boolean(profileError) || !profile?.available}>
       <Field title={t("title")}><input value={draft.title} placeholder={t("titleHint")} onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} /></Field>
       {abilities.prompt && <Field title={t(barOptions ? "clipDescription" : "prompt")}><textarea rows={3} required={midi || Boolean(barOptions)} value={draft.prompt} placeholder={t(barOptions ? "clipDescriptionHint" : midi ? "midiPrompt" : "promptHint")} onChange={event => setDraft(value => ({ ...value, prompt: event.target.value }))} /></Field>}
       {!midi && !barOptions && <Field title={t(abilities.prompt ? "style" : "styleTags")}><input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} /></Field>}

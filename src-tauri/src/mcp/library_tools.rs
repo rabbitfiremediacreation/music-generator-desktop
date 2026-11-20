@@ -16,6 +16,7 @@ fn generation() -> Value {
     json!({
         "prompt": text(20000), "style": text(4000), "caption": text(24000),
         "lyrics": text(100000), "title": text(500),
+        "reference_audio": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Reference ID from a MuLaCover job. Choose the recording in the desktop app. Set null to clear an inherited reference."},
         "instrumental": {"type": "boolean", "description": "Applies to profiles that expose the instrumental control."},
         "keep_caption": {"type": "boolean", "default": true},
         "duration": {"type": "number", "minimum": 0.8, "maximum": 600, "description": "Requested seconds within the selected profile's limits from get_generation_policy. Metered profiles derive this value from BPM and bars."},

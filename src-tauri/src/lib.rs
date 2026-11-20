@@ -28,6 +28,7 @@ pub mod phone_access;
 pub mod power;
 mod process_output;
 mod random_titles;
+mod reference_audio;
 pub mod runtime;
 pub mod sandbox;
 pub mod setup;
@@ -159,6 +160,7 @@ pub fn run() {
             phone_access::phone_access_status,
             phone_access::set_phone_access,
             audio_import::pick_and_analyze_audio,
+            reference_audio::pick_reference_audio,
             model_commands::model_catalog,
             model_commands::use_models,
             model_commands::verify_imported_models,

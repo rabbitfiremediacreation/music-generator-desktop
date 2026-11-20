@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cp, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { audioCppDirectory, audioCppRuntime as pin, audioCppSupported, download, root, run, target } from "./common.mjs";
+import { prepareAudioCppSoxr, soxrVersion } from "./prepare-audio-cpp-soxr.mjs";
 
 export async function prepareAudioCpp(engineFolder, cache, work) {
   if (!audioCppSupported(target)) return;
@@ -29,6 +30,7 @@ export async function prepareAudioCpp(engineFolder, cache, work) {
     if ((await stat(specFile)).size !== spec.bytes) throw new Error(`Wrong size for pinned audio.cpp spec: ${spec.path}`);
     await cp(specFile, path.join(folder, spec.path));
   }
+  await prepareAudioCppSoxr(folder, cache, work);
   await run("xcrun", [
     "clang++", "-arch", "arm64", `-mmacosx-version-min=${target.minimumSystemVersion}`, "-std=c++20", "-O2",
     "-I", path.join(sdk, "include"), path.join(root, "scripts/desktop/audio-cpp-launcher.cpp"),
@@ -38,7 +40,11 @@ export async function prepareAudioCpp(engineFolder, cache, work) {
   await run("codesign", ["--force", "--sign", "-", library]);
   // Development callers run outside App Sandbox. build.mjs signs the packaged helper for inheritance.
   await run("codesign", ["--force", "--sign", "-", launcher]);
-  if (execFileSync(launcher, ["--version"], { encoding: "utf8", timeout: 60000 }).trim() !== `audio.cpp ${pin.version}`) {
+  const probe = { encoding: "utf8", timeout: 300000 };
+  if (execFileSync(launcher, ["--version"], probe).trim() !== `audio.cpp ${pin.version}`) {
     throw new Error("Pinned audio.cpp runtime did not report the expected version");
+  }
+  if (execFileSync(launcher, ["--check-soxr"], probe).trim() !== `libsoxr-${soxrVersion}`) {
+    throw new Error("Bundled SOXR did not report the expected version");
   }
 }

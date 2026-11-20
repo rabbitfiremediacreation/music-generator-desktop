@@ -60,6 +60,15 @@ fn variant_mapping_inherits_omitted_values_and_keeps_cpu_choice_outside_override
 }
 
 #[test]
+fn generation_schema_accepts_only_staged_reference_ids() {
+    let schema =
+        jsonschema::validator_for(&definitions()["generate_music"]["inputSchema"]).unwrap();
+    assert!(schema.is_valid(&json!({"reference_audio": "a".repeat(64)})));
+    assert!(schema.is_valid(&json!({"source_song_id":"song","reference_audio":null})));
+    assert!(!schema.is_valid(&json!({"reference_audio":"/tmp/reference.wav"})));
+}
+
+#[test]
 fn public_generation_accepts_metered_clip_inputs_without_duration() {
     let tools = definitions();
     let schema = jsonschema::validator_for(&tools["generate_music"]["inputSchema"]).unwrap();

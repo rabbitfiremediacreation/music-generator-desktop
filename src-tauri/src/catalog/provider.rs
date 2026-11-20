@@ -32,6 +32,8 @@ pub struct UpstreamSource {
     pub revision: String,
     pub license: String,
     pub license_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub gated: bool,
 }
@@ -48,6 +50,8 @@ pub struct GenerationCapabilities {
     pub bpm: bool,
     pub advanced: bool,
     pub analysis: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reference_audio: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_seed: Option<u32>,
     #[serde(default, skip_serializing_if = "OutputKind::is_audio")]
@@ -70,6 +74,7 @@ impl GenerationCapabilities {
             bpm: true,
             advanced: true,
             analysis: true,
+            reference_audio: false,
             max_seed: None,
             output_kind: OutputKind::Audio,
             bars: None,

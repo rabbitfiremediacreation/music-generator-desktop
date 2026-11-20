@@ -9,6 +9,7 @@ pub mod magenta;
 pub(crate) mod manager;
 pub(crate) mod mimetic;
 pub(crate) mod minimax_music3;
+pub(crate) mod mulacover;
 pub mod native;
 pub mod process;
 pub mod progress;

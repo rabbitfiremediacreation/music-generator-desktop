@@ -16,6 +16,7 @@ export const backend = {
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
   pickAndAnalyzeAudio: (directory: string, title: string, filterName: string, selection: ModelSelection | null, onSelected: (file: { name: string; directory: string }) => void) =>
     command<Record<string, unknown> | null>("pick_and_analyze_audio", { directory, title, filterName, selection, onSelected: new Channel(onSelected) }),
+  pickReferenceAudio: (title: string) => command<{ id: string; name: string } | null>("pick_reference_audio", { title }),
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),
   bootstrap: (attempt: number) => command<Bootstrap>("bootstrap", { attempt }),
   setup: (request: SetupRequest) => command<SetupResult>("setup_models", { request }),

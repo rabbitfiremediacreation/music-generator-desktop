@@ -100,6 +100,7 @@ fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
         bpm: false,
         advanced: false,
         analysis: false,
+        reference_audio: false,
         max_seed: Some(u32::MAX),
         output_kind: Default::default(),
         bars: None,
