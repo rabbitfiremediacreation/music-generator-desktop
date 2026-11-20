@@ -54,8 +54,8 @@ pub fn validate_request(
     if request.instrumental && !capabilities.instrumental {
         return Err(message("This model requires a vocal song"));
     }
-    if !capabilities.lyrics && !request.instrumental {
-        return Err(message("This model generates instrumental music"));
+    if capabilities.instrumental && !capabilities.lyrics && !request.instrumental {
+        return Err(message("This model generates instrumental music only"));
     }
     if !capabilities.lyrics && !request.lyrics.trim().is_empty() {
         return Err(message("This model does not support lyrics"));
@@ -80,25 +80,28 @@ pub fn validate_request(
         ));
     }
     if !capabilities.advanced {
-        let text = [
-            &request.style,
-            &request.lyrics,
-            &request.prompt,
-            &request.caption,
-        ];
-        let conditioning_bytes =
-            if request.style.trim().is_empty() && request.prompt.trim().is_empty() {
-                request.caption.len()
-            } else {
-                request.style.len() + request.prompt.len()
-            };
-        if conditioning_bytes + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+        let style = request.style.trim().trim_matches(',');
+        let prompt = request.prompt.trim().trim_matches(',');
+        let separator_bytes = 2 * usize::from(!style.is_empty() && !prompt.is_empty());
+        let caption_bytes = (request.style.len() + separator_bytes + request.prompt.len())
+            .max(request.caption.len());
+        if caption_bytes + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Generation text must total at most 8 KiB of UTF-8 text",
+                "Description and lyrics must total at most 8 KiB of UTF-8 text",
             ));
         }
-        if text.iter().any(|value| value.contains('\0')) {
-            return Err(message("Generation text cannot contain NUL characters"));
+        if [
+            &request.style,
+            &request.prompt,
+            &request.caption,
+            &request.lyrics,
+        ]
+        .iter()
+        .any(|text| text.contains('\0'))
+        {
+            return Err(message(
+                "Description and lyrics cannot contain NUL characters",
+            ));
         }
     }
     Ok(())

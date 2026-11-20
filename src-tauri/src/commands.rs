@@ -104,7 +104,7 @@ pub async fn bootstrap<R: tauri::Runtime>(
     startup.ensure_current(attempt)?;
     startup.report(&app, attempt, "interface", None);
     Ok(
-        json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommended_profiles(hardware),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
+        json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommendations_for_build(hardware, &state.resources),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
     )
 }
 
@@ -392,7 +392,7 @@ pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     let hardware = crate::hardware::inspect();
     result["cpu_only"] = json!(hardware.cpu_only);
     result["recommended_profiles"] =
-        json!(crate::catalog::catalog().recommended_profiles(hardware));
+        json!(crate::catalog::catalog().recommendations_for_build(hardware, &state.resources));
     result["dit_xl_available"] = json!(PathBuf::from(settings.models_dir)
         .join("acestep-v15-xl-sft-Q8_0.gguf")
         .is_file());

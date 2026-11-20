@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import { exportSong } from "../../exports";
 import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
-import { audioTime, songDuration, songDurationWarning, songIterations, songStreamMetrics } from "../../song-result";
+import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songStreamMetrics, songWavFormat } from "../../song-result";
 import type { Folder, JobProgress, ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
@@ -17,6 +17,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormat:string;
 }) {
   const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
+  const publicDisclosureId = useId();
   const [editing,setEditing] = useState(false), [title,setTitle] = useState(""), [lyricsOpen,setLyricsOpen] = useState(false), [moving,setMoving] = useState(false);
   const [dragAllowed,setDragAllowed] = useState(true);
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
@@ -35,19 +36,26 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const commit = () => {if(!editing)return;setEditing(false);if(title.trim() !== (song.title||""))change.mutate(()=>backend.patch(song.id,{title:title.trim()}));};
   const more = async (retry=false) => {
     try {
-      const params = song.params as typeof song.params & {use_cot_caption?:boolean};
+      const params = song.params as typeof song.params & { use_cot_caption?: boolean };
       const generation = {...params,title:song.title||"",folder_id:song.folder_id};
       if (!retry) {
+        const capabilities = params.generation_profile?.capabilities;
         generation.model_selection = params.model_selection ?? selection ?? undefined;
-        if (params.model_selection?.language === "" && params.generation_profile?.capabilities.prompt !== true) delete generation.caption;
-        const instrumental = params.model_selection?.language === "" ? params.instrumental : false;
+        if (capabilities?.prompt === false) delete generation.caption;
+        const instrumental = capabilities?.instrumental === true && capabilities.lyrics === false;
         Object.assign(generation, { instrumental, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
       }
       await admission.start(generation,retry?song.id:undefined);
     } catch(error){onError(error);}
   };
-  const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} disabled={disabled} onClick={callback}>{children}</button>;
+  const action = (name:string,children:ReactNode,callback:()=>void,classes="",disabled=false,describedBy?:string) => <button type="button" className={`sek icon ${classes}`} title={name} aria-label={name} aria-describedby={describedBy} disabled={disabled} onClick={callback}>{children}</button>;
   const meta = song.result_meta ?? {}, duration=songDuration(song), iterations=songIterations(song), warning=songDurationWarning(song), took=generationSeconds(song);
+  const wav = songWavFormat(song);
+  const wavLabel = wav && t("result_wav_format", new Intl.NumberFormat(language, { maximumFractionDigits: 3 }).format(wav.sampleRateHz / 1000), wav.channels, wav.bitsPerSample);
+  const runtime = typeof meta.runtime === "string" ? meta.runtime : null;
+  const revision = typeof meta.runtime_revision === "string" ? meta.runtime_revision : null;
+  const generatedBy = songMachineGeneratedBy(song);
+  const canExport = song.status === "done" && !song.audio_missing;
   const stream = song.status === "done" ? songStreamMetrics(song) : null;
   const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
@@ -62,6 +70,8 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
         onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();commit();}if(event.key==="Escape"){event.preventDefault();setEditing(false);}}}/> :
         <h3 className="m-0"><button type="button" className="t song-title" aria-label={`${label} · ${t("rename")}`} title={t("rename")} onClick={()=>{setTitle(song.title||"");setEditing(true);}}>{label}</button></h3>}
       <div className="m" title={t("meta_tip")}>{info}</div>
+      {(runtime || wavLabel) && <div className="m result-audio">{runtime && <span title={revision || undefined}>{runtime}{revision && ` ${revision.slice(0, 8)}`}</span>}{runtime && wavLabel && " · "}{wavLabel}</div>}
+      {generatedBy && <div className="generated-disclosure" id={publicDisclosureId} role="note"><strong>{t("result_machine_generated", generatedBy)}</strong>{canExport && ` · ${t("result_public_disclosure")}`}</div>}
       {song.status==="running"&&<div className="generation-progress"><div className="s run">{progress?progressText(progress,t):song.message||"0:00"}</div>{progress?.total_steps&&progress.step!=null?<progress className="step-progress" max={progress.total_steps} value={progress.step} aria-label="DiT"/>:<div className="mini-bar" aria-hidden="true"/>}</div>}
       {song.status==="queued"&&<div className="s">{t("waiting")}</div>}
       {song.status==="cancelled"&&<div className="s">{t("cancelled")}</div>}
@@ -79,7 +89,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
     </div>
     <div className="actions relative">
       {song.status==="done"&&<button type="button" className={`sek icon ${song.favorite?"on":""}`} aria-label={t("fav")} title={t("fav")} aria-pressed={song.favorite} disabled={change.isPending} onClick={()=>change.mutate(()=>backend.patch(song.id,{favorite:!song.favorite}))}>{song.favorite?"★":"☆"}</button>}
-      {song.status==="done"&&!song.audio_missing&&action(t("download"),exportFormat==="mp3"||song.file?.endsWith(".mp3")?"MP3":"WAV",()=>change.mutate(()=>exportSong(song)),"download fmt")}
+      {canExport&&action(t("download"),exportFormat==="mp3"||song.file?.endsWith(".mp3")?"MP3":"WAV",()=>change.mutate(()=>exportSong(song)),"download fmt",false,generatedBy?publicDisclosureId:undefined)}
       {lyrics&&action(t("show_lyrics"),"TXT",()=>setLyricsOpen(!lyricsOpen),`txt ${lyricsOpen?"on":""}`)}
       {folders.length>0&&<div ref={moveMenu}>{action(t("move"),"▱",()=>setMoving(!moving))}{moving&&<div className="song-move-menu" role="menu" onKeyDown={event=>{if(event.key==="Escape")setMoving(false);}}>{[{id:"none",name:t("f_none"),count:0},...folders].map(folder=><button role="menuitem" key={folder.id} className={(song.folder_id||"none")===folder.id?"on":""} onClick={()=>{setMoving(false);change.mutate(()=>backend.patch(song.id,{folder_id:folder.id==="none"?null:folder.id}));}}>{folder.name}</button>)}</div>}</div>}
       {action(t("more"),"＋",()=>{void more();},"",admission.busy)}

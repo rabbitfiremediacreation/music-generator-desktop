@@ -258,6 +258,9 @@ summary > :first-child:not(:only-child) { margin-right: auto; }
 .t-edit { font: inherit; font-weight: 600; color: var(--text); background: var(--bg);
   border: 1px solid var(--accent); border-radius: 4px; padding: 1px 6px; width: 100%; max-width: 280px; }
 .song .m { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.song .result-audio { white-space: normal; overflow-wrap: anywhere; }
+.song .generated-disclosure { margin-top: 4px; font-size: .75rem; color: var(--muted); }
+.song .generated-disclosure strong { color: var(--text); }
 .song .actions .del { margin-left: 10px; }
 button.armed, .sek.armed { color: var(--error) !important; border-color: var(--error) !important; background: rgba(255, 107, 107, .12) !important; }
 .song .actions .del.armed { font-weight: 700; }

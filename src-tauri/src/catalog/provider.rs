@@ -31,6 +31,8 @@ pub struct UpstreamSource {
     pub revision: String,
     pub license: String,
     pub license_url: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,11 +144,20 @@ pub struct ProviderProfile {
     pub platforms: Vec<TestedPlatform>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_hold: Option<String>,
     #[serde(default)]
     pub acquisition: Acquisition,
 }
 
 impl ProviderProfile {
+    pub(super) fn ensure_released(&self) -> Result<()> {
+        if let Some(reason) = &self.release_hold {
+            return Err(message(reason.clone()));
+        }
+        Ok(())
+    }
+
     pub fn platform(&self, hardware: &Hardware) -> Result<&TestedPlatform> {
         self.platforms
             .iter()
@@ -157,6 +168,7 @@ impl ProviderProfile {
     }
 
     pub fn ensure_runtime(&self, resources: &Path, hardware: &Hardware) -> Result<()> {
+        self.ensure_released()?;
         self.platform(hardware)?;
         if !self.runtime.executable(resources).is_file()
             || self

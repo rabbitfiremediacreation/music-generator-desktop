@@ -117,13 +117,20 @@ impl WavJob<'_> {
                 std::io::Result::Ok((audio, report))
             } => output?,
         };
-        let seconds = audio_facts::duration(&audio)?;
+        let wav = audio_facts::wav_facts(&audio)?;
         let mut meta = json!({
             "runtime_seconds": runtime_seconds,
             "backend": self.backend,
             "seed": params["seed"],
+            "audio_format": {
+                "container": "wav",
+                "encoding": "pcm",
+                "sample_rate_hz": wav.sample_rate_hz,
+                "channels": wav.channels,
+                "bits_per_sample": wav.bits_per_sample,
+            },
         });
-        audio_facts::record_duration(seconds, params, &mut meta);
+        audio_facts::record_duration(wav.duration_seconds, params, &mut meta);
         Ok((audio, "wav".into(), meta, report))
     }
 }

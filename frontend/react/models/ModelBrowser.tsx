@@ -52,7 +52,7 @@ export function ModelBrowser({ catalog, draft, currentSelection, onChange, compa
           {(["all", "installed", "recommended"] as const).map(value => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{t(`browser_${value}`)}</button>)}
         </div>
         {catalog.expert_mode && <>
-          <label className="model-provider"><span className="sr-only">{t("picker_provider")}</span><select disabled={busy} value={draft.provider} onChange={event => selectProvider(event.target.value)}>{catalog.providers.map(item => <option key={item.id} value={item.id}>{item.name}{item.status === "planned" ? ` · ${t("picker_planned")}` : ""}</option>)}</select></label>
+          <label className="model-provider"><span className="sr-only">{t("picker_provider")}</span><select disabled={busy} value={draft.provider} onChange={event => selectProvider(event.target.value)}>{catalog.providers.map(item => <option key={item.id} value={item.id}>{item.name}{item.status === "planned" ? ` · ${t("picker_planned")}` : item.status === "preview" ? ` · ${t("provider_unavailable_short")}` : ""}</option>)}</select></label>
           {legacy && <label className="check-row model-compatible"><input type="checkbox" checked={compatibleOnly} disabled={busy} onChange={event => onCompatibleChange(event.target.checked)} /><span>{t("picker_compatible")}</span></label>}
         </>}
       </div>

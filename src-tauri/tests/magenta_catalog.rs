@@ -107,3 +107,37 @@ fn mrt2_small_is_the_only_magenta_profile_and_supports_instrumental_text_capture
     };
     assert!(catalog.required(&unsupported).is_err());
 }
+
+#[test]
+fn recommends_magenta_only_when_the_build_contains_its_runtime() {
+    let mut catalog = catalog::catalog();
+    let profile = catalog
+        .profiles
+        .iter_mut()
+        .find(|profile| profile.selection.provider == PROVIDER)
+        .unwrap();
+    profile.platforms[0].arch = std::env::consts::ARCH.into();
+    let selection = profile.selection.clone();
+    let runtime = profile.runtime.clone();
+    let hardware = music_generator::hardware::Hardware {
+        platform: "macos",
+        ram_bytes: profile.platforms[0].minimum_ram_bytes,
+        ..music_generator::hardware::inspect().clone()
+    };
+    let resources = tempfile::tempdir().unwrap();
+    let executable = runtime.executable(resources.path());
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    std::fs::write(executable, []).unwrap();
+
+    assert!(catalog.recommended_profiles(&hardware).contains(&selection));
+    assert!(!catalog
+        .recommendations_for_build(&hardware, resources.path())
+        .contains(&selection));
+
+    for file in &runtime.required_files {
+        std::fs::write(resources.path().join(file), []).unwrap();
+    }
+    assert!(catalog
+        .recommendations_for_build(&hardware, resources.path())
+        .contains(&selection));
+}

@@ -10,6 +10,23 @@ export interface DurationWarning {
 }
 const positive = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value > 0;
 
+/** The native adapter records the format after parsing the generated WAV. */
+export function songWavFormat(song: Pick<Song, "result_meta">) {
+  const value = song.result_meta?.audio_format;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { container, encoding, sample_rate_hz, channels, bits_per_sample } = value as Record<string, unknown>;
+  if (container !== "wav" || encoding !== "pcm") return null;
+  if (!positive(sample_rate_hz) || !positive(channels) || !positive(bits_per_sample)) return null;
+  if (![sample_rate_hz, channels, bits_per_sample].every(Number.isSafeInteger)) return null;
+  return { sampleRateHz: sample_rate_hz, channels, bitsPerSample: bits_per_sample };
+}
+
+export function songMachineGeneratedBy(song: Pick<Song, "result_meta">): string | null {
+  const meta = song.result_meta;
+  if (meta?.machine_generated !== true || typeof meta.generated_by !== "string") return null;
+  return meta.generated_by.trim() || null;
+}
+
 /** Locally verified execution wins; an uninitialised old request without a model does not establish its actual steps. */
 export function songIterations(song: ResultSong): number | null {
   if (song.params.model_selection && !song.params.model_selection.language) return null;
