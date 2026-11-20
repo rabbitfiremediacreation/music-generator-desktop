@@ -42,6 +42,7 @@ export function modelRoleLabel(role: CatalogModel["role"] | "title"): string {
   return {
     synthesis: "dit", language: "desktop_language_model", dependency: "picker_dependencies", title: "title_model",
     weights: "provider_weights", codec: "provider_codec", tokenizer: "provider_tokenizer",
+    config: "provider_config", license: "provider_license_file",
   }[role];
 }
 

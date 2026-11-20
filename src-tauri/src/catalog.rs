@@ -138,6 +138,7 @@ impl Catalog {
     ) -> Result<()> {
         self.required(selection)?;
         if let Some(profile) = self.profile(selection) {
+            profile.ensure_released()?;
             if let Some(hardware) = hardware {
                 profile.platform(hardware)?;
             }
@@ -183,7 +184,9 @@ impl Catalog {
         let native = self
             .profiles
             .iter()
-            .filter(|profile| profile.platform(hardware).is_ok())
+            .filter(|profile| {
+                profile.ensure_released().is_ok() && profile.platform(hardware).is_ok()
+            })
             .map(|profile| profile.selection.clone());
         ace_step.chain(native).collect()
     }
@@ -193,7 +196,7 @@ impl Catalog {
             if profile.files.is_empty()
                 || !self.providers.iter().any(|provider| {
                     provider.id == selection.provider
-                        && provider.status == "available"
+                        && matches!(provider.status.as_str(), "available" | "preview")
                         && provider.adapter.is_some()
                 })
             {
@@ -389,6 +392,9 @@ async fn verify_imported_files(
     cancel: &CancellationToken,
     progress: &impl Fn(crate::download::DownloadProgress),
 ) -> Result<()> {
+    if cancel.is_cancelled() {
+        return Err(crate::error::Error::Cancelled);
+    }
     if models.iter().any(|model| !root.join(&model.file).is_file()) {
         return Err(message(
             "Place all imported model files in the model folder before verifying",

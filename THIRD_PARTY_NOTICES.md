@@ -29,3 +29,8 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 
 - audio.cpp v0.9.5 by 0xShug0 and contributors (Apache-2.0). The Apple Silicon package includes the upstream C ABI library and its license under `engine/providers/audio.cpp/`. The app supplies the launcher and uses the sandbox bookmark bridge described above. [Pinned runtime source and license](https://github.com/0xShug0/audio.cpp/tree/61c7838baf1f7f34769b5b7bd369c0d78edf9535) · [SDK archive and spec pins](models/audio-cpp-runtime.json)
 - HeartMuLa HNY, HeartCodec 20260123 and HeartMuLaGen (Apache-2.0). These files are acquired separately through the ModelPicker. [Model revisions and licenses](docs/model-picker.md#heartmula-3b-happy-new-year)
+
+## MiniMax-Music3 development profile
+
+- The local adapter targets audio.cpp v0.9.4 by ShugoAI LLC under Apache-2.0. [Runtime release](https://github.com/0xShug0/audio.cpp/releases/tag/v0.9.4) · [Runtime license](https://github.com/0xShug0/audio.cpp/blob/f7ac446fb75e594a6913c846bea6c85b637f6ac0/LICENSE)
+- The separately acquired MiniMax-Music3 GGUF weights retain the MiniMax-Music3 Community License and Acceptable Use Policy. The publisher's `LICENSE` accompanies the verified model set. The third-party release decision is pending. [Pinned GGUF weights](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/tree/46fe77f8bb395ccdbe797d784225f7b84866e7ce) · [Model license](https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF/blob/46fe77f8bb395ccdbe797d784225f7b84866e7ce/LICENSE) · [Distribution notes](docs/qa/issue-129/README.md)

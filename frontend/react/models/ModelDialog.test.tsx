@@ -6,7 +6,7 @@ import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
 import { standard } from "../setup/fixtures";
 import { handlers, ipc, mountControls, resetDesktop, saved, catalogFixture, turbo, xl } from "./test-support";
-import { catalogWithHeartMuLa, catalogWithStableAudio } from "./model-fixtures";
+import { catalogWithHeartMuLa, catalogWithMiniMax, catalogWithStableAudio } from "./model-fixtures";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
@@ -92,6 +92,43 @@ it("refreshes locally imported Stable Audio files and activates the supported pr
   fireEvent.click(activate);
   await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: small.selection }));
   await waitFor(() => expect(screen.getByLabelText("selection").textContent).toBe(small.selection.synthesis));
+});
+
+it("verifies the pinned MiniMax import with the license visible and keeps the active model", async () => {
+  let catalog = catalogWithMiniMax();
+  const { selection } = catalog.profiles![0];
+  const license = catalog.models.find(model => model.provider === selection.provider && model.role === "license")!;
+  for (const file of catalog.models.filter(model => model.provider === selection.provider)) {
+    file.present = file !== license;
+  }
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => {
+    if (name === "model_catalog") return catalog;
+    if (name === "verify_imported_models") {
+      expect(args.selection).toEqual(selection);
+      catalog = { ...catalog, models: catalog.models.map(model => model.provider === selection.provider ? { ...model, verified: true } : model) };
+      return;
+    }
+    return invoke(name, args);
+  });
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: "MiniMax-Music3" }));
+  expect(dialog.getByRole("link", { name: "MiniMaxAI/MiniMax-Music3" }).getAttribute("href")).toContain("/tree/1b525ccb");
+  expect(dialog.getByRole("link", { name: "audio-cpp/MiniMax-Music3-GGUF" }).getAttribute("href")).toContain("/tree/46fe77f8");
+  expect(dialog.getByRole("link", { name: "MiniMax-Music3-GGUF/LICENSE" })).toBeTruthy();
+  expect(dialog.getByRole("link", { name: "Nutzungsbedingungen" }).getAttribute("href")).toContain("/blob/1b525ccb");
+  expect(dialog.getByText(/Die Freigabe wartet auf Schutzmaßnahmen/)).toBeTruthy();
+  const verify = dialog.getByRole("button", { name: "Importierte Dateien prüfen" }) as HTMLButtonElement;
+  expect(verify.disabled).toBe(true);
+  catalog = { ...catalog, models: catalog.models.map(model => model === license ? { ...license, present: true } : model) };
+  fireEvent.click(dialog.getByRole("button", { name: "Modelldateien neu einlesen" }));
+  await waitFor(() => expect(verify.disabled).toBe(false));
+  fireEvent.click(verify);
+  await waitFor(() => expect(verify.textContent).toBe("Importierte Dateien geprüft"));
+  expect(ipc.invoke).toHaveBeenCalledWith("verify_imported_models", { selection });
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "use_models")).toBe(false);
+  expect(screen.getByLabelText("selection").textContent).toBe(standard.synthesis);
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {

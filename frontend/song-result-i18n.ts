@@ -20,3 +20,17 @@ const messages: Record<Language, readonly [Message, Message]> = {
 for (const [language, values] of Object.entries(messages)) {
   Object.assign(I18N[language as Language], { duration_short_audio: values[0], duration_long_audio: values[1] });
 }
+
+Object.assign(I18N.en, {
+  result_wav_format: (rate: string, channels: number, bits: number) => `WAV PCM ${bits}-bit · ${rate} kHz · ${channels} ch`,
+  result_machine_generated: (model: string) => `AI-generated with ${model}`,
+  result_public_disclosure: "Clearly label the audio as AI-generated if you publish it.",
+  dialog_export_generated_audio: "Export audio · Label as AI-generated if published",
+});
+
+Object.assign(I18N.de, {
+  result_wav_format: (rate: string, channels: number, bits: number) => `WAV PCM ${bits} Bit · ${rate} kHz · ${channels} ${channels === 1 ? "Kanal" : "Kanäle"}`,
+  result_machine_generated: (model: string) => `KI-generiert mit ${model}`,
+  result_public_disclosure: "Kennzeichne das Audio bei Veröffentlichung gut sichtbar als KI-generiert.",
+  dialog_export_generated_audio: "Audio exportieren · Bei Veröffentlichung als KI-generiert kennzeichnen",
+});

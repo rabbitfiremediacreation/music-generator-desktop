@@ -80,27 +80,27 @@ pub fn validate_request(
         ));
     }
     if !capabilities.advanced {
-        if request.style.len() + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+        let style = request.style.trim().trim_matches(',');
+        let prompt = request.prompt.trim().trim_matches(',');
+        let separator_bytes = 2 * usize::from(!style.is_empty() && !prompt.is_empty());
+        let caption_bytes = (request.style.len() + separator_bytes + request.prompt.len())
+            .max(request.caption.len());
+        if caption_bytes + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
             return Err(message(
-                "Style tags and lyrics must total at most 8 KiB of UTF-8 text",
+                "Description and lyrics must total at most 8 KiB of UTF-8 text",
             ));
         }
-        if request.style.contains('\0') || request.lyrics.contains('\0') {
-            return Err(message(
-                "Style tags and lyrics cannot contain NUL characters",
-            ));
-        }
-        let separator_bytes =
-            usize::from(!request.style.trim().is_empty() && !request.prompt.trim().is_empty()) * 2;
-        if capabilities.prompt
-            && (request.style.len() + separator_bytes + request.prompt.len()
-                > MAX_NATIVE_TEXT_BYTES
-                || request.caption.len() > MAX_NATIVE_TEXT_BYTES
-                || request.prompt.contains('\0')
-                || request.caption.contains('\0'))
+        if [
+            &request.style,
+            &request.prompt,
+            &request.caption,
+            &request.lyrics,
+        ]
+        .iter()
+        .any(|text| text.contains('\0'))
         {
             return Err(message(
-                "Prompt and style must fit in 8 KiB of UTF-8 text without NUL characters",
+                "Description and lyrics cannot contain NUL characters",
             ));
         }
     }

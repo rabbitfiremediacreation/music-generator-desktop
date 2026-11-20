@@ -21,11 +21,15 @@ export function catalogWithStableAudio(available = false): ModelCatalog {
   return catalogWithProvider("stable-audio-3", available);
 }
 
+export function catalogWithMiniMax(): ModelCatalog {
+  return catalogWithProvider("minimax-music3");
+}
+
 function catalogWithProvider(id: string, available = false): ModelCatalog {
   return {
     ...structuredClone(catalogFixture),
-    providers: source.providers.filter(provider => provider.id === "ace-step" || provider.id === id).map(provider => ({ ...provider, status: "available" })),
-    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({ ...profile, platforms: available ? profile.platforms : [], available, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
+    providers: source.providers.filter(provider => provider.id === "ace-step" || provider.id === id).map(provider => ({ ...provider, status: provider.status === "preview" ? "preview" : "available" })),
+    profiles: source.profiles.filter(profile => profile.selection.provider === id).map(profile => ({ ...profile, platforms: available ? profile.platforms : [], available, unavailable_reason: profile.release_hold, acquisition: profile.acquisition === "manual" ? "manual" : "download" })),
     models: source.models.filter(model => model.provider === "ace-step" || model.provider === id).map(model => ({ ...model, role: model.role as CatalogModel["role"], verified: model.provider === "ace-step", present: model.provider === "ace-step", partial_bytes: 0 })),
   };
 }

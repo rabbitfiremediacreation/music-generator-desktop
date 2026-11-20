@@ -162,6 +162,51 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   expect(screen.queryByRole("note")).toBeNull();
 });
 
+it("shows measured MiniMax audio, runtime provenance and the publication reminder", async () => {
+  songs[0].params = { model_selection: { provider: "minimax-music3", synthesis: "fixed-profile", language: "" } };
+  songs[0].result_meta = {
+    duration: 27.53, duration_source: "wav", runtime: "audio.cpp", runtime_revision: "1234567890abcdef",
+    audio_format: { container: "wav", encoding: "pcm", sample_rate_hz: 44100, channels: 2, bits_per_sample: 16 },
+    machine_generated: true, generated_by: "MiniMax-Music3",
+  };
+  mount();
+  expect(await screen.findByText("0:27")).toBeTruthy();
+  expect(screen.getByText("WAV PCM 16-bit · 44.1 kHz · 2 ch", { exact: false })).toBeTruthy();
+  expect(screen.getByText("audio.cpp 12345678")).toHaveProperty("title", "1234567890abcdef");
+  expect(screen.getByText("AI-generated with MiniMax-Music3")).toBeTruthy();
+  const note = screen.getByRole("note");
+  expect(note.textContent).toContain("Clearly label the audio as AI-generated if you publish it.");
+  expect(screen.getByRole("button", { name: "Download" }).getAttribute("aria-describedby")).toBe(note.id);
+});
+
+it.each([
+  ["minimax-music3", { prompt: true, lyrics: true, instrumental: false }],
+  ["heartmula", { prompt: false, lyrics: true, instrumental: false }],
+  ["stable-audio-3", { prompt: true, lyrics: false, instrumental: true }],
+] as const)("uses the saved %s capabilities when requesting another variant", async (provider, capabilities) => {
+  const caption = "Global Metadata: pop\nVocal Details: warm\nArrangement: keys";
+  const { prompt, lyrics, instrumental } = capabilities;
+  const params = {
+    caption, duration: 27, lyrics: lyrics ? "[Verse]\nAt dawn" : "", style: prompt ? "" : "synth pop",
+    model_selection: { provider, synthesis: "fixed-profile", language: "" },
+    generation_profile: { capabilities },
+  };
+  songs[0].params = params;
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", capabilities: { advanced: false } });
+    if (name === "generate") return Promise.resolve({ ids: ["variant"] });
+    return original(name, args);
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", expect.anything()));
+  const request = mocks.invoke.mock.calls.find(([name]) => name === "generate")?.[1].request;
+  if (prompt) expect(request).toHaveProperty("caption", caption);
+  else expect(request).not.toHaveProperty("caption");
+  expect(request).toHaveProperty("instrumental", instrumental);
+});
+
 it("shows the variance with up to two decimals",async()=>{
   songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
   const view=mount();await screen.findByText("A song A");
