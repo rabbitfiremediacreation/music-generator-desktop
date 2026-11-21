@@ -4,6 +4,13 @@ import { appcastName } from "./release-assets.mjs";
 
 const feedNames = ["macos-arm64", "macos-x64"].map(appcastName);
 
+export function hasPreviewAppcasts(assets) {
+  const names = new Set(assets.map(asset => asset.name));
+  const present = feedNames.filter(name => names.has(name));
+  assert(present.length === 0 || present.length === feedNames.length, "Expected Sparkle appcasts for both macOS architectures");
+  return present.length > 0;
+}
+
 export function githubFeedClient(repository, token) {
   assert(token, "Missing GitHub token for publishing update feeds");
   return async (endpoint, { method = "GET", body, allow = [] } = {}) => {
@@ -23,6 +30,17 @@ export function githubFeedClient(repository, token) {
   };
 }
 
+export async function readPreviewFeed(stream, request) {
+  const branch = previewFeedBranch(stream);
+  const head = await request(`git/ref/heads/${branch}`, { allow: [404] });
+  if (!head) return null;
+  const sha = head.object.sha;
+  const marker = await request(`contents/build.txt?ref=${sha}`);
+  const run = Buffer.from(marker.content, "base64").toString("utf8").trim();
+  assert(/^[1-9]\d*$/.test(run), `Invalid published build in ${branch}`);
+  return { sha, run, tag: `${stream}-${run}` };
+}
+
 /** Advance both architectures in one commit, even when Develop builds finish out of order. */
 export async function publishPreviewFeeds({ stream, run, feeds }, request) {
   assert(stream === "daily" || stream === "develop", "Invalid preview stream");
@@ -34,13 +52,8 @@ export async function publishPreviewFeeds({ stream, run, feeds }, request) {
   });
   const branch = previewFeedBranch(stream);
   for (let attempt = 0; attempt < 3; attempt++) {
-    const head = await request(`git/ref/heads/${branch}`, { allow: [404] });
-    if (head) {
-      const marker = await request(`contents/build.txt?ref=${head.object.sha}`);
-      const published = Buffer.from(marker.content, "base64").toString("utf8").trim();
-      assert(/^[1-9]\d*$/.test(published), `Invalid published build in ${branch}`);
-      if (BigInt(published) >= BigInt(run)) return `${stream}-${published}`;
-    }
+    const head = await readPreviewFeed(stream, request);
+    if (head && BigInt(head.run) >= BigInt(run)) return head.tag;
 
     const createdTree = await request("git/trees", { method: "POST", body: { tree } });
     const commit = await request("git/commits", {
@@ -48,7 +61,7 @@ export async function publishPreviewFeeds({ stream, run, feeds }, request) {
       body: {
         message: `Publish ${stream}-${run} Sparkle feeds`,
         tree: createdTree.sha,
-        parents: head ? [head.object.sha] : [],
+        parents: head ? [head.sha] : [],
       },
     });
     const updated = head

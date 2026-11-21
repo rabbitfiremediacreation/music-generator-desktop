@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { macSigningSettings } from "./macos-signing.mjs";
 import { appcastUrl, appcastXml, macUpdateRelease, macUpdaterSettings } from "./macos-updater.mjs";
-import { publishPreviewFeeds } from "./preview-feeds.mjs";
+import { hasPreviewAppcasts, publishPreviewFeeds, readPreviewFeed } from "./preview-feeds.mjs";
 
 const notarized = { MUSIC_GENERATOR_REQUIRE_NOTARIZATION: "true" };
 const repository = "rabbitfiremediacreation/music-generator-desktop";
@@ -20,8 +21,8 @@ test("keeps the Stable feed and orders preview packages by the CI build number",
     `https://github.com/${repository}/releases/latest/download/appcast-macos-arm64.xml`);
 
   for (const stream of ["daily", "develop"]) {
-    const before = macUpdateRelease({ ...notarized, MUSIC_GENERATOR_UPDATE_BUILD: `${stream}-99` }, "0.2.0");
-    const next = macUpdateRelease({ ...notarized, MUSIC_GENERATOR_UPDATE_BUILD: `${stream}-100` }, "0.2.0");
+    const before = macUpdateRelease({ MUSIC_GENERATOR_UPDATE_BUILD: `${stream}-99` }, "0.2.0");
+    const next = macUpdateRelease({ MUSIC_GENERATOR_UPDATE_BUILD: `${stream}-100` }, "0.2.0");
     assert.equal(before.version, next.version);
     assert(Number(before.bundleVersion) < Number(next.bundleVersion));
     assert.equal(appcastUrl(next.stream, "macos-x64"),
@@ -32,7 +33,42 @@ test("keeps the Stable feed and orders preview packages by the CI build number",
     assert(xml.includes(`releases/download/${stream}-100/Music-Generator-0.2.0-macos-x64.zip`));
   }
   assert.throws(() => macUpdateRelease({ ...notarized, MUSIC_GENERATOR_UPDATE_BUILD: "daily-0" }, "0.2.0"), /preview build tag/);
-  assert.throws(() => macUpdaterSettings({ ...notarized, MUSIC_GENERATOR_UPDATE_BUILD: "develop-100", GITHUB_REPOSITORY: repository }, "0.2.0"), /SPARKLE_PUBLIC_KEY/);
+  assert.throws(() => macUpdaterSettings({ ...notarized, GITHUB_REPOSITORY: repository }, "0.2.0"), /SPARKLE_PUBLIC_KEY/);
+});
+
+test("preview signing and Sparkle work independently of Apple notarization", () => {
+  for (const stream of ["daily", "develop"]) {
+    const preview = { MUSIC_GENERATOR_UPDATE_BUILD: `${stream}-100`, GITHUB_REPOSITORY: repository };
+    assert.equal(macSigningSettings(preview), null);
+    assert.equal(macSigningSettings({ ...preview, APPLE_TEAM_ID: "team-without-certificate" }), null);
+    assert.equal(macSigningSettings({
+      ...preview,
+      APPLE_SIGNING_IDENTITY: "Developer ID Application: Music Generator",
+      APPLE_CERTIFICATE: "certificate-fixture",
+      APPLE_CERTIFICATE_PASSWORD: "password-fixture",
+    }).APPLE_SIGNING_IDENTITY, "Developer ID Application: Music Generator");
+    assert.equal(macUpdaterSettings(preview, "0.2.0"), null);
+    const updater = macUpdaterSettings({
+      ...preview, SPARKLE_PUBLIC_KEY: Buffer.alloc(32).toString("base64"), SPARKLE_PRIVATE_KEY: "fixture",
+    }, "0.2.0");
+    assert.equal(updater.stream, stream);
+    assert.equal(updater.bundleVersion, "100");
+  }
+  assert.throws(() => macSigningSettings(notarized), /Missing macOS signing settings/);
+});
+
+test("a preview offering manual downloads can retain an existing Sparkle release", async () => {
+  const appcasts = Object.keys(feeds).map(name => ({ name }));
+  assert.equal(hasPreviewAppcasts([{ name: "Music-Generator-0.2.0-macos-arm64.zip" }]), false);
+  assert.equal(hasPreviewAppcasts(appcasts), true);
+  assert.throws(() => hasPreviewAppcasts(appcasts.slice(0, 1)), /both macOS architectures/);
+  assert.equal(await readPreviewFeed("daily", async () => null), null);
+  const active = await readPreviewFeed("develop", async endpoint => {
+    if (endpoint === ref("develop")) return { object: { sha: "head" } };
+    assert.equal(endpoint, "contents/build.txt?ref=head");
+    return marker(99);
+  });
+  assert.equal(active.tag, "develop-99");
 });
 
 test("creates a preview feed branch with both signed appcasts in the same commit", async () => {

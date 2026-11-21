@@ -13,9 +13,9 @@ const sparkleDigest = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14
 const repository = "rabbitfiremediacreation/music-generator-desktop";
 
 export function macUpdateRelease(env, version) {
-  if (env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true") return null;
-  assert(/^\d+\.\d+\.\d+$/.test(version), "macOS update versions must be numeric");
   const build = env.MUSIC_GENERATOR_UPDATE_BUILD;
+  if (!build && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true") return null;
+  assert(/^\d+\.\d+\.\d+$/.test(version), "macOS update versions must be numeric");
   if (!build) return { stream: "stable", tag: `v${version}`, version, bundleVersion: version };
   const preview = /^(daily|develop)-([1-9]\d*)$/.exec(build);
   assert(preview, "Invalid macOS preview build tag");
@@ -32,9 +32,10 @@ export function appcastUrl(stream, target) {
 }
 
 export function macUpdaterSettings(env, version) {
+  const { SPARKLE_PUBLIC_KEY: publicKey, SPARKLE_PRIVATE_KEY: privateKey, GITHUB_REPOSITORY } = env;
+  if (env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true" && (!publicKey || !privateKey?.trim())) return null;
   const release = macUpdateRelease(env, version);
   if (!release) return null;
-  const { SPARKLE_PUBLIC_KEY: publicKey, SPARKLE_PRIVATE_KEY: privateKey, GITHUB_REPOSITORY } = env;
   assert(GITHUB_REPOSITORY === repository, "Sparkle updates must be built in the desktop release repository");
   assert(/^[A-Za-z0-9+/]{43}=$/.test(publicKey), "Missing or invalid SPARKLE_PUBLIC_KEY");
   assert(privateKey?.trim(), "Missing SPARKLE_PRIVATE_KEY");
@@ -90,6 +91,7 @@ export async function installSparkle(app, work, settings, sign) {
   for (const [key, type, value] of [
     ["SUFeedURL", "string", appcastUrl(settings.stream, `macos-${architecture}`)],
     ["SUPublicEDKey", "string", settings.publicKey],
+    ["SUVerifyUpdateBeforeExtraction", "bool", "true"],
     ["SURequireSignedFeed", "bool", "true"],
     ["SUEnableInstallerLauncherService", "bool", "true"],
     ["SUEnableAutomaticChecks", "bool", "false"],
