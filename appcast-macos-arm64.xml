@@ -5,19 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>236</sparkle:version>
+      <sparkle:version>237</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-231</h2>
+      <description><![CDATA[<h2>Changes since develop-236</h2>
 <ul>
-<li>Fix Develop packaging on macOS and Windows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/157">#157</a>)</li>
-<li>Download generation engines separately (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/156">#156</a>)</li>
+<li>Document verified ACE-Step seed reproducibility (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/154">#154</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/6676aaa118d7c21ba905859f6769c4327074a29f...5f8fcd8912276fbcfba718feb833dabeaa0967ab">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-236/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="VevLTN1O+bnCMwBPLXmcTDqkHivYsHgFHVQSjiu2yl9v4D4PwInJZ8OqrpNM+2fvPfBSdHylOmv1qUqnq+yAAw==" length="13079253" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/5f8fcd8912276fbcfba718feb833dabeaa0967ab...aed66029dd1358842e605dba36314963ab0204b1">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-237/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="7T9veWvdZr+qPg1Jk2HmMumdIHcYPDWzKyg8LuoXPS+XOjss6zAcYSc9WXU1F+Rs7s2Og/wCjY3LzEHzb9y/BA==" length="13065945" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 2ge6XYHKDIAEbhujzljaamICgDQMe3F4XdDWntNsbeE5GPDNwbkENVVLRNVLB9umd8vKy8eKOZzndKOO6cGkDQ==
-length: 1614
+edSignature: rCx1fW2scP0I3F1NDV50MO7TEyVS/N7j9umxq/3kRcsSkckzxISJW0GRXNIB38iDXKMxgGoNwy0m7SyZvZRqBQ==
+length: 1474
 -->
