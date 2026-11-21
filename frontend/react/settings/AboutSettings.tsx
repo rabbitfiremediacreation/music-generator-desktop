@@ -1,8 +1,9 @@
-import { useMutation } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { backend } from "../../backend";
 import type { UpdateStream } from "../../types";
 import { useI18n } from "../i18n";
+import { updateCheckKey, updateStatus } from "../updates";
 import type { useSettingsDraft } from "./useSettingsDraft";
 
 export function AboutSettings({ state, onError }: {
@@ -10,15 +11,14 @@ export function AboutSettings({ state, onError }: {
   onError: (error: unknown) => void;
 }) {
   const { t } = useI18n();
+  const client = useQueryClient();
   const stream = state.draft?.update_stream ?? "stable";
-  const update = useMutation({ mutationFn: (selected: UpdateStream) => backend.checkUpdate(selected), retry: false, networkMode: "always" });
+  const updating = useIsMutating({ mutationKey: updateCheckKey }) > 0;
+  const update = useMutation({ mutationKey: updateCheckKey, mutationFn: (selected: UpdateStream) => backend.checkUpdate(selected), retry: false, networkMode: "always" });
   const result = update.data;
   const status = update.isPending ? t("upd_search")
     : update.error ? String(update.error)
-    : result?.native ? ""
-    : result?.available ? `${result.current} → ${result.latest}`
-    : result?.latest ? t("upd_current", result.current)
-    : result ? t("upd_no_build") : "";
+    : result ? updateStatus(result, t) : "";
   const url = result?.available ? result.url : undefined;
 
   return <>
@@ -37,7 +37,9 @@ export function AboutSettings({ state, onError }: {
         <span id="updateStreamHint" className="small">{t(`upd_stream_${stream}`)}</span>
       </div>
       <div className="upd-row">
-        <button type="button" className="sek" disabled={update.isPending} onClick={() => update.mutate(stream)}>{t("upd_check")}</button>
+        <button type="button" className="sek" disabled={updating} onClick={() => {
+          if (!client.isMutating({ mutationKey: updateCheckKey })) update.mutate(stream);
+        }}>{t("upd_check")}</button>
         <span className="small" role="status">{status}</span>
         {url && <button type="button" className="aktion" onClick={() => void openUrl(url).catch(onError)}>{t("desktop_download_release")}</button>}
       </div>
