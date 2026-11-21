@@ -210,7 +210,7 @@ impl Mix {
 fn gain_valid(db: f32) -> bool {
     (-60.0..=18.0).contains(&db)
 }
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn amplitude(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
 }

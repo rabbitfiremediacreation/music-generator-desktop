@@ -1,6 +1,11 @@
-use super::{engine, export, jobs, layer, mix, model, source};
-use crate::{audio_export::AudioFormat, db::Database, runtime::OperationKind, state::AppState};
+use super::jobs;
+#[cfg(unix)]
+use super::{engine, export, layer, mix, model, source};
+#[cfg(unix)]
+use crate::{audio_export::AudioFormat, runtime::OperationKind};
+use crate::{db::Database, state::AppState};
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use tokio_util::sync::CancellationToken;
 
 mod project_management;
@@ -19,6 +24,7 @@ fn state(root: &Path, resources: PathBuf) -> AppState {
     state
 }
 
+#[cfg(unix)]
 fn synthetic_audio(path: &Path) {
     let frames = 48_000_u32;
     let size = frames * 2;
@@ -37,6 +43,7 @@ fn synthetic_audio(path: &Path) {
     std::fs::write(path, wave).unwrap();
 }
 
+#[cfg(unix)]
 fn model_save_dir(root: &Path, artifact: &model::Artifact) -> PathBuf {
     let models = root.join("models");
     let artifact = artifact.pinned();
