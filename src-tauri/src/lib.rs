@@ -10,6 +10,7 @@ pub mod cuda_runtime;
 pub mod db;
 pub mod download;
 pub mod engine;
+pub mod engine_packages;
 pub mod error;
 pub mod exports;
 pub mod form_preferences;
@@ -106,15 +107,7 @@ pub fn run() {
             let root = std::env::var_os("MUSIC_GENERATOR_DEV_DATA_DIR")
                 .map(std::path::PathBuf::from)
                 .unwrap_or(root);
-            let resources = if cfg!(debug_assertions) {
-                std::env::var_os("MUSIC_GENERATOR_DEV_RESOURCES_DIR")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_else(|| {
-                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
-                    })
-            } else {
-                app.path().resource_dir()?
-            };
+            let resources = resource_directory(app)?;
             startup_windows::initialize(app, root, resources, started)?;
             Ok(())
         })
@@ -129,6 +122,10 @@ pub fn run() {
             startup::startup_show_main,
             startup::startup_complete,
             commands::setup_models,
+            commands::setup_library,
+            engine_packages::engine_package_status,
+            engine_packages::install_engine_package,
+            engine_packages::remove_engine_package,
             commands::setup_estimate,
             commands::cancel_setup,
             commands::cuda_status,
@@ -206,4 +203,18 @@ pub fn run() {
             sandbox::shutdown();
         }
     });
+}
+
+fn resource_directory<R: tauri::Runtime>(app: &tauri::App<R>) -> tauri::Result<std::path::PathBuf> {
+    if cfg!(debug_assertions) {
+        if let Some(path) = std::env::var_os("MUSIC_GENERATOR_DEV_RESOURCES_DIR") {
+            return Ok(path.into());
+        }
+        #[cfg(target_os = "macos")]
+        if launch_location::inside_app_bundle() {
+            return app.path().resource_dir();
+        }
+        return Ok(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
+    }
+    app.path().resource_dir()
 }

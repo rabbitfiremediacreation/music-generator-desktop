@@ -11,12 +11,17 @@ export function WaveLogo({ active = false, className = "" }: { active?: boolean;
   </svg>;
 }
 
-export function GenerationProgress({ progress, label, details, remainingLabel, wave = true, className = "" }: {
-  progress?: JobProgress | null; label: string; details: string; remainingLabel?: string; wave?: boolean; className?: string;
-}) {
-  const value = progress?.overall_percent;
-  const percentage = value === undefined ? undefined : `${value > 0 && value < 100 ? "≈ " : ""}${value}%`;
-  const remaining = progress?.estimated_remaining_seconds;
+type ActivityProgressProps = {
+  label: string; details: string; remainingLabel?: string; wave?: boolean; className?: string;
+  value?: number; remaining?: number | null; approximate?: boolean;
+};
+
+export function GenerationProgress({ progress, ...props }: Omit<ActivityProgressProps, "value" | "remaining" | "approximate"> & { progress?: JobProgress | null }) {
+  return <ActivityProgress {...props} value={progress?.overall_percent} remaining={progress?.estimated_remaining_seconds} approximate />;
+}
+
+export function ActivityProgress({ value, remaining, approximate, label, details, remainingLabel, wave = true, className = "" }: ActivityProgressProps) {
+  const percentage = value === undefined ? undefined : `${approximate && value > 0 && value < 100 ? "≈ " : ""}${value}%`;
   const estimate = remainingLabel && remaining != null && remaining > 0 ? `${remainingLabel} ≈ ${audioTime(remaining)}` : undefined;
   const valueText = [details, percentage, estimate].filter(Boolean).join(" · ");
   return <div className={`song-activity ${className}`}>

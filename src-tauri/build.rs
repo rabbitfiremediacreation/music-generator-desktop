@@ -1,4 +1,19 @@
 fn main() {
+    println!("cargo:rerun-if-env-changed=MUSIC_GENERATOR_ENGINE_PACKAGES");
+    let manifest = std::env::var_os("MUSIC_GENERATOR_ENGINE_PACKAGES")
+        .map(|path| {
+            println!(
+                "cargo:rerun-if-changed={}",
+                std::path::Path::new(&path).display()
+            );
+            std::fs::read(path).expect("Engine package manifest is missing")
+        })
+        .unwrap_or_else(|| br#"{"format":1,"tag":"","packages":[]}"#.to_vec());
+    std::fs::write(
+        std::path::Path::new(&std::env::var_os("OUT_DIR").unwrap()).join("engine-packages.json"),
+        manifest,
+    )
+    .expect("Could not embed the engine package manifest");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         println!("cargo:rerun-if-changed=src/macos_updater.m");
         cc::Build::new()
@@ -70,6 +85,12 @@ fn main() {
         let files = metadata["files"]
             .as_object()
             .expect("Engine file checksums missing");
+        if platform == "macos" {
+            assert!(
+                files.contains_key("libace-server-plugin.dylib"),
+                "ACE-Step plug-in is missing: run npm run engine:prepare"
+            );
+        }
         assert!(
             files.keys().all(|file| !file.starts_with("heartmula/")),
             "Retired provider resources must not be bundled"
@@ -93,8 +114,12 @@ fn main() {
             }
             assert!(
                 files.contains_key("mimetic-synth")
-                    && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),
-                "Mimetic A0 runtime is missing: run npm run engine:prepare"
+                    && files.contains_key("pytorch/PYTORCH_RUNTIME.json"),
+                "Shared PyTorch runtime is missing: run npm run engine:prepare"
+            );
+            assert!(
+                files.contains_key("text2midi/text2midi-runner"),
+                "Text2midi plug-in is missing: run npm run engine:prepare"
             );
             let pin: serde_json::Value =
                 serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))

@@ -42,6 +42,7 @@ pub(super) fn install<R: tauri::Runtime>(
     task.spawn(async move {
         let _operation = operation;
         state.stop_engine();
+        let events = crate::download::ProgressEvents::new(&app, "model-download-progress");
         let outcome = catalog::install_profile(
             &catalog::catalog(),
             &state.db,
@@ -49,7 +50,7 @@ pub(super) fn install<R: tauri::Runtime>(
             &cancel,
             |update| {
                 progress.progress(&update);
-                let _ = app.emit("model-download-progress", update);
+                events.report(update);
             },
         )
         .await;
@@ -74,13 +75,14 @@ pub(super) fn title<R: tauri::Runtime>(state: Arc<AppState>, app: &AppHandle<R>)
     task.spawn(async move {
         let _operation = operation;
         state.stop_engine();
+        let events = crate::download::ProgressEvents::new(&app, "model-download-progress");
         let outcome = crate::titles::install(
             &state.db.root,
             Path::new(&settings.models_dir),
             &cancel,
             |update| {
                 progress.progress(&update);
-                let _ = app.emit("model-download-progress", update);
+                events.report(update);
             },
         )
         .await;

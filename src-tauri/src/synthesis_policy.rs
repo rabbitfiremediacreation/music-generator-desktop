@@ -155,8 +155,8 @@ impl Probe {
         self.cached_detection().backend
     }
 
-    pub(crate) fn metal_available(&self, resources: &Path, refresh: bool) -> bool {
-        self.inspect_detection(resources, refresh).kind == BackendKind::Metal
+    pub(crate) fn clear(&self) {
+        *self.0.lock().unwrap() = None;
     }
 
     fn cached_detection(&self) -> Detection {
@@ -246,7 +246,9 @@ pub fn cli() -> Option<i32> {
     let result = folder.and_then(|folder| {
         let cpu = options.iter().any(|option| option == "--cpu");
         // SAFETY: only the pinned engine's GGML C ABI is loaded, in this disposable child.
-        unsafe { ggml::detect(Path::new(&folder), cpu).ok() }
+        unsafe { ggml::detect(Path::new(&folder), cpu) }
+            .map_err(|error| eprintln!("Synthesis backend probe: {error}"))
+            .ok()
     });
     match result {
         Some(backend) => {

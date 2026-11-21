@@ -49,7 +49,7 @@ it("requires explicit partial import and supports a separate source grant", asyn
   mocks.previewImport.mockImplementation(async (request: ImportRequest) => ({ ...checked, missing, can_import: request.allow_partial }));
   mount();
   mocks.open.mockResolvedValueOnce("/old"); fireEvent.click(await screen.findByRole("button", { name: t("import_choose_source") }));
-  const partial = await screen.findByRole("checkbox", { name: t("import_allow_partial") });
+  const partial = await screen.findByRole("switch", { name: t("import_allow_partial") });
   expect((start() as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText("Keep lyrics · missing.wav")).toBeTruthy();
   fireEvent.click(partial);

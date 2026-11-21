@@ -31,7 +31,7 @@ async fn completed_setup_survives_restart_without_models_or_engine_startup() {
         .start_engine(&operation, &settings)
         .await
         .err()
-        .expect("missing models must be detected when needed");
-    assert!(error.to_string().contains("Models and hardware test"));
+        .expect("the missing engine must be detected when needed");
+    assert_eq!(error.to_string(), "engine_install_required");
     assert!(state.db.settings().unwrap().setup_complete);
 }

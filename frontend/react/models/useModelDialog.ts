@@ -3,6 +3,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import { backend } from "../../backend";
 import type { HuggingFacePin, ModelSelection } from "../../types";
 import { invalidateModels } from "./model-state";
+import { hasModelEngine } from "../../model-options";
 
 export function useModelDialog(selection: ModelSelection | null, selectionRevision: number, onUse: (selection: ModelSelection, before: number) => void) {
   const client = useQueryClient();
@@ -13,6 +14,12 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
   });
   const settings = useQuery({ queryKey: ["settings"], queryFn: backend.settings, networkMode: "always", retry: false });
   const [draft, setDraft] = useState(selection), [message, setMessage] = useState("");
+  const snapshot = catalog.data;
+  const requested = draft ?? snapshot?.selection;
+  const visible = !snapshot || !requested || hasModelEngine(snapshot, requested) ? requested :
+    snapshot.recommended_profiles.find(item => hasModelEngine(snapshot, item)) ??
+    snapshot.profiles?.find(item => item.engine_installed !== false)?.selection ??
+    (snapshot.ace_step_available ? snapshot.model_profiles?.["ace-step"] : undefined);
   const busy = useIsMutating({ mutationKey: ["models"] }) > 0;
   const invalidate = () => invalidateModels(client);
   const install = useMutation({
@@ -24,7 +31,7 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
       }
       return backend.useModels(next);
     },
-    onMutate: () => { setMessage(""); client.setQueryData(["models", "progress"], null); },
+    onMutate: () => setMessage(""),
     onSuccess: async (selected, { before }) => {
       if (selected) onUse(selected, before);
       setMessage(selected ? "picker_selected" : "provider_import_verified");
@@ -34,7 +41,7 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
   });
   const title = useMutation({
     mutationKey: ["models", "title-download"], mutationFn: backend.downloadTitleModel, networkMode: "always",
-    onMutate: () => { setMessage(""); client.setQueryData(["models", "progress"], null); },
+    onMutate: () => setMessage(""),
     onSuccess: async () => { setMessage("picker_selected"); await invalidate(); }, onError: invalidate,
   });
   const cancel = useMutation({ mutationFn: backend.cancelModelDownload, networkMode: "always" });
@@ -48,8 +55,8 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
     },
   });
   function apply(verifyOnly: boolean) {
-    const next = draft || catalog.data?.selection;
+    const next = visible;
     if (next && !busy) install.mutate({ next, before: selectionRevision, verifyOnly });
   }
-  return { catalog, discovery, settings, draft: draft || catalog.data?.selection, setDraft, busy, install, title, cancel, adopt, apply, message, setMessage };
+  return { catalog, discovery, settings, draft: visible, setDraft, busy, install, title, cancel, adopt, apply, message, setMessage };
 }

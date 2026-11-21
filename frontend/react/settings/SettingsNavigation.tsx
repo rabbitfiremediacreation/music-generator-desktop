@@ -1,7 +1,7 @@
 import { useI18n } from "../i18n";
 
 export const settingsGroups = [
-  { title: "settings_app", pages: ["generation", "models", "library", "appearance"] },
+  { title: "settings_app", pages: ["generation", "models", "engines", "library", "appearance"] },
   { title: "settings_connections", pages: ["phone", "mcp"] },
   { title: "settings_information", pages: ["about"] },
 ] as const;
@@ -11,6 +11,7 @@ export type SettingsPage = typeof settingsGroups[number]["pages"][number];
 const icons: Record<SettingsPage, string> = {
   generation: "M4 7h16M4 17h16M8 4v6m8 4v6",
   models: "M7 7h10v10H7ZM9 3v4m6-4v4M9 17v4m6-4v4M3 9h4m-4 6h4m10-6h4m-4 6h4",
+  engines: "M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4",
   library: "M3 7V5a1 1 0 0 1 1-1h6l2 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z",
   appearance: "M4 4h16v16H4ZM10 4v16m0-10h10",
   phone: "M8 2h8a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm3 17h2",

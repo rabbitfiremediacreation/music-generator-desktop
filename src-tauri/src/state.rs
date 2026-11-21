@@ -34,6 +34,10 @@ impl AppState {
         let _ = app.emit("library-changed", ());
     }
 
+    pub(crate) fn ace_resources(&self) -> PathBuf {
+        crate::engine_packages::ace_resources(&self.resources, &self.db.root)
+    }
+
     // Restore durable configuration without starting or scanning the engine.
     pub fn restore_setup(&self) -> Result<bool> {
         let complete = self.db.settings()?.setup_complete;
@@ -52,6 +56,10 @@ impl AppState {
         if settings.model_provider != "ace-step" {
             return Err(message("Audio analysis is only available with ACE-Step. Choose ACE-Step in the ModelPicker"));
         }
+        let resources = self.ace_resources();
+        if !crate::engine::engine_path(&resources).is_file() {
+            return Err(message("engine_install_required"));
+        }
         let cancel = operation.cancellation();
         if settings.setup_complete && operation.kind() != OperationKind::Setup {
             let mut verifier = crate::verification::ModelVerifier::open(&self.db.root);
@@ -69,12 +77,7 @@ impl AppState {
             }
         }
         self.engine
-            .start(
-                &self.resources,
-                &self.db.root.join("logs"),
-                settings,
-                &cancel,
-            )
+            .start(&resources, &self.db.root.join("logs"), settings, &cancel)
             .await
     }
 
@@ -134,11 +137,12 @@ impl AppState {
         let profile = catalog
             .profile(selection)
             .ok_or_else(|| message("Unknown native generation profile"))?;
+        let resources = profile.runtime.resources(&self.resources, &self.db.root);
         match selection.provider.as_str() {
             "text2midi" => {
                 crate::engine::text2midi::generate(
                     profile,
-                    &self.resources,
+                    &resources,
                     std::path::Path::new(&settings.models_dir),
                     &self.db.root,
                     params,
@@ -149,7 +153,7 @@ impl AppState {
             }
             "diffrhythm2" => {
                 crate::engine::diffrhythm2::generate(
-                    &profile.runtime.executable(&self.resources),
+                    &profile.runtime.executable(&resources),
                     &self.db.root,
                     settings,
                     params,
@@ -160,7 +164,7 @@ impl AppState {
             }
             "audiocraft" => {
                 crate::engine::audiocraft::generate(
-                    &self.resources,
+                    &resources,
                     &self.db.root,
                     settings,
                     profile,
@@ -172,7 +176,7 @@ impl AppState {
             }
             "heartmula" => {
                 crate::engine::heartmula::generate(
-                    &self.resources,
+                    &resources,
                     &self.db.root,
                     settings,
                     profile,
@@ -184,7 +188,7 @@ impl AppState {
             }
             "yue2" => {
                 crate::engine::yue2::generate(
-                    &profile.runtime.executable(&self.resources),
+                    &profile.runtime.executable(&resources),
                     &self.db.root,
                     settings,
                     params,
@@ -195,7 +199,7 @@ impl AppState {
             }
             "mulacover" => {
                 crate::engine::mulacover::generate(
-                    &self.resources,
+                    &resources,
                     &self.db.root,
                     settings,
                     profile,
@@ -207,7 +211,7 @@ impl AppState {
             }
             "stable-audio-3" => {
                 crate::engine::stable_audio::generate(
-                    &self.resources,
+                    &resources,
                     &self.db.root,
                     settings,
                     profile,
@@ -218,7 +222,7 @@ impl AppState {
                 .await
             }
             "magenta-realtime-2" => {
-                let executable = profile.runtime.executable(&self.resources);
+                let executable = profile.runtime.executable(&resources);
                 let models = std::path::Path::new(&settings.models_dir);
                 crate::engine::magenta::generate(
                     &executable,
@@ -232,7 +236,7 @@ impl AppState {
             }
             "mimetic-a0" => {
                 crate::engine::mimetic::generate(
-                    &self.resources,
+                    &resources,
                     &self.db.root,
                     settings,
                     profile,
@@ -245,7 +249,7 @@ impl AppState {
             "minimax-music3" => {
                 let platform = profile.platform(crate::hardware::inspect())?;
                 let job = crate::engine::native::WavJob {
-                    executable: &profile.runtime.executable(&self.resources),
+                    executable: &profile.runtime.executable(&resources),
                     model_folder: &PathBuf::from(&settings.models_dir).join("MiniMax-Music3-GGUF"),
                     data_root: &self.db.root,
                     log_name: "minimax-music3.log",

@@ -1,4 +1,4 @@
-import { appendFile, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -7,7 +7,7 @@ import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
 import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
 import { prepareYue2 } from "./prepare-yue2.mjs";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
-import { prepareMimetic } from "./prepare-mimetic.mjs";
+import { preparePyTorch } from "./prepare-pytorch.mjs";
 import { magentaFolder, prepareMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
 import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
@@ -49,10 +49,11 @@ export async function prepareEngine() {
       if (platform === "macos") {
         // New libc++ headers expose float from_chars even when the deployment OS lacks it.
         await run("git", ["apply", path.join(root,"scripts/desktop/patches/acestep-macos-compat.patch")], { cwd: sourceDir });
+        await run("git", ["apply", path.join(root,"scripts/desktop/patches/acestep-macos-plugin.patch")], { cwd: sourceDir });
         await cp(path.join(root,"scripts/desktop/engine-sandbox.mm"), path.join(sourceDir,"desktop-sandbox.mm"));
+        await cp(path.join(root,"scripts/desktop/ace-server-macos-main.cpp"), path.join(sourceDir,"desktop-server-main.cpp"));
         const cmake = path.join(sourceDir,"CMakeLists.txt");
         await writeFile(cmake,(await readFile(cmake,"utf8")).replace("LANGUAGES C CXX)","LANGUAGES C CXX OBJC OBJCXX)"));
-        await appendFile(cmake, '\ntarget_sources(ace-server PRIVATE desktop-sandbox.mm)\ntarget_link_libraries(ace-server PRIVATE "-framework Foundation")\n');
       }
       const options = [...target.cmake];
       if (target.backend === "cuda") options.push(...await cudaBuildOptions());
@@ -81,7 +82,7 @@ export async function prepareEngine() {
     if (shipsYue2()) await prepareYue2(engineFolder, work);
     await prepareTitle();
     await prepareAudioCpp(engineFolder, cache, work);
-    await prepareMimetic(engineFolder);
+    await preparePyTorch(engineFolder);
     if (magenta) await updateMagenta(true);
     if (platform === "linux") {
       if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());

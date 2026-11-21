@@ -96,12 +96,15 @@ it("lists local models first and opens the catalog only from Add model", async (
   mount(); await screen.findByRole("spinbutton"); goTo("models");
   const table = await screen.findByRole("table", { name: t("models_music") });
   const generalModels = screen.getByRole("table", { name: t("models_llm_embeddings") });
-  expect(within(table).getAllByRole("row")).toHaveLength(3);
+  expect(within(table).getAllByRole("row")).toHaveLength(2);
   expect(within(table).getByText(modelName(standard.synthesis))).toBeTruthy();
-  expect(within(table).getByText(modelName(standard.language))).toBeTruthy();
-  expect(within(table).getByText(t("picker_verify"), { exact: false })).toBeTruthy();
+  expect(within(table).queryByText(modelName(standard.language))).toBeNull();
   expect(within(table).queryByText(modelName(xl.synthesis))).toBeNull();
-  expect(within(generalModels).getAllByRole("row")).toHaveLength(3);
+  expect(within(generalModels).getAllByRole("row")).toHaveLength(4);
+  const languageRow = within(within(generalModels).getByText(modelName(standard.language)).closest("tr")!);
+  expect(languageRow.getByText(t("browser_active"))).toBeTruthy();
+  expect(languageRow.getByText(t("picker_verify"), { exact: false })).toBeTruthy();
+  expect(languageRow.getByRole<HTMLButtonElement>("button", { name: `${t("model_remove")} · ${modelName(standard.language)}` }).disabled).toBe(true);
   expect(within(generalModels).getByText(modelName(catalog.title_model.file))).toBeTruthy();
   expect(within(generalModels).getByText(modelName(catalog.models.find(model => model.category === "embedding")!.file))).toBeTruthy();
   expect(screen.queryByRole("searchbox")).toBeNull();
@@ -217,7 +220,11 @@ it("keeps downloads visible and cancellable after closing the extra dialog", asy
   const original = ipc.invoke.getMockImplementation()!;
   ipc.invoke.mockImplementation((name, args) => {
     if (name === "use_models") return new Promise((_, reject) => { fail = reject; });
-    if (name === "cancel_model_download") { fail(new Error("Operation cancelled")); return Promise.resolve(); }
+    if (name === "cancel_model_download") {
+      handlers.get("model-download-progress")!({ payload: null });
+      fail(new Error("Operation cancelled"));
+      return Promise.resolve();
+    }
     return original(name, args);
   });
   mount(); await screen.findByRole("spinbutton"); goTo("models");
@@ -244,11 +251,11 @@ it("applies Expert Mode separately before opening the catalog and retains other 
   mount();
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
   goTo("models"); await screen.findByRole("table", { name: t("models_music") });
-  fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
+  fireEvent.click(screen.getByRole("switch", { name: t("expert_mode") }));
   fireEvent.click(screen.getByRole("button", { name: t("settings_apply_expert") }));
   await waitFor(() => expect(screen.queryByRole("button", { name: t("settings_apply_expert") })).toBeNull());
   const dialog = await addModel();
-  expect(await within(dialog).findByRole("combobox", { name: t("picker_provider") })).toBeTruthy();
+  expect(await within(dialog).findByRole("switch", { name: t("picker_compatible") })).toBeTruthy();
   expect(ipc.invoke.mock.calls.filter(([name]) => name === "save_settings")).toEqual([["save_settings", { values: { expert_mode: true } }]]);
   closeCatalog(dialog); expect(onClose).not.toHaveBeenCalled();
   goTo("generation"); expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("75");
@@ -259,16 +266,16 @@ it("retains failed Expert Mode edits for retry", async () => {
   const original = ipc.invoke.getMockImplementation()!; let failing = true;
   ipc.invoke.mockImplementation((name, args) => name === "save_settings" && failing ? Promise.reject(new Error("Disk full")) : original(name, args));
   mount(); await screen.findByRole("spinbutton"); goTo("models"); await screen.findByRole("table", { name: t("models_music") });
-  fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
+  fireEvent.click(screen.getByRole("switch", { name: t("expert_mode") }));
   fireEvent.click(screen.getByRole("button", { name: t("settings_apply_expert") }));
   expect((await screen.findByRole("alert")).textContent).toContain("Disk full");
-  expect((screen.getByRole("checkbox", { name: t("expert_mode") }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("switch", { name: t("expert_mode") }) as HTMLInputElement).checked).toBe(true);
   expect(current.expert_mode).toBe(false);
   failing = false;
   fireEvent.click(screen.getByRole("button", { name: t("settings_apply_expert") }));
   await waitFor(() => expect(screen.queryByRole("button", { name: t("settings_apply_expert") })).toBeNull());
   const dialog = await addModel();
-  expect(await within(dialog).findByRole("combobox", { name: t("picker_provider") })).toBeTruthy();
+  expect(await within(dialog).findByRole("switch", { name: t("picker_compatible") })).toBeTruthy();
 });
 
 it("refreshes the installed list after downloading the title model in the extra dialog", async () => {

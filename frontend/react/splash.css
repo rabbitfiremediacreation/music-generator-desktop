@@ -52,3 +52,15 @@ footer { flex-shrink: 0; margin-top: auto; padding: 14px 20px 21px; text-align: 
 #root { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; }
 
 .splash-root { width: 100%; min-height: 100dvh; display: flex; flex: 1; flex-direction: column; align-items: center; }
+.splash-root[data-build-brand="dev"] {
+  --build-accent: #ffda69;
+  background:
+    repeating-linear-gradient(132deg, #ffcf42 0 9px, #171610 9px 18px) 0 0 / 100% 5px no-repeat,
+    radial-gradient(ellipse at 50% 20%, #382e14, #12110f 70%);
+}
+.splash-root[data-build-brand="nightly"] {
+  --build-accent: #bbcaff;
+  background: linear-gradient(#0a112046, #0a1120e6), url("/branding/night-sky.webp") center / cover;
+}
+.splash-root[data-build-brand] h1 span { color: var(--build-accent); }
+.splash-root[data-build-brand] .progress span { background: var(--build-accent); }

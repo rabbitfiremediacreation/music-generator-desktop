@@ -1,0 +1,71 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -146,10 +146,16 @@ add_custom_command(
+ set_source_files_properties(${WEBUI_OUTPUT} PROPERTIES GENERATED TRUE)
+ 
+ # ace-server: HTTP server (LM + synth endpoints + embedded webui)
+-add_executable(ace-server tools/ace-server.cpp ${WEBUI_OUTPUT})
+-target_include_directories(ace-server PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+-target_link_libraries(ace-server PRIVATE acestep-core httplib)
+-link_ggml_backends(ace-server)
++set_target_properties(acestep-core yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
++add_library(ace-server-plugin SHARED tools/ace-server.cpp desktop-sandbox.mm ${WEBUI_OUTPUT})
++target_compile_definitions(ace-server-plugin PRIVATE MUSIC_GENERATOR_ENGINE_PLUGIN)
++target_include_directories(ace-server-plugin PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
++target_link_libraries(ace-server-plugin PRIVATE acestep-core httplib "-framework Foundation")
++target_link_options(ace-server-plugin PRIVATE "LINKER:-exported_symbol,_music_generator_engine_main_v1")
++link_ggml_backends(ace-server-plugin)
++
++add_executable(ace-server desktop-server-main.cpp)
++target_link_libraries(ace-server PRIVATE ace-server-plugin)
+ 
+ add_executable(ace-understand tools/ace-understand.cpp)
+ target_link_libraries(ace-understand PRIVATE acestep-core)
+diff --git a/tools/ace-server.cpp b/tools/ace-server.cpp
+--- a/tools/ace-server.cpp
++++ b/tools/ace-server.cpp
+@@ -1639,6 +1639,10 @@ static void usage(const char * prog) {
+ }
+ 
++#ifdef MUSIC_GENERATOR_ENGINE_PLUGIN
++extern "C" int music_generator_engine_main_v1(int argc, char ** argv) {
++#else
+ int main(int argc, char ** argv) {
++#endif
+     if (argc == 3 && strcmp(argv[1], "--desktop-iteration-probe") == 0) {
+         char * end = nullptr;
+         const long requested = strtol(argv[2], &end, 10);
+diff --git a/src/backend.h b/src/backend.h
+--- a/src/backend.h
++++ b/src/backend.h
+@@ -12,6 +12,11 @@
+ #include <cstring>
+ #include <thread>
+ 
++#ifdef __APPLE__
++#    include <dlfcn.h>
++#    include <filesystem>
++#endif
++
+ struct BackendPair {
+     ggml_backend_t backend;
+     ggml_backend_t cpu_backend;
+@@ -100,7 +105,17 @@ static BackendPair backend_init(const char * label) {
+         return g_backend_cache;
+     }
+ 
++#ifdef __APPLE__
++    // A plug-in runs inside the desktop supervisor. Search beside GGML,
++    // where the matching CPU and Metal backends were installed.
++    Dl_info ggml;
++    if (dladdr(reinterpret_cast<const void *>(ggml_backend_load_all), &ggml) && ggml.dli_fname) {
++        const auto folder = std::filesystem::path(ggml.dli_fname).parent_path();
++        ggml_backend_load_all_from_path(folder.c_str());
++    } else
++#endif
+     ggml_backend_load_all();
++
+     BackendPair bp = {};
+ 
+     // GGML_BACKEND env var: force a specific device instead of auto-best.

@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
+import { Switch } from "../../Switch";
 import { phoneAccessLink, phoneAccessQrSvg, phoneNativeAddresses, phoneWebAccessLink } from "../../phone-access";
 import type { PhoneAccess } from "../../types";
 import { useI18n } from "../i18n";
@@ -35,13 +36,8 @@ export function PhoneAccessField() {
     // These controls apply independently; Enter must not submit the enclosing wizard/settings form.
     if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
   }}>
-    <label className="phone-access-row">
-      <span className="lbl">{t("remote")}</span>
-      <span className="phone-access-control">
-        <input type="checkbox" role="switch" disabled={busy} checked={current?.enabled ?? false} aria-describedby={hintId} onChange={event => change.mutate({ enabled: event.target.checked })} />
-        <span aria-hidden="true">{t(current?.enabled ? "remote_on" : "remote_off")}</span>
-      </span>
-    </label>
+    <Switch label={<span className="lbl">{t("remote")}</span>} status={t(current?.enabled ? "remote_on" : "remote_off")}
+      disabled={busy} checked={current?.enabled ?? false} aria-describedby={hintId} onChange={event => change.mutate({ enabled: event.target.checked })} />
     <p id={hintId} className="small">{t("remote_tip")}</p>
     <span className="small">{t("remote_hint")}</span>
     {current?.enabled && <div className="phone-access-info">

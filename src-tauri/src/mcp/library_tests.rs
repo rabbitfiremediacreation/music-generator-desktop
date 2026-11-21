@@ -8,6 +8,9 @@ fn fixture() -> (tempfile::TempDir, Arc<AppState>) {
         Database::open(root.path()).unwrap(),
         root.path().join("resources"),
     ));
+    let executable = crate::engine::engine_path(&state.resources);
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    std::fs::write(executable, []).unwrap();
     (root, state)
 }
 

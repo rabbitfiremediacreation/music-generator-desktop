@@ -74,7 +74,8 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     )
     .backend;
     let mut result = serde_json::to_value(&catalog)?;
-    result["ace_step_available"] = json!(crate::engine::engine_path(&state.resources).is_file());
+    result["ace_step_available"] =
+        json!(crate::engine::engine_path(&state.ace_resources()).is_file());
     result["models"] = Value::Array(
         catalog
             .models
@@ -112,6 +113,8 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
                 let mut value = serde_json::to_value(profile).expect("profile serialization");
                 let availability =
                     profile.ensure_runtime(&state.resources, &state.db.root, hardware);
+                value["engine_installed"] =
+                    json!(profile.engine_installed(&state.resources, &state.db.root));
                 value["available"] = json!(availability.is_ok());
                 value["unavailable_reason"] =
                     json!(availability.err().map(|error| error.to_string()));
@@ -150,12 +153,19 @@ pub async fn use_models(
     // Stopping first releases resident model memory and refreshes the engine's file
     // registry on the next generation, including newly downloaded models.
     state.stop_engine();
-    let outcome =
-        catalog::install_profile(&catalog::catalog(), &state.db, &selection, &cancel, |p| {
-            let _ = app.emit("model-download-progress", p);
-        })
-        .await
-        .map(|()| selection);
+    let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
+    let outcome = catalog::install_profile(
+        &catalog::catalog(),
+        &state.db,
+        &selection,
+        &cancel,
+        |update| {
+            progress.report(update);
+        },
+    )
+    .await
+    .map(|()| selection);
+    drop(progress);
     drop(operation);
     let _ = app.emit("models-changed", ());
     state.changed(&app);
@@ -169,16 +179,16 @@ pub async fn verify_imported_models(
     selection: Selection,
 ) -> Result<()> {
     let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
     let outcome = catalog::verify_manual_profile(
         &catalog::catalog(),
         &state.db,
         &selection,
         &operation.cancellation(),
-        |p| {
-            let _ = app.emit("model-download-progress", p);
-        },
+        |update| progress.report(update),
     )
     .await;
+    drop(progress);
     drop(operation);
     let _ = app.emit("models-changed", ());
     outcome
@@ -229,15 +239,15 @@ pub async fn download_title_model(state: State<'_, Arc<AppState>>, app: AppHandl
     }
     let cancel = operation.cancellation();
     state.stop_engine();
+    let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
     let outcome = crate::titles::install(
         &state.db.root,
         Path::new(&settings.models_dir),
         &cancel,
-        |p| {
-            let _ = app.emit("model-download-progress", p);
-        },
+        |update| progress.report(update),
     )
     .await;
+    drop(progress);
     drop(operation);
     let _ = app.emit("models-changed", ());
     outcome

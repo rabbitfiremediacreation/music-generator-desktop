@@ -113,15 +113,16 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             let title_preparation_error = if ace_step {
                 prepare_title(title.as_deref(), &cancel, || async {
                     report(Progress::new("title_download"), 1);
+                    let progress =
+                        crate::download::ProgressEvents::new(&app, "model-download-progress");
                     crate::titles::install(
                         &state.db.root,
                         std::path::Path::new(&settings.models_dir),
                         &cancel,
-                        |p| {
-                            let _ = app.emit("model-download-progress", p);
-                        },
+                        |update| progress.report(update),
                     )
                     .await?;
+                    drop(progress);
                     let _ = app.emit("models-changed", ());
                     Ok(())
                 })

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appcastName, applicationVersions, expectedAssets, sha256, validateAssets, validateReleaseVersion } from "./release-assets.mjs";
+import { appcastName, applicationVersions, engineAssetName, engineManifestName, expectedAssets, sha256, validateAssets, validateReleaseVersion } from "./release-assets.mjs";
 import { publishRelease } from "./publish-release.mjs";
 
 const tag = "v0.1.0";
@@ -18,7 +18,18 @@ async function fixture(t, target = "windows-x64") {
     await writeFile(file, `Test bundle for ${target}: ${name}`);
     await writeFile(`${file}.sha256`, `${await sha256(file)}  ${name}\n`);
   }
-  return { repository: "owner/desktop", tag, target, directory };
+  const engine = engineAssetName(tag.slice(1), target, "ace-step");
+  const manifest = engineManifestName(target);
+  const contents = "Engine archive fixture";
+  const archive = path.join(directory, engine);
+  await writeFile(archive, contents);
+  const digest = await sha256(archive);
+  await writeFile(`${archive}.sha256`, `${digest}  ${engine}\n`);
+  const record = path.join(directory, manifest);
+  await writeFile(record, JSON.stringify({ format: 1, tag, packages: [{ id: "ace-step", file: engine, sha256: digest, bytes: contents.length, unpacked_bytes: 25 }] }));
+  await writeFile(`${record}.sha256`, `${await sha256(record)}  ${manifest}\n`);
+  const published = [engine, `${engine}.sha256`, manifest, `${manifest}.sha256`, ...expectedAssets(tag, target)];
+  return { repository: "owner/desktop", tag, target, directory, published };
 }
 
 function fakeClient(assets = []) {
@@ -37,7 +48,7 @@ for (const target of targets) {
     const options = await fixture(t, target);
     const client = fakeClient();
     await publishRelease(options, client);
-    assert.deepEqual(client.uploaded, expectedAssets(tag, target));
+    assert.deepEqual(client.uploaded, options.published);
   });
 }
 
@@ -51,7 +62,7 @@ test("requires a checksummed stable macOS appcast and uploads it after the archi
   await writeFile(file, "Signed appcast fixture");
   await writeFile(`${file}.sha256`, `${await sha256(file)}  ${name}\n`);
   await publishRelease(options, client);
-  assert.deepEqual(client.uploaded, [...expectedAssets(tag, options.target), name, `${name}.sha256`]);
+  assert.deepEqual(client.uploaded, [...options.published, name, `${name}.sha256`]);
 });
 
 test("platform asset sets contain eight distinct bundles and eight checksums", () => {
@@ -109,6 +120,15 @@ test("rejects directories and symlinks masquerading as release assets", async t 
   }
 });
 
+test("rejects an engine ZIP that differs from the manifest even with a matching checksum file", async t => {
+  const options = await fixture(t);
+  const [name] = options.published;
+  const archive = path.join(options.directory, name);
+  await writeFile(archive, "different engine");
+  await writeFile(`${archive}.sha256`, `${await sha256(archive)}  ${name}\n`);
+  await assert.rejects(validateAssets(tag, options.target, options.directory), /Engine archive does not match manifest/);
+});
+
 test("skips identical assets and preserves unrelated platforms", async t => {
   const options = await fixture(t);
   const assets = await validateAssets(tag, options.target, options.directory);
@@ -149,7 +169,7 @@ test("retries a partial upload without overwriting its successful files", async 
   assert.equal(client.uploaded.length, 1);
   client.upload = upload;
   await publishRelease(options, client);
-  assert.deepEqual(client.uploaded, expectedAssets(tag, options.target));
+  assert.deepEqual(client.uploaded, options.published);
 });
 
 test("rejects drafts and an unexpected release tag before uploading", async t => {

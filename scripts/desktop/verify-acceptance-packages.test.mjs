@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { sha256 } from "./release-assets.mjs";
+import { engineAssetName, engineManifestName, sha256 } from "./release-assets.mjs";
 
 const script = fileURLToPath(new URL("./verify-acceptance-packages.mjs", import.meta.url));
 const packageSuffixes = {
@@ -23,6 +23,19 @@ async function packagesFixture(t, version = "0.3.0") {
   for (const [target, suffixes] of Object.entries(packageSuffixes)) {
     const directory = path.join(root, `Music-Generator-${target}`);
     await mkdir(directory);
+    const engine = engineAssetName(version, target, "ace-step");
+    const archive = path.join(directory, engine);
+    const contents = "Engine archive fixture";
+    await writeFile(archive, contents);
+    const digest = await sha256(archive);
+    await writeFile(`${archive}.sha256`, `${digest}  ${engine}\n`);
+    packages.push({ target, name: engine, sha256: digest });
+    const manifest = engineManifestName(target);
+    const record = path.join(directory, manifest);
+    await writeFile(record, JSON.stringify({ format: 1, tag: `v${version}`, packages: [{ id: "ace-step", file: engine, sha256: digest, bytes: contents.length, unpacked_bytes: 25 }] }));
+    const recordDigest = await sha256(record);
+    await writeFile(`${record}.sha256`, `${recordDigest}  ${manifest}\n`);
+    packages.push({ target, name: manifest, sha256: recordDigest });
     for (const suffix of suffixes) {
       const name = `Music-Generator-${version}-${suffix}`;
       const file = path.join(directory, name);
@@ -39,7 +52,7 @@ function verify(root) {
   return spawnSync(process.execPath, [script, "v0.3.0", root], { encoding: "utf8" });
 }
 
-test("inventories all eight checksummed packages with separate Intel and CUDA artifacts", async t => {
+test("inventories checksummed desktop and engine packages with separate Intel and CUDA artifacts", async t => {
   const { root, packages } = await packagesFixture(t);
   const result = verify(root);
   assert.equal(result.status, 0, result.stderr);
@@ -59,7 +72,7 @@ test("rejects an old version even when all its release checksums match", async t
   const { root } = await packagesFixture(t, "0.2.0");
   const result = verify(root);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /Release files are missing or unexpected/);
+  assert.match(result.stderr, /Invalid engine release manifest/);
   assert.equal(result.stdout, "");
 });
 

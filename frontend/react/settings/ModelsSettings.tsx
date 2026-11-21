@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useIsMutating } from "@tanstack/react-query";
+import { Switch } from "../../Switch";
 import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
 import type { ModelManagerProps } from "../models/ModelManager";
@@ -10,8 +11,8 @@ import { HuggingFaceTokenField } from "./HuggingFaceTokenField";
 
 export type SettingsModelManager = ModelManagerProps & { onManage?: () => void };
 
-export function ModelsSettings({ state, active, manager: { onManage, ...manager } }: {
-  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager;
+export function ModelsSettings({ state, active, manager: { onManage, ...manager }, onOpenEngines }: {
+  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager; onOpenEngines?: () => void;
 }) {
   const { t } = useI18n();
   const { draft, pending } = state;
@@ -22,7 +23,7 @@ export function ModelsSettings({ state, active, manager: { onManage, ...manager 
   return <>
     <div className="settings-section">
       <InstalledModels active={active} expertMode={state.confirmedExpertMode ?? false} manager={{ ...manager, disabled: pending }} adding={adding} onAdd={() => setAdding(true)} />
-      {adding && <ModelDialog {...manager} title={t("models_add")} disabled={pending} onClose={() => setAdding(false)} />}
+      {adding && <ModelDialog {...manager} title={t("models_add")} disabled={pending} onClose={() => setAdding(false)} onOpenEngines={onOpenEngines && (() => { setAdding(false); onOpenEngines(); })} />}
     </div>
     <fieldset className="settings-fields" disabled={pending || modelBusy}>
       {active && <HuggingFaceTokenField />}
@@ -34,7 +35,8 @@ export function ModelsSettings({ state, active, manager: { onManage, ...manager 
         </label>
       </div>
       <div className="settings-section">
-        <label className="check-row settings-toggle"><span>{t("expert_mode")}</span><input type="checkbox" name="expert_mode" checked={draft.expert_mode} onChange={event => state.change({ expert_mode: event.target.checked })} aria-describedby="expertModeHint" /></label>
+        <Switch className="settings-toggle" label={t("expert_mode")} name="expert_mode" checked={draft.expert_mode}
+          onChange={event => state.change({ expert_mode: event.target.checked })} aria-describedby="expertModeHint" />
         <p id="expertModeHint" className="small">{t("expert_mode_hint")}</p>
         {draft.expert_mode !== state.confirmedExpertMode && <button type="button" className="sek settings-expert-apply" onClick={() => void state.applyExpertMode()}>{t("settings_apply_expert")}</button>}
       </div>

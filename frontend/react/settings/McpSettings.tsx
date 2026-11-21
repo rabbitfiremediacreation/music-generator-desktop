@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { backend } from "../../backend";
+import { Switch } from "../../Switch";
 import type { McpHttpConnection, McpSettings as Preferences, McpSettingsStatus } from "../../types";
 import { useI18n } from "../i18n";
 
@@ -122,7 +123,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
     {status && <>
       {status.managed_by_environment && <p className="small">{t("mcp_environment")}</p>}
       <fieldset disabled={loading || saving || status.managed_by_environment}>
-        <label className="check-row"><input type="checkbox" checked={enabled} onChange={event => edit(() => setEnabled(event.target.checked))} />{t("mcp_enable")}</label>
+        <Switch className="check-row" label={t("mcp_enable")} checked={enabled} onChange={event => edit(() => setEnabled(event.target.checked))} />
         <label className="field mcp-scope"><span className="lbl">{t("mcp_scope")}</span>
           <select aria-label={t("mcp_scope")} value={scope} onChange={event => edit(() => setScope(event.target.value as Preferences["scope"]))}>
             <option value="local">{t("mcp_local")}</option><option value="network">{t("mcp_network")}</option>
@@ -156,7 +157,7 @@ export function McpSettings({ onBusyChange }: { onBusyChange: (busy: boolean) =>
         {connection && <div className="mcp-details">
           <p className="small">{t("mcp_connection_hint")}</p>
           <label className="field"><span className="lbl">{t("mcp_token")}</span><input aria-label={t("mcp_token")} type={showSecret ? "text" : "password"} readOnly value={connection.token} autoComplete="off" spellCheck={false} /></label>
-          <label className="check-row"><input type="checkbox" checked={showSecret} onChange={event => setShowSecret(event.target.checked)} />{t("mcp_show_token")}</label>
+          <Switch className="check-row" label={t("mcp_show_token")} checked={showSecret} onChange={event => setShowSecret(event.target.checked)} />
           <textarea aria-label={t("mcp_connection")} readOnly rows={6} value={configuration} spellCheck={false} />
         </div>}
       </div>}

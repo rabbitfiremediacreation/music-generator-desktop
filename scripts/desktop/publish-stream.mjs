@@ -23,7 +23,7 @@ const versionTag = `v${versions[0]}`;
 validateReleaseVersion(versionTag, versions);
 const targets = ["macos-arm64", "macos-x64", "windows-x64", "linux-x64", "linux-x64-cuda"];
 const assets = (await Promise.all(targets.map(target =>
-  validateAssets(versionTag, target, path.join("packages", `Music-Generator-${target}`)),
+  validateAssets(versionTag, target, path.join("packages", `Music-Generator-${target}`), { releaseTag: tag }),
 ))).flat();
 
 async function release(action, ...args) {

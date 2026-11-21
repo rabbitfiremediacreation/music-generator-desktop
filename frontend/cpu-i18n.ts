@@ -24,7 +24,7 @@ export const cpuBehaviorKeys = ["cpu_remember", "cpu_remember_error", "cpu_behav
 export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   "de": [
     "Diese Entscheidung merken",
-    "Die Entscheidung konnte nicht gespeichert werden. Bitte erneut versuchen oder das Häkchen entfernen, um nur dieses Mal zu starten.",
+    "Die Entscheidung konnte nicht gespeichert werden. Versuche es erneut oder schalte „Diese Entscheidung merken“ aus, um nur dieses Mal zu starten.",
     "Verhalten bei hohen CPU-Iterationen",
     "Immer nachfragen",
     "Automatisch auf maximal 30 begrenzen",
@@ -33,7 +33,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "en": [
     "Remember this decision",
-    "The decision could not be saved. Try again or clear the checkbox to start just this once.",
+    "The decision could not be saved. Try again or turn off “Remember this decision” to start just this once.",
     "Behavior at high CPU iteration counts",
     "Always ask",
     "Automatically limit to at most 30",
@@ -42,7 +42,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "es": [
     "Recordar esta decisión",
-    "No se pudo guardar la decisión. Inténtalo de nuevo o desmarca la casilla para iniciar solo esta vez.",
+    "No se pudo guardar la decisión. Inténtalo de nuevo o desactiva «Recordar esta decisión» para iniciar solo esta vez.",
     "Comportamiento con muchas iteraciones en CPU",
     "Preguntar siempre",
     "Limitar automáticamente a un máximo de 30",
@@ -51,7 +51,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "fr": [
     "Mémoriser cette décision",
-    "La décision n’a pas pu être enregistrée. Réessayez ou décochez la case pour démarrer uniquement cette fois.",
+    "La décision n’a pas pu être enregistrée. Réessayez ou désactivez « Mémoriser cette décision » pour démarrer uniquement cette fois.",
     "Comportement avec un nombre élevé d’itérations CPU",
     "Toujours demander",
     "Limiter automatiquement à 30 maximum",
@@ -60,7 +60,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "it": [
     "Ricorda questa decisione",
-    "Impossibile salvare la decisione. Riprova o deseleziona la casella per avviare solo questa volta.",
+    "Impossibile salvare la decisione. Riprova o disattiva «Ricorda questa decisione» per avviare solo questa volta.",
     "Comportamento con molte iterazioni sulla CPU",
     "Chiedi sempre",
     "Limita automaticamente a un massimo di 30",
@@ -69,7 +69,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "pt": [
     "Memorizar esta decisão",
-    "Não foi possível guardar a decisão. Tenta novamente ou desmarca a caixa para iniciar apenas desta vez.",
+    "Não foi possível guardar a decisão. Tenta novamente ou desativa «Memorizar esta decisão» para iniciar apenas desta vez.",
     "Comportamento com muitas iterações na CPU",
     "Perguntar sempre",
     "Limitar automaticamente a um máximo de 30",
@@ -78,7 +78,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "tr": [
     "Bu kararı hatırla",
-    "Karar kaydedilemedi. Yeniden deneyin veya yalnızca bu sefer başlatmak için kutunun işaretini kaldırın.",
+    "Karar kaydedilemedi. Yeniden deneyin veya yalnızca bu sefer başlatmak için “Bu kararı hatırla” seçeneğini kapatın.",
     "Yüksek CPU yineleme sayılarında davranış",
     "Her zaman sor",
     "Otomatik olarak en fazla 30 ile sınırla",
@@ -87,7 +87,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "pl": [
     "Zapamiętaj tę decyzję",
-    "Nie udało się zapisać decyzji. Spróbuj ponownie lub odznacz pole, aby uruchomić tylko tym razem.",
+    "Nie udało się zapisać decyzji. Spróbuj ponownie lub wyłącz opcję „Zapamiętaj tę decyzję”, aby uruchomić tylko tym razem.",
     "Zachowanie przy dużej liczbie iteracji na CPU",
     "Zawsze pytaj",
     "Automatycznie ogranicz do najwyżej 30",
@@ -96,7 +96,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "ru": [
     "Запомнить это решение",
-    "Не удалось сохранить решение. Повторите попытку или снимите флажок, чтобы начать только в этот раз.",
+    "Не удалось сохранить решение. Повторите попытку или отключите «Запомнить это решение», чтобы начать только в этот раз.",
     "Поведение при большом числе итераций на CPU",
     "Всегда спрашивать",
     "Автоматически ограничивать до 30",
@@ -105,7 +105,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "uk": [
     "Запам’ятати це рішення",
-    "Не вдалося зберегти рішення. Спробуйте ще раз або зніміть прапорець, щоб почати лише цього разу.",
+    "Не вдалося зберегти рішення. Спробуйте ще раз або вимкніть «Запам’ятати це рішення», щоб почати лише цього разу.",
     "Поведінка за великої кількості ітерацій на CPU",
     "Завжди запитувати",
     "Автоматично обмежувати до 30",
@@ -114,7 +114,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "ja": [
     "この選択を記憶する",
-    "選択を保存できませんでした。再試行するか、チェックを外して今回だけ開始してください。",
+    "選択を保存できませんでした。再試行するか、「この選択を記憶する」をオフにして今回だけ開始してください。",
     "CPUの反復回数が多い場合の動作",
     "毎回確認する",
     "自動的に最大30回に制限する",
@@ -123,7 +123,7 @@ export const cpuBehaviorTranslations: Record<Language, readonly string[]> = {
   ],
   "zh": [
     "记住此决定",
-    "无法保存此决定。请重试，或取消勾选以仅在本次开始。",
+    "无法保存此决定。请重试，或关闭「记住此决定」以仅在本次开始。",
     "CPU 迭代次数较高时的行为",
     "始终询问",
     "自动限制为最多 30 次",

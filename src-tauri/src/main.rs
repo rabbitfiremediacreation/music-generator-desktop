@@ -10,6 +10,9 @@ fn main() {
     if let Some(code) = music_generator::synthesis_policy::cli() {
         std::process::exit(code);
     }
+    if let Some(code) = music_generator::engine_packages::cli() {
+        std::process::exit(code);
+    }
     #[cfg(target_os = "macos")]
     if std::env::args().nth(1).as_deref() == Some("--startup-location-probe") {
         music_generator::sandbox::probe::startup_location();

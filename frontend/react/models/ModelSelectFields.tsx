@@ -59,7 +59,7 @@ export function ModelSelectFields({ catalog, draft, metadata, onChange, compatib
     !catalog.models.some(model => model.provider === provider && model.sha256 === pin.sha256 &&
       model.source?.repository === pin.source.repository && model.source?.path === pin.source.path));
   if (metadata) {
-    const variants = (catalog.profiles ?? []).filter(item => nativeProfileFamily(item) === nativeProfileFamily(metadata));
+    const variants = (catalog.profiles ?? []).filter(item => item.engine_installed !== false && nativeProfileFamily(item) === nativeProfileFamily(metadata));
     const families = new Set(profileModels(catalog, metadata.selection).filter(file => file.role === "weights").map(file => file.family));
     const options = variants.flatMap(variant => {
       const selected = profile(catalog, variant.selection);

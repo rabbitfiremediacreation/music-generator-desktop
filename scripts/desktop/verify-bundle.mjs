@@ -3,11 +3,15 @@ import { verifyYue2Binary } from "./prepare-yue2.mjs";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { execFileSync, spawn } from "node:child_process";
+import { createReadStream } from "node:fs";
 import { chmod, mkdtemp, mkdir, readFile, readdir, readlink, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { architecture, audioCppDirectory, audioCppSupported, exists, files, hash, platform, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
+import { pipeline } from "node:stream/promises";
+import { architecture, audioCppDirectory, audioCppSupported, exists, files, hash, platform, root, run, shipsYue2, target } from "./common.mjs";
+import { releaseTarget } from "./engine-packages.mjs";
+import { engineManifestName } from "./release-assets.mjs";
 import { verifyMacSandbox } from "./verify-macos-sandbox.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
@@ -20,7 +24,7 @@ function startupLocation(app) {
 }
 
 // Exercise the distributed files from a relocated directory, without loading any models.
-const output = path.join(root, "release");
+const output = path.resolve(process.env.MUSIC_GENERATOR_RELEASE_DIR || path.join(root, "release"));
 const diskImage = process.argv.includes("--dmg");
 const installer = process.argv.includes("--msi");
 const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, target);
@@ -36,6 +40,26 @@ const filename = `Music-Generator-${version}${suffix}`;
 const artifact = path.join(output, filename);
 assert(await exists(artifact), `Platform bundle is missing: ${filename}`);
 assert.equal(await hash(artifact), (await readFile(`${artifact}.sha256`, "utf8")).split(/\s/)[0]);
+const packageManifest = path.join(output, engineManifestName(releaseTarget));
+assert.equal(await hash(packageManifest), (await readFile(`${packageManifest}.sha256`, "utf8")).split(/\s/)[0]);
+const { packages } = JSON.parse(await readFile(packageManifest, "utf8"));
+const archives = packages.map(({ file }) => path.join(output, file));
+for (const [index, { sha256 }] of packages.entries()) {
+  assert.equal(await hash(archives[index]), sha256, "Archive differs from the engine manifest");
+}
+async function probeWithArchives(app, args) {
+  const child = spawn(app, args, { stdio: ["pipe", "pipe", "inherit"] });
+  const closed = once(child, "close");
+  const output = [];
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", data => { output.push(data); });
+  async function* input() {
+    for (const archive of archives) yield* createReadStream(archive);
+  }
+  const [[code]] = await Promise.all([closed, pipeline(input(), child.stdin)]);
+  assert.equal(code, 0, output.join(""));
+  return output.join("");
+}
 const work = await mkdtemp(path.join(tmpdir(), platform === "windows" ? "Music Generator M\u00fcller \u6771\u4eac \ud83c\udfb5 " : "Music Generator portable test "));
 const mount = path.join(work, "mounted");
 let mounted = false;
@@ -89,27 +113,51 @@ try {
     await run("ditto", ["-x", "-k", artifact, work]);
   }
   const extracted = await files(installer ? installDir : work);
-  const record = extracted.find(file => path.basename(file) === "VERSION.desktop.json");
-  assert(record, "Bundled engine manifest is missing");
-  const engine = path.dirname(record);
-  const provenance = await verifyEngine(engine);
-  await verifyDiffRhythm2(engine, provenance, diffRhythm2);
-  assert.equal(await exists(path.join(engine, "audiocraft/audiocraft-synth")), audioCraft, "Unexpected AudioCraft runtime availability");
+  const record = extracted.find(file => path.basename(file) === "TITLE_RUNTIME.json");
+  assert(record, "Bundled title runtime manifest is missing");
+  const utilities = path.dirname(path.dirname(record));
+  assert(!extracted.some(file => /^(ace-server(?:\.exe)?|libace-server-plugin\.dylib|yue-synth|mimetic-synth|audiocpp_cli|audiocraft-synth|diffrhythm2-synth|mrt2-record|text2midi-runner)$/.test(path.basename(file))), "An optional engine is still in the application bundle");
+  const app = extracted.find(file => path.basename(file) === (platform === "windows" ? (installer ? "music-generator.exe" : "Music Generator.exe") : "music-generator"));
+  assert(app, "Application executable is missing");
+  let engines;
+  if (platform === "macos") {
+    engines = {};
+    for (const [index, { id }] of packages.entries()) {
+      const destination = path.join(work, "archives", id);
+      await mkdir(destination, { recursive: true });
+      await run("unzip", ["-q", archives[index], "-d", destination]);
+      engines[id] = path.join(destination, "engine");
+    }
+  } else {
+    const destination = path.join(work, "installed engines");
+    const result = await probeWithArchives(app, ["--engine-package-probe", destination]);
+    engines = JSON.parse(result.trim().split(/\r?\n/).at(-1));
+  }
+  const engine = engines["ace-step"];
+  assert(engine, "ACE-Step engine package is missing");
+  assert.equal(Boolean(engines.diffrhythm2), diffRhythm2, "Unexpected DiffRhythm 2 runtime availability");
+  if (diffRhythm2) {
+    const directory = engines.diffrhythm2;
+    const inventory = Object.fromEntries((await files(directory)).map(file => [path.relative(directory, file).split(path.sep).join("/"), true]));
+    await verifyDiffRhythm2(directory, { files: inventory }, true);
+  }
+  assert.equal(Boolean(engines.audiocraft), audioCraft, "Unexpected AudioCraft runtime availability");
+  assert.equal(Boolean(engines.magenta), process.env.MUSIC_GENERATOR_MAGENTA === "1", "Unexpected Magenta runtime availability");
   if (audioCraft) {
     const catalog = JSON.parse(await readFile(path.join(root, "models/catalog.json"), "utf8"));
     const profiles = catalog.profiles.filter(profile => profile.selection.provider === "audiocraft");
-    const runtime = JSON.parse(await readFile(path.join(engine, "audiocraft/audiocraft-runtime.json"), "utf8"));
+    const runtime = JSON.parse(await readFile(path.join(engines.audiocraft, "audiocraft/audiocraft-runtime.json"), "utf8"));
     assert(profiles.length && profiles.every(profile => profile.runtime.revision === runtime.revision), "Packaged AudioCraft revision differs from the model catalog");
   }
-  if (shipsYue2()) await verifyYue2Binary(engine);
-  await verifyTitle(path.join(engine,"title"),false);
-  if(platform!=="macos") { const text=execFileSync(path.join(engine,"title",platform==="windows"?"music-title.exe":"music-title"),["--self-test"],{encoding:"utf8",timeout:30000});assert(text.includes("music-title=ready"),"Title runtime did not start"); }
+  if (shipsYue2()) await verifyYue2Binary(engines.yue2);
+  await verifyTitle(path.join(utilities,"title"),false);
+  if(platform!=="macos") { const text=execFileSync(path.join(utilities,"title",platform==="windows"?"music-title.exe":"music-title"),["--self-test"],{encoding:"utf8",timeout:30000});assert(text.includes("music-title=ready"),"Title runtime did not start"); }
   if(platform==="linux")await verifyLinuxRuntime(engine,target.backend,path.join(work,"squashfs-root"));
-  const app = extracted.find(file => path.basename(file) === (platform === "windows" ? (installer ? "music-generator.exe" : "Music Generator.exe") : "music-generator"));
-  assert(app, "Application executable is missing");
-  await verifyIterationContract(path.join(engine,platform === "windows" ? "ace-server.exe" : "ace-server"),app);
-  const probe = JSON.parse(execFileSync(app, ["--synthesis-backend-probe", engine, "--cpu"], { cwd: engine, encoding: "utf8", timeout: 15000 }).trim().split(/\r?\n/).at(-1));
-  assert.equal(probe, "cpu", "Relocated model-free backend probe must initialize the CPU runtime");
+  if (platform !== "macos") {
+    await verifyIterationContract(path.join(engine, platform === "windows" ? "ace-server.exe" : "ace-server"), app);
+    const probe = JSON.parse(execFileSync(app, ["--synthesis-backend-probe", engine, "--cpu"], { cwd: engine, encoding: "utf8", timeout: 15000 }).trim().split(/\r?\n/).at(-1));
+    assert.equal(probe, "cpu", "Relocated model-free backend probe must initialize the CPU runtime");
+  }
   if (platform === "macos") await run("codesign", ["--verify", "--deep", "--strict", path.dirname(path.dirname(path.dirname(app)))]);
   if (platform === "windows") {
     assert(await exists(path.join(path.dirname(app), "music-generator-mcp.exe")), "MCP stdio bridge is missing");
@@ -120,15 +168,16 @@ try {
   }
   if (platform === "macos") {
     assert.equal(startupLocation(app).installation_required, false, "Copied app must start after ejecting the DMG");
-    if (audioCppSupported(target)) await run("codesign", ["--verify", "--strict", path.join(engine, audioCppDirectory, "libsoxr.dylib")]);
+    if (audioCppSupported(target)) await run("codesign", ["--verify", "--strict", path.join(engines["audio-cpp"], audioCppDirectory, "libsoxr.dylib")]);
     const expectedArch = architecture === "x64" ? "x86_64" : "arm64";
-    const bundledPython = path.join(engine, "audiocraft", "python") + path.sep;
-    for (const file of extracted) {
+    const bundledPython = audioCraft ? path.join(engines.audiocraft, "audiocraft", "python") + path.sep : null;
+    const packagedFiles = [...extracted, ...(await Promise.all(Object.values(engines).map(files))).flat()];
+    for (const file of packagedFiles) {
       const bytes = await readFile(file);
       if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
       const archs = execFileSync("lipo", ["-archs", file], { encoding: "utf8" }).trim().split(/\s+/);
       const sparkle = file.includes("/Contents/Frameworks/Sparkle.framework/");
-      assert(archs.includes(expectedArch) && (sparkle || (audioCraft && file.startsWith(bundledPython)) || archs.length === 1), `Wrong Mach-O architecture: ${file}`);
+      assert(archs.includes(expectedArch) && (sparkle || (bundledPython && file.startsWith(bundledPython)) || archs.length === 1), `Wrong Mach-O architecture: ${file}`);
       const headers = execFileSync("otool", ["-arch", expectedArch, "-l", file], { encoding: "utf8" });
       const versions = [...headers.matchAll(/cmd LC_BUILD_VERSION[\s\S]*?\n\s+minos ([\d.]+)|cmd LC_VERSION_MIN_MACOSX[\s\S]*?\n\s+version ([\d.]+)/g)];
       assert(versions.length, `No macOS deployment target in ${file}`);
@@ -146,11 +195,13 @@ try {
     if (process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true") {
       await run("xcrun", ["stapler", "validate", bundle]);
       if (diskImage) await run("xcrun", ["stapler", "validate", artifact]);
-      const feed = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :SUFeedURL", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
-      assert.equal(feed, `https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/latest/download/appcast-macos-${architecture}.xml`);
+      if (!audioCraft) {
+        const feed = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :SUFeedURL", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+        assert.equal(feed, `https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/latest/download/appcast-macos-${architecture}.xml`);
+      }
     }
-    if (target.cpuOnly) assert(!extracted.some(file => /ggml-metal/i.test(path.basename(file))), "Intel bundle must not include a Metal backend");
-    await verifyMacSandbox(app, engine);
+    if (target.cpuOnly) assert(!packagedFiles.some(file => /ggml-metal/i.test(path.basename(file))), "Intel engine must not include a Metal backend");
+    await verifyMacSandbox(app, engines, utilities, probeWithArchives);
   } else {
   const listener = createServer();
   listener.listen(0, "127.0.0.1"); await once(listener, "listening");
@@ -191,7 +242,7 @@ try {
   wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(wav.length - 44, 40);
   const original = path.join(work, "song-\u00e4-\u6771\u4eac-\ud83c\udfb5.wav"), encoded = path.join(work, "export-\u00f6-\u97f3\u697d-\ud83c\udfb5.mp3");
   await writeFile(original, wav);
-  await run(path.join(engine, platform === "windows" ? "mp3-codec.exe" : "mp3-codec"), ["-i", original, "-o", encoded, "-b", "192"], { cwd: engine });
+  await run(path.join(utilities, platform === "windows" ? "mp3-codec.exe" : "mp3-codec"), ["-i", original, "-o", encoded, "-b", "192"], { cwd: utilities });
   const mp3 = await readFile(encoded);
   assert(mp3.length >= 1000 && (mp3.subarray(0, 3).toString() === "ID3" || (mp3[0] === 255 && (mp3[1] & 224) === 224)), "Invalid encoded MP3");
   assert.deepEqual(await readFile(original), wav, "MP3 export changed the original WAV");
@@ -202,7 +253,7 @@ try {
     if (installed) {
       await msiexec("/x", "uninstall.log");
       assert(!await exists(path.join(installDir, "music-generator.exe")), "MSI uninstall left the application behind");
-      assert(!await exists(path.join(installDir, "engine/ace-server.exe")), "MSI uninstall left the engine behind");
+      assert(!await exists(path.join(installDir, "engine/mp3-codec.exe")), "MSI uninstall left shared helpers behind");
       assert(!await exists(path.join(installDir, "WebView2/msedgewebview2.exe")), "MSI uninstall left WebView2 behind");
     }
     if (mounted) await run("hdiutil", ["detach", mount]);

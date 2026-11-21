@@ -105,7 +105,7 @@ void set_option(std::string_view pair, SetOption set) {
 }
 }
 
-int main(int argc, char **argv) {
+extern "C" int music_generator_engine_main_v1(int argc, char **argv) {
     try {
         if (argc == 2 && std::string_view(argv[1]) == "--version") {
             std::printf("audio.cpp %s\n", audiocpp_build_version());

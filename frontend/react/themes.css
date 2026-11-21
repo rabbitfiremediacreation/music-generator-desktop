@@ -129,6 +129,35 @@
     linear-gradient(145deg, #fbf0df, #ece0d1);
 }
 
+[data-theme="dev"] {
+  --bg: #12110f;
+  --panel: #242117;
+  --border: #56503a;
+  --text: #faf3de;
+  --muted: #c1b9a4;
+  --accent: #ffd24d;
+  --accent2: #f9bd57;
+  --theme-gradient-angle: 132deg;
+  --theme-atmosphere:
+    repeating-linear-gradient(133deg, #ffd24d17 0 15px, transparent 15px 30px) top / 100% 100px no-repeat,
+    radial-gradient(ellipse at 89% -10%, #4a3a17, transparent 52%),
+    linear-gradient(150deg, #242016, #11110f 65%);
+}
+
+[data-theme="nightly"] {
+  --bg: #080d1b;
+  --panel: #131d34;
+  --border: #344560;
+  --text: #f1f4ff;
+  --muted: #b0bcdc;
+  --accent: #a8bcff;
+  --accent2: #d1b8ff;
+  --theme-gradient-angle: 150deg;
+  --theme-atmosphere:
+    linear-gradient(180deg, #101b3760, #080d1bdf 75%),
+    url("/branding/night-sky.webp") center top / cover no-repeat;
+}
+
 [data-theme]:not([data-theme="classic"]) {
   --theme-surface-sheen: linear-gradient(
     var(--theme-gradient-angle),

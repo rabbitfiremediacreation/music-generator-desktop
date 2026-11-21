@@ -5,7 +5,7 @@ use crate::{error::Result, types::UpdateStream};
 use semver::Version;
 use serde_json::{json, Value};
 
-const RELEASE_REPOSITORY: &str = "rabbitfiremediacreation/music-generator-desktop";
+pub(crate) const RELEASE_REPOSITORY: &str = "rabbitfiremediacreation/music-generator-desktop";
 const API_ROOT: &str = "https://api.github.com/repos";
 
 impl UpdateStream {
@@ -246,6 +246,22 @@ mod tests {
         assert_eq!(
             super::asset_suffix("linux", "x86_64", "vulkan"),
             "linux-x64.AppImage"
+        );
+    }
+
+    #[test]
+    fn preview_updater_ignores_separate_engine_zip_assets() {
+        let url = "https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/daily-10/Music-Generator-0.3.0-macos-arm64.zip";
+        let release = json!({
+            "tag_name": "daily-10", "draft": false, "prerelease": true,
+            "assets": [
+                {"name":"Music-Generator-Engine-ace-step-0.3.0-macos-arm64.zip", "browser_download_url":format!("{url}.engine")},
+                {"name":"Music-Generator-0.3.0-macos-arm64.zip", "browser_download_url":url}
+            ],
+        });
+        assert_eq!(
+            platform_release(&release, Some("daily-10"), "macos-arm64.zip"),
+            Some((Version::parse("0.3.0").unwrap(), url)),
         );
     }
 

@@ -6,6 +6,27 @@ use std::{
     time::Duration,
 };
 
+#[cfg(target_os = "macos")]
+mod plugin;
+
+#[cfg(target_os = "macos")]
+pub(crate) use plugin::ACE_PLUGIN;
+
+#[cfg(target_os = "macos")]
+fn supervisor() -> std::io::Result<std::path::PathBuf> {
+    let executable = std::env::current_exe()?;
+    let helper = executable.with_file_name("music-engine-supervisor");
+    Ok(if helper.is_file() { helper } else { executable })
+}
+
+pub(crate) fn probe_command(engine: &Path) -> std::io::Result<tokio::process::Command> {
+    #[cfg(target_os = "macos")]
+    if plugin::is_plugin(engine) {
+        return Ok(plugin::command(supervisor()?, engine, false).into());
+    }
+    Ok(tokio::process::Command::new(engine))
+}
+
 pub struct OwnedProcess {
     child: Child,
 }
@@ -31,17 +52,17 @@ impl OwnedProcess {
             .create(true)
             .append(true)
             .open(log)?;
-        let executable = std::env::current_exe()?;
         #[cfg(target_os = "macos")]
-        let executable = {
-            let helper = executable.with_file_name("music-engine-supervisor");
-            if helper.is_file() {
-                helper
+        let mut command = {
+            let executable = supervisor()?;
+            if plugin::is_plugin(engine) {
+                plugin::command(executable, engine, true)
             } else {
-                executable
+                supervisor_command(executable, engine)
             }
         };
-        let mut command = Command::new(executable);
+        #[cfg(not(target_os = "macos"))]
+        let mut command = supervisor_command(std::env::current_exe()?, engine);
         // All owned engines log under the app data root's logs/ directory.
         if let Some(root) = log.parent().and_then(Path::parent) {
             crate::cuda_runtime::configure_command(&mut command, root);
@@ -51,8 +72,6 @@ impl OwnedProcess {
             command.env("MUSIC_MODEL_BOOKMARK", crate::sandbox::transfer(folder)?);
         }
         command
-            .arg("--engine-supervisor")
-            .arg(engine)
             .args(args)
             .current_dir(
                 engine
@@ -82,6 +101,12 @@ impl OwnedProcess {
     }
 }
 
+fn supervisor_command(executable: std::path::PathBuf, engine: &Path) -> Command {
+    let mut command = Command::new(executable);
+    command.arg("--engine-supervisor").arg(engine);
+    command
+}
+
 impl Drop for OwnedProcess {
     fn drop(&mut self) {
         // Closing the control pipe also stops the engine when the GUI crashes.
@@ -98,6 +123,10 @@ impl Drop for OwnedProcess {
 }
 
 pub fn supervise() -> Option<i32> {
+    #[cfg(target_os = "macos")]
+    if let Some(code) = plugin::cli() {
+        return Some(code);
+    }
     let mut args = std::env::args_os().skip(1);
     if args.next().as_deref() != Some(std::ffi::OsStr::new("--engine-supervisor")) {
         return None;

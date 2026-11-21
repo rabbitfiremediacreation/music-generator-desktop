@@ -1,29 +1,16 @@
 #include <Python.h>
-#include <mach-o/dyld.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
-#include <vector>
 
-int main(int argc, char **argv) {
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);
-    std::vector<char> executable(size);
-    if (_NSGetExecutablePath(executable.data(), &size) != 0) {
-        std::fprintf(stderr, "Could not locate the Mimetic A0 executable\n");
-        return 1;
-    }
-    std::error_code error;
-    auto path = std::filesystem::canonical(executable.data(), error);
-    if (error) {
-        std::fprintf(stderr, "Could not resolve the Mimetic A0 executable: %s\n", error.message().c_str());
-        return 1;
-    }
+extern "C" int music_generator_engine_main_v1(int argc, char **argv) {
+    const std::filesystem::path path(argv[0]);
     const std::string program = path.string();
-    const std::string home = (path.parent_path() / "mimetic-python").string();
-    std::string script = (path.parent_path() / "mimetic-python" / "generate_clip.py").string();
+    const auto runtime = path.parent_path() / "pytorch";
+    const std::string home = runtime.string();
+    std::string script = (runtime / "generate_clip.py").string();
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);

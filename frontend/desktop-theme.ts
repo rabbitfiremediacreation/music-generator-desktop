@@ -1,3 +1,5 @@
+import { desktopBranding } from "./build-branding";
+
 export const desktopThemes = [
   { id: "classic", name: "Classic" },
   { id: "light", name: "Light" },
@@ -7,12 +9,14 @@ export const desktopThemes = [
   { id: "triphop", name: "Triphop" },
   { id: "techno-bunker", name: "Techno Bunker" },
   { id: "lofi", name: "Lofi" },
+  { id: "dev", name: "Dev" },
+  { id: "nightly", name: "Nightly" },
 ] as const;
 
 export type DesktopTheme = typeof desktopThemes[number]["id"];
 
 const storageKey = "desktop_theme";
-const defaultTheme: DesktopTheme = "classic";
+const defaultTheme: DesktopTheme = desktopBranding?.id ?? "classic";
 const listeners = new Set<() => void>();
 
 function validTheme(value: string | null | undefined): DesktopTheme {
@@ -32,7 +36,7 @@ function applyTheme(theme: DesktopTheme): void {
 export function restoreTheme(): void {
   let theme = defaultTheme;
   try { theme = validTheme(localStorage.getItem(storageKey)); }
-  catch { /* Use Classic when preferences cannot be read. */ }
+  catch { /* Use the build's default theme when preferences cannot be read. */ }
   applyTheme(theme);
 }
 

@@ -3,6 +3,7 @@ import { pathErrorText } from "../path-dialogs";
 import { useQuery } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GenerationProgress } from "../GenerationActivity";
+import { Switch } from "../Switch";
 import type { ModelSelection } from "../types";
 import { useI18n } from "./i18n";
 import { AudioControls } from "./audio/AudioControls";
@@ -41,8 +42,8 @@ export function Header({selection,onAnalysis,reference,blocked=false}:{
       {reference.picking && <GenerationProgress wave={false} className="reference-audio-progress" label={referenceLoading} details={referenceLoading} />}
       {reference.file && <>
         <span className="reference-audio-file">{reference.file.name ?? t("mulacover_previous_reference")}</span>
-        <label className="reference-audio-rights"><input type="checkbox" checked={reference.approved} disabled={blocked || reference.picking}
-          onChange={event => reference.setApproved(event.target.checked)} />{t("mulacover_reference_rights")}</label>
+        <Switch className="reference-audio-rights" label={t("mulacover_reference_rights")} checked={reference.approved}
+          disabled={blocked || reference.picking} onChange={event => reference.setApproved(event.target.checked)} />
       </>}
       {referenceError && <span className="setup-error" role="alert">{referenceError}</span>}
     </div>}

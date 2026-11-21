@@ -101,11 +101,15 @@ pub struct RuntimeComponent {
 pub struct NativeRuntime {
     pub name: String,
     pub revision: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
     pub source: String,
     pub license: String,
     pub license_url: String,
     /// Path within the application's resource directory. Native executables omit the Windows suffix.
     pub executable: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packaged_executable: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<RuntimeComponent>,
     /// Optional Python venv interpreter, relative to the application data directory.
@@ -118,6 +122,19 @@ pub struct NativeRuntime {
 }
 
 impl NativeRuntime {
+    pub(crate) fn resources(&self, bundled: &Path, data_root: &Path) -> PathBuf {
+        let executable = self
+            .packaged_executable
+            .as_ref()
+            .map_or_else(|| self.executable(Path::new("")), PathBuf::from);
+        crate::engine_packages::resources_for(bundled, data_root, &executable)
+    }
+
+    pub(crate) fn packaged_plugin(&self, resources: &Path) -> Option<PathBuf> {
+        let path = resources.join(self.packaged_executable.as_ref()?);
+        path.is_file().then_some(path)
+    }
+
     pub fn executable(&self, resources: &Path) -> PathBuf {
         let executable = resources.join(&self.executable);
         if cfg!(windows) && self.interpreter.is_none() {
@@ -131,7 +148,21 @@ impl NativeRuntime {
         self.interpreter.as_ref().map(|path| data_root.join(path))
     }
 
-    fn interpreter_ready(&self, data_root: &Path) -> bool {
+    fn files_ready(&self, resources: &Path) -> bool {
+        if self.packaged_executable.is_some() && crate::engine_packages::managed() {
+            return self.packaged_plugin(resources).is_some();
+        }
+        self.executable(resources).is_file()
+            && self
+                .required_files
+                .iter()
+                .all(|file| resources.join(file).is_file())
+    }
+
+    fn interpreter_ready(&self, resources: &Path, data_root: &Path) -> bool {
+        if self.packaged_plugin(resources).is_some() {
+            return true;
+        }
         let Some(executable) = self.interpreter(data_root) else {
             return true;
         };
@@ -152,8 +183,11 @@ impl NativeRuntime {
         fn quote(path: &Path) -> String {
             format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
         }
+        if self.packaged_executable.is_some() && crate::engine_packages::managed() {
+            return None;
+        }
         let setup = resources.join(self.installer.as_ref()?);
-        (setup.is_file() && !self.interpreter_ready(data_root))
+        (setup.is_file() && !self.interpreter_ready(resources, data_root))
             .then(|| format!("/bin/bash {} {}", quote(&setup), quote(data_root)))
     }
 }
@@ -226,6 +260,12 @@ pub struct ProviderProfile {
 }
 
 impl ProviderProfile {
+    pub(crate) fn engine_installed(&self, bundled: &Path, data_root: &Path) -> bool {
+        let resources = self.runtime.resources(bundled, data_root);
+        self.runtime.files_ready(&resources)
+            && self.runtime.interpreter_ready(&resources, data_root)
+    }
+
     pub(super) fn ensure_released(&self) -> Result<()> {
         if let Some(reason) = &self.release_hold {
             return Err(message(reason.clone()));
@@ -256,23 +296,16 @@ impl ProviderProfile {
     ) -> Result<()> {
         self.ensure_released()?;
         self.platform(hardware)?;
-        if !self.runtime.executable(resources).is_file()
-            || self
-                .runtime
-                .required_files
-                .iter()
-                .any(|file| !resources.join(file).is_file())
-        {
+        let resources = self.runtime.resources(resources, data_root);
+        if !self.runtime.files_ready(&resources) {
             if !self.evaluation_platforms.is_empty() {
                 return Err(message(
                     "This build does not include the optional evaluation runner.",
                 ));
             }
-            return Err(message(
-                "The native runtime for this model is missing from this app build",
-            ));
+            return Err(message("engine_install_required"));
         }
-        if !self.runtime.interpreter_ready(data_root) {
+        if !self.runtime.interpreter_ready(&resources, data_root) {
             return Err(message("text2midi_runtime_required"));
         }
         Ok(())
@@ -317,7 +350,12 @@ pub fn capabilities(selection: &Selection) -> Result<GenerationCapabilities> {
 
 pub fn ensure_runtime(selection: &Selection, resources: &Path, data_root: &Path) -> Result<()> {
     if selection.provider == "ace-step" {
-        return Ok(());
+        return crate::engine::engine_path(&crate::engine_packages::ace_resources(
+            resources, data_root,
+        ))
+        .is_file()
+        .then_some(())
+        .ok_or_else(|| message("engine_install_required"));
     }
     let catalog = catalog();
     catalog

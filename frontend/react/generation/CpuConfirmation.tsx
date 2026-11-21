@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
+import { Switch } from "../../Switch";
 import type { CpuIterationBehavior, GenerationPolicy } from "../../types";
 import { useI18n } from "../i18n";
 import { GenerationStatus } from "./GenerationStatus";
@@ -29,7 +30,8 @@ export function CpuConfirmation({ device, onChoice }: { device: GenerationPolicy
     <GenerationStatus className="dialog-generation-status" />
     <h2 id="cpuDialogTitle">{t("cpu_title")}</h2><p id="cpuDialogText">{t(device === "cpu" ? "cpu_warning" : "cpu_unknown_warning")}</p>
     <form onSubmit={event => event.preventDefault()} aria-busy={mutation.isPending}>
-      <label className="check-row"><input type="checkbox" name="remember_cpu_decision" checked={remember} disabled={mutation.isPending} onChange={event => setRemember(event.target.checked)} />{t("cpu_remember")}</label>
+      <Switch className="check-row" label={t("cpu_remember")} name="remember_cpu_decision" checked={remember}
+        disabled={mutation.isPending} onChange={event => setRemember(event.target.checked)} />
       {mutation.isError && <p className="setup-error" role="alert">{t("cpu_remember_error")}</p>}
       <div className="submit"><button type="button" className="aktion" disabled={mutation.isPending} onClick={() => { void choose("reduce"); }}>{t("cpu_reduce")}</button><button type="button" className="sek" disabled={mutation.isPending} onClick={() => { void choose("continue"); }}>{t("cpu_continue")}</button><button type="button" className="sek" disabled={mutation.isPending} onClick={() => { void choose(null); }}>{t("cancel")}</button></div>
     </form>

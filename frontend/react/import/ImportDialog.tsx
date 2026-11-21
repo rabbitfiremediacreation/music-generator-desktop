@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
+import { Switch } from "../../Switch";
 import { pickFolder, pathErrorText, type FolderPurpose } from "../../path-dialogs";
 import type { ImportProgress, ImportRequest, ImportResult } from "../../types";
 import { useI18n } from "../i18n";
@@ -112,7 +113,8 @@ function ImportSession({ mode, songsDirectory, platform, onClose, onImported }: 
     <section aria-live="polite" aria-atomic="true"><h3>{mode === "move" ? t("import_step_review").replace(/^3/, "2") : t("import_step_review")}</h3>
       {preview.isFetching ? <p>{t("import_checking")}</p> : result ? <p>{t("import_done")}: {result.songs} · {t("import_audio")}: {result.files}<br />{result.songs_dir}</p> : preview.data && <p>{t("import_songs")}: {preview.data.songs} · {t("import_folders")}: {preview.data.folders} · {t("import_audio")}: {preview.data.files} · {bytes(preview.data.bytes)} / {preview.data.free_bytes === null ? "—" : bytes(preview.data.free_bytes)} {t("import_free")}</p>}
       {!result && <ul>{preview.data?.issues.map((issue, index) => <li key={`${issue.code}:${issue.path}:${index}`}>{translate(`import_${issue.code}`)} · {issue.path}</li>)}</ul>}
-      {!result && mode === "import" && missing.length > 0 && <label className="check-row"><input type="checkbox" checked={request.allow_partial} disabled={disabled} onChange={event => setRequest(value => ({ ...value, allow_partial: event.target.checked }))} />{t("import_allow_partial")}</label>}
+      {!result && mode === "import" && missing.length > 0 && <Switch className="check-row" label={t("import_allow_partial")}
+        checked={request.allow_partial} disabled={disabled} onChange={event => setRequest(value => ({ ...value, allow_partial: event.target.checked }))} />}
       {missing.length > 0 && <details><summary>{t("import_missing_list")}: {missing.length}</summary><ul>{missing.map(item => <li key={item.id}>{item.title} · {item.file || item.id}</li>)}</ul></details>}
     </section>
     {busy && <><progress max="1" value={progress.data?.phase === "copying" ? Math.min(progress.data.copied_bytes / Math.max(progress.data.total_bytes, 1), 1) : undefined} aria-label={t(mode === "import" ? "import_copying" : "import_moving")} /><p role="status">{progress.data?.phase === "copying" ? `${progress.data.files} / ${progress.data.total_files} · ${bytes(progress.data.copied_bytes)} / ${bytes(progress.data.total_bytes)}` : t(progress.data?.phase === "committing" ? "import_committing" : "import_checking")}</p></>}

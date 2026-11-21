@@ -20,7 +20,7 @@ pub async fn get_generation_form_preferences(
         let selection = crate::catalog::Selection::from_settings(&state.db.settings()?);
         let defaults = state
             .synthesis_probe
-            .session_policy(&state.resources, &selection, false, || {
+            .session_policy(&state.ace_resources(), &selection, false, || {
                 state.backend_status()
             })
             .defaults;
@@ -104,7 +104,7 @@ pub async fn bootstrap<R: tauri::Runtime>(
     startup.ensure_current(attempt)?;
     startup.report(&app, attempt, "interface", None);
     Ok(
-        json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommendations_for_build(hardware, &state.resources, &state.db.root),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
+        json!({"needs_setup":needs_setup,"optional_engines":crate::engine_packages::managed(),"recommended_profiles":crate::catalog::catalog().recommended_profiles(hardware),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
     )
 }
 
@@ -114,17 +114,31 @@ pub async fn setup_models(
     app: AppHandle,
     request: crate::setup::SetupRequest,
 ) -> Result<Value> {
+    let progress = crate::download::ProgressEvents::new(&app, "setup-progress");
     let result = crate::setup::configure(
         state.inner().clone(),
         request,
-        |progress| {
-            let _ = app.emit("setup-progress", progress);
-        },
+        |update| progress.report(update),
         |stage| {
+            progress.clear();
             let _ = app.emit("setup-stage", stage);
         },
         |songs| authorize_songs(&app, songs),
     )
+    .await?;
+    state.changed(&app);
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn setup_library(
+    state: Desktop<'_>,
+    app: AppHandle,
+    request: crate::setup::SetupRequest,
+) -> Result<Value> {
+    let result = crate::setup::configure_library(state.inner().clone(), request, |songs| {
+        authorize_songs(&app, songs)
+    })
     .await?;
     state.changed(&app);
     Ok(result)
@@ -136,7 +150,7 @@ pub fn setup_estimate(state: Desktop<'_>, request: crate::setup::SetupRequest) -
     let models = crate::setup::plan(&request)?;
     let (root, _) = crate::paths::setup_folders(&request.models_dir, &request.songs_dir)?;
     let ancestor = crate::paths::folder_ancestor(&root)?;
-    let missing: u64 = models
+    let model_bytes: u64 = models
         .iter()
         .filter(|(m, _)| !root.join(&m.file).is_file())
         .map(|(m, _)| {
@@ -148,8 +162,9 @@ pub fn setup_estimate(state: Desktop<'_>, request: crate::setup::SetupRequest) -
             )
         })
         .sum();
+    let engine_bytes = crate::engine_packages::ace_download_bytes(&state.resources, &state.db.root);
     Ok(
-        json!({"missing_bytes":missing,"free_bytes":fs2::available_space(ancestor).map_err(|_| message("path_access"))?}),
+        json!({"missing_bytes":model_bytes,"engine_bytes":engine_bytes,"free_bytes":fs2::available_space(ancestor).map_err(|_| message("path_access"))?}),
     )
 }
 
@@ -162,7 +177,7 @@ pub fn cancel_setup(state: Desktop<'_>) {
 pub async fn cuda_status(state: Desktop<'_>) -> Result<crate::cuda_runtime::Status> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::cuda_runtime::inspect(&state.db.root, &state.resources)
+        crate::cuda_runtime::inspect(&state.db.root, &state.ace_resources())
     })
     .await
     .map_err(|e| message(e.to_string()))
@@ -179,7 +194,7 @@ pub async fn install_cuda_runtime(
     tokio::spawn(async move {
         let checking = state.clone();
         let status = tauri::async_runtime::spawn_blocking(move || {
-            crate::cuda_runtime::inspect(&checking.db.root, &checking.resources)
+            crate::cuda_runtime::inspect(&checking.db.root, &checking.ace_resources())
         })
         .await
         .map_err(|e| message(e.to_string()))?;
@@ -200,8 +215,9 @@ pub async fn install_cuda_runtime(
         .await?;
         let _ = app.emit("cuda-stage", "checking");
         let result = tauri::async_runtime::spawn_blocking(move || {
-            let status = crate::cuda_runtime::inspect(&state.db.root, &state.resources);
-            state.synthesis_probe.inspect(&state.resources, true);
+            let resources = state.ace_resources();
+            let status = crate::cuda_runtime::inspect(&state.db.root, &resources);
+            state.synthesis_probe.inspect(&resources, true);
             status
         })
         .await

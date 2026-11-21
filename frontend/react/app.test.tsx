@@ -8,6 +8,7 @@ import { measuredBackend, setupFixture, standard } from "./setup/fixtures";
 import { setLang, t } from "../i18n.js";
 import source from "../../models/catalog.json";
 import type { JobProgress, PhoneAccess } from "../types";
+import { restoreTitlebarDesign } from "../titlebar-design";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
 vi.mock("@tauri-apps/api/event",()=>({listen:mocks.listen}));
@@ -40,7 +41,7 @@ beforeEach(()=>{
     }
   });
 });
-afterEach(()=>{cleanup();vi.restoreAllMocks();});
+afterEach(()=>{cleanup();vi.restoreAllMocks();localStorage.removeItem("desktop_titlebar_design");restoreTitlebarDesign();});
 async function mount(path="/"){
   const client=createAppQueryClient(),router=createAppRouter(client,createMemoryHistory({initialEntries:[path]}));
   await act(async()=>{
@@ -49,6 +50,28 @@ async function mount(path="/"){
   });
   return router;
 }
+it("changes the title bar design immediately and restores it independently of the app theme", async () => {
+  firstRun = false;
+  await mount();
+  fireEvent.click(await screen.findByRole("button", { name: t("settings_title") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("settings_page_appearance") }));
+  const field = await screen.findByRole<HTMLSelectElement>("combobox", { name: t("settings_titlebar_design") });
+  const titlebar = document.querySelector(".titlebar")!;
+  const theme = document.documentElement.dataset.theme;
+  expect(field.value).toBe("auto");
+  fireEvent.change(field, { target: { value: "nightly" } });
+  expect(titlebar.getAttribute("data-titlebar-design")).toBe("nightly");
+  expect(titlebar.textContent).toContain("Music Generator");
+  expect(titlebar.textContent).not.toContain("Daily");
+  expect(document.documentElement.dataset.theme).toBe(theme);
+  expect(localStorage.getItem("desktop_titlebar_design")).toBe("nightly");
+  localStorage.setItem("desktop_titlebar_design", "dev");
+  act(restoreTitlebarDesign);
+  expect(field.value).toBe("dev");
+  expect(titlebar.getAttribute("data-titlebar-design")).toBe("dev");
+  expect(mocks.invoke.mock.calls.some(([command]) => command === "save_settings")).toBe(false);
+});
+
 it("shows overall progress and the estimated remaining time across phase and view changes", async () => {
   firstRun = false;
   const handlers = new Map<string, (event: { payload: unknown }) => void>();
@@ -77,6 +100,33 @@ it("shows overall progress and the estimated remaining time across phase and vie
   act(() => handlers.get("library-changed")?.({ payload: null }));
   await waitFor(() => expect(meter(".titlebar")).toBeNull());
   expect(document.querySelector("#dropzone .app-wave[data-active]")).toBeNull();
+});
+it.each([
+  ["engine-download-progress", "engine.zip"],
+  ["model-download-progress", "model.gguf"],
+  ["setup-progress", "setup-model.gguf"],
+])("shows %s in the app header until the backend clears it", async (event, file) => {
+  firstRun = event === "setup-progress";
+  const handlers = new Map<string, (event: { payload: unknown }) => void>();
+  mocks.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => {}; });
+  await mount();
+  const emit = (payload: unknown) => act(() => handlers.get(event)!({ payload }));
+  const titlebar = within(document.querySelector<HTMLElement>(".titlebar")!);
+  emit({ file, phase: "downloading", downloaded: 40, total: 100, bytes_per_second: 10 });
+  const meter = await titlebar.findByRole<HTMLProgressElement>("progressbar");
+  expect(meter.value).toBe(40);
+  expect(meter.getAttribute("aria-valuetext")).toBe(`Downloading… · ${file} · 40% · Remaining ≈ 0:06`);
+  expect(meter.closest(".song-activity")?.querySelector(".app-wave[data-active]")).toBeTruthy();
+  if (event === "engine-download-progress") {
+    fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
+    await screen.findByRole("dialog");
+    expect(document.querySelector("#settingsForm .settings-page-header progress")).toBeNull();
+    emit({ file, phase: "installing", downloaded: 0, total: 0, bytes_per_second: 0 });
+    await waitFor(() => expect(meter.hasAttribute("value")).toBe(false));
+    expect(meter.getAttribute("aria-label")).toBe(t("engine_installing"));
+  }
+  emit(null);
+  await waitFor(() => expect(titlebar.queryByRole("progressbar")).toBeNull());
 });
 it("keeps startup pending until the first library and saved form values are ready",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;

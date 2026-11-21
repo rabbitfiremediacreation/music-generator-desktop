@@ -11,9 +11,12 @@ use music_generator::{
     verification::{ModelVerifier, Verification},
 };
 use sha2::{Digest, Sha256};
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Arc,
+use std::{
+    cell::Cell,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
 };
 use tokio_util::sync::CancellationToken;
 
@@ -60,6 +63,7 @@ async fn resumes_partial_content_at_the_exact_offset() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("model.gguf.part"), b"abc").unwrap();
     let (url, task, _) = server(StatusCode::PARTIAL_CONTENT, Some("bytes 3-5/6"), b"def").await;
+    let initial_progress = Cell::new(None);
     let file = download_model(
         &client(),
         &url,
@@ -67,10 +71,15 @@ async fn resumes_partial_content_at_the_exact_offset() {
         &model(),
         &mut ModelVerifier::open(dir.path()),
         &CancellationToken::new(),
-        |_| {},
+        |progress| {
+            if progress.phase == "downloading" && initial_progress.get().is_none() {
+                initial_progress.set(Some((progress.downloaded, progress.total)));
+            }
+        },
     )
     .await
     .unwrap();
+    assert_eq!(initial_progress.get(), Some((3, 6)));
     assert_eq!(
         ModelVerifier::open(dir.path())
             .verify(

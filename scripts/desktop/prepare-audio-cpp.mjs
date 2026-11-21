@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { cp, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { audioCppDirectory, audioCppRuntime as pin, audioCppSupported, download, root, run, target } from "./common.mjs";
 import { prepareAudioCppSoxr, soxrVersion } from "./prepare-audio-cpp-soxr.mjs";
+import { pluginLinkerFlags, probeMacPlugin } from "./macos-plugin.mjs";
 
 export async function prepareAudioCpp(engineFolder, cache, work) {
   if (!audioCppSupported(target)) return;
@@ -35,16 +35,17 @@ export async function prepareAudioCpp(engineFolder, cache, work) {
     "clang++", "-arch", "arm64", `-mmacosx-version-min=${target.minimumSystemVersion}`, "-std=c++20", "-O2",
     "-I", path.join(sdk, "include"), path.join(root, "scripts/desktop/audio-cpp-launcher.cpp"),
     path.join(root, "scripts/desktop/engine-sandbox.mm"), library, "-framework", "Foundation",
-    "-Wl,-rpath,@loader_path", "-o", launcher,
+    ...pluginLinkerFlags, "-Wl,-rpath,@loader_path", "-o", launcher,
   ]);
   await run("codesign", ["--force", "--sign", "-", library]);
-  // Development callers run outside App Sandbox. build.mjs signs the packaged helper for inheritance.
   await run("codesign", ["--force", "--sign", "-", launcher]);
   const probe = { encoding: "utf8", timeout: 300000 };
-  if (execFileSync(launcher, ["--version"], probe).trim() !== `audio.cpp ${pin.version}`) {
+  const version = await probeMacPlugin(launcher, ["--version"], probe);
+  if (version.status !== 0 || version.stdout.trim() !== `audio.cpp ${pin.version}`) {
     throw new Error("Pinned audio.cpp runtime did not report the expected version");
   }
-  if (execFileSync(launcher, ["--check-soxr"], probe).trim() !== `libsoxr-${soxrVersion}`) {
+  const soxr = await probeMacPlugin(launcher, ["--check-soxr"], probe);
+  if (soxr.status !== 0 || soxr.stdout.trim() !== `libsoxr-${soxrVersion}`) {
     throw new Error("Bundled SOXR did not report the expected version");
   }
 }

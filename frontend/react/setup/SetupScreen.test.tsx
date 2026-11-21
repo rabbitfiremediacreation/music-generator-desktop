@@ -23,7 +23,7 @@ beforeEach(() => {
     if (name === "setup_estimate") return { missing_bytes: 0, free_bytes: 1024 ** 4 };
     if (name === "generation_policy") return { backend: "gpu" };
     if (name === "cuda_status") return { state: "not_applicable", details: null, download_bytes: 0 };
-    if (name === "setup_models") return { ok: true, mode: "single", backend_status: measuredBackend };
+    if (name === "setup_models" || name === "setup_library") return { ok: true, mode: "single", backend_status: measuredBackend };
     if (name === "dialog_directory") return args?.current || "/home/test";
     if (name === "phone_access_status") return { ...phoneAccess };
     if (name === "set_phone_access") {
@@ -45,6 +45,15 @@ async function next() {
 }
 
 async function reviewSetup() { await next(); await next(); }
+
+it("sets up library paths without downloading the ACE-Step starter when setup is skipped", async () => {
+  mount({ ...setupFixture, optional_engines: true });
+  fireEvent.click(screen.getByRole("button", { name: "Ohne Engines fortfahren" }));
+  await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("setup_library", {
+    request: expect.objectContaining({ models_dir: setupFixture.settings.models_dir, songs_dir: setupFixture.settings.songs_dir }),
+  }));
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "setup_models")).toBe(false);
+});
 
 it("keeps phone access switchable while model setup is running", async () => {
   const original = ipc.invoke.getMockImplementation()!;
@@ -219,7 +228,7 @@ it("does not preselect an additional XL download just because XL files exist on 
   const ready=vi.fn();mount(bootstrap,ready);
   await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
   await next();
-  const xl=screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement;
+  const xl=screen.getByRole("switch",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement;
   expect(xl.checked).toBe(false);
   expect(ipc.invoke).toHaveBeenCalledWith("setup_estimate",{request:expect.objectContaining({xl:false})});
   fireEvent.click(xl);expect(xl.checked).toBe(true);
@@ -230,7 +239,7 @@ it("restores an explicitly selected XL profile when managing models", async () =
   const ready=vi.fn();mount({...setupFixture,needs_setup:false,settings:{...setupFixture.settings,dit:"xl",synthesis_model:"acestep-v15-xl-sft-Q8_0.gguf"},recommended_profiles:[{...setupFixture.recommended_profiles[0],synthesis:"acestep-v15-xl-sft-Q8_0.gguf"}]},ready);
   await waitFor(()=>expect(ready).toHaveBeenCalledOnce());
   await next();
-  expect((screen.getByRole("checkbox",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("switch",{name:"XL-Klangmodell zusätzlich laden"}) as HTMLInputElement).checked).toBe(true);
 });
 
 it("keeps choices across all three steps and starts only after the explicit final action", async () => {
@@ -248,13 +257,13 @@ it("keeps choices across all three steps and starts only after the explicit fina
   expect(document.activeElement?.id).toBe("setupStepHeading");
   expect(screen.queryByRole("textbox", { name: /Song-Ordner/ })).toBeNull();
   fireEvent.change(screen.getByRole("combobox", { name: /Sprachmodell/ }), { target: { value: "4B" } });
-  fireEvent.click(screen.getByRole("checkbox", { name: "XL-Klangmodell zusätzlich laden" }));
+  fireEvent.click(screen.getByRole("switch", { name: "XL-Klangmodell zusätzlich laden" }));
   await next();
   expect(document.querySelector('[aria-current="step"]')?.textContent).toMatch(/3.*Laden/);
   expect(ipc.invoke.mock.calls.some(([name]) => name === "setup_models")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
   expect((screen.getByRole("combobox", { name: /Sprachmodell/ }) as HTMLSelectElement).value).toBe("4B");
-  expect((screen.getByRole("checkbox", { name: "XL-Klangmodell zusätzlich laden" }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("switch", { name: "XL-Klangmodell zusätzlich laden" }) as HTMLInputElement).checked).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
   expect((screen.getByRole("textbox", { name: /Song-Ordner/ }) as HTMLInputElement).value).toBe("/my-songs");
   await reviewSetup();

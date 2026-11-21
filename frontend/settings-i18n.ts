@@ -162,3 +162,11 @@ const themeTranslations: Record<Language, { settings_theme: string; settings_the
   zh: { settings_theme: "主题", settings_theme_hint: "主题立即生效并自动保存。" },
 };
 for (const [language, messages] of Object.entries(themeTranslations)) Object.assign(I18N[language as Language], messages);
+
+const titlebarDesignLabels: Record<Language, string> = {
+  de: "Titelleisten-Design", en: "Title bar design", es: "Diseño de la barra de título",
+  fr: "Style de la barre de titre", it: "Stile della barra del titolo", pt: "Estilo da barra de título",
+  tr: "Başlık çubuğu tasarımı", pl: "Wygląd paska tytułu", ru: "Оформление строки заголовка",
+  uk: "Оформлення рядка заголовка", ja: "タイトルバーのデザイン", zh: "标题栏设计",
+};
+for (const [language, label] of Object.entries(titlebarDesignLabels)) Object.assign(I18N[language as Language], { settings_titlebar_design: label });

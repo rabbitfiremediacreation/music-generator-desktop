@@ -60,6 +60,9 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
     await writeFile(path.join(work, "ace-server"), "test engine");
     await writeFile(path.join(work, "yue-synth"), "misplaced YuE2 runner");
     await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /ACE-Step plug-in is missing/);
+    await writeFile(path.join(work, "libace-server-plugin.dylib"), "test plug-in");
+    await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /YuE2 runner is missing/);
     await rm(path.join(work, "yue-synth"));
     const yue2Folder = path.join(work, path.dirname(yue2.executable));
@@ -74,10 +77,14 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
     await assert.rejects(verifyEngine(work, macos), /YuE2 must be isolated/);
     await rm(misplacedBackend);
     await recordHashes(work, metadata);
-    await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
+    await assert.rejects(verifyEngine(work, macos), /shared PyTorch runtime is missing/);
     await writeFile(path.join(work, "mimetic-synth"), "test launcher");
-    await mkdir(path.join(work, "mimetic-python"));
-    await writeFile(path.join(work, "mimetic-python/MIMETIC_RUNTIME.json"), "test runtime receipt");
+    await mkdir(path.join(work, "pytorch"));
+    await writeFile(path.join(work, "pytorch/PYTORCH_RUNTIME.json"), "test runtime receipt");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Text2midi plug-in is missing/);
+    await mkdir(path.join(work, "text2midi"));
+    await writeFile(path.join(work, "text2midi/text2midi-runner"), "test plug-in");
 
     const runtime = path.join(work, "providers/audio.cpp");
     await mkdir(path.join(runtime, "model_specs"), { recursive: true });

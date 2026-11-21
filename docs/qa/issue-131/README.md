@@ -30,7 +30,7 @@ MUSIC_GENERATOR_LINUX_BACKEND=cuda MUSIC_GENERATOR_DIFFRHYTHM2=1 npm run bundle
 MUSIC_GENERATOR_LINUX_BACKEND=cuda MUSIC_GENERATOR_DIFFRHYTHM2=1 node scripts/desktop/verify-bundle.mjs
 ```
 
-The output is `Music-Generator-VERSION-linux-x64-cuda-diffrhythm2.AppImage`. It bundles CPython 3.11.16, PyTorch and torchaudio 2.7.0 with CUDA 12.6, the upstream source at `7804f821b797b4f276090e1a9dcd37e97d9915d5`, phonemizer 3.3.0 and eSpeak NG 1.52.0. Its runner lives at `engine/diffrhythm2/diffrhythm2-synth`. Call it with `--check-runtime` for a model-free import and English/Mandarin phonemizer check.
+Open `Music-Generator-VERSION-linux-x64-cuda-diffrhythm2.AppImage` and select the matching `Music-Generator-Engine-diffrhythm2-VERSION-linux-x64-cuda.zip` in **Settings → Engines → Install engine from ZIP…**. The ZIP contains CPython 3.11.16, PyTorch and torchaudio 2.7.0 with CUDA 12.6, the upstream source at `7804f821b797b4f276090e1a9dcd37e97d9915d5`, phonemizer 3.3.0 and eSpeak NG 1.52.0. Its runner lives at `engine/diffrhythm2/diffrhythm2-synth` within the engine installation. Call it with `--check-runtime` for a model-free import and English/Mandarin phonemizer check.
 
 After acquiring the models, run the following acceptance cases with network access disabled on a Linux x86-64 NVIDIA computer. Record the GPU and driver, build and model revisions, maximum VRAM, runner wall time, number of channels and measured WAV duration.
 

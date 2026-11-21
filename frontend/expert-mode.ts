@@ -28,7 +28,7 @@ export function modelErrorText(error: unknown, translate: (key: string) => strin
   const message = raw === "Open the ModelPicker and download or verify the selected models first" ? "model_setup_required" : raw;
   return [
     "expert_mode_required", "model_setup_required", "text2midi_runtime_required", "model_remove_active", "model_remove_queued",
-    "model_remove_unsafe", "model_remove_use_profile", "hf_download_auth", "hf_token_read_failed",
+    "model_remove_unsafe", "model_remove_use_profile", "hf_download_auth", "hf_token_read_failed", "engine_install_required",
   ].includes(message) ? translate(message) : message;
 }
 

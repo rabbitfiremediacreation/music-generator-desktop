@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { startupText, type StartupLabel } from "../startup-text";
 import { startupErrorDetails, startupErrorMessage, startupErrorText } from "../startup-errors";
 import { waitForSplashPaint } from "../startup-paint";
+import { desktopBranding } from "../build-branding";
 import { useI18n } from "./i18n";
 
 interface StartupStatus {attempt:number;sequence:number;phase:StartupLabel;error:string|null}
@@ -50,12 +51,13 @@ export function Splash(){
   const quit=()=>{const attempt=current.current.attempt;void invoke("exit_app").catch(error=>failed(error,attempt));};
   const retry=()=>{const attempt=current.current.attempt;setRetrying(true);void invoke("retry_startup",{attempt}).catch(async error=>{await synchronize();await failed(error,attempt);});};
   const installation=status.phase==="installation_required",error=status.error!==null;
-  return <div className="splash-root" data-failed={error} data-installation-required={installation}>
+  return <div className="splash-root" data-build-brand={desktopBranding?.id} data-failed={error} data-installation-required={installation}>
     <div className="drag-area" data-tauri-drag-region aria-hidden="true"/>
     <button id="splashClose" className="close" type="button" aria-label={text.quit} onClick={quit}>×</button>
     <main className="splash" aria-labelledby="appName">
-      <svg className="app-icon" viewBox="0 0 84 84" width="88" height="88" aria-hidden="true"><defs><linearGradient id="splashGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#434445"/><stop offset="1" stopColor="#2b2c2c"/></linearGradient></defs><rect x="1" y="1" width="82" height="82" rx="14" fill="url(#splashGradient)" stroke="#2a2e38"/><g className="waveform" fill="#ddc8aa">{[12,28,44,24,36,16].map((height,index)=><rect key={index} x={16+index*9} y={(84-height)/2} width="5" height={height} rx="2.5"/>)}</g></svg>
-      <h1 id="appName">MUSIC <span>GENERATOR</span></h1>
+      {desktopBranding ? <img className="app-icon" src={`/branding/${desktopBranding.id}.svg`} width="88" height="88" alt="" />
+        : <svg className="app-icon" viewBox="0 0 84 84" width="88" height="88" aria-hidden="true"><defs><linearGradient id="splashGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#434445"/><stop offset="1" stopColor="#2b2c2c"/></linearGradient></defs><rect x="1" y="1" width="82" height="82" rx="14" fill="url(#splashGradient)" stroke="#2a2e38"/><g className="waveform" fill="#ddc8aa">{[12,28,44,24,36,16].map((height,index)=><rect key={index} x={16+index*9} y={(84-height)/2} width="5" height={height} rx="2.5"/>)}</g></svg>}
+      <h1 id="appName">MUSIC <span>GENERATOR{desktopBranding && ` · ${desktopBranding.label.toUpperCase()}`}</span></h1>
       <p id="splashStatus" role="status" aria-live="polite">{text[status.phase]||text.starting}</p>
       {installation&&<><p id="splashInstallation" className="installation">{text.installation_steps}</p><button className="retry" type="button" aria-describedby="splashInstallation" onClick={quit}>{text.quit}</button></>}
       {!error&&!installation&&<div id="splashProgress" className="progress" role="progressbar" aria-label={text[status.phase]||text.starting}><span/></div>}

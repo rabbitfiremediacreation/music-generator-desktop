@@ -57,7 +57,7 @@ export function InstalledModels({ active, expertMode, manager, adding, onAdd }: 
     {query.error && <div><p role="alert" className="setup-error">{modelErrorText(query.error, t)}</p><button type="button" className="sek" onClick={() => void query.refetch()}>{t("settings_retry")}</button></div>}
     {catalog && inventory && sections && (inventory.rows.length ? sections.map(({ label, rows }) => <div className="installed-models-category" key={label}>
       <h5 id={label}>{t(label)}</h5>
-      {rows.length ? <div className="installed-models-table"><table aria-labelledby={label}>
+      {rows.length ? <div className="settings-inventory-table installed-models-table"><table aria-labelledby={label}>
         <thead><tr><th>{t("picker_title")}</th><th>{t("browser_precision")}</th><th>{t("browser_size")}</th><th><span className="sr-only">{t("model_actions")}</span></th></tr></thead>
         <tbody>{rows.map(model => {
           const selected = model.profile ? model.profile === activeFixed : !!current && (model.file === current.synthesis || model.file === current.language || model.file === (activeFixed && activeFixed.files[0]));
@@ -69,10 +69,10 @@ export function InstalledModels({ active, expertMode, manager, adding, onAdd }: 
           const protectedModel = selected || activeFiles?.has(model.file);
           const target: ModelRemoval = model.profile ? { kind: "profile", selection: model.profile.selection } : { kind: "file", file: model.file };
           const status = model.complete === false ? "picker_missing" : model.verified ? "picker_installed" : "picker_verify";
-          return <tr key={model.profile ? JSON.stringify(model.profile.selection) : model.file}><td><span className="installed-model-name" title={model.profile?.files.join("\n") ?? model.file}>{name} {selected && <span className="installed-active">{t("browser_active")}</span>}</span>
+          return <tr key={model.profile ? JSON.stringify(model.profile.selection) : model.file}><td><span className="settings-inventory-name" title={model.profile?.files.join("\n") ?? model.file}>{name} {selected && <span className="installed-active">{t("browser_active")}</span>}</span>
             <span className="small">{t(modelRoleLabel(model.role))} · {t(status)}</span></td>
             <td><code>{model.precision}</code></td><td>{bytes(model.estimated_bytes)}</td>
-            <td><div className="installed-model-actions">
+            <td><div className="settings-inventory-actions">
               {next && !selected && <button type="button" className="sek" disabled={busy || manager.disabled} onClick={() => activate.mutate({ next, before: manager.selectionRevision })}>{t("picker_use")}</button>}
               <span title={protectedModel ? t("model_remove_active") : undefined}>
                 <button type="button" className="sek danger" aria-label={`${t("model_remove")} · ${removeName}`} disabled={protectedModel || busy || manager.disabled} onClick={() => remove.mutate({ target, name: removeName })}>{t("model_remove")}</button>

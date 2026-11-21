@@ -1,11 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { restoreTheme } from "./desktop-theme";
+import { applyBuildBranding } from "./build-branding";
+import { restoreTitlebarDesign } from "./titlebar-design";
 import { startupErrorMessage } from "./startup-errors";
 
 let attempt = 1;
 // Catch module-loading failures as well as backend and interface initialization errors.
 async function launch(): Promise<void> {
+  applyBuildBranding();
   restoreTheme();
+  restoreTitlebarDesign();
   if (import.meta.env.DEV && import.meta.env.MODE === "development" && !("__TAURI_INTERNALS__" in window)) {
     const { installBrowserPreview } = await import("./browser-preview");
     installBrowserPreview();

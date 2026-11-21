@@ -23,6 +23,14 @@ it.each([["lofi", "lofi"], ["unavailable-theme", "classic"], [null, "classic"]])
     expect(mocks.start).toHaveBeenCalledOnce();
   },
 );
+it("restores the title bar design before initializing the desktop", async () => {
+  localStorage.setItem("desktop_titlebar_design", "dev");
+  const { currentTitlebarDesign } = await import("./titlebar-design");
+  mocks.loaded.mockImplementationOnce(() => expect(currentTitlebarDesign()).toBe("dev"));
+  await import("./launch");
+  await vi.dynamicImportSettled();
+  expect(mocks.start).toHaveBeenCalledOnce();
+});
 it("reports a failed UI initialization without depending on static screen elements", async () => {
   mocks.start.mockImplementationOnce(() => { throw new Error("module failed"); }); document.body.innerHTML = '<div id="root"></div>';
   await import("./launch"); await vi.dynamicImportSettled();
