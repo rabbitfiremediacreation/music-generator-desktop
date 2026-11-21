@@ -7,11 +7,17 @@ it("lists verified and unverified local files but excludes partial downloads", (
   const catalog = structuredClone(catalogFixture);
   catalog.models = catalog.models.map(model => ({ ...model, verified: model.file === standard.synthesis, present: model.file === standard.synthesis || model.file === standard.language, partial_bytes: 100 }));
   catalog.title_model = { ...catalog.title_model, verified: false, present: false };
-  expect(installedModels(catalog).rows.map(model => model.file)).toEqual([standard.synthesis, standard.language]);
+  const synthesis = catalog.models.find(model => model.file === standard.synthesis)!;
+  const language = catalog.models.find(model => model.file === standard.language)!;
+  const music = installedModels(catalog, "music");
+  expect(music.rows.map(model => model.file)).toEqual([synthesis.file]);
+  expect(music.totalBytes).toBe(synthesis.estimated_bytes);
+  expect(installedModels(catalog, "text").rows.map(model => model.file)).toEqual([language.file]);
   catalog.title_model.present = true;
-  const { rows: files } = installedModels(catalog);
-  expect(files.at(-1)?.role).toBe("title");
-  expect(files.filter(model => model.file === catalog.title_model.file)).toHaveLength(1);
+  const text = installedModels(catalog, "text");
+  expect(text.rows.map(model => model.file)).toEqual([language.file, catalog.title_model.file]);
+  expect(text.rows.at(-1)?.role).toBe("title");
+  expect(text.totalBytes).toBe(language.estimated_bytes + catalog.title_model.estimated_bytes);
 });
 
 it("offers cached activation only when the entire permitted profile is verified and fits RAM", () => {

@@ -52,7 +52,12 @@ impl Database {
     pub fn queue(&self) -> Result<Value> {
         let dir = self.settings()?.songs_dir;
         let con = self.lock();
-        let mut stmt = con.prepare("SELECT id,status,message,caption FROM songs WHERE status IN ('queued','running') ORDER BY created_at,rowid")?;
+        let mut stmt = con.prepare("SELECT id,status,message,caption FROM (
+            SELECT id,status,message,caption,created_at,rowid AS position FROM songs WHERE status IN ('queued','running')
+            UNION ALL SELECT id,status,phase,json_extract(request,'$.name'),created_at,rowid FROM stem_jobs WHERE status IN ('queued','running')
+            UNION ALL SELECT e.id,e.status,'export',json_extract(j.request,'$.name'),e.created_at,e.rowid FROM stem_exports e
+            JOIN stem_jobs j ON j.id=e.project_id WHERE e.status IN ('queued','running')
+        ) ORDER BY created_at,position")?;
         let rows = stmt.query_map([], |r| Ok(json!({"id":r.get::<_,String>(0)?,"status":r.get::<_,String>(1)?,"message":r.get::<_,Option<String>>(2)?,"caption":r.get::<_,String>(3)?})))?.collect::<std::result::Result<Vec<_>,_>>()?;
         let bytes: u64 = std::fs::read_dir(dir)
             .into_iter()

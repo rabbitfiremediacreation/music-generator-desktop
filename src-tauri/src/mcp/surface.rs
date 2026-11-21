@@ -57,7 +57,9 @@ pub async fn call<R: tauri::Runtime>(
             let (operation, args) = cancellation_request(args)?;
             server.dispatch_internal(operation, args).await
         }
-        name if definitions::FORWARDED.contains(&name) => {
+        name if definitions::FORWARDED.contains(&name)
+            || super::operations::stems::NAMES.contains(&name) =>
+        {
             server.dispatch_internal(name, args).await
         }
         _ => Err(message("Unknown tool")),

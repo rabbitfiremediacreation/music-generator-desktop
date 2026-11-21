@@ -138,7 +138,7 @@ impl ModelVerifier {
     }
 }
 
-async fn hash_file_with_progress(
+pub(crate) async fn hash_file_with_progress(
     path: &Path,
     cancel: &CancellationToken,
     progress: impl Fn(u64, u64),

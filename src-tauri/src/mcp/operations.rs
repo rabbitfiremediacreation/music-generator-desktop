@@ -2,6 +2,7 @@
 mod files;
 mod models;
 mod schemas;
+pub(super) mod stems;
 mod tasks;
 
 #[cfg(all(test, unix))]
@@ -17,7 +18,9 @@ use std::{path::Path, sync::Arc};
 use tauri::{AppHandle, Emitter, Manager};
 
 pub fn tools() -> Vec<Value> {
-    schemas::tools()
+    let mut tools = schemas::tools();
+    tools.extend(stems::tools());
+    tools
 }
 
 pub async fn call<R: tauri::Runtime>(
@@ -49,6 +52,22 @@ pub async fn call<R: tauri::Runtime>(
         "preview_import" => files::preview_import(state, args).await,
         "preview_library_move" => files::preview_move(state, args).await,
         "import_library" => files::import(state, app, args),
+        name if stems::NAMES.contains(&name) => {
+            let result = stems::call(name, args, &state).await;
+            if result.is_ok()
+                && matches!(
+                    name,
+                    "separate_song"
+                        | "cancel_stem_job"
+                        | "save_stem_mix"
+                        | "export_stems"
+                        | "cancel_stem_export"
+                )
+            {
+                state.changed(app);
+            }
+            result
+        }
         _ => return None,
     })
 }

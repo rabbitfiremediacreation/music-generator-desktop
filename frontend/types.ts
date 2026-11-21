@@ -49,6 +49,9 @@ export interface Yue2Options {
 }
 export type OutputKind = "audio" | "midi";
 export interface Song {
+  stem_project_count?: number;
+  stem_mix_count?: number;
+  stem_status?: "queued" | "running" | "done" | "error" | "cancelled";
   id: string; group_id: string; created_at: string; finished_at: string | null;
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;

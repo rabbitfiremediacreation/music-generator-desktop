@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { stemApi, stemError } from "../../stems";
 import { backend } from "../../backend";
 import { useI18n } from "../i18n";
 
@@ -14,6 +15,14 @@ export function HuggingFaceTokenField() {
   const [hasInput, setHasInput] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [checked, setChecked] = useState(false);
+
+  async function verifyConnection() {
+    setBusy(true); setChecked(false); setError("");
+    try { await stemApi.checkConnection(); setChecked(true); }
+    catch (cause) { setError(stemError(cause, t)); }
+    finally { setBusy(false); }
+  }
 
   async function apply(remove: boolean) {
     if (writing.current || !input.current) return;
@@ -22,6 +31,7 @@ export function HuggingFaceTokenField() {
     writing.current = true;
     setBusy(true);
     setError("");
+    setChecked(false);
     try {
       const configured = await backend.setHuggingFaceToken(token);
       await client.cancelQueries({ queryKey: statusKey });
@@ -48,10 +58,11 @@ export function HuggingFaceTokenField() {
     </div>
     <div className="settings-actions">
       <button type="button" className="sek" disabled={!hasInput || busy} onClick={() => void apply(false)}>{t("hf_token_save")}</button>
+      {status.data && <button type="button" className="sek" disabled={busy} onClick={() => void verifyConnection()}>{t("stem_hf_check")}</button>}
       {(status.data || status.isError) && <button type="button" className="sek" disabled={busy} onClick={() => void apply(true)}>{t("hf_token_remove")}</button>}
     </div>
     {error || status.isError
       ? <p role="alert" className="small err">{t(error || "hf_token_read_failed")}</p>
-      : <p role="status" className="small">{status.data ? t("hf_token_saved") : ""}</p>}
+      : <p role="status" className="small">{checked ? t("stem_hf_connected") : status.data ? t("hf_token_saved") : ""}</p>}
   </div>;
 }

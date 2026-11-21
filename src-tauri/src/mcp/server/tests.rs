@@ -16,7 +16,7 @@ fn fixture() -> (tempfile::TempDir, MusicServer<tauri::test::MockRuntime>) {
 fn complete_catalog_has_valid_unique_strict_schemas() {
     let tools = surface::tools();
     assert_eq!(definitions().len(), tools.len(), "duplicate tool names");
-    assert_eq!(tools.len(), 20);
+    assert_eq!(tools.len(), 20 + crate::mcp::operations::stems::NAMES.len());
     for obsolete in [
         "get_status",
         "get_settings",

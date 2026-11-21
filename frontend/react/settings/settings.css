@@ -135,9 +135,10 @@
   .settings-sidebar { flex: none; padding: 16px 16px 10px; overflow: visible; }
   .settings-sidebar h2 { margin: 0 0 12px; font-size: 16px; }
   .settings-sidebar nav { display: flex; gap: 6px; overflow-x: auto; padding: 4px 3px 8px; }
-  .settings-nav-group { display: contents; }
-  .settings-nav-group + .settings-nav-group { margin: 0; padding: 0; border: 0; }
-  .settings-nav-label, .settings-sidebar-brand { display: none; }
+  .settings-nav-group { display: flex; flex: none; align-items: flex-end; gap: 6px; position: relative; padding-top: 19px; }
+  .settings-nav-group + .settings-nav-group { margin: 0; padding-left: 8px; border-top: 0; border-left: 1px solid var(--theme-border, #ffffff0f); }
+  .settings-nav-label { position: absolute; top: 0; margin: 0 10px; }
+  .settings-sidebar-brand { display: none; }
   .settings-nav-item { width: auto; flex: none; margin: 0; padding: 8px 10px; font-size: 12px; }
   .settings-nav-item svg { width: 16px; height: 16px; }
   .settings-main { flex: 1; }
@@ -152,7 +153,6 @@
 #settingsDlg .installed-models-heading h4 { margin: 0; font-size: 15px; }
 .installed-models-heading h4 > span { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--theme-border, #ffffff12); color: var(--theme-muted, #b5bac1); font-size: 11px; font-weight: 500; }
 .installed-models-heading p { margin: 6px 0 0; }
-.installed-models-category + .installed-models-category { margin-top: 18px; }
 .installed-models-category h5 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
 .settings-inventory-table { max-height: 400px; overflow: auto; border: 1px solid var(--theme-border, #ffffff12); border-radius: 8px; scrollbar-width: thin; scrollbar-color: var(--theme-bg, #1e1f22) transparent; }
 .settings-inventory-table table { width: 100%; border-collapse: collapse; }
@@ -162,6 +162,7 @@
 .settings-inventory-name { display: block; margin-bottom: 5px; color: var(--theme-text, #f2f3f5); font: 500 12px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 .installed-active { display: inline-block; margin-left: 5px; padding: 2px 5px; border-radius: 4px; background: var(--theme-accent-wash, #5865f22b); color: var(--theme-accent, #b9bfff); font: 500 10px var(--font-sans); }
 #settingsDlg .settings-inventory-table .small { display: block; font-size: 10px; }
+.stem-inventory-repository { overflow-wrap: anywhere; white-space: normal; }
 #settingsDlg .settings-inventory-table .sek { padding: 6px 9px; font-size: 11px; white-space: normal; }
 .settings-inventory-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .engine-table-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }

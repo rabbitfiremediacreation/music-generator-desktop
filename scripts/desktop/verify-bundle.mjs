@@ -118,7 +118,7 @@ try {
   const record = extracted.find(file => path.basename(file) === "TITLE_RUNTIME.json");
   assert(record, "Bundled title runtime manifest is missing");
   const utilities = path.dirname(path.dirname(record));
-  assert(!extracted.some(file => /^(ace-server(?:\.exe)?|libace-server-plugin\.dylib|yue-synth|mimetic-synth|audiocpp_cli|audiocraft-synth|diffrhythm2-synth|mrt2-record|text2midi-runner)$/.test(path.basename(file))), "An optional engine is still in the application bundle");
+  assert(!extracted.some(file => /^(ace-server(?:\.exe)?|libace-server-plugin\.dylib|yue-synth|mimetic-synth|audiocpp_cli|audiocraft-synth|diffrhythm2-synth|mrt2-record|text2midi-runner|stem-runner)$/.test(path.basename(file))), "An optional engine is still in the application bundle");
   const app = extracted.find(file => path.basename(file) === (platform === "windows" ? (installer ? "music-generator.exe" : "Music Generator.exe") : "music-generator"));
   assert(app, "Application executable is missing");
   let engines;

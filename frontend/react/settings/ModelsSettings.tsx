@@ -1,18 +1,16 @@
 import { useEffect, useState } from "react";
 import { useIsMutating } from "@tanstack/react-query";
-import { Switch } from "../../Switch";
-import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
 import type { ModelManagerProps } from "../models/ModelManager";
 import { ModelDialog } from "../models/ModelDialog";
 import { InstalledModels } from "../models/InstalledModels";
 import type { useSettingsDraft } from "./useSettingsDraft";
-import { HuggingFaceTokenField } from "./HuggingFaceTokenField";
 
 export type SettingsModelManager = ModelManagerProps & { onManage?: () => void };
 
-export function ModelsSettings({ state, active, manager: { onManage, ...manager }, onOpenEngines }: {
-  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager; onOpenEngines?: () => void;
+export function ModelsSettings({ state, active, manager: { onManage, ...manager }, onOpenEngines, onOpenExpertSettings }: {
+  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager;
+  onOpenEngines: () => void; onOpenExpertSettings: () => void;
 }) {
   const { t } = useI18n();
   const { draft, pending } = state;
@@ -22,25 +20,12 @@ export function ModelsSettings({ state, active, manager: { onManage, ...manager 
   if (!draft) return null;
   return <>
     <div className="settings-section">
-      <InstalledModels active={active} expertMode={state.confirmedExpertMode ?? false} manager={{ ...manager, disabled: pending }} adding={adding} onAdd={() => setAdding(true)} />
-      {adding && <ModelDialog {...manager} title={t("models_add")} disabled={pending} onClose={() => setAdding(false)} onOpenEngines={onOpenEngines && (() => { setAdding(false); onOpenEngines(); })} />}
+      <InstalledModels section="music" active={active} expertMode={state.confirmedExpertMode ?? false} manager={{ ...manager, disabled: pending }} adding={adding} onAdd={() => setAdding(true)} />
+      {adding && <ModelDialog {...manager} showTitleModel={false} title={t("models_add")} disabled={pending}
+        onClose={() => setAdding(false)}
+        onOpenEngines={() => { setAdding(false); onOpenEngines(); }}
+        onOpenSettings={() => { setAdding(false); onOpenExpertSettings(); }} />}
     </div>
-    <fieldset className="settings-fields" disabled={pending || modelBusy}>
-      {active && <HuggingFaceTokenField />}
-      <div className="settings-section">
-        <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
-          <select name="lm_device" aria-label={t("lm_dev")} value={draft.lm_device} onChange={event => void state.device(event.target.value as Settings["lm_device"])}>
-            <option value="auto">{t("lm_dev_auto")}</option><option value="cpu">{t("lm_dev_cpu")}</option>
-          </select><span className="small">{t("settings_device_hint")}</span>{draft.cpu_only && <span className="small">{t("desktop_intel_cpu_hint")}</span>}
-        </label>
-      </div>
-      <div className="settings-section">
-        <Switch className="settings-toggle" label={t("expert_mode")} name="expert_mode" checked={draft.expert_mode}
-          onChange={event => state.change({ expert_mode: event.target.checked })} aria-describedby="expertModeHint" />
-        <p id="expertModeHint" className="small">{t("expert_mode_hint")}</p>
-        {draft.expert_mode !== state.confirmedExpertMode && <button type="button" className="sek settings-expert-apply" onClick={() => void state.applyExpertMode()}>{t("settings_apply_expert")}</button>}
-      </div>
-    </fieldset>
     {onManage && <div className="settings-section"><p id="settingsModelSetupHint" className="small">{t("desktop_manage_hint")}</p><button type="button" className="sek" disabled={pending || modelBusy} aria-describedby="settingsModelSetupHint" onClick={onManage}>{t("desktop_manage")}</button></div>}
   </>;
 }

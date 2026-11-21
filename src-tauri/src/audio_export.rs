@@ -226,3 +226,69 @@ fn converter(
     args.extend([input, output]);
     Some((codec.into(), args))
 }
+
+/// Decode a managed, container-local source for the stem adapter. Input protocols stay local.
+pub(crate) async fn decode_float(
+    root: &Path,
+    input: &Path,
+    output: &Path,
+    cancel: &CancellationToken,
+) -> Result<()> {
+    let (program, args) = if let Some(codec) = formats::ffmpeg() {
+        let mut args: Vec<_> = [
+            "-nostdin",
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            "file",
+            "-f",
+            "mov",
+            "-i",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        args.push(input.to_string_lossy().into());
+        args.extend(["-map", "0:a:0", "-c:a", "pcm_f32le"].map(str::to_owned));
+        (codec.path.as_path(), args)
+    } else if let Some(codec) = formats::afconvert() {
+        (
+            codec,
+            vec![
+                "-f".into(),
+                "WAVE".into(),
+                "-d".into(),
+                "LEF32".into(),
+                input.to_string_lossy().into(),
+            ],
+        )
+    } else {
+        return Err(message("stem_source_decode"));
+    };
+    let mut args = args;
+    args.push(output.to_string_lossy().into());
+    let logs = root.join("logs");
+    std::fs::create_dir_all(&logs)?;
+    let log = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(logs.join("stem-separation.log"))?;
+    let mut child = tokio::process::Command::new(program)
+        .args(args)
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(log)
+        .spawn()?;
+    let status = tokio::select! {
+        _ = cancel.cancelled() => { let _ = child.kill().await; return Err(Error::Cancelled); },
+        result = tokio::time::timeout(Duration::from_secs(180), child.wait()) => result,
+    };
+    if status.is_ok_and(|result| result.is_ok_and(|status| status.success()))
+        && nonempty_file(output)
+    {
+        Ok(())
+    } else {
+        Err(message("stem_source_decode"))
+    }
+}

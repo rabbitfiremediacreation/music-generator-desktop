@@ -6,6 +6,7 @@ import { waitForPaint } from "../startup-paint";
 import { startupErrorMessage } from "../startup-errors";
 import { selectionFromSettings } from "../creator-models";
 import { modelAllowed } from "../expert-mode";
+import type { StemJob } from "../stems";
 import type { Bootstrap, ModelSelection, Song } from "../types";
 import { I18nProvider, useI18n } from "./i18n";
 import { bootstrapQuery, startupAttempt, queryKeys, settingsQuery } from "./data";
@@ -22,6 +23,8 @@ import { SetupScreen } from "./setup/SetupScreen";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import type { SettingsPage } from "./settings/SettingsNavigation";
 import { focusStudioArea, useAppMenu } from "./useAppMenu";
+import { StemStudio, type StemStudioRequest } from "./stems/StemStudio";
+import { StemMixer } from "./stems/StemMixer";
 import { ImportDialog } from "./import/ImportDialog";
 import { ErrorState, LoadingState } from "./ui";
 
@@ -61,12 +64,17 @@ function DesktopShell(){
   const [folder,setFolder]=useState(()=>stored("folder","")),[settingsOpen,setSettingsOpen]=useState(false),[settingsBusy,setSettingsBusy]=useState(false);
   const [settingsPage,setSettingsPage]=useState<{page:SettingsPage}>({page:"generation"}),[requestedModel,setRequestedModel]=useState<ModelSelection|null>(null);
   const [reuse,setReuse]=useState<{song:Song;revision:number}>(),[analysis,setAnalysis]=useState<{values:Record<string,unknown>;microphone:boolean;revision:number}>(),[recommendedSteps,setRecommendedSteps]=useState<{steps:number;revision:number}>();
+  const [stemStudio,setStemStudio] = useState<StemStudioRequest | null>(null);
+  const [mixerJob,setMixerJob] = useState<StemJob | null>(null);
+  const [mixerPreview,setMixerPreview] = useState<StemJob | null>(null);
+  const [mixerSeparation,setMixerSeparation] = useState<StemStudioRequest | null>(null);
   const [importState,setImportState]=useState<{mode:"import"|"move";target:string;done?:(songsDir:string)=>void}|null>(null);
   const [setupReady,setSetupReady]=useState(false),[libraryReady,setLibraryReady]=useState(false),[formReady,setFormReady]=useState(false),[modelsReady,setModelsReady]=useState(false);
   const [startupComplete,setStartupComplete]=useState(false);
   const reported=useRef(false),flush=useRef<()=>Promise<void>>(async()=>{});
   const intentRevision=useRef(0);
-  const operations=useIsMutating({predicate:mutation=>["setup","models","import"].includes(String(mutation.options.mutationKey?.[0]))}),studio=path==="/studio",blocked=settingsOpen||settingsBusy||!studio||importState!==null||operations>0;
+  const operations=useIsMutating({predicate:mutation=>["setup","models","import"].includes(String(mutation.options.mutationKey?.[0]))}),studio=path==="/studio";
+  const studioVisible=studio&&!mixerJob,blocked=settingsOpen||settingsBusy||!studioVisible||importState!==null||operations>0;
   const blockingOperations=useIsMutating({predicate:mutation=>["setup","import"].includes(String(mutation.options.mutationKey?.[0]))});
   const {requestClose:close,closingAccepted}=useDesktop(operations>0,flush);
   const openSettings=useCallback((page:SettingsPage="generation",requested:ModelSelection|null=null)=>{if(settingsOpen)return;setSettingsPage({page});setRequestedModel(requested);setSettingsOpen(true);},[settingsOpen]);
@@ -108,26 +116,43 @@ function DesktopShell(){
     return()=>cancelAnimationFrame(frame);
   },[studio,libraryReady,formReady,modelsReady]);
   useEffect(()=>{
-    if(!studio)return;
+    if(!studioVisible)return;
     const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const area=event.code==="KeyB"?"library":event.code==="KeyN"?"creator":null;if(area&&focusStudioArea(area))event.preventDefault();};
     document.addEventListener("keydown",keyboard);return()=>document.removeEventListener("keydown",keyboard);
-  },[studio]);
+  },[studioVisible]);
   const allowed=modelAllowed(selection??undefined,settings.data?.expert_mode??false,settings.data?.recommended_profiles??bootstrap.recommended_profiles);
   return <PlayerProvider><GenerationAdmissionProvider settingsBlocked={blocked}>
     <WindowBar onClose={close} studioControls={studio?{selection,onSettings:()=>openSettings(),inert:closingAccepted}:undefined}/><div className="glow" aria-hidden="true"/>
     <SceneContext.Provider value={{bootstrap:{...bootstrap,settings:settings.data??bootstrap.settings},complete,back,ready:setupInitialized,importLibrary}}><Outlet/></SceneContext.Provider>
-    {!bootstrap.needs_setup&&<main id="studio" hidden={!studio} inert={closingAccepted}>
+    {!bootstrap.needs_setup&&<main id="studio" hidden={!studioVisible} inert={closingAccepted || !studioVisible}>
       <div className={`wrap ${layout!=="stack"?"side":""}`}>
         {studio&&<Header selection={selection} reference={reference} blocked={blocked||closingAccepted} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
-          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onOpenEngines={()=>openSettings("engines")} onReady={modelsInitialized}/>
+          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onOpenEngines={()=>openSettings("engines")} onOpenExpertSettings={()=>openSettings("general")} onReady={modelsInitialized}/>
           <GenerationForm selection={selection} reference={reference} onSelectionChange={selectModel} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
         </section>
-        <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>
-      </div><Player/>
+        <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed} onStems={setStemStudio}/>
+      </div><Player mixerOpen={Boolean(mixerJob)}/>
+    </main>}
+    {studio&&mixerJob&&<main id="stem-mixer-view" className="mixer-view" hidden={Boolean(mixerPreview)} inert={closingAccepted || Boolean(mixerPreview)}>
+      <StemMixer job={mixerJob} key={mixerJob.id} onBack={()=>setMixerJob(null)}
+        onClose={()=>{setMixerJob(null);setStemStudio(null);}} onOpenProject={setMixerJob}
+        onNewSeparation={()=>setMixerSeparation({source:mixerJob.source,folder:mixerJob.request.folder_id??undefined})}/>
+    </main>}
+    {studio&&mixerPreview&&<main className="mixer-view" inert={closingAccepted}>
+      <StemMixer job={mixerPreview} onBack={()=>setMixerPreview(null)}
+        onClose={()=>{setMixerPreview(null);setMixerSeparation(null);setMixerJob(null);setStemStudio(null);}}/>
     </main>}
     <SettingsDialog open={settingsOpen} pageRequest={settingsPage} onClose={()=>setSettingsOpen(false)} onBusyChange={setSettingsBusy} modelManager={{selection:requestedModel??selection,currentSelection:selection,selectionRevision:intentRevision.current,onUse:acceptSettingsModel,onManage:manage,onRecommendedSteps:steps=>setRecommendedSteps({steps,revision:++intentRevision.current})}} onMoveLibrary={()=>setImportState({mode:"move",target:settings.data?.songs_dir??bootstrap.settings.songs_dir})} layout={layout} onLayoutChange={setLayoutChoice}/>
+    {stemStudio&&<StemStudio key={stemStudio.song?.id ?? "all-projects"} request={stemStudio} open={studio&&!mixerJob} close={()=>setStemStudio(null)} onMixer={setMixerJob}
+      onOpenEngines={()=>openSettings("engines")} onOpenModels={()=>openSettings("stems")}/>}
+    {mixerSeparation&&<StemStudio request={mixerSeparation} open={studio&&!!mixerJob&&!mixerPreview} openQueuedResult={false}
+      close={()=>setMixerSeparation(null)} onMixer={job=>{
+        if(job.request.preview){setMixerPreview(job);return;}
+        setMixerSeparation(null);setMixerJob(job);
+      }}
+      onOpenEngines={()=>openSettings("engines")} onOpenModels={()=>openSettings("stems")}/>}
     {importState&&<ImportDialog open mode={importState.mode} songsDirectory={importState.target} platform={bootstrap.hardware.platform} onClose={()=>setImportState(null)} onImported={directory=>importState.done?.(directory)}/>}
   </GenerationAdmissionProvider></PlayerProvider>;
 }

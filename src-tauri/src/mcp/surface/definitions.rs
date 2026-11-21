@@ -78,7 +78,7 @@ pub(super) fn tools() -> Vec<Value> {
     cancel["annotations"]["idempotentHint"] = true.into();
 
     let mut tools = vec![context, generate, song, operations, models, cancel];
-    for name in FORWARDED {
+    for name in FORWARDED.iter().chain(operations::stems::NAMES) {
         let mut definition = originals[*name].clone();
         if matches!(*name, "update_song" | "save_folder" | "update_settings") {
             definition["annotations"]["destructiveHint"] = true.into();

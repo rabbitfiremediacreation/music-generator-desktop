@@ -177,6 +177,12 @@ impl rusqlite::types::FromSql for OutputKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Song {
     pub id: String,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub stem_project_count: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub stem_mix_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stem_status: Option<String>,
     pub group_id: String,
     pub created_at: String,
     pub started_at: Option<String>,
@@ -199,6 +205,10 @@ pub struct Song {
     pub folder_id: Option<String>,
     pub letter: String,
     pub path: Option<String>,
+}
+
+fn is_zero(value: &u32) -> bool {
+    *value == 0
 }
 
 impl Song {

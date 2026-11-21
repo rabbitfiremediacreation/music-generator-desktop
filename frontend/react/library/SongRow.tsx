@@ -13,11 +13,12 @@ import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
 import { usePlayer } from "../player";
 import { useGenerationAdmission } from "../generation/admission";
+import type { StemStudioRequest } from "../stems/StemStudio";
 import { progressText } from "../../progress";
 
-export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newGroup,exportFormats,queueProgress}: {
+export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems}: {
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
-  armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormats:AudioFormat[];queueProgress?:JobProgress|null;
+  armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormats:AudioFormat[];queueProgress?:JobProgress|null;onStems?:(request:StemStudioRequest)=>void;
 }) {
   const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
   const publicDisclosureId = useId();
@@ -31,6 +32,9 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
   const audioExtension = audioFormats[exportFormats[0] ?? "wav"].extension ?? song.file?.split(".").pop();
   const audioFormat = audioExtension?.toUpperCase() || t("download_original");
   const canCancel = song.status === "queued" || song.status === "running";
+  const projectCount = song.stem_project_count ?? 0;
+  const stemJobStatus = song.stem_status && ["queued", "running", "error"].includes(song.stem_status)
+    ? t(`stem_${song.stem_status}`) : null;
   const confirmDelete = !canCancel && armed;
   const removeLabel = t(canCancel ? "cancel" : confirmDelete ? "del_q" : "del");
   useEffect(() => { if (editing) {edit.current?.focus();edit.current?.select();} },[editing]);
@@ -97,6 +101,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       </div>}
       {song.status==="done"&&Boolean(meta.title_generation_error)&&<div className="s err" title={String(meta.title_generation_error)}>{t("title_failed")}</div>}
       {song.audio_missing&&<div className="s err">{t(midi ? "midi_missing" : "import_audio_missing")}</div>}
+      {onStems && projectCount > 0 && stemJobStatus && <div className="s">{t("stem_jobs")} · {stemJobStatus}</div>}
       {!midi&&warning&&!song.audio_missing&&<div className="s duration-warning" role="note">{t(`duration_${warning.code}`,audioTime(warning.actual_seconds),audioTime(warning.requested_seconds))}</div>}
     </div>
     <div className="actions relative">
@@ -106,6 +111,12 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
         : <DownloadFormatMenu formats={exportFormats} label={t("download")} menuLabel={t("download_format")} originalLabel={t("download_original")}
             className="sek icon download fmt" descriptionId={generatedBy?publicDisclosureId:undefined} disabled={change.isPending}
             onChoose={format=>change.mutate(()=>exportSong(song,false,format))}>{audioFormat}</DownloadFormatMenu>)}
+      {onStems && !projectCount && !midi && song.status === "done" && song.path && <button className="sek mini" type="button" onClick={() => onStems({ song })}>{t("stem_split")}</button>}
+      {onStems && (projectCount > 0
+        ? <button className="sek mini" type="button" onClick={() => onStems({ song, projects: true, openLatest: true })}>{t("stem_mixer")}</button>
+        : stemJobStatus && <button className="sek mini" type="button" onClick={() => onStems({ song, projects: true })}>
+          {t("stem_projects")} · {stemJobStatus}
+        </button>)}
       {lyrics&&action(t(suppliedLyrics ? "lyrics" : "show_lyrics"),"TXT",()=>setLyricsOpen(!lyricsOpen),`txt ${lyricsOpen?"on":""}`)}
       {folders.length>0&&<div ref={moveMenu}>{action(t("move"),"▱",()=>setMoving(!moving))}{moving&&<div className="song-move-menu" role="menu" onKeyDown={event=>{if(event.key==="Escape")setMoving(false);}}>{[{id:"none",name:t("f_none"),count:0},...folders].map(folder=><button role="menuitem" key={folder.id} className={(song.folder_id||"none")===folder.id?"on":""} onClick={()=>{setMoving(false);change.mutate(()=>backend.patch(song.id,{folder_id:folder.id==="none"?null:folder.id}));}}>{folder.name}</button>)}</div>}</div>}
       {action(t("more"),"＋",()=>{void more();},"",admission.busy)}

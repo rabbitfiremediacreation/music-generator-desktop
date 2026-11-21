@@ -99,7 +99,7 @@
 .model-file-status small { color: var(--model-muted); font-size: 9px; }
 .model-browser .title-model-card, #settingsDlg .model-browser .title-model-card { margin: 20px 0; border-color: var(--model-line); border-radius: 9px; background: var(--theme-surface-low, #25252b); }
 .model-hardware-summary { color: var(--model-muted); font-size: 11px; line-height: 1.6; }
-#modelPicker .model-picker-head { margin-bottom: 12px; }
+.model-picker-dialog .model-picker-head { margin-bottom: 12px; }
 @media (max-height: 560px) {
   .model-browser { grid-template-rows: auto; height: auto; }
   .model-family-list { max-height: 220px; }

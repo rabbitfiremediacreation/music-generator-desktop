@@ -1,0 +1,191 @@
+.stem-studio {
+  width: min(1080px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2.5rem);
+  padding: clamp(1rem, 2vw, 1.75rem);
+  color: var(--text, inherit);
+}
+
+.stem-head,
+.stem-row {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+
+.stem-head,
+.stem-spread {
+  justify-content: space-between;
+}
+
+.stem-head h2,
+.stem-mixer h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stem-head p {
+  margin: .25rem 0 0;
+}
+
+.stem-nav {
+  border-bottom: 1px solid var(--border);
+  padding: .9rem 0;
+  margin-bottom: 1rem;
+}
+
+.stem-studio button[aria-pressed="true"],
+.stem-models button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.stem-wizard,
+.stem-models,
+.stem-exports,
+.stem-projects {
+  display: grid;
+  gap: .75rem;
+  min-width: 0;
+}
+
+.stem-wizard p,
+.stem-models p,
+.stem-projects p,
+.stem-mixer p {
+  margin: .3rem 0;
+  overflow-wrap: anywhere;
+}
+
+.stem-block {
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  background: var(--surface, transparent);
+  padding: .8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stem-block > .stem-row + .stem-row,
+.stem-block > .stem-row + details {
+  margin-top: .65rem;
+}
+
+.stem-studio .field,
+.stem-models .field {
+  min-width: 0;
+  margin: 0;
+  gap: .3rem;
+}
+
+.stem-row > .field {
+  flex: 1 1 9rem;
+}
+
+.stem-studio input,
+.stem-studio select,
+.stem-models input,
+.stem-models select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stem-studio button,
+.stem-models button {
+  min-height: 2rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.stem-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem .9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 .6rem;
+}
+
+.stem-steps li {
+  border-bottom: 2px solid transparent;
+  padding: .3rem 0;
+}
+
+.stem-steps [aria-current="step"] {
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+.stem-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 4rem;
+  gap: .75rem;
+  border: 1px dashed var(--border);
+  border-radius: .6rem;
+  padding: .6rem;
+}
+
+.stem-drop.on {
+  border-color: var(--accent);
+}
+
+.stem-waveform {
+  display: block;
+  width: 100%;
+  height: 68px;
+  color: var(--accent2, var(--accent));
+}
+
+.stem-source-player {
+  max-width: 100%;
+  margin: .4rem 0;
+}
+
+.stem-summary {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: .35rem .9rem;
+}
+
+.stem-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stem-check {
+  display: inline-flex;
+  gap: .4rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.stem-check input {
+  width: auto;
+}
+
+.stem-progress {
+  display: grid;
+  gap: .25rem;
+  margin: .55rem 0;
+}
+
+.stem-progress progress {
+  width: 100%;
+}
+
+.stem-role-vocals { --role-color: #df8ca2; }
+.stem-role-bass { --role-color: #9d9dea; }
+.stem-role-drums { --role-color: #dfac64; }
+.stem-role-other { --role-color: #75b0c7; }
+.stem-role-piano { --role-color: #b2a2c0; }
+.stem-role-guitar { --role-color: #8db28b; }
+.stem-role-instrumental { --role-color: #68baa8; }
+
+@media (max-width: 560px) {
+  .stem-studio {
+    width: calc(100vw - .8rem);
+    padding: .85rem;
+  }
+}

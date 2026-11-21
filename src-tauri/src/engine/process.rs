@@ -14,9 +14,18 @@ pub(crate) use plugin::ACE_PLUGIN;
 
 #[cfg(target_os = "macos")]
 fn supervisor() -> std::io::Result<std::path::PathBuf> {
+    #[cfg(test)]
+    if let Some(test_binary) = std::env::var_os("MUSIC_STEM_QA_SUPERVISOR") {
+        return Ok(test_binary.into());
+    }
     let executable = std::env::current_exe()?;
     let helper = executable.with_file_name("music-engine-supervisor");
     Ok(if helper.is_file() { helper } else { executable })
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn plugin_command(engine: &Path) -> std::io::Result<tokio::process::Command> {
+    Ok(plugin::command(supervisor()?, engine, true).into())
 }
 
 pub(crate) fn probe_command(engine: &Path) -> std::io::Result<tokio::process::Command> {

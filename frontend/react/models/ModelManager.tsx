@@ -9,15 +9,17 @@ import { ModelDownloadProgress } from "./ModelDownloadProgress";
 import { ModelBrowser } from "./ModelBrowser";
 import { ModelProfileFiles } from "./ModelProfileFiles";
 import { ModelProfileDetails } from "./ModelProfileDetails";
+import { TitleModelCard } from "./TitleModelCard";
 import { useModelDialog } from "./useModelDialog";
 
 export interface ModelManagerProps {
   selection: ModelSelection | null; currentSelection: ModelSelection | null;
   selectionRevision: number; onUse: (selection: ModelSelection, before: number) => void;
   onOpenSettings?: () => void; onOpenEngines?: () => void; onRecommendedSteps?: (steps: number) => void; disabled?: boolean;
+  showTitleModel?: boolean;
 }
 
-export function ModelManager({ selection, currentSelection, selectionRevision, onUse, onOpenSettings, onOpenEngines, onRecommendedSteps, disabled = false }: ModelManagerProps) {
+export function ModelManager({ selection, currentSelection, selectionRevision, onUse, onOpenSettings, onOpenEngines, onRecommendedSteps, disabled = false, showTitleModel = true }: ModelManagerProps) {
   const { t, language } = useI18n();
   const state = useModelDialog(selection, selectionRevision, onUse);
   const { draft, busy } = state;
@@ -131,11 +133,7 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
           {metadata && missingFiles && <button type="button" className="sek" disabled={busy || disabled || state.catalog.isFetching} onClick={() => void state.catalog.refetch()}>{t("provider_refresh_files")}</button>}
         </>}
       </section>
-      {catalog.expert_mode && !metadata && <section className="title-model-card" aria-labelledby="titleModelHeading">
-          <h3 id="titleModelHeading">{t("title_model")}</h3><p className="small">{t("title_model_hint")}</p>
-          <p className="small" role="status">Qwen3 0.6B Q8 · {bytes(catalog.title_model.estimated_bytes)} · {t(catalog.title_model.verified ? "picker_installed" : catalog.title_model.present ? "picker_verify" : "picker_missing")}</p>
-          {!catalog.title_model.verified && <button type="button" className="sek" disabled={disabled || busy || catalog.busy || (catalog.free_bytes !== null && !catalog.title_model.present && Math.max(0, catalog.title_model.estimated_bytes - catalog.title_model.partial_bytes) + 64 * 1024 ** 2 > catalog.free_bytes)} onClick={() => state.title.mutate()}>{t(catalog.title_model.present ? "title_model_verify" : "title_model_download")}</button>}
-      </section>}
+      {showTitleModel && catalog.expert_mode && !metadata && <TitleModelCard catalog={catalog} disabled={disabled || busy} onDownload={() => state.title.mutate()} />}
       {metadata && <ModelProfileDetails profile={metadata} bytes={bytes} total={selected.models.reduce((total, file) => total + file.estimated_bytes, 0)} folder={evaluation && !canInstall && !verifyOnly ? catalog.models_dir : undefined} />}
       {selected.models.length > 0 && <ModelProfileFiles selected={selected} />}
       <details className="model-picker-disclosure">

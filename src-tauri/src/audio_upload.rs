@@ -70,7 +70,7 @@ pub(crate) fn handle(
         );
         return;
     };
-    if request.method() != Method::POST || request.uri().path() != "/analyze" {
+    if request.method() != Method::POST || !matches!(request.uri().path(), "/analyze" | "/stems") {
         respond(responder, origin, Err(message("audio_read")));
         return;
     }
@@ -79,9 +79,16 @@ pub(crate) fn handle(
         .map(|state| Arc::clone(&state));
     tauri::async_runtime::spawn(async move {
         let result = async {
+            let stems = request.uri().path() == "/stems";
             let (metadata, data, selection) = decode(request)?;
             let state = state.ok_or_else(|| message("audio_read"))?;
-            analyze_audio(&state, data, metadata.filename, selection).await
+            if stems {
+                Ok(serde_json::to_value(
+                    crate::stems::source::upload(&state, &metadata.filename, data).await?,
+                )?)
+            } else {
+                analyze_audio(&state, data, metadata.filename, selection).await
+            }
         }
         .await;
         respond(responder, origin, result);

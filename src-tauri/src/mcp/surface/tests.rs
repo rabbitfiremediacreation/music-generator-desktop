@@ -9,10 +9,13 @@ fn definitions() -> BTreeMap<String, Value> {
 }
 
 #[test]
-fn public_vocabulary_has_twenty_unique_tools_and_no_superseded_aliases() {
+fn public_vocabulary_has_unique_tools_and_no_superseded_aliases() {
     let all = definitions();
-    assert_eq!(tools().len(), 20);
-    assert_eq!(all.len(), 20);
+    assert_eq!(tools().len(), all.len());
+    assert_eq!(all.len(), 20 + crate::mcp::operations::stems::NAMES.len());
+    for name in crate::mcp::operations::stems::NAMES {
+        assert!(all.contains_key(*name), "{name}");
+    }
     for removed in [
         "get_status",
         "get_settings",

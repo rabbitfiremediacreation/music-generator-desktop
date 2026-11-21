@@ -1,7 +1,8 @@
 import { useI18n } from "../i18n";
 
 export const settingsGroups = [
-  { title: "settings_app", pages: ["generation", "models", "engines", "library", "appearance"] },
+  { title: "settings_app", pages: ["general", "generation", "library", "appearance"] },
+  { title: "settings_models_group", pages: ["engines", "models", "llm", "stems"] },
   { title: "settings_connections", pages: ["phone", "mcp"] },
   { title: "settings_information", pages: ["about"] },
 ] as const;
@@ -9,9 +10,12 @@ export const settingsGroups = [
 export type SettingsPage = typeof settingsGroups[number]["pages"][number];
 
 const icons: Record<SettingsPage, string> = {
+  general: "M4 5h16v14H4Zm4 4h8m-8 4h5",
   generation: "M4 7h16M4 17h16M8 4v6m8 4v6",
   models: "M7 7h10v10H7ZM9 3v4m6-4v4M9 17v4m6-4v4M3 9h4m-4 6h4m10-6h4m-4 6h4",
   engines: "M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4",
+  llm: "M4 4h16v12H9l-5 4V4Zm4 4h8m-8 4h5",
+  stems: "M4 10v4m4-7v10m4-13v16m4-12v8m4-5v2",
   library: "M3 7V5a1 1 0 0 1 1-1h6l2 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z",
   appearance: "M4 4h16v16H4ZM10 4v16m0-10h10",
   phone: "M8 2h8a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm3 17h2",
@@ -26,8 +30,8 @@ export function SettingsNavigation({ page, onChange, disabled }: {
   return <aside className="settings-sidebar">
     <h2 id="settingsHeading">{t("settings_title")}</h2>
     <nav aria-label={t("settings_title")}>
-      {settingsGroups.map(group => <div className="settings-nav-group" key={group.title}>
-        <p className="settings-nav-label">{t(group.title)}</p>
+      {settingsGroups.map(group => <div className="settings-nav-group" key={group.title} role="group" aria-labelledby={group.title}>
+        <p className="settings-nav-label" id={group.title}>{t(group.title)}</p>
         {group.pages.map(value => <button key={value} type="button" className="settings-nav-item"
           aria-current={page === value ? "page" : undefined} aria-controls={`settings-${value}`}
           disabled={disabled} onClick={() => onChange(value)}>

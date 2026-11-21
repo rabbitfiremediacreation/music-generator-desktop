@@ -417,6 +417,55 @@ mod tests {
         assert_eq!(std::fs::read(result.unwrap()).unwrap(), b"abcdef");
     }
 
+    #[tokio::test]
+    async fn corrupt_resume_is_never_promoted() {
+        use axum::{http::HeaderMap, routing::get, Router};
+        use sha2::{Digest, Sha256};
+
+        let server = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/model", server.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/model",
+                get(|headers: HeaderMap| async move {
+                    assert_eq!(headers[RANGE], "bytes=3-");
+                    (
+                        StatusCode::PARTIAL_CONTENT,
+                        [(CONTENT_RANGE, "bytes 3-5/6")],
+                        "def",
+                    )
+                }),
+            );
+            axum::serve(server, app).await.unwrap();
+        });
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        let model = Model {
+            file: "weights.safetensors".into(),
+            estimated_bytes: 6,
+            sha256: format!("{:x}", Sha256::digest(b"abcdef")),
+            kind: "stem-separation".into(),
+        };
+        std::fs::write(root.join("weights.safetensors.part"), b"bad").unwrap();
+        let result = download_pinned_model(
+            &client().unwrap(),
+            &url,
+            root,
+            &model,
+            &mut ModelVerifier::open(root),
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await;
+        task.abort();
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Checksum mismatch"));
+        assert!(!root.join("weights.safetensors").exists());
+        assert!(!root.join("weights.safetensors.part").exists());
+    }
+
     #[test]
     fn disk_space_boundary_and_diagnostics() {
         let root = Path::new("CUDA data/Größe");

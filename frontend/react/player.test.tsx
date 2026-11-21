@@ -93,6 +93,21 @@ it("toggles playback on Space with neutral focus and names the next action", asy
   expect(screen.getByRole("button", { name: "Abspielen" })).toBe(playerButton);
 });
 
+it("pauses the library for the mixer and ignores Space and pending media loads there", async () => {
+  let loaded!: () => void;
+  engine.loadBlob.mockImplementationOnce(() => new Promise<void>(resolve => { loaded = resolve; }));
+  const player = (mixerOpen: boolean) => <I18nProvider><PlayerProvider><Choices/><Player mixerOpen={mixerOpen}/></PlayerProvider></I18nProvider>;
+  const view = render(player(false));
+  fireEvent.click(screen.getByText("first"));
+  await waitFor(() => expect(engine.loadBlob).toHaveBeenCalledOnce());
+  view.rerender(player(true));
+  expect(engine.pause).toHaveBeenCalledOnce();
+  await act(async () => loaded());
+  expect(engine.play).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.body, { key: " ", code: "Space" });
+  expect(engine.playPause).not.toHaveBeenCalled();
+});
+
 it.each(["{}","42",'"bad"'])("tolerates corrupted saved player preferences %s",async(value)=>{
   localStorage.setItem("played",value);localStorage.setItem("volume",value);
   render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);

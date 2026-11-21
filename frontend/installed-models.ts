@@ -8,8 +8,10 @@ export interface InstalledModel {
   profile?: CatalogProfile; complete?: boolean;
 }
 
+export type ModelInventorySection = "music" | "text";
+
 /** Include local files awaiting verification, but exclude incomplete downloads. */
-export function installedModels(catalog: ModelCatalog) {
+export function installedModels(catalog: ModelCatalog, section: ModelInventorySection) {
   const local = catalog.models.filter(model => model.present || model.verified);
   const grouped = new Set<CatalogModel>();
   const groups: InstalledModel[] = [];
@@ -36,14 +38,17 @@ export function installedModels(catalog: ModelCatalog) {
     model.role === "language" && !model.category ? { ...model, category: "llm" } : model,
   );
   const rows = [...standalone, ...groups];
-  let totalBytes = local.reduce((total, model) => total + model.estimated_bytes, 0);
+  const localSizes = new Map(local.map(model => [model.file, model.estimated_bytes]));
   if ((catalog.title_model.present || catalog.title_model.verified) && !local.some(model => model.file === catalog.title_model.file)) {
     rows.push({ ...catalog.title_model, role: "title", category: "llm", precision: catalog.title_model.file.match(/-(BF16|Q\d_[\w]+)\.gguf$/)?.[1] ?? "—" });
-    totalBytes += catalog.title_model.estimated_bytes;
+    localSizes.set(catalog.title_model.file, catalog.title_model.estimated_bytes);
   }
   const order = { synthesis: 0, weights: 0, language: 1, dependency: 2, codec: 2, tokenizer: 2, config: 2, license: 2, title: 3 };
   rows.sort((a, b) => order[a.role] - order[b.role] || (a.profile?.name ?? modelName(a.file)).localeCompare(b.profile?.name ?? modelName(b.file)));
-  return { rows, totalBytes };
+  const visible = rows.filter(row => Boolean(row.category) === (section === "text"));
+  const files = new Set(visible.flatMap(row => row.profile?.files ?? [row.file]));
+  const totalBytes = [...files].reduce((total, file) => total + (localSizes.get(file) ?? 0), 0);
+  return { rows: visible, totalBytes };
 }
 
 /** Installed-row activation must use an entirely verified, permitted local profile. */

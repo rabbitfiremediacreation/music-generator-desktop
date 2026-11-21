@@ -207,7 +207,7 @@ it("keeps every generation entrypoint blocked after closing a pending device sav
   mocks.saveSettings.mockImplementationOnce(() => new Promise<Settings>(resolve => { finish = resolve; }));
   const { form } = await mount();
   fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
-  fireEvent.click(await screen.findByRole("button", { name: t("settings_page_models") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("settings_page_llm") }));
   fireEvent.change(await screen.findByRole("combobox", { name: t("lm_dev") }), { target: { value: "cpu" } });
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: t("cancel") }));

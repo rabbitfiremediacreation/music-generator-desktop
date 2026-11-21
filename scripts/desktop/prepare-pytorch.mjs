@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { architecture, download, exists, files, hash, platform, root, run, target } from "./common.mjs";
 import { pluginLinkerFlags, prepareArm64MachO, probeMacPlugin } from "./macos-plugin.mjs";
+import { prepareStems, stemRuntimeFiles, verifyStems } from "./prepare-stems.mjs";
 import { prepareText2midi } from "./prepare-text2midi.mjs";
 
 const cache = path.join(root, ".cache/desktop/mimetic-runtime");
@@ -48,7 +49,7 @@ function supportsPyTorchBundle() {
 
 async function recipe() {
   const paths = [fileURLToPath(import.meta.url), ...await files(directory), shim,
-    ...["macos-plugin.mjs", "prepare-text2midi.mjs", "embedded-python-plugin.cpp"].map(file => path.join(root, "scripts/desktop", file)),
+    ...["macos-plugin.mjs", "prepare-text2midi.mjs", "embedded-python-plugin.cpp", ...stemRuntimeFiles].map(file => path.join(root, "scripts/desktop", file)),
     ...["text2midi.py", "decoder.py", "vocab_remi.json", "LICENSE.upstream", "LICENSE.vocab", "NOTICE"].map(file => path.join(midiResources, file))];
   return { target: target.minimumSystemVersion, hashes: await Promise.all(paths.sort().map(hash)) };
 }
@@ -95,7 +96,8 @@ export async function preparePyTorch(destination = path.join(root, "src-tauri/re
   const marker = "PYTORCH_RUNTIME.json";
   const previous = await readFile(path.join(runtime, marker), "utf8").then(JSON.parse).catch(() => null);
   if (JSON.stringify(previous?.recipe) === JSON.stringify(desiredRecipe)
-    && await exists(executable) && await exists(path.join(midi, "text2midi-runner"))) return;
+    && await exists(executable) && await exists(path.join(midi, "text2midi-runner"))
+    && await exists(path.join(runtime, "stem-runner"))) return;
 
   await mkdir(cache, { recursive: true });
   await Promise.all(Object.values(sources).map(async source => {
@@ -149,6 +151,7 @@ export async function preparePyTorch(destination = path.join(root, "src-tauri/re
       lib, "-framework", "Foundation", ...pluginLinkerFlags, "-Wl,-rpath,@loader_path/pytorch/lib", "-o", stage,
     ]);
     await prepareText2midi(work, python, packages);
+    const demucs = await prepareStems({ cache, python, interpreter, packages, uv });
     await Promise.all([
       rm(path.join(python, "bin"), { recursive: true, force: true }),
       rm(path.join(python, "include"), { recursive: true, force: true }),
@@ -159,12 +162,13 @@ export async function preparePyTorch(destination = path.join(root, "src-tauri/re
     ]);
     for (const file of [stage, ...await files(python)]) await prepareArm64MachO(file);
     const details = await verifyMimeticRuntime(work);
+    await verifyStems(python);
     const midiCheck = await probeMacPlugin(path.join(work, "text2midi/text2midi-runner"), ["--self-test"], { timeout: 60000 });
     if (midiCheck.status !== 0 || midiCheck.stdout.trim() !== "text2midi-runner/1") {
       throw new Error(`Text2midi plug-in self-test failed: ${midiCheck.stderr || midiCheck.stdout}`);
     }
     const bytes = (await stat(stage)).size + (await Promise.all((await files(python)).map(file => stat(file).then(result => result.size)))).reduce((sum, size) => sum + size, 0);
-    await writeFile(path.join(python, marker), JSON.stringify({ recipe: desiredRecipe, sources, details, bytes }, null, 2) + "\n");
+    await writeFile(path.join(python, marker), JSON.stringify({ recipe: desiredRecipe, sources: { ...sources, demucs }, details, bytes }, null, 2) + "\n");
     await mkdir(destination, { recursive: true });
     await rm(runtime, { recursive: true, force: true });
     await rm(midi, { recursive: true, force: true });

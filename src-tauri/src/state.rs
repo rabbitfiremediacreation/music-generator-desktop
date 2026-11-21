@@ -14,6 +14,9 @@ pub struct AppState {
     pub runtime: Arc<Runtime>,
     engine: EngineManager,
     pub synthesis_probe: crate::synthesis_policy::Probe,
+    pub(crate) stem_search: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
+    pub(crate) stem_transfer:
+        std::sync::Mutex<Option<(String, tokio_util::sync::CancellationToken)>>,
     pub phone_access: crate::phone_access::PhoneAccess,
 }
 
@@ -27,6 +30,8 @@ impl AppState {
             engine: EngineManager::default(),
             synthesis_probe,
             phone_access: Default::default(),
+            stem_search: Default::default(),
+            stem_transfer: Default::default(),
         }
     }
 
@@ -72,7 +77,7 @@ impl AppState {
             .await?
             {
                 return Err(message(
-                    "Models are missing or invalid. Open Models and hardware test in Settings.",
+                    "Models are missing or invalid. Open Settings → Models → Music generation.",
                 ));
             }
         }
