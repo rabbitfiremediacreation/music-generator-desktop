@@ -44,8 +44,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost ws://127.0.0.1:1420; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' blob: ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' blob: ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost ws://127.0.0.1:1420; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": []
