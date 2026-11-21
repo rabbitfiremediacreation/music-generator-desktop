@@ -185,8 +185,9 @@ pub(crate) fn generation_policy(
         policy
     };
     policy.available = available;
-    policy.analysis_available = (selection.provider == "yue2")
-        .then(|| analysis::installed_ace_step(state, settings).is_some());
+    policy.analysis_available = (selection.provider == "yue2").then(|| {
+        analysis::installed_ace_step(state, settings, crate::hardware::inspect()).is_some()
+    });
     policy.capabilities = Some(capabilities);
     policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
     policy.lm_device = settings.lm_device.clone();
@@ -221,9 +222,10 @@ pub(crate) fn active_profile(state: &AppState) -> Result<Value> {
     let mut profile = serde_json::json!({"selection": selection, "name": name,
         "capabilities": catalog::capabilities(&selection)?, "available": available});
     if selection.provider == "yue2" {
-        profile["analysis_available"] = analysis::installed_ace_step(state, &settings)
-            .is_some()
-            .into();
+        profile["analysis_available"] =
+            analysis::installed_ace_step(state, &settings, crate::hardware::inspect())
+                .is_some()
+                .into();
     }
     Ok(profile)
 }

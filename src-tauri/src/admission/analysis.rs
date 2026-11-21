@@ -1,6 +1,7 @@
 use crate::{
     catalog::{self, Selection},
     error::{message, Result},
+    hardware::{self, Hardware},
     state::AppState,
     types::Settings,
     verification::ModelVerifier,
@@ -8,12 +9,15 @@ use crate::{
 use std::path::Path;
 
 /// Find a complete, locally verified ACE-Step profile without changing the selected model.
-pub(super) fn installed_ace_step(state: &AppState, settings: &Settings) -> Option<Selection> {
+pub(super) fn installed_ace_step(
+    state: &AppState,
+    settings: &Settings,
+    hardware: &Hardware,
+) -> Option<Selection> {
     if !crate::engine::engine_path(&state.resources).is_file() {
         return None;
     }
     let catalog = catalog::catalog();
-    let hardware = crate::hardware::inspect();
     let models = Path::new(&settings.models_dir);
     let verifier = ModelVerifier::open(&state.db.root);
     let current = Selection::from_settings(settings);
@@ -61,19 +65,34 @@ pub(super) fn installed_ace_step(state: &AppState, settings: &Settings) -> Optio
 
 /// Resolve the analysis engine for the request without saving over the studio selection.
 pub fn analysis_settings(state: &AppState, selection: Option<Selection>) -> Result<Settings> {
+    analysis_settings_for_hardware(state, selection, hardware::inspect())
+}
+
+fn analysis_settings_for_hardware(
+    state: &AppState,
+    selection: Option<Selection>,
+    hardware: &Hardware,
+) -> Result<Settings> {
     let mut settings = state.db.settings()?;
     let selection = selection.unwrap_or_else(|| Selection::from_settings(&settings));
-    let engine = if selection.provider == "yue2" {
-        catalog::ensure_allowed(&selection, settings.expert_mode)?;
-        installed_ace_step(state, &settings)
+    let yue2 = selection.provider == "yue2";
+    if !yue2 && !catalog::capabilities(&selection)?.analysis {
+        return Err(message("This model does not support audio analysis"));
+    }
+    catalog::catalog().ensure_allowed(
+        &selection,
+        settings.expert_mode,
+        (!settings.expert_mode).then_some(hardware),
+    )?;
+    let engine = if yue2 {
+        installed_ace_step(state, &settings, hardware)
             .ok_or_else(|| message("yue2_analysis_requires_ace_step"))?
     } else {
-        if !catalog::capabilities(&selection)?.analysis {
-            return Err(message("This model does not support audio analysis"));
-        }
-        catalog::ensure_allowed(&selection, settings.expert_mode)?;
         selection
     };
     engine.apply(&mut settings)?;
     Ok(settings)
 }
+
+#[cfg(test)]
+mod tests;
