@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
+import { componentRecipes } from "./engine-recipes.mjs";
 import { desktopTarget } from "./targets.mjs";
 import { audioCppDirectory, engineRecipeHash, hash, manifest, recordHashes, root, verifyEngine } from "./common.mjs";
 
@@ -11,7 +12,7 @@ it("rejects a cached engine from the other Linux variant or an older build recip
   const work = await mkdtemp(path.join(tmpdir(), "linux-provenance-test-"));
   try {
     const vulkan = desktopTarget("linux", "x64"), cuda = desktopTarget("linux", "x64", "cuda");
-    const metadata = { platform: "linux", arch: "x64", revision: manifest.engines.linux.revision, backend: "vulkan", max_inference_steps:200, recipe_sha256: await engineRecipeHash(vulkan) };
+    const metadata = { platform: "linux", arch: "x64", revision: manifest.engines.linux.revision, backend: "vulkan", max_inference_steps:200, components: await componentRecipes(vulkan), recipe_sha256: await engineRecipeHash(vulkan) };
     await writeFile(path.join(work, "ace-server"), "test engine");
     await recordHashes(work, metadata);
     await verifyEngine(work, vulkan);
@@ -19,7 +20,7 @@ it("rejects a cached engine from the other Linux variant or an older build recip
     assert.notEqual(await engineRecipeHash(cuda), metadata.recipe_sha256);
     await recordHashes(work, { ...metadata, recipe_sha256: "stale" });
     await assert.rejects(verifyEngine(work, vulkan), /build recipe changed/);
-    await recordHashes(work, { ...metadata, backend: "cuda", recipe_sha256: await engineRecipeHash(cuda) });
+    await recordHashes(work, { ...metadata, backend: "cuda", components: await componentRecipes(cuda), recipe_sha256: await engineRecipeHash(cuda) });
     await verifyEngine(work, cuda);
     await assert.rejects(verifyEngine(work, vulkan), /Linux backend changed/);
     await writeFile(path.join(work, "unrecorded.so"), "extra library");
@@ -27,7 +28,7 @@ it("rejects a cached engine from the other Linux variant or an older build recip
     await rm(path.join(work, "unrecorded.so"));
     await mkdir(path.join(work, "heartmula"));
     await writeFile(path.join(work, "heartmula/HEART_RUNTIME.json"), "retired provider");
-    await recordHashes(work, { ...metadata, backend: "cuda", recipe_sha256: await engineRecipeHash(cuda) });
+    await recordHashes(work, { ...metadata, backend: "cuda", components: await componentRecipes(cuda), recipe_sha256: await engineRecipeHash(cuda) });
     await assert.rejects(verifyEngine(work, cuda), /Retired provider resources/);
   } finally { await rm(work, { recursive: true, force: true }); }
 });
@@ -53,6 +54,7 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
       platform: "macos", arch: "arm64", revision: manifest.engines.macos.revision,
       max_inference_steps: manifest.engines.macos.max_inference_steps,
       sandbox_patch_sha256: await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")),
+      components: await componentRecipes(macos),
       recipe_sha256: await engineRecipeHash(macos),
       yue2_revision: yue2.revision,
       yue2_ggml_revision: yue2.ggml_revision,

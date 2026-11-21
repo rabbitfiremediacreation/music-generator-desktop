@@ -66,6 +66,7 @@ jobs:
           ]') }}
     runs-on: ${{ matrix.os }}
     env:
+      DESKTOP_RUNNER: ${{ matrix.os }}
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_min }}
       MUSIC_GENERATOR_LINUX_BACKEND: ${{ matrix.linux_backend || 'vulkan' }}
       MUSIC_GENERATOR_REQUIRE_NOTARIZATION: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
@@ -88,15 +89,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build curl unzip patchelf libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev libvulkan-dev libfuse2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good
-      - name: Pinned Vulkan SDK for Ubuntu 22.04
-        if: runner.os == 'Linux' && matrix.linux_backend == 'vulkan'
-        run: |
-          curl --fail --location --retry 3 https://sdk.lunarg.com/sdk/download/1.4.309.0/linux/vulkansdk-linux-x86_64-1.4.309.0.tar.xz -o "$RUNNER_TEMP/vulkan.tar.xz"
-          echo "616a25a9d8b33336e83957f97ca273b8e95461649723354300d02c26ae52a1f6  $RUNNER_TEMP/vulkan.tar.xz" | sha256sum --check
-          mkdir -p "$RUNNER_TEMP/vulkan"
-          tar -xf "$RUNNER_TEMP/vulkan.tar.xz" -C "$RUNNER_TEMP/vulkan" 1.4.309.0/x86_64
-          echo "VULKAN_SDK=$RUNNER_TEMP/vulkan/1.4.309.0/x86_64" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/vulkan/1.4.309.0/x86_64/bin" >> "$GITHUB_PATH"
       - run: npm ci
       - name: Verify native build architecture
         run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Wrong native runner architecture')"
@@ -108,17 +100,20 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Space for the CUDA compiler and runtime libraries
+        if: matrix.linux_backend == 'cuda'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
       - name: Compute native runtime cache key
         id: runtime-key
         run: node scripts/desktop/cache-runtime.mjs key
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         id: runtime-cache
         with:
           path: |
             src-tauri/resources/engine
             src-tauri/resources/WebView2
           key: ${{ steps.runtime-key.outputs.key }}
-          restore-keys: desktop-runtime-${{ matrix.name }}-
+          restore-keys: ${{ steps.runtime-key.outputs.prefix }}
       - name: Reuse verified runtime from an earlier release or branch
         id: shared-runtime
         env:
@@ -126,14 +121,28 @@ jobs:
           RUNTIME_CACHE_KEY: ${{ steps.runtime-key.outputs.key }}
           RUNTIME_CACHE_HIT: ${{ steps.runtime-cache.outputs.cache-hit }}
         run: node scripts/desktop/cache-runtime.mjs restore
-      - name: Space for the CUDA compiler and runtime libraries
-        if: matrix.linux_backend == 'cuda'
-        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Check whether the Linux engine needs compilation
+        id: linux-engine
+        if: runner.os == 'Linux' && steps.shared-runtime.outputs.restored != 'true'
+        run: node scripts/desktop/cache-runtime.mjs check-ace
+      - name: Pinned Vulkan SDK for Ubuntu 22.04
+        if: matrix.linux_backend == 'vulkan' && steps.linux-engine.outputs.build == 'true'
+        run: bash scripts/desktop/prepare-vulkan.sh
       - uses: actions/cache@v4
-        if: matrix.linux_backend == 'cuda' && steps.runtime-cache.outputs.cache-hit != 'true' && steps.shared-runtime.outputs.restored != 'true'
+        if: matrix.linux_backend == 'cuda' && steps.linux-engine.outputs.build == 'true'
         with:
           path: .cache/desktop/cuda
           key: cuda-linux-x64-${{ hashFiles('models/cuda-linux.json', 'scripts/desktop/prepare-cuda.mjs') }}
+      - name: Prepare and verify native components
+        if: steps.runtime-cache.outputs.cache-hit != 'true' && steps.shared-runtime.outputs.restored != 'true'
+        run: node scripts/desktop/cache-runtime.mjs prepare
+      - uses: actions/cache/save@v4
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            src-tauri/resources/engine
+            src-tauri/resources/WebView2
+          key: ${{ steps.runtime-key.outputs.key }}
       - uses: actions/download-artifact@v4
         if: runner.os == 'macOS' && needs.update-notes.result == 'success'
         with:

@@ -54,7 +54,7 @@ export async function packageEngines({ source, provenance, version, output, work
     !optional.some(([, , match]) => match.test(entry)) &&
     !(platform === "macos" && entry === "ace-server")
   );
-  const specs = [["ace-step", ace, aceFiles, `${provenance.revision}:${provenance.recipe_sha256}`]];
+  const specs = [["ace-step", ace, aceFiles, `${provenance.revision}:${provenance.components["ace-step"]}`]];
   if (await exists(path.join(source, "pytorch/PYTORCH_RUNTIME.json"))) {
     const { details, recipe } = JSON.parse(await readFile(path.join(source, "pytorch/PYTORCH_RUNTIME.json"), "utf8"));
     const revision = `${details.torch}:${createHash("sha256").update(JSON.stringify(recipe)).digest("hex")}`;

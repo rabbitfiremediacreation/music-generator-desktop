@@ -2,18 +2,16 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { architecture, download, exists, files, hash, platform, root, run, target } from "./common.mjs";
+import { relocateLinuxRuntime } from "./linux-runtime.mjs";
+import { titleRecipe } from "./engine-recipes.mjs";
 
 const pin = JSON.parse(await readFile(path.join(root, "models/title-model.json"), "utf8"));
 export const titleFolder = path.join(root, "src-tauri/resources/engine/title");
 const exe = platform === "windows" ? "music-title.exe" : "music-title";
-async function recipe() {
-  const sources = [fileURLToPath(import.meta.url), "scripts/desktop/targets.mjs", "scripts/desktop/title-runtime/CMakeLists.txt", "scripts/desktop/title-runtime/title.cpp", "scripts/desktop/engine-sandbox.mm", "src-tauri/Engine.entitlements"];
-  return (await Promise.all(sources.map(file => hash(path.isAbsolute(file) ? file : path.join(root, file))))).join(":");
-}
 export async function verifyTitle(folder = titleFolder, checkRecipe = true) {
   const proof = JSON.parse(await readFile(path.join(folder, "TITLE_RUNTIME.json"), "utf8"));
   if (proof.revision !== pin.engine.revision || proof.platform !== platform || proof.arch !== architecture || !proof.files[exe]) throw Error("Title runtime target/revision mismatch");
-  if (checkRecipe && proof.recipe !== await recipe()) throw Error("Title build recipe changed");
+  if (checkRecipe && proof.recipe !== await titleRecipe()) throw Error("Title build recipe changed");
   for (const [file, checksum] of Object.entries(proof.files)) {
     if (file.split("/").includes("..") || path.isAbsolute(file) || await hash(path.join(folder, file)) !== checksum) throw Error(`Title resource mismatch: ${file}`);
   }
@@ -22,7 +20,7 @@ export async function verifyTitle(folder = titleFolder, checkRecipe = true) {
 export async function recordTitle(folder = titleFolder) {
   const sums = {};
   for (const file of await files(folder)) if (path.basename(file) !== "TITLE_RUNTIME.json") sums[path.relative(folder, file).split(path.sep).join("/")] = await hash(file);
-  await writeFile(path.join(folder, "TITLE_RUNTIME.json"), JSON.stringify({ revision: pin.engine.revision, platform, arch: architecture, recipe: await recipe(), files: sums }, null, 2) + "\n");
+  await writeFile(path.join(folder, "TITLE_RUNTIME.json"), JSON.stringify({ revision: pin.engine.revision, platform, arch: architecture, recipe: await titleRecipe(), files: sums }, null, 2) + "\n");
 }
 export async function prepareTitle() {
   try { await verifyTitle(); return; } catch { /* Build pinned native CPU runtime. */ }
@@ -44,6 +42,7 @@ export async function prepareTitle() {
   await cp(path.join(source, "LICENSE"), path.join(titleFolder, "LICENSE-llama.cpp"));
   await cp(path.join(source, "licenses/LICENSE-jsonhpp"), path.join(titleFolder, "LICENSE-nlohmann-json.txt"));
   if (platform === "macos") await run("codesign", ["--force", "--sign", "-", path.join(titleFolder, exe)]);
+  if (platform === "linux") await relocateLinuxRuntime(path.dirname(titleFolder), titleFolder);
   await recordTitle(); await verifyTitle();
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await prepareTitle();

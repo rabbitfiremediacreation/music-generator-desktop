@@ -1,21 +1,17 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
+import { prepareTitle, verifyTitle } from "./prepare-title.mjs";
 import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
 import { prepareYue2 } from "./prepare-yue2.mjs";
 import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 import { preparePyTorch } from "./prepare-pytorch.mjs";
-import { magentaFolder, prepareMagenta, verifyMagenta } from "./prepare-magenta.mjs";
-import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
-import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
-import { checkoutEngineSource } from "./engine-source.mjs";
-import { prepareWindowsEngine } from "./prepare-windows-engine.mjs";
-import { verifyIterationContract } from "./engine-contract.mjs";
-import { verifyRegistryContract } from "./registry-contract.mjs";
-import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
+import { prepareMagenta, verifyMagenta } from "./prepare-magenta.mjs";
+import { prepareAce } from "./prepare-ace.mjs";
+import { componentRecipes } from "./engine-recipes.mjs";
+import { reusableComponents, removeChangedComponents } from "./engine-components.mjs";
+import { architecture, engineRecipeHash, hash, manifest, platform, recordHashes, root, target, verifyEngine } from "./common.mjs";
 
 export const engineFolder = path.join(root, "src-tauri/resources/engine");
 
@@ -24,115 +20,56 @@ export async function prepareEngine() {
   if (magenta && (platform !== "macos" || architecture !== "arm64")) {
     throw new Error("Magenta RealTime 2 requires an Apple Silicon build host");
   }
-  let existing;
-  try { existing = await verifyEngine(engineFolder); await verifyTitle(); } catch { existing = undefined; }
-  if (existing) {
-    const installed = Boolean(existing.files["magenta/mrt2-record"]);
-    const valid = installed && await verifyMagenta().then(() => true, () => false);
-    if (magenta !== installed || (magenta && !valid)) {
-      await updateMagenta(magenta);
-      const { files: _oldFiles, ...provenance } = existing;
-      await recordHashes(engineFolder, provenance);
-      await verifyEngine(engineFolder);
-    }
+  const validTitle = await verifyTitle().then(() => true, () => false);
+  const validMagenta = magenta && await verifyMagenta().then(() => true, () => false);
+  const existing = await verifyEngine(engineFolder).catch(() => undefined);
+  if (existing && validTitle && magenta === Boolean(existing.files["magenta/mrt2-record"]) && (!magenta || validMagenta)) {
     console.log("Engine resources verified.");
-    return;
+    return existing;
   }
+
   const source = manifest.engines[platform];
-  const cache = path.join(root, ".cache/desktop"); await mkdir(cache, { recursive: true });
+  const recipes = await componentRecipes();
+  const previous = existing ?? await readFile(path.join(engineFolder, "VERSION.desktop.json"), "utf8").then(JSON.parse).catch(() => undefined);
+  const reusable = await reusableComponents(engineFolder, recipes, previous);
+  if (!validTitle) reusable.delete("title");
+  if (validMagenta) reusable.add("magenta");
+  const cache = path.join(root, ".cache/desktop");
+  await mkdir(cache, { recursive: true });
+  await mkdir(engineFolder, { recursive: true });
+  await removeChangedComponents(engineFolder, reusable);
+  await writeFile(path.join(engineFolder, ".gitkeep"), "");
   const work = await mkdtemp(path.join(tmpdir(), "music-engine-"));
   try {
-    let built;
-    if (platform === "linux" || platform === "macos") {
-      const sourceDir = await checkoutEngineSource(work, source);
-      built = path.join(sourceDir, "build");
-      if (platform === "macos") {
-        // New libc++ headers expose float from_chars even when the deployment OS lacks it.
-        await run("git", ["apply", path.join(root,"scripts/desktop/patches/acestep-macos-compat.patch")], { cwd: sourceDir });
-        await run("git", ["apply", path.join(root,"scripts/desktop/patches/acestep-macos-plugin.patch")], { cwd: sourceDir });
-        await cp(path.join(root,"scripts/desktop/engine-sandbox.mm"), path.join(sourceDir,"desktop-sandbox.mm"));
-        await cp(path.join(root,"scripts/desktop/ace-server-macos-main.cpp"), path.join(sourceDir,"desktop-server-main.cpp"));
-        const cmake = path.join(sourceDir,"CMakeLists.txt");
-        await writeFile(cmake,(await readFile(cmake,"utf8")).replace("LANGUAGES C CXX)","LANGUAGES C CXX OBJC OBJCXX)"));
-      }
-      const options = [...target.cmake];
-      if (target.backend === "cuda") options.push(...await cudaBuildOptions());
-      await run("cmake", ["-S", sourceDir, "-B", built, "-DCMAKE_BUILD_TYPE=Release", ...options]);
-      await run("cmake", ["--build", built, "--config", "Release", "-j", "2"]);
-      await verifyRegistryContract(path.join(built,"desktop-registry-test"));
-      for (const file of await files(sourceDir)) if (/^(LICENSE|COPYING)/i.test(path.basename(file))) await cp(file, path.join(built, `LICENSE-${path.relative(sourceDir,file).replaceAll(path.sep,"-")}`));
-    } else {
-      built = await prepareWindowsEngine(cache, work, source);
+    let iterationLimit = previous?.max_inference_steps;
+    if (!reusable.has("ace-step")) {
+      // Relocate ACE in isolation so the tools cannot modify verified sibling engines.
+      const stage = await mkdtemp(path.join(path.dirname(engineFolder), ".ace-"));
+      try {
+        iterationLimit = await prepareAce(stage, cache, work);
+        for (const entry of await readdir(stage)) await rename(path.join(stage, entry), path.join(engineFolder, entry));
+      } finally { await rm(stage, { recursive: true, force: true }); }
     }
-    const engineExecutable = platform === "windows" ? "ace-server.exe" : "ace-server";
-    const iterationLimit = await verifyIterationContract(path.join(built, engineExecutable));
-    await rm(engineFolder, { recursive: true, force: true }); await mkdir(engineFolder, { recursive: true }); await writeFile(path.join(engineFolder,".gitkeep"), "");
-    // Preserve the complete runtime directory, including dynamically loaded GPU backends.
-    for (const file of await files(built)) {
-      const relative = path.relative(built, file);
-      if (relative.split(path.sep).some((p) => p === "CMakeFiles" || p === "_deps") || /\.(o|a|obj|pdb|lib)$/.test(file) || path.basename(file) === "desktop-registry-test") continue;
-      const dest = path.join(engineFolder, relative); await mkdir(path.dirname(dest), { recursive: true }); await cp(file, dest, { dereference: true });
-      if (platform === "linux" && /\.so(?:\.\d+)*$/.test(file) && path.dirname(dest) !== engineFolder) await cp(file, path.join(engineFolder,path.basename(file)), { dereference: true });
+    if (!reusable.has("title")) await prepareTitle();
+    if (recipes.yue2 && !reusable.has("yue2")) await prepareYue2(engineFolder, work);
+    if (recipes["audio-cpp"] && !reusable.has("audio-cpp")) await prepareAudioCpp(engineFolder, cache, work);
+    if (recipes.pytorch && !reusable.has("pytorch")) await preparePyTorch(engineFolder);
+    if (magenta && !validMagenta) {
+      await prepareMagenta();
+      await verifyMagenta();
     }
-    if (platform === "macos") {
-      await relocateMac();
-      await verifyIterationContract(path.join(engineFolder, engineExecutable));
-    }
-    if (platform === "windows") await copyWindowsCrt();
-    if (shipsYue2()) await prepareYue2(engineFolder, work);
-    await prepareTitle();
-    await prepareAudioCpp(engineFolder, cache, work);
-    await preparePyTorch(engineFolder);
-    if (magenta) await updateMagenta(true);
-    if (platform === "linux") {
-      if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());
-      await relocateLinuxRuntime(engineFolder);
-      // Relocation changes helper bytes after their initial provenance was written.
-      await recordTitle();
-    }
-    const yue2Provenance = shipsYue2() ? { yue2_revision: yue2.revision, yue2_ggml_revision: yue2.ggml_revision } : {};
-    await recordHashes(engineFolder, { platform, arch: architecture, backend: target.backend, revision: source.revision, source: source.url || source.repository, source_revision: source.source_revision || source.revision, archive_sha256: source.sha256 || null, max_inference_steps:iterationLimit, sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root,"scripts/desktop/engine-sandbox.mm")) : null, recipe_sha256: await engineRecipeHash(), ...yue2Provenance });
-    await verifyEngine(engineFolder);
-    console.log(`Prepared ${platform} engine ${source.revision}.`);
+    await recordHashes(engineFolder, {
+      platform, arch: architecture, backend: target.backend, revision: source.revision,
+      source: source.url || source.repository, source_revision: source.source_revision || source.revision,
+      archive_sha256: source.sha256 || null, max_inference_steps: iterationLimit,
+      sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root, "scripts/desktop/engine-sandbox.mm")) : null,
+      recipe_sha256: await engineRecipeHash(target, recipes), components: recipes,
+      ...(recipes.yue2 && { yue2_revision: yue2.revision, yue2_ggml_revision: yue2.ggml_revision }),
+    });
+    const prepared = await verifyEngine(engineFolder);
+    console.log(`Prepared ${platform} engine ${source.revision}. Reused components: ${[...reusable].join(", ") || "none"}.`);
+    return prepared;
   } finally { await rm(work, { recursive: true, force: true }); }
-}
-
-async function updateMagenta(enabled) {
-  if (enabled) {
-    await prepareMagenta();
-    await verifyMagenta();
-  } else {
-    await rm(magentaFolder, { recursive: true, force: true });
-  }
-}
-
-async function copyWindowsCrt() {
-  const vswhere = path.join(process.env["ProgramFiles(x86)"] || "C:/Program Files (x86)","Microsoft Visual Studio/Installer/vswhere.exe");
-  const installation = execFileSync(vswhere,["-latest","-property","installationPath"],{encoding:"utf8"}).trim();
-  const redistRoot = path.join(installation,"VC/Redist/MSVC");
-  const versions=(await readdir(redistRoot)).filter(n=>/^\d/.test(n)).sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
-  const candidates=await files(path.join(redistRoot,versions[0],"x64"));
-  for (const file of candidates) if (/^(vcruntime140(?:_1)?|msvcp140(?:_[12])?|concrt140)\.dll$/i.test(path.basename(file))) await cp(file,path.join(engineFolder,path.basename(file)));
-}
-
-async function relocateMac() {
-  const all = await files(engineFolder);
-  for (const file of all) {
-    const bytes = await readFile(file);
-    if (bytes.length < 4 || ![0xfeedfacf,0xcffaedfe,0xcafebabe].includes(bytes.readUInt32BE(0))) continue;
-    const headers = execFileSync("otool", ["-l", file], { encoding: "utf8" });
-    for (const match of headers.matchAll(/cmd LC_RPATH\s+cmdsize \d+\s+path (.+?) \(offset/g)) {
-      if (match[1].startsWith("/")) await run("install_name_tool", ["-delete_rpath", match[1], file]);
-    }
-    if (!headers.includes("path @loader_path (offset")) await run("install_name_tool", ["-add_rpath", "@loader_path", file]);
-    const dependencies = execFileSync("otool", ["-L", file], { encoding: "utf8" });
-    for (const line of dependencies.split("\n").slice(1)) {
-      const dependency = line.trim().split(" (compatibility")[0];
-      if (dependency.startsWith("/") && !dependency.startsWith("/usr/lib/") && !dependency.startsWith("/System/") && await exists(path.join(engineFolder, path.basename(dependency)))) await run("install_name_tool", ["-change", dependency, `@loader_path/${path.basename(dependency)}`, file]);
-    }
-    // Development launches these binaries directly. build.mjs signs the packaged copies for sandbox inheritance.
-    await run("codesign", ["--force", "--sign", "-", file]);
-  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await prepareEngine();
