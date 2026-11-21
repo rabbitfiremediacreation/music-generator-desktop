@@ -29,6 +29,7 @@ it("registers before the snapshot and refreshes an event received during the ini
   let finish!: (value: string[]) => void;
   mocks.invoke.mockReset().mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValue(["new song"]);
   const client = createAppQueryClient();
+  client.setQueryData(["stem-mixes", "project"], []);
   render(<QueryClientProvider client={client}><EventBridge><Snapshot /></EventBridge></QueryClientProvider>);
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledOnce());
   expect(callbacks.has("library-changed")).toBe(true);
@@ -36,6 +37,7 @@ it("registers before the snapshot and refreshes an event received during the ini
   await new Promise(resolve => setTimeout(resolve, 120));
   await act(async () => { finish(["old song"]); });
   await screen.findByText("new song");
+  expect(client.getQueryState(["stem-mixes", "project"])?.isInvalidated).toBe(true);
 });
 
 it("ignores stale progress and cleans every subscription under StrictMode", async () => {

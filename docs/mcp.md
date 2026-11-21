@@ -108,7 +108,7 @@ Es ist keine Node-/Python-Installation nötig. stdout enthält ausschließlich M
 
 ## Werkzeuge
 
-Die 20 öffentlichen Werkzeuge sind nach Aufgaben gebündelt. `tools/list` ist die verbindliche Beschreibung aller Argumente, Grenzen und Auswirkungen. Unbekannte Felder, falsche Typen und Werte außerhalb der erlaubten Bereiche werden vor der Ausführung zurückgewiesen. Erfolgreiche Ergebnisse stehen in `structuredContent.result` und zusätzlich als Text für ältere Clients. Fachliche Fehler verwenden MCP `isError: true`.
+`tools/list` ist die verbindliche Beschreibung aller Argumente, Grenzen und Auswirkungen. Unbekannte Felder, falsche Typen und Werte außerhalb der erlaubten Bereiche werden vor der Ausführung zurückgewiesen. Erfolgreiche Ergebnisse stehen in `structuredContent.result` und zusätzlich als Text für ältere Clients. Fachliche Fehler verwenden MCP `isError: true`.
 
 | Bereich | Werkzeuge | Verhalten |
 | --- | --- | --- |
@@ -122,9 +122,15 @@ Die 20 öffentlichen Werkzeuge sind nach Aufgaben gebündelt. `tools/list` ist d
 | Einstellungen | `update_settings`, `preview_library_move` | Expert Mode, CPU-Verhalten, Sprachmodellgerät, Exportformat, Timeout und vorab prüfbarer Bibliotheksort |
 | Audio | `analyze_audio`, `export_file` | Analyse lokaler Dateien; Audio, Lyrics und ZIP exportieren |
 | Übernahme | `preview_import`, `import_library` | Bestehende Installation prüfen und in eine leere Bibliothek importieren |
+| Stem-Modelle | `list_stem_models`, `set_stem_model` | Trennprofile und Engine prüfen, installierte Revision aktivieren oder die Katalogrevision samt Engine einrichten |
+| Trennung | `separate_song`, `list_stem_jobs`, `get_stem_job`, `cancel_stem_job`, `retry_stem_job` | Audioquelle und Zeitbereich trennen, Vorschau erzeugen, Projekt verfolgen und erneut starten |
+| Mixer | `list_stem_mixes`, `save_stem_mix`, `add_stem_track` | Mischfassungen lesen und speichern, externe Spur ausrichten und als Kanal oder Ersatz verwenden |
+| Stem-Export | `export_stems`, `list_stem_exports`, `get_stem_export`, `cancel_stem_export` | Einzelspuren, Mix oder ZIP rendern und lokale Ergebnisdateien ermitteln |
 | Hintergrundaufträge | `get_operations` | Alle aktiven/letzten Aufträge oder einen Auftrag per `operation_id` lesen; Abbruch über `cancel_job` |
 
-Generierung unterstützt Prompt, Stil, Caption, Lyrics, Instrumentalmodus, Titel, Dauer von 10–600 Sekunden, BPM, Tonart, Takt, Sprache, Seed, 1–10 Varianten, 1–200 Iterationen, Varianz, Gruppen, Ordner und konkrete Modellkombinationen. Nicht angegebene Samplingwerte übernehmen die gespeicherten Studio-Werte beziehungsweise die Hardware-/Modellempfehlung. Ein leerer Titel nutzt die automatische lokale Titelvergabe und kann den Download des gemeinsamen Titelmodells auslösen.
+`list_models` mit `{"view":"installed"}` liefert vollständig verifizierte Modellkombinationen mit `selection`, Ausgabetyp, Verfügbarkeit und gegebenenfalls dem Grund einer Sperre. Ohne Argumente liefert das Tool den vollständigen Katalog. Für einen Modellvergleich pro Profil dessen `selection` an `get_context` mit `sections: ["policy"]` übergeben und anschließend als `model_selection` in einem eigenen `generate_music`-Aufruf verwenden. Jeder Song speichert seine Modellwahl. `set_models` ändert die Studio-Voreinstellung.
+
+Die Fähigkeiten des gewählten Profils bestimmen Dauer, Varianten und Eingaben. Dazu gehören je nach Profil Prompt, Stil, Lyrics, Instrumentalmodus, Seed, Taktzahl für kurze Clips oder YuE2-Samplingparameter. Text2midi liefert MIDI. ACE-Step übernimmt ausgelassene Samplingwerte aus dem Studio oder der Hardwareempfehlung. Bei einem leeren Titel kann ACE-Step das gemeinsame Titelmodell herunterladen.
 
 `generate_music` mit `source_song_id` übernimmt die gespeicherte Anfrage und erzeugt standardmäßig eine Variante. Direkt mitgegebene Generierungsparameter überschreiben gezielt die geerbten Werte; ohne Quellsong gelten die Studio-Vorgaben. Modelle und Expert-Mode-Regeln werden wie in der Oberfläche geprüft. Bei CPU oder unbekanntem Backend gilt das gespeicherte Verhalten für mehr als 30 Iterationen. Bei `ask` muss der Agent `cpu_iteration_decision: "limit_30"` oder `"continue"` übergeben; eine gespeicherte Begrenzung bleibt maßgeblich. Eine begrenzte Wiederholung erzeugt einen neuen Song und erhält die ursprüngliche Anfrage.
 
@@ -136,7 +142,7 @@ Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern
 
 ## Typischer Ablauf
 
-1. `get_context` und `list_models` lesen.
+1. `list_models` mit `{"view":"installed"}` und die Generierungsregeln über `get_context` lesen.
 2. Bei Bedarf eine vorhandene Modellkombination mit `set_models` aktivieren. Downloads nur ausdrücklich mit `download_missing: true` erlauben und den zurückgegebenen Auftrag verfolgen.
 3. `generate_music` aufrufen, beispielsweise:
 
@@ -155,6 +161,25 @@ Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern
 4. Für die zurückgegebenen IDs `get_song`, optional mit `wait_seconds: 30`, abfragen. Erst `status: "done"` bestätigt ein fertiges Ergebnis. `result_meta` enthält tatsächliche Dauer und mögliche Warnungen.
 5. Optional `update_song` für Favorit/Ordner aufrufen und `export_file` mit `kind: "audio"`, Song-`id` und absolutem `destination` starten. Anschließend `get_operations` mit der `operation_id` bis zum Abschluss abfragen.
 
+## Vom Song zum Stem-Mix
+
+1. Mit `list_stem_models` die verfügbaren Rollen und den Status des Trennmodells prüfen. Für eine Installation `set_stem_model` mit `download_missing: true` aufrufen. In `pin` gehören `model` (die Katalog-`id`), `repository` und `revision`. Das Tool richtet bei Bedarf auch die Trenn-Engine ein. Den Auftrag mit `get_operations` verfolgen.
+2. `separate_song` nimmt genau eine Quelle entgegen. `song_id` bezeichnet einen Bibliothekstitel, `source_id` die verwaltete Quelle eines früheren Projekts und `path` eine zugängliche Audiodatei auf dem Desktop-Rechner. Das folgende Beispiel trennt acht Sekunden Gesang und Begleitung.
+
+   ```json
+   {"song_id":"SONG_ID","model_id":"htdemucs","name":"Refrain","start":12,"end":20,"preview":true,"outputs":["vocals","instrumental"]}
+   ```
+
+3. Mit der zurückgegebenen Projekt-ID `get_stem_job` aufrufen. Bei `status: "done"` liefert `include_mix: true` den `default_mix` mit den tatsächlichen Kanälen und dem vollständigen Framebereich. Für eine vorhandene Fassung `list_stem_mixes` verwenden.
+4. Im Mix beispielsweise am Kanal `vocals` den Wert `gain_db` auf `-3` setzen. Kanal-EQ, Kompressor, Limiter, Stereobreite und Filter stehen in `fx`. `first` und das exklusive `end` verwenden Projektframes, Fades verwenden Sekunden. Mit `save_stem_mix` Projekt-`id`, `name` und den bearbeiteten `mix` speichern. Zum Aktualisieren die ID der Fassung im Feld `version` mitsenden.
+5. Die ID der gespeicherten Fassung als `version_id` an `export_stems` übergeben. Der Export übernimmt ihren Zustand beim Einreihen. Bei Einzelspuren und Paketen übernimmt er die Export-Häkchen, wenn `selected` fehlt. Auch ein direkt übergebener `mix` wird unterstützt.
+
+   ```json
+   {"request":{"project_id":"PROJEKT_ID","version_id":"FASSUNGS_ID","kind":"mix","format":"wav","wav_format":"pcm24"}}
+   ```
+
+6. Mit der Export-ID `get_stem_export` abfragen. Bei `export.status: "done"` enthält `local_files` die fertigen Dateien auf dem Desktop-Rechner.
+
 ## Ressourcen und Prompt
 
 Es gibt JSON-Ressourcen unter `music://status`, `music://settings`, `music://models` und `music://queue`, sowie Templates `music://songs/{id}` und `music://operations/{id}`. Audiopfade gehören zum Computer, auf dem die Desktop-App läuft; Audiodateien werden nicht als große Base64-Blöcke in den Modellkontext kopiert. Der Prompt `create_music` mit Argument `brief` beschreibt den vollständigen Arbeitsablauf.
@@ -163,7 +188,7 @@ Es gibt JSON-Ressourcen unter `music://status`, `music://settings`, `music://mod
 
 - Die erste Modelleinrichtung und neue macOS-Ordnerfreigaben erfolgen über die nativen Dialoge. MCP umgeht die App Sandbox nicht. Analyse-, Import- und Exportpfade müssen absolut und für die App zugänglich sein.
 - Audioanalyse akzeptiert dieselben Formate wie die Oberfläche und höchstens 60 MiB. Modell-/Konfigurationsarbeiten nutzen dieselbe exklusive Laufzeitsteuerung wie die Oberfläche; Konflikte liefern verständliche Fehler.
-- Exporte benötigen eine freie aktive Laufzeit; bereits eingereihte Songs laufen anschließend weiter. Sie nutzen das eingestellte WAV-/MP3-Format; die Dateiendung muss passen. Vorhandene Dateien bleiben ohne `overwrite: true` erhalten. Exporte werden zunächst separat erstellt und erst nach Erfolg veröffentlicht. Datenbank-, Modell- und Original-Song-Verzeichnisse sind als Exportziele gesperrt.
+- Bibliotheksexporte mit `export_file` benötigen eine freie aktive Laufzeit; bereits eingereihte Songs laufen anschließend weiter. Sie nutzen das eingestellte WAV-/MP3-Format; die Dateiendung muss passen. Vorhandene Dateien bleiben ohne `overwrite: true` erhalten. Exporte werden zunächst separat erstellt und erst nach Erfolg veröffentlicht. Datenbank-, Modell- und Original-Song-Verzeichnisse sind als Exportziele gesperrt.
 - `update_settings` wartet auf den Abschluss der Änderung, einschließlich eines Bibliotheksumzugs. Einen Umzug vorher mit `preview_library_move` prüfen; er benötigt eine leere Warteschlange.
 - MCP steuert Backend-Aufgaben. Native Fensterdialoge, Mikrofonaufnahme, UI-Layout und Playerbedienung bleiben in der Oberfläche.
 - Große Downloads und echte Musikberechnung benötigen weiterhin passende Modelle, Speicher und Rechenzeit. Die automatisierten MCP-Integrationstests verwenden eine isolierte Bibliothek und einen simulierten Tauri-Fensterlaufzeitkern; sie behaupten keine neue Hardware-/Audioabnahme.

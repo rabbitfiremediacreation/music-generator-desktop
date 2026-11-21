@@ -1,4 +1,5 @@
 mod queue;
+mod separation;
 use super::{engine, export, managed_dir, model, source};
 use crate::{
     error::{message, Error, Result},
@@ -8,6 +9,7 @@ use crate::{
 };
 pub(crate) use queue::Work;
 use rusqlite::{params, OptionalExtension, Row};
+pub use separation::{from_song, FromSong, Input, Options};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -400,51 +402,4 @@ async fn separate(
 
 pub async fn run_export(state: &AppState, id: &str, operation: &Operation, notify: impl Fn()) {
     export::run(state, id, &operation.cancellation(), notify).await;
-}
-
-#[derive(Deserialize)]
-pub struct FromSong {
-    pub song_id: String,
-    pub model_id: String,
-    #[serde(default)]
-    pub vocals_and_instrumental: bool,
-}
-
-pub async fn from_song(state: &AppState, input: FromSong) -> Result<String> {
-    let catalog = model::catalog(state)?;
-    let model = catalog
-        .models
-        .into_iter()
-        .find(|model| model.profile.id == input.model_id)
-        .ok_or_else(|| message("stem_model_unknown"))?;
-    let pin = model
-        .active
-        .filter(|_| model.status == "ready")
-        .ok_or_else(|| message("stem_model_missing"))?;
-    let source = source::song(state, &input.song_id).await?;
-    let outputs = if input.vocals_and_instrumental {
-        vec!["vocals".into(), "instrumental".into()]
-    } else {
-        model
-            .profile
-            .roles
-            .iter()
-            .map(|role| (*role).into())
-            .collect()
-    };
-    enqueue(
-        state,
-        Request {
-            source_id: source.id,
-            pin: pin.pin,
-            name: source.name.chars().take(160).collect(),
-            folder_id: None,
-            start: 0.0,
-            end: None,
-            quality: Quality::Standard,
-            overlap: 0.25,
-            outputs,
-            preview: false,
-        },
-    )
 }

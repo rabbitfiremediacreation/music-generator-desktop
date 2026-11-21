@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use tokio_util::sync::CancellationToken;
 
+#[cfg(unix)]
+mod mcp_client;
 mod project_management;
 
 fn state(root: &Path, resources: PathBuf) -> AppState {
@@ -92,47 +94,10 @@ async fn offline_separation_mix_and_export_after_restart_and_model_removal() {
         std::fs::copy(fixture.join(profile.configuration.file), &config_path).unwrap();
         std::fs::copy(fixture.join(profile.artifact.file), &model_path).unwrap();
     }
-    model::install(&first, &pin, &cancel, |_| {})
-        .await
-        .unwrap_or_else(|error| {
-            let log =
-                std::fs::read_to_string(root.join("logs/stem-separation.log")).unwrap_or_default();
-            panic!("{error}: {log}")
-        });
+    let job_id = mcp_client::install_and_separate(first, &source_file, profile).await;
     if online {
         eprintln!("Pinned Hugging Face configuration and checkpoint download verified.");
     }
-    let source = source::snapshot(&first, &source_file, "Synthetic reference", None, &cancel)
-        .await
-        .unwrap();
-    let job_id = jobs::enqueue(
-        &first,
-        jobs::Request {
-            source_id: source.id.clone(),
-            pin: pin.clone(),
-            name: "Reference separation".into(),
-            folder_id: None,
-            start: 0.15,
-            // This range resamples to 132413.00625 frames, which rounds down in float32.
-            end: Some(151_323.0 / 48_000.0),
-            quality: if profile.id == "htdemucs-6s" {
-                jobs::Quality::Standard
-            } else {
-                jobs::Quality::Fast
-            },
-            overlap: 0.25,
-            preview: false,
-            outputs: profile
-                .roles
-                .iter()
-                .copied()
-                .chain(["instrumental"])
-                .map(str::to_owned)
-                .collect(),
-        },
-    )
-    .unwrap();
-    drop(first);
 
     // Reopen with a durable queued job and run the identical worker path used in the GUI.
     let second = state(root, runtimes.clone());
@@ -186,6 +151,7 @@ async fn offline_separation_mix_and_export_after_restart_and_model_removal() {
         job.error,
         std::fs::read_to_string(root.join("logs/stem-separation.log")).unwrap_or_default()
     );
+    let source = &job.source;
     let project = job.complete().unwrap();
     assert_eq!(
         (

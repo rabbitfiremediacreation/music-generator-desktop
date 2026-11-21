@@ -162,7 +162,7 @@ pub(super) fn import<R: tauri::Runtime>(
     Ok(result)
 }
 
-fn absolute(path: &str) -> Result<PathBuf> {
+pub(super) fn absolute(path: &str) -> Result<PathBuf> {
     let path = PathBuf::from(path);
     if !path.is_absolute() {
         return Err(message(

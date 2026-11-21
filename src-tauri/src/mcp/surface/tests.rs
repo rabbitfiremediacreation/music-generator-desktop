@@ -144,3 +144,44 @@ fn cancellation_targets_remain_distinct_and_async_results_name_public_polling() 
         "get_operations"
     );
 }
+
+#[test]
+fn separation_and_mixer_schemas_describe_inputs_and_reject_typos() {
+    let tools = definitions();
+    let separate = jsonschema::validator_for(&tools["separate_song"]["inputSchema"]).unwrap();
+    assert!(separate.is_valid(&json!({"song_id":"song","model_id":"htdemucs"})));
+    assert!(
+        separate.is_valid(&json!({"path":"/music/beat.wav","model_id":"htdemucs",
+        "preview":true,"quality":"fast","outputs":["drums"],"start":2,"end":8,"overlap":0.1}))
+    );
+    assert!(!separate
+        .is_valid(&json!({"path":"/music/beat.wav","song_id":"song","model_id":"htdemucs"})));
+    assert!(!separate.is_valid(&json!({"song_id":"song","model_id":"htdemucs","overlap":1})));
+
+    let save = jsonschema::validator_for(&tools["save_stem_mix"]["inputSchema"]).unwrap();
+    let track = json!({"role":"vocals","name":"Voice","gain_db":12,"pan":0,
+        "mute":false,"solo":true,"fade_in":0,"fade_out":0});
+    let mut args = json!({"id":"project","name":"Main","mix":{
+        "tracks":[track],"master_db":0,"first":0,"end":100,"looping":false}});
+    assert!(save.is_valid(&args), "legacy mixes are supported");
+    args["mix"]["tracks"][0]["fx"] = json!({"comp":42,"width":175,"filter":-58});
+    assert!(save.is_valid(&args));
+    args["mix"]["tracks"][0]["fx"]["low_db"] = json!(13);
+    assert!(!save.is_valid(&args));
+    args["mix"]["tracks"][0]["fx"] = json!({"widht":25});
+    assert!(!save.is_valid(&args));
+}
+
+#[test]
+fn export_accepts_a_saved_mix_or_an_inline_snapshot() {
+    let tools = definitions();
+    let export = jsonschema::validator_for(&tools["export_stems"]["inputSchema"]).unwrap();
+    let mut args = json!({"request":{"project_id":"project","kind":"mix","version_id":"mix-id",
+        "format":"wav","wav_format":"pcm24"}});
+    assert!(export.is_valid(&args));
+    args["request"]["channels"] = json!(3);
+    assert!(!export.is_valid(&args));
+    args["request"]["channels"] = json!(1);
+    args["request"]["mix"] = json!({});
+    assert!(!export.is_valid(&args));
+}
