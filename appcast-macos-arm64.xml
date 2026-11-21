@@ -5,19 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>247</sparkle:version>
+      <sparkle:version>251</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-244</h2>
+      <description><![CDATA[<h2>Changes since develop-247</h2>
 <ul>
-<li>Fix stem resampling frame count rounding (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/160">#160</a>)</li>
-<li>Reuse native engine components across Linux CUDA builds (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/159">#159</a>)</li>
+<li>Add MCP multimodel stem mixing workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/161">#161</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/a9d295ad38e2849e6d4dc74ea92f9e7e8e030871...673418d0514a497b47d1d6c668027d7542947401">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-247/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="ZVWWf7rGz8xk3r8Tbe2/TdCzDyQ0MbD6MGpT+OZHzNEtuyhgG64DnnwemZ0iUdRp5etG+r17aVutgdV3R3dtBg==" length="13691390" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/673418d0514a497b47d1d6c668027d7542947401...f264562d901dcd82f73128b5b40a05f378a58e4c">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-251/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="/tOk5m5QhDLvN+9wQOl0KnyuFi58pGSZyH3EZ7sJLKsgfkg/TvCiN/LzXzJgyiVTdzf+NqEaRMNJLqC/xmGJBw==" length="13753485" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: N88CR2ggH2fwplHpsVIFfk/O5TyMht+7/aNibILiL9W8dbtZI+njvh9RTRM3hZkm6DrUcaUB+FYH2mDzHtifBw==
-length: 1629
+edSignature: Fy0HxS24GM5U1sTJIHWyjvm0BAxK30/Wfa+caVvqrtzijKTlWjhzlyEfex/4BlDt08XTzQYNNedPML9rMW0UCA==
+length: 1467
 -->
