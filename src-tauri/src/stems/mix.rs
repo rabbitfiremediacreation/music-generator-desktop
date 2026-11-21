@@ -497,7 +497,9 @@ mod tests {
         let mut bytes = [0; 32];
         wave.read(&mut bytes).unwrap();
         let samples: Vec<_> = bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|sample| sample_value(sample).unwrap())
             .collect();
         assert_eq!(samples, [0.25, 0.25, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0]);
@@ -598,7 +600,7 @@ mod tests {
         for (frame, expected) in checkpoints {
             audio.seek(frame).unwrap();
             audio.read(&mut stereo).unwrap();
-            for (index, sample) in stereo.chunks_exact(4).enumerate() {
+            for (index, sample) in stereo.as_chunks::<4>().0.iter().enumerate() {
                 assert!(
                     (sample_value(sample).unwrap() - expected[index]).abs() < 1e-6,
                     "frame {frame}, channel {index}"

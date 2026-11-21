@@ -134,12 +134,20 @@ pub fn get(state: &AppState, id: &str) -> Result<Job> {
 }
 
 pub fn latest_for_song(state: &AppState, song_id: &str) -> Result<Job> {
-    state.db.lock().query_row(
-        &format!("SELECT {JOB_FIELDS} FROM stem_jobs j JOIN stem_sources s ON s.id=j.source_id
+    state
+        .db
+        .lock()
+        .query_row(
+            &format!(
+                "SELECT {JOB_FIELDS} FROM stem_jobs j JOIN stem_sources s ON s.id=j.source_id
                   WHERE s.song_id=?1 AND j.status='done' AND json_extract(j.request,'$.preview')=0
-                  ORDER BY j.created_at DESC,j.rowid DESC LIMIT 1"),
-        [song_id], row,
-    ).optional()?.ok_or_else(|| message("stem_project_missing"))
+                  ORDER BY j.created_at DESC,j.rowid DESC LIMIT 1"
+            ),
+            [song_id],
+            row,
+        )
+        .optional()?
+        .ok_or_else(|| message("stem_project_missing"))
 }
 
 pub fn enqueue(state: &AppState, request: Request) -> Result<String> {
