@@ -16,6 +16,8 @@ pub fn initialize<R: Runtime>(
         eprintln!("Unable to initialize startup logging: {error}");
     }
     for config in &app.config().app.windows {
+        #[cfg(windows)]
+        let config = &placement::restore_config(app, config);
         WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
     }
     Ok(())
@@ -79,3 +81,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(any(windows, test))]
+mod placement;
