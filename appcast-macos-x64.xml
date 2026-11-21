@@ -5,18 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>237</sparkle:version>
+      <sparkle:version>241</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.3</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-236</h2>
+      <description><![CDATA[<h2>Changes since develop-237</h2>
 <ul>
-<li>Document verified ACE-Step seed reproducibility (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/154">#154</a>)</li>
+<li>Add local stem separation and mixer workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/158">#158</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/5f8fcd8912276fbcfba718feb833dabeaa0967ab...aed66029dd1358842e605dba36314963ab0204b1">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-237/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="BxSwUgtR3lI2U81gJBST3fw4bSdUVNw9BMd3RrIfAAgMi+ot+IyqyoM+soJcnH3bulg1oo28cEiekbxZnHFXBQ==" length="14145343" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/aed66029dd1358842e605dba36314963ab0204b1...f3ac2ae866597f83427dbb3ed69ba5c9f28f322b">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-241/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="0aZjTWocTquPIfCnvyC9AiOON0FggfV1grk6u7tVBu6PTdaES62maZfOdaS7QxAVL+V+4W84K93aMRCkDsOrAQ==" length="14831213" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: G2+bA/ZlfzyYbOzvoCgcTYeGPbiOqhC1qMOoGF97egJx2c5aqfhV/sfAHCXQlzFQkj9hNZBu8qgawTzCukiMAA==
-length: 1472
+edSignature: DmWEH8jFZHL+tm9dw66x/PrnBcqpCNuMaSGNQOeFEm76ftTUx905nlm0xEVtSsDpFV7DJiNheP7rqc+vXsq5Ag==
+length: 1470
 -->
