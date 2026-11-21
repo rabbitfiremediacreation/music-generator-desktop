@@ -1,3 +1,5 @@
+mod stems;
+
 use super::*;
 use crate::{db::Database, types::GenerateRequest};
 use rmcp::ServiceExt;

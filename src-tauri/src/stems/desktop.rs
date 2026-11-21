@@ -42,28 +42,14 @@ pub async fn stem_check_update(state: Desktop<'_>, id: String) -> Result<model::
     model::update(&state, &id, &state.runtime.cancellation()).await
 }
 
-struct Transfer<'a>(&'a AppState);
-impl Drop for Transfer<'_> {
-    fn drop(&mut self) {
-        self.0.stem_transfer.lock().unwrap().take();
-    }
-}
-
 async fn transfer<T>(
-    state: &AppState,
+    state: &Arc<AppState>,
     app: &AppHandle,
     key: &str,
     run: impl AsyncFnOnce(tokio_util::sync::CancellationToken) -> Result<T>,
 ) -> Result<T> {
     let cancel = state.runtime.cancellation();
-    {
-        let mut running = state.stem_transfer.lock().unwrap();
-        if running.is_some() {
-            return Err(message("stem_install_busy"));
-        }
-        *running = Some((key.into(), cancel.clone()));
-    }
-    let _transfer = Transfer(state);
+    let _transfer = super::transfer::Transfer::claim(state.clone(), key, cancel.clone())?;
     let _ = app.emit("stem-models-changed", ());
     let operation = tokio::select! {
         _ = cancel.cancelled() => return Err(Error::Cancelled),

@@ -1,5 +1,6 @@
 //! Agent operations share the desktop runtime, authorization and durable services.
 mod files;
+mod installed_models;
 mod models;
 mod schemas;
 pub(super) mod stems;
@@ -34,13 +35,22 @@ pub async fn call<R: tauri::Runtime>(
         "get_settings" => settings(&state),
         "update_settings" => save_settings(state, app, args).await,
         "get_generation_policy" => policy(state, args).await,
-        "list_models" => crate::model_commands::catalog_data(&state),
+        "list_models" => tokio::task::spawn_blocking(move || {
+            if args["view"] == "installed" {
+                installed_models::list(&state)
+            } else {
+                crate::model_commands::catalog_data(&state)
+            }
+        })
+        .await
+        .unwrap_or_else(|error| Err(message(error.to_string()))),
         "select_models" => {
             selection(args).and_then(|selection| models::select(&state, app, selection))
         }
         "install_models" => {
             selection(args).and_then(|selection| models::install(state, app, selection))
         }
+        "set_stem_model" => stems::select(state, app, args),
         "download_title_model" => models::title(state, app),
         "get_operation" => string(&args, "operation_id").and_then(|id| tasks::for_app(app).get(id)),
         "list_operations" => Ok(json!({"operations":tasks::for_app(app).list()})),
@@ -58,6 +68,8 @@ pub async fn call<R: tauri::Runtime>(
                 && matches!(
                     name,
                     "separate_song"
+                        | "retry_stem_job"
+                        | "add_stem_track"
                         | "cancel_stem_job"
                         | "save_stem_mix"
                         | "export_stems"

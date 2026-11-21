@@ -1,18 +1,24 @@
-use super::{string, value};
+mod schemas;
+mod setup;
+pub(super) use setup::select;
+
+use super::{files::absolute, string, value};
 use crate::{
-    error::Result,
-    mcp::tool,
+    error::{message, Result},
     state::AppState,
-    stems::{export, jobs, mix, model},
+    stems::{export, jobs, layer, mix, model},
 };
 use serde_json::{json, Value};
 
 pub const NAMES: &[&str] = &[
     "list_stem_models",
+    "set_stem_model",
     "list_stem_jobs",
     "get_stem_job",
     "separate_song",
     "cancel_stem_job",
+    "retry_stem_job",
+    "add_stem_track",
     "list_stem_mixes",
     "save_stem_mix",
     "export_stems",
@@ -22,20 +28,38 @@ pub const NAMES: &[&str] = &[
 ];
 
 pub fn tools() -> Vec<Value> {
-    let id = json!({"id":{"type":"string","minLength":1}});
-    vec![
-        tool("list_stem_models", "List compatible local separation profiles, exact revisions and installation status.", json!({}), &[], true, false),
-        tool("list_stem_jobs", "List separation jobs and completed projects, optionally for a library song.", json!({"song_id":{"type":"string"},"folder_id":{"type":"string"},"offset":{"type":"integer","minimum":0}}), &[], true, false),
-        tool("get_stem_job", "Read status, actual stems, sample rate, frame count, original offset and pinned model revision.", id.clone(), &["id"], true, false),
-        tool("separate_song", "Queue local source separation for a managed library song using the active installed revision. vocals_and_instrumental derives accompaniment by summing non-vocal estimates.", json!({"song_id":{"type":"string"},"model_id":{"type":"string"},"vocals_and_instrumental":{"type":"boolean"}}), &["song_id","model_id"], false, false),
-        tool("cancel_stem_job", "Cancel a queued or active separation by its ID.", id.clone(), &["id"], false, false),
-        tool("list_stem_mixes", "Read named mix snapshots and settings for a completed project.", id.clone(), &["id"], true, false),
-        tool("save_stem_mix", "Save or update a mix for a completed project. Each track specifies role, name, gain_db, pan, mute, solo, fade_in and fade_out. Mix includes tracks, master_db, first, end and looping. first and end use project frames.", json!({"id":{"type":"string"},"version":{"type":"string"},"name":{"type":"string"},"mix":{"type":"object"}}), &["id","name","mix"], false, false),
-        tool("export_stems", "Queue an immutable mix snapshot for export. request fields are project_id, kind (raw, processed, mix, package), mix, selected role strings, format, wav_format (float32, pcm16, pcm24), optional sample_rate (44100 or 48000), optional channels (1 or 2), keep_position, include_original and include_mix. Returns a managed export ID.", json!({"request":{"type":"object"}}), &["request"], false, false),
-        tool("list_stem_exports", "List the managed exports belonging to a completed project. Files can be retrieved by export ID and file index using the authenticated phone-access API.", id.clone(), &["id"], true, false),
-        tool("get_stem_export", "Read status and local file paths for a managed export ID.", id.clone(), &["id"], true, false),
-        tool("cancel_stem_export", "Cancel a queued or active stem export by its ID.", id, &["id"], false, false),
-    ]
+    schemas::tools()
+}
+
+async fn separate(state: &AppState, args: Value) -> Result<Value> {
+    let options: jobs::Options = serde_json::from_value(args.clone())?;
+    let path;
+    let input = if let Some(id) = args["song_id"].as_str() {
+        jobs::Input::Song(id)
+    } else if let Some(id) = args["source_id"].as_str() {
+        jobs::Input::Managed(id)
+    } else {
+        path = absolute(string(&args, "path")?)?;
+        jobs::Input::File(&path)
+    };
+    let request = options.request(state, input).await?;
+    Ok(json!({"id":jobs::enqueue(state, request)?}))
+}
+
+fn start_export(state: &AppState, mut request: Value) -> Result<Value> {
+    if let Some(id) = request["version_id"].as_str() {
+        let mix = mix::load(state, string(&request, "project_id")?, id)?;
+        if request.get("selected").is_none() {
+            request["selected"] = json!(mix
+                .tracks
+                .iter()
+                .filter(|t| t.export)
+                .map(|t| &t.role)
+                .collect::<Vec<_>>());
+        }
+        request["mix"] = value(mix)?;
+    }
+    Ok(json!({"id": export::start(state, serde_json::from_value(request)?)?}))
 }
 
 pub async fn call(name: &str, args: Value, state: &AppState) -> Result<Value> {
@@ -44,16 +68,36 @@ pub async fn call(name: &str, args: Value, state: &AppState) -> Result<Value> {
         "list_stem_jobs" => value(jobs::list(
             state,
             args["song_id"].as_str(),
-            None,
+            args["source_id"].as_str(),
             args["folder_id"].as_str(),
             args["offset"]
                 .as_u64()
                 .unwrap_or(0)
                 .min(u64::from(u32::MAX)) as u32,
         )?),
-        "get_stem_job" => value(jobs::get(state, string(&args, "id")?)?),
-        "separate_song" => {
-            Ok(json!({"id": jobs::from_song(state, serde_json::from_value(args)?).await?}))
+        "get_stem_job" => {
+            let job = jobs::get(state, string(&args, "id")?)?;
+            let mut result = value(&job)?;
+            if args["include_mix"] == true {
+                if let Ok(project) = job.complete() {
+                    result["default_mix"] = value(mix::Mix::defaults(project))?;
+                }
+            }
+            Ok(result)
+        }
+        "separate_song" => separate(state, args).await,
+        "retry_stem_job" => {
+            let id = string(&args, "id")?;
+            jobs::retry(state, id)?;
+            Ok(json!({"id":id}))
+        }
+        "add_stem_track" => {
+            let path = absolute(string(&args, "path")?)?;
+            let name = path
+                .file_name()
+                .ok_or_else(|| message("audio_read"))?
+                .to_string_lossy();
+            value(layer::import(state, string(&args, "id")?, &path, &name).await?)
         }
         "cancel_stem_job" => Ok(json!({"cancelled": jobs::cancel(state, string(&args, "id")?)?})),
         "list_stem_mixes" => value(mix::versions(state, string(&args, "id")?)?),
@@ -64,9 +108,7 @@ pub async fn call(name: &str, args: Value, state: &AppState) -> Result<Value> {
             string(&args, "name")?,
             serde_json::from_value(args["mix"].clone())?,
         )?),
-        "export_stems" => Ok(
-            json!({"id": export::start(state, serde_json::from_value(args["request"].clone())?)?}),
-        ),
+        "export_stems" => start_export(state, args["request"].clone()),
         "list_stem_exports" => value(export::list(state, string(&args, "id")?)?),
         "get_stem_export" => {
             let id = string(&args, "id")?;

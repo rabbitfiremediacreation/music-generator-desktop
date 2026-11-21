@@ -15,7 +15,7 @@ export function EventBridge({ children }: { children: ReactNode }) {
     let changed: ReturnType<typeof setTimeout> | undefined;
     let fallback: ReturnType<typeof setTimeout> | undefined;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
-    const library = (key: readonly unknown[]) => ["songs", "song", "folders", "queue"].includes(String(key[0]));
+    const library = (key: readonly unknown[]) => ["songs", "song", "folders", "queue", "stem-mixes"].includes(String(key[0]));
     const recordProgress = (value: JobProgress) => client.setQueryData<Record<string, JobProgress>>(queryKeys.progress, previous => {
       if ((previous?.[value.job_id]?.sequence ?? -1) >= value.sequence) return previous;
       return { ...previous, [value.job_id]: value };
