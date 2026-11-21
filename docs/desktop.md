@@ -38,9 +38,9 @@ These first builds are unsigned test builds. macOS Gatekeeper and Windows SmartS
 
 ## Repeat a generation with a seed
 
-In the Studio, enter a seed under **Advanced**. With the same prompt, settings, model files, engine version and compute backend for both stages, repeated jobs send the same seeds. Synthesis receives the song seed, and the language model uses its low 32 bits. If the language model retries, it advances its seed by one within the 32-bit range. The song's result metadata stores the language-model seed that produced the selected audio codes and the retry seed when a retry was attempted.
+For ACE-Step, enter a seed under **Advanced** in the Studio. With the same prompt, settings, model files, engine version and compute backend for both stages, repeated jobs send the same seeds. The app sends the song seed to synthesis and its low 32 bits to the language model. If the language model retries, it advances its seed by one within the 32-bit range. The song's result metadata stores the language-model seed that produced the selected audio codes and the retry seed when a retry was attempted.
 
-The seed repeats the random inputs. Audio can still vary, especially after changing models, engine versions or compute backends. For songs from versions that chose the first language-model seed separately, entering the old song seed may produce different audio. Leave the seed field empty to have the app choose a random song seed for each version.
+Two instrumental runs requesting 10 seconds with seed `12345`, the 4B Q8 language model, Standard Q8 synthesis and Metal produced identical audio codes and WAV files. Results may vary even with a fixed seed and matching settings. For songs from versions that chose the first language-model seed separately, entering the old song seed may produce different audio. Leave the seed field empty to have the app choose a random song seed for each version. [Metal test results](https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/112)
 
 ## Automatic song titles
 
