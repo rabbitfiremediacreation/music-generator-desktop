@@ -146,3 +146,19 @@ export const modelSettingsTranslations: Record<Language, { settings_apply_expert
   zh: { settings_apply_expert: "应用专家模式", settings_models_immediate: "模型更改和下载立即生效。其他未保存的设置会保留。", picker_cancel_download: "取消下载" },
 };
 for (const [language, messages] of Object.entries(modelSettingsTranslations)) Object.assign(I18N[language as Language], messages);
+
+const themeTranslations: Record<Language, { settings_theme: string; settings_theme_hint: string }> = {
+  de: { settings_theme: "Theme", settings_theme_hint: "Das Theme wird sofort angewendet und automatisch gespeichert." },
+  en: { settings_theme: "Theme", settings_theme_hint: "Theme changes apply immediately and are saved automatically." },
+  es: { settings_theme: "Tema", settings_theme_hint: "El tema se aplica de inmediato y se guarda automáticamente." },
+  fr: { settings_theme: "Thème", settings_theme_hint: "Le thème s’applique immédiatement et est enregistré automatiquement." },
+  it: { settings_theme: "Tema", settings_theme_hint: "Il tema viene applicato subito e salvato automaticamente." },
+  pt: { settings_theme: "Tema", settings_theme_hint: "O tema é aplicado de imediato e guardado automaticamente." },
+  tr: { settings_theme: "Tema", settings_theme_hint: "Tema hemen uygulanır ve otomatik olarak kaydedilir." },
+  pl: { settings_theme: "Motyw", settings_theme_hint: "Motyw jest stosowany natychmiast i zapisywany automatycznie." },
+  ru: { settings_theme: "Тема", settings_theme_hint: "Тема применяется сразу и сохраняется автоматически." },
+  uk: { settings_theme: "Тема", settings_theme_hint: "Тема застосовується одразу та зберігається автоматично." },
+  ja: { settings_theme: "テーマ", settings_theme_hint: "テーマはすぐに適用され、自動的に保存されます。" },
+  zh: { settings_theme: "主题", settings_theme_hint: "主题立即生效并自动保存。" },
+};
+for (const [language, messages] of Object.entries(themeTranslations)) Object.assign(I18N[language as Language], messages);

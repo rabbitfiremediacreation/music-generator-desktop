@@ -102,6 +102,7 @@ fn native_vocal_limits_apply_to_lyrics_tags_seeds_and_supported_controls() {
         advanced: false,
         analysis: false,
         reference_audio: false,
+        yue2_options: false,
         max_seed: Some(u32::MAX),
         output_kind: Default::default(),
         bars: None,

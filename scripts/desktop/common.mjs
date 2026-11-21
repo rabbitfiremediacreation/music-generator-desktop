@@ -101,6 +101,13 @@ export async function verifyEngine(folder, buildTarget = target) {
     if (yue2_revision !== yue2.revision || yue2_ggml_revision !== yue2.ggml_revision || !provenance.files[yue2.executable]) {
       throw new Error("YuE2 runner is missing or has a different revision");
     }
+    if (!provenance.files[yue2.planner]) throw new Error("YuE2 instrumental planner is missing");
+    const yue2Folder = path.posix.dirname(yue2.executable);
+    if (yue2Folder === "." || Object.keys(provenance.files).some(file =>
+      path.posix.dirname(file) === yue2Folder && /^libggml-.*\.so$/.test(path.posix.basename(file))
+    )) {
+      throw new Error("YuE2 must be isolated from dynamic GGML backends");
+    }
   }
   if (buildPlatform === "macos" && buildTarget.arch === "arm64" && (!provenance.files["mimetic-synth"] || !provenance.files["mimetic-python/MIMETIC_RUNTIME.json"])) throw new Error("Mimetic A0 runtime is missing from checksums");
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");

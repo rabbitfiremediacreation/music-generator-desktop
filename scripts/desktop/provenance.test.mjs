@@ -58,9 +58,21 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
       yue2_ggml_revision: yue2.ggml_revision,
     };
     await writeFile(path.join(work, "ace-server"), "test engine");
+    await writeFile(path.join(work, "yue-synth"), "misplaced YuE2 runner");
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /YuE2 runner is missing/);
+    await rm(path.join(work, "yue-synth"));
+    const yue2Folder = path.join(work, path.dirname(yue2.executable));
+    await mkdir(yue2Folder, { recursive: true });
     await writeFile(path.join(work, yue2.executable), "test YuE2 runner");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /instrumental planner is missing/);
+    await writeFile(path.join(work, yue2.planner), "test YuE2 planner");
+    const misplacedBackend = path.join(yue2Folder, "libggml-metal.so");
+    await writeFile(misplacedBackend, "incompatible dynamic backend");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /YuE2 must be isolated/);
+    await rm(misplacedBackend);
     await recordHashes(work, metadata);
     await assert.rejects(verifyEngine(work, macos), /Mimetic A0 runtime is missing/);
     await writeFile(path.join(work, "mimetic-synth"), "test launcher");

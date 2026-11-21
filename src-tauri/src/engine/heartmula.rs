@@ -185,16 +185,20 @@ mod tests {
                 language: String::new(),
             };
             let profile = catalog.profile(&selection).unwrap();
+            assert_eq!(profile.capabilities.max_duration, 240);
             assert_eq!(model_package(profile).unwrap().as_deref(), expected);
             if let Some(file) = expected {
                 let args = arguments(
                     Path::new(file),
                     None,
                     "metal",
-                    &serde_json::json!({"lyrics":"Test", "style":"folk", "duration":5, "seed":42}),
+                    &serde_json::json!({"lyrics":"Test", "style":"folk", "duration":240, "seed":42}),
                 )
                 .unwrap();
                 assert!(args.windows(2).any(|pair| pair == ["--model", file]));
+                assert!(args
+                    .windows(2)
+                    .any(|pair| pair == ["--request-option", "duration_sec=240"]));
                 assert!(!args.iter().any(|arg| arg == "--model-spec-override"));
             }
         }
@@ -215,9 +219,14 @@ mod tests {
             style: "folk, cello".into(),
             lyrics: "The river carries on".into(),
             instrumental: false,
-            duration: f64::from(profile.capabilities.min_duration),
+            duration: 240.0,
             ..Default::default()
         };
+        let too_long = GenerateRequest {
+            duration: 240.01,
+            ..request.clone()
+        };
+        assert!(db.enqueue_with_profile(&too_long, Some(&profile)).is_err());
         let id = db
             .enqueue_with_profile(&request, Some(&profile))
             .unwrap()
@@ -228,6 +237,7 @@ mod tests {
             serde_json::to_value(&profile).unwrap()
         );
         assert_eq!(original["caption"], "folk, cello");
+        assert_eq!(original["duration"], 240.0);
         assert_eq!(original["inference_steps"], 0);
         assert!(original.get("use_cot_caption").is_none());
         assert!(original["seed"].as_u64().is_some());
@@ -236,6 +246,10 @@ mod tests {
         db.retry(&id).unwrap();
         assert_eq!(db.claim_next().unwrap().unwrap().1, original);
         let mut changed = original;
+        changed["generation_profile"]["capabilities"]["max_duration"] = 30.into();
+        assert!(validate_saved_profile(&selection, &changed).is_err());
+        changed["duration"] = 30.0.into();
+        validate_saved_profile(&selection, &changed).unwrap();
         changed["generation_profile"]["runtime_revision"] = "different-runtime".into();
         assert!(validate_saved_profile(&selection, &changed).is_err());
     }

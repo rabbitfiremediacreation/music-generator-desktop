@@ -1,6 +1,6 @@
 use crate::{
     configuration::Change,
-    download::{download_model, ensure_space},
+    download::{self, ensure_space},
     engine::client::selftest_ok,
     error::{message, Result},
     hardware, manifest,
@@ -121,15 +121,12 @@ async fn prepare_configuration(
         })
         .sum();
     ensure_space(&models, required + 1024 * 1024 * 1024)?;
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(30))
-        .read_timeout(std::time::Duration::from_secs(60))
-        .build()?;
+    let client = download::client()?;
     let mut verifier = ModelVerifier::open(&state.db.root);
     for (model, url) in selected {
-        download_model(
-            &client,
-            &url,
+        download::fetch(
+            || crate::hugging_face_token::get(&client, &url, &state.db.root),
+            None,
             &models,
             &model,
             &mut verifier,

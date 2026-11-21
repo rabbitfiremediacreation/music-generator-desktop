@@ -1,0 +1,7 @@
+.yue2-fields { margin-bottom: 16px; }
+.yue2-fields summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 13px; }
+.yue2-fields[open] > summary, .yue2-sampling[open] > summary { margin-bottom: 10px; }
+.yue2-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); gap: 0 12px; }
+.yue2-field-grid .field { min-width: 0; }
+.yue2-sampling { margin-bottom: 12px; }
+.yue2-fields > .small { margin: 0 0 12px; }

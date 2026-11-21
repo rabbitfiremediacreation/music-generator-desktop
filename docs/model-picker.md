@@ -80,7 +80,7 @@ Open **Settings → Models and hardware → Add model** and select HeartMuLa. Th
 
 Enter your own lyrics and comma-separated style tags such as `acoustic, indie pop, warm vocals`. Specify a duration cap and optionally a seed from 0 to 4,294,967,295. The model can finish early and the codec rounds to audio frames. The library reads the stored WAV to determine its playback duration and keeps native runtime separately. Studio, phone access and MCP share the same limits and use the existing queue and cancellation controls. The first-run assistant continues to install the ACE-Step starter profile.
 
-The initial HeartMuLa profile accepts 5–30 requested seconds per vocal track and is offered on macOS arm64 with Metal and at least 64 GiB of unified memory. The tested computer and WAV measurements are recorded in the hardware acceptance report. [Hardware acceptance](qa/issue-125/README.md)
+HeartMuLa profiles accept a duration limit from 5 seconds to 4 minutes per vocal track. They are offered on macOS arm64 with Metal and at least 64 GiB of unified memory. The hardware acceptance report records the tested computer and WAV measurements. [Hardware acceptance](qa/issue-125/README.md)
 
 Expert Mode offers the MindMuse Q8_0 package alongside the original F32 files under **HeartMuLa 3B Happy New Year**. The **HeartMuLa 3B** family contains the audio.cpp Q8_0 and F16 packages for the earlier checkpoint. Each GGUF has its own exact file pin and includes its codec and tokenizer. [MindMuse package](https://huggingface.co/themindstudio/HeartMuLa-GGUF/tree/b5e55eac99ff25f01608be9d2d978c00a2e8bf63) · [audio.cpp packages](https://huggingface.co/audio-cpp/audio.cpp-gguf/tree/33120a4cfdf0d56786db934a03a093d4675de938/HeartMuLa-GGUF)
 
@@ -101,7 +101,7 @@ The same engine also documents MiDashengLM-Gen F32 and Q8_0, which use a structu
 
 ## YuE2 3B
 
-YuE2 combines written lyrics and style descriptors into stereo PCM16 WAV at 48 kHz. Set a duration limit from 10 to 60 seconds. The model can end the song earlier, and the library displays the duration measured from the WAV. The same song seed controls both token sampling and acoustic noise. The app uses the native `yue-synth` executable, pinned to `yue2.cpp` revision `e646d5228911ae1b81ac2a261115a255848ce85f` (MIT) and its GGML submodule at `ef4555b7aede4467a5de803b103615e0a5f30dd8`. [Runtime source](https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f)
+YuE2 combines written lyrics and style descriptors into stereo PCM16 WAV at 48 kHz. Set a duration limit from 10 seconds to 6 minutes. The model can end the song earlier, and the library displays the duration measured from the WAV. The same song seed controls both token sampling and acoustic noise. The app uses the native `yue-synth` executable, pinned to `yue2.cpp` revision `e646d5228911ae1b81ac2a261115a255848ce85f` (MIT) and its GGML submodule at `ef4555b7aede4467a5de803b103615e0a5f30dd8`. [Runtime source](https://github.com/ServeurpersoCom/yue2.cpp/tree/e646d5228911ae1b81ac2a261115a255848ce85f)
 
 The 3B GGUF contains the autoregressive and acoustic stages and the text tokenizer. The VAE decodes the resulting latents. Those two files total 4,340,729,408 bytes (4.04 GiB). The reference-audio tokenizer, SheetSage2, and MERT are for cover or transcription paths. This profile offers lyrics and style to WAV. [GGUF model card](https://huggingface.co/Serveurperso/YuE2-GGUF/blob/e630f2b8f6aedf8254c3186438633c1b5eeaf80a/README.md)
 

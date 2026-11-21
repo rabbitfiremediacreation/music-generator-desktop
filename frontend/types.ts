@@ -1,3 +1,5 @@
+import type { AudioFormat } from "./audio-formats";
+
 export type UpdateStream = "stable" | "daily" | "develop";
 export type CpuIterationBehavior = "ask" | "limit_30" | "continue";
 export interface McpSettings { enabled: boolean; port: number; scope: "local" | "network" }
@@ -10,7 +12,8 @@ export interface Settings {
   models_dir: string; songs_dir: string; lm_model: string; dit: "standard" | "xl";
   model_provider: string; synthesis_model: string;
   model_profiles?: Record<string, ModelSelection>;
-  lm_device: "auto" | "cpu"; export_format: "wav" | "mp3"; mp3_available?: boolean;
+  lm_device: "auto" | "cpu"; export_format: AudioFormat; mp3_available?: boolean;
+  export_formats?: AudioFormat[];
   expert_mode: boolean;
   update_stream: UpdateStream;
   cpu_iteration_behavior: CpuIterationBehavior;
@@ -28,8 +31,21 @@ export interface Generation {
   reference_audio?: string;
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;
   keep_caption?: boolean; title?: string; duration?: number; bpm?: number; bars?: number; keyscale?: string;
+  ignore_recommended_duration?: boolean;
   timesignature?: string; vocal_language?: string; seed?: number; variants?: number;
   inference_steps?: number; lm_temperature?: number; group_id?: string; folder_id?: string | null;
+  yue2?: Yue2Options;
+}
+export type Yue2Sampling = Partial<Record<"temperature" | "top_p" | "top_k" | "repetition_penalty" | "penalty_window" | "min_tokens" | "max_tokens", number>>;
+export interface Yue2Options {
+  lm_seed?: number;
+  steps?: number;
+  cot?: "full" | "melody" | "off";
+  cfg_scale?: number;
+  peak_clip?: number;
+  abc?: string;
+  abc_sampling?: Yue2Sampling;
+  semantic_sampling?: Yue2Sampling;
 }
 export type OutputKind = "audio" | "midi";
 export interface Song {
@@ -45,7 +61,7 @@ export interface Song {
 export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
 export interface SongPage { songs: Song[]; total: number }
-export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number } }
+export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number }; audio_export?: { default_format: AudioFormat; formats: AudioFormat[] } }
 export type BackendReason = "cpu_requested" | "cpu_only" | "lm_selftest_failed" | "cuda_architecture_unsupported" | "cuda_initialization_failed";
 export interface ComponentBackend {
   state: "not_started" | "unconfirmed" | "confirmed" | "stopped";
@@ -79,8 +95,10 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "complete";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
+  overall_percent?: number;
+  estimated_remaining_seconds?: number;
 }
 
 export interface ModelSelection { provider: string; synthesis: string; language: string }
@@ -109,6 +127,7 @@ export interface ModelAbilities {
   style_description?: boolean;
   bpm: boolean; advanced: boolean; analysis: boolean;
   reference_audio?: boolean;
+  yue2_options?: boolean;
   max_seed?: number;
   bars?: number[];
   output_kind?: OutputKind;
@@ -138,6 +157,7 @@ export interface CatalogProfile {
 }
 export interface ActiveGenerationProfile {
   selection: ModelSelection; name: string; capabilities: ModelAbilities;
+  analysis_available?: boolean;
   available: boolean; unavailable_reason?: string | null;
 }
 export interface CatalogModel {
@@ -157,6 +177,7 @@ export interface ModelCatalog {
   recommended_profiles: ModelSelection[];
   profiles?: CatalogProfile[];
   providers: { id: string; name: string; status: "available" | "planned" | "preview"; adapter: string | null; source: string }[];
+  ace_step_available?: boolean;
   selection: ModelSelection; hardware: Bootstrap["hardware"]; free_bytes: number | null;
   model_profiles?: Record<string, ModelSelection>;
   models_dir: string; busy: boolean;
@@ -185,6 +206,7 @@ export interface GenerationPolicy {
   recommended_steps: number;
   defaults: GenerationFormPreferences;
   capabilities?: ModelAbilities;
+  analysis_available?: boolean;
   available?: boolean;
   unavailable_reason?: string | null;
 }

@@ -6,6 +6,7 @@ import type { ModelManagerProps } from "../models/ModelManager";
 import { ModelDialog } from "../models/ModelDialog";
 import { InstalledModels } from "../models/InstalledModels";
 import type { useSettingsDraft } from "./useSettingsDraft";
+import { HuggingFaceTokenField } from "./HuggingFaceTokenField";
 
 export type SettingsModelManager = ModelManagerProps & { onManage?: () => void };
 
@@ -24,6 +25,7 @@ export function ModelsSettings({ state, active, manager: { onManage, ...manager 
       {adding && <ModelDialog {...manager} title={t("models_add")} disabled={pending} onClose={() => setAdding(false)} />}
     </div>
     <fieldset className="settings-fields" disabled={pending || modelBusy}>
+      {active && <HuggingFaceTokenField />}
       <div className="settings-section">
         <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
           <select name="lm_device" aria-label={t("lm_dev")} value={draft.lm_device} onChange={event => void state.device(event.target.value as Settings["lm_device"])}>

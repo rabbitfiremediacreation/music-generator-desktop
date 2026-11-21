@@ -21,11 +21,13 @@ impl Staging {
     }
 
     /// The blocking operation retains ownership even when its awaiting future is dropped.
-    pub(super) async fn copy_source(self: &Arc<Self>, source: &Path) -> Result<()> {
+    pub(super) async fn copy_source(self: &Arc<Self>, source: &Path, filename: &str) -> Result<()> {
         let staging = self.clone();
         let source = source.to_path_buf();
+        let target = staging.path().join(filename);
         tokio::task::spawn_blocking(move || {
-            std::fs::copy(source, staging.path().join("source.wav"))
+            let _staging = staging;
+            std::fs::copy(source, target)
         })
         .await
         .map_err(|error| message(error.to_string()))??;

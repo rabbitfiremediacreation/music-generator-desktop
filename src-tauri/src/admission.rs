@@ -10,6 +10,9 @@ use crate::{
 use serde_json::Value;
 use std::path::Path;
 
+mod analysis;
+pub use analysis::analysis_settings;
+
 pub fn generate(state: &AppState, request: GenerateRequest) -> Result<Vec<String>> {
     enqueue(state, request, false)
 }
@@ -72,13 +75,43 @@ pub(crate) fn profile_for_song(settings: &Settings, params: &Value) -> Result<Se
     }
 }
 
-/// An alternative runtime may only execute the exact checkpoint and adapter accepted with the job.
+/// Verify the model and runtime pins while accepting compatible older capability snapshots.
 pub(crate) fn validate_saved_profile(selection: &Selection, params: &Value) -> Result<()> {
     if selection.provider == "ace-step" {
         return Ok(());
     }
-    let current = serde_json::to_value(catalog::generation_profile(selection)?)?;
-    if params["generation_profile"] != current {
+    let mut current = serde_json::to_value(catalog::generation_profile(selection)?)?;
+    let saved = &params["generation_profile"];
+    let saved_capabilities = &saved["capabilities"];
+    if selection.provider == "yue2"
+        && saved_capabilities.get("yue2_options").is_none()
+        && saved_capabilities["max_variants"] == 1
+    {
+        if let Some(capabilities) = current["capabilities"].as_object_mut() {
+            capabilities.remove("yue2_options");
+        }
+        current["capabilities"]["max_variants"] = 1.into();
+    }
+    if selection.provider == "yue2"
+        && params["instrumental"] != true
+        && saved_capabilities["instrumental"] == false
+    {
+        current["capabilities"]["instrumental"] = Value::Bool(false);
+    }
+    let legacy_max_duration: Option<u32> = match selection.provider.as_str() {
+        "yue2" => Some(60),
+        "heartmula" => Some(30),
+        _ => None,
+    };
+    if let Some(limit) = legacy_max_duration.filter(|&limit| {
+        saved_capabilities["max_duration"] == limit
+            && params["duration"]
+                .as_f64()
+                .is_some_and(|duration| duration <= f64::from(limit))
+    }) {
+        current["capabilities"]["max_duration"] = limit.into();
+    }
+    if *saved != current {
         return Err(message("The recorded model or runtime version is unavailable. Create a new job to use the current version"));
     }
     Ok(())
@@ -118,6 +151,7 @@ pub(crate) fn generation_policy(
     refresh: bool,
 ) -> Result<Policy> {
     let capabilities = catalog::capabilities(selection)?;
+    let available = catalog::ensure_runtime(selection, &state.resources, &state.db.root).is_ok();
     let mut policy = if capabilities.advanced {
         state
             .synthesis_probe
@@ -125,7 +159,20 @@ pub(crate) fn generation_policy(
                 state.backend_status()
             })
     } else {
-        let mut policy = synthesis_policy::policy(Backend::Unknown, selection);
+        let metal_available = selection.provider == "yue2"
+            && available
+            && state
+                .synthesis_probe
+                .metal_available(&state.resources, refresh);
+        let backend = if metal_available {
+            Backend::Gpu
+        } else {
+            Backend::Unknown
+        };
+        let mut policy = synthesis_policy::policy(backend, selection);
+        if metal_available {
+            policy.detected_backend = crate::engine::backend_status::Backend::Metal;
+        }
         policy.legacy_inference_steps = 0;
         policy.recommended_steps = 0;
         policy.defaults.inference_steps = 0;
@@ -137,7 +184,10 @@ pub(crate) fn generation_policy(
         policy.defaults.variants = 1;
         policy
     };
-    policy.available = catalog::ensure_runtime(selection, &state.resources, &state.db.root).is_ok();
+    policy.available = available;
+    policy.analysis_available = (selection.provider == "yue2").then(|| {
+        analysis::installed_ace_step(state, settings, crate::hardware::inspect()).is_some()
+    });
     policy.capabilities = Some(capabilities);
     policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
     policy.lm_device = settings.lm_device.clone();
@@ -169,20 +219,13 @@ pub(crate) fn active_profile(state: &AppState) -> Result<Value> {
             .is_ok()
         && catalog::ensure_runtime(&selection, &state.resources, &state.db.root).is_ok()
         && ensure_cached(state, &settings, &selection).is_ok();
-    Ok(serde_json::json!({"selection": selection, "name": name,
-        "capabilities": catalog::capabilities(&selection)?, "available": available}))
-}
-
-/// Validate before starting or modifying the analysis engine.
-pub fn analysis_settings(state: &AppState, selection: Option<Selection>) -> Result<Settings> {
-    let mut settings = state.db.settings()?;
-    if let Some(selection) = selection {
-        selection.apply(&mut settings)?;
+    let mut profile = serde_json::json!({"selection": selection, "name": name,
+        "capabilities": catalog::capabilities(&selection)?, "available": available});
+    if selection.provider == "yue2" {
+        profile["analysis_available"] =
+            analysis::installed_ace_step(state, &settings, crate::hardware::inspect())
+                .is_some()
+                .into();
     }
-    let selection = Selection::from_settings(&settings);
-    if !catalog::capabilities(&selection)?.analysis {
-        return Err(message("This model does not support audio analysis"));
-    }
-    catalog::ensure_allowed(&selection, settings.expert_mode)?;
-    Ok(settings)
+    Ok(profile)
 }

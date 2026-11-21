@@ -54,6 +54,8 @@ pub struct GenerationCapabilities {
     pub analysis: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reference_audio: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub yue2_options: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_seed: Option<u32>,
     #[serde(default, skip_serializing_if = "OutputKind::is_audio")]
@@ -78,6 +80,7 @@ impl GenerationCapabilities {
             advanced: true,
             analysis: true,
             reference_audio: false,
+            yue2_options: false,
             max_seed: None,
             output_kind: OutputKind::Audio,
             bars: None,

@@ -3,7 +3,6 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import { backend } from "../../backend";
 import type { HuggingFacePin, ModelSelection } from "../../types";
 import { invalidateModels } from "./model-state";
-import "../../hugging-face-i18n";
 
 export function useModelDialog(selection: ModelSelection | null, selectionRevision: number, onUse: (selection: ModelSelection, before: number) => void) {
   const client = useQueryClient();

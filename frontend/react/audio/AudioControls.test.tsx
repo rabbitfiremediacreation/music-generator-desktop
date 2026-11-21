@@ -14,14 +14,16 @@ function mount(onAnalysis = vi.fn()) {
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.dialogDirectory.mockResolvedValue("/audio"); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-it("uses the native audio selection and applies its analysis once", async () => {
+it("analyzes audio through the file button beside the microphone and shares the logo's dialog lock", async () => {
   mocks.pickAndAnalyzeAudio.mockImplementation(async (_dir, _title, _filter, _selection, onSelected) => {
     onSelected({ name: "idea.wav", directory: "/chosen" });
     return { caption: "A calm song", bpm: 90 };
   });
   const { onAnalysis } = mount();
+  const file = screen.getByRole("button", { name: t("dialog_audio_import") });
   const upload = screen.getByRole("button", { name: t("drop_aria") });
-  fireEvent.click(upload); fireEvent.click(upload);
+  expect(file.previousElementSibling).toBe(screen.getByRole("button", { name: t("rec_aria") }));
+  fireEvent.click(file); fireEvent.click(upload);
   await waitFor(() => expect(onAnalysis).toHaveBeenCalledWith({ caption: "A calm song", bpm: 90 }, false));
   expect(mocks.pickAndAnalyzeAudio).toHaveBeenCalledTimes(1);
   expect(mocks.analyze).not.toHaveBeenCalled();

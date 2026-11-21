@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useI18n } from "./i18n";
 import { modelErrorText } from "../expert-mode";
 import { pathErrorText } from "../path-dialogs";
+import { GenerationStatus } from "./generation/GenerationStatus";
 
 export function Dialog({ open, title, onClose, busy = false, children, className = "" }: {
   open: boolean; title: string; onClose: () => void; busy?: boolean; children: ReactNode; className?: string;
@@ -13,7 +14,7 @@ export function Dialog({ open, title, onClose, busy = false, children, className
   }, [open]);
   return <dialog ref={dialog} aria-label={title} aria-busy={busy} className={className}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
-    onClose={() => { if (open && !busy) onClose(); }}>{children}</dialog>;
+    onClose={() => { if (open && !busy) onClose(); }}>{open && <GenerationStatus className="dialog-generation-status" />}{children}</dialog>;
 }
 
 export function ErrorState({ error, retry }: { error: unknown; retry?: () => void }) {

@@ -20,7 +20,7 @@ pub(super) fn tools() -> Vec<Value> {
         tool("get_settings", "Read current settings, model selection and persisted generation form preferences.",json!({}),&[],true,false),
         tool("update_settings", "Update supported preferences through the desktop configuration workflow. Changing songs_dir moves the library and requires an idle queue and an already authorized directory on macOS.",json!({
             "expert_mode":{"type":"boolean"},"cpu_iteration_behavior":{"enum":["ask","limit_30","continue"]},
-            "lm_device":{"enum":["auto","cpu"]},"export_format":{"enum":["wav","mp3"]},
+            "lm_device":{"enum":["auto","cpu"]},"export_format":{"enum":crate::audio_export::AudioFormat::ALL},
             "timeout_minutes":{"type":"number","minimum":1,"maximum":600},
             "songs_dir":{"type":"string","description":"Absolute accessible directory; empty string restores the default."}}),&[],false,false),
         tool("get_generation_policy", "Get generation capabilities, runtime availability and defaults for the current or specified model combination.",json!({"selection":selection(),"refresh":{"type":"boolean","default":false}}),&[],true,false),

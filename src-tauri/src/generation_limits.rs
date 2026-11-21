@@ -8,12 +8,38 @@ use crate::{
 pub const MAX_INFERENCE_STEPS: u32 = 200;
 pub(crate) const LEGACY_INFERENCE_STEPS_LIMIT: u32 = 100;
 const MAX_NATIVE_TEXT_BYTES: usize = 8 * 1024;
+pub(crate) const MAX_EXTENDED_DURATION: u32 = 900;
+
+/// Extend variable-length song profiles by rendering within each engine's duration range.
+pub(crate) fn supports_extended_duration(capabilities: &GenerationCapabilities) -> bool {
+    capabilities.output_kind.is_audio()
+        && capabilities.bars.is_none()
+        && !capabilities.reference_audio
+        && capabilities.min_duration < capabilities.max_duration
+        && capabilities.max_duration >= 30
+}
+
+pub(crate) fn max_duration(capabilities: &GenerationCapabilities, extended: bool) -> u32 {
+    if extended && supports_extended_duration(capabilities) {
+        MAX_EXTENDED_DURATION
+    } else {
+        capabilities.max_duration
+    }
+}
 
 /// Validate the profile-specific request shape and return the duration to store with the job.
 pub fn validate_request(
     request: &GenerateRequest,
     capabilities: &GenerationCapabilities,
 ) -> Result<f64> {
+    if let Some(options) = &request.yue2 {
+        if !capabilities.yue2_options {
+            return Err(message(
+                "This model does not support YuE2 generation options",
+            ));
+        }
+        options.validate(request.instrumental)?;
+    }
     match (
         capabilities.reference_audio,
         request.reference_audio.as_deref(),
@@ -79,7 +105,8 @@ pub fn validate_request(
     } else {
         capabilities.min_duration
     };
-    if !(f64::from(minimum)..=f64::from(capabilities.max_duration)).contains(&duration) {
+    let maximum = max_duration(capabilities, request.ignore_recommended_duration);
+    if !(f64::from(minimum)..=f64::from(maximum)).contains(&duration) {
         if capabilities.bars.is_some() {
             return Err(message(format!(
                 "The selected BPM and bar count exceed this model's {}-second limit",
@@ -88,7 +115,7 @@ pub fn validate_request(
         }
         return Err(message(format!(
             "This model supports durations between {minimum} and {} seconds",
-            capabilities.max_duration
+            maximum
         )));
     }
     if !capabilities.prompt {
@@ -121,6 +148,7 @@ pub fn validate_request(
         return Err(message("This model does not support lyrics"));
     }
     if capabilities.lyrics_required
+        && !request.instrumental
         && (request.lyrics.trim().is_empty()
             || request.lyrics.trim().eq_ignore_ascii_case("[instrumental]"))
     {
@@ -201,4 +229,27 @@ pub fn enrich_metadata(params: &serde_json::Value, meta: &mut serde_json::Value)
     }
     let steps = effective_steps(Some(requested), synthesis.unwrap_or_default()).min(limit);
     meta["effective_inference_steps"] = steps.into();
+}
+
+#[cfg(test)]
+mod duration_tests {
+    use super::*;
+
+    #[test]
+    fn extended_duration_requires_an_explicit_opt_in_and_a_song_profile() {
+        let mut capabilities = GenerationCapabilities::ace_step();
+        let mut request = GenerateRequest {
+            duration: 900.0,
+            ..Default::default()
+        };
+        assert!(validate_request(&request, &capabilities).is_err());
+        request.ignore_recommended_duration = true;
+        assert_eq!(validate_request(&request, &capabilities).unwrap(), 900.0);
+        request.duration = 900.01;
+        assert!(validate_request(&request, &capabilities).is_err());
+        request.duration = 900.0;
+        capabilities.max_duration = 10;
+        capabilities.min_duration = 5;
+        assert!(validate_request(&request, &capabilities).is_err());
+    }
 }

@@ -17,6 +17,7 @@ export function installBrowserPreview() {
     }];
   });
   let settings: Settings = { ...setupFixture.settings, setup_complete: true, recommended_profiles: [standard] };
+  let huggingFaceTokenConfigured = false;
   let preferences: GenerationFormPreferences = { duration: 90, bpm: 0, inference_steps: 30, lm_temperature: 1.2, variants: 2 };
   let selection = standard;
   const removedModels = new Set<string>();
@@ -87,6 +88,10 @@ export function installBrowserPreview() {
       }
       case "discover_hugging_face_models":
         return { candidates: discovery, unavailable_repositories: [] };
+      case "hugging_face_token_status":
+        return huggingFaceTokenConfigured;
+      case "set_hugging_face_token":
+        return huggingFaceTokenConfigured = Boolean(args.token);
       case "adopt_hugging_face_model": {
         const pin = args.pin as HuggingFacePin;
         const result = discovery.find(item => item.pin.source.repository === pin.source.repository && item.pin.source.path === pin.source.path);

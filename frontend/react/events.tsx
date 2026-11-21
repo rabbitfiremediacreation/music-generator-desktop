@@ -25,7 +25,7 @@ export function EventBridge({ children }: { children: ReactNode }) {
         failed = client.getQueryCache().findAll({ predicate: query => library(query.queryKey) && query.getObserversCount() > 0 && query.state.status === "error" }).length > 0;
         scheduleFallback();
       }
-      if (event.type !== "updated" || event.query.queryKey[0] !== "queue" || event.query.state.status !== "success") return;
+      if (event.type !== "updated" || event.action.type !== "success" || event.query.queryKey[0] !== "queue") return;
       const queue = event.query.state.data as Queue;
       if (!queue?.running) return;
       if (queue.progress) recordProgress(queue.progress);

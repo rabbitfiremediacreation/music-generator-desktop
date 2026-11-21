@@ -15,6 +15,7 @@ pub mod exports;
 pub mod form_preferences;
 pub mod generation_limits;
 pub mod hardware;
+mod hugging_face_token;
 pub mod import;
 mod jobs;
 mod launch_location;
@@ -169,6 +170,8 @@ pub fn run() {
             audio_import::pick_and_analyze_audio,
             reference_audio::pick_reference_audio,
             model_commands::model_catalog,
+            model_commands::hugging_face_token_status,
+            model_commands::set_hugging_face_token,
             model_commands::discover_hugging_face_models,
             model_commands::adopt_hugging_face_model,
             model_commands::use_models,

@@ -177,7 +177,11 @@ it("discards a native folder reply belonging to a previously closed dialog", asy
   await act(async () => chosen("/old-dialog-choice"));
   expect((folder as HTMLInputElement).value).toBe("/songs");
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem("desktop_theme");
+  delete document.documentElement.dataset.theme;
+});
 
 it("saves the device immediately while leaving other edits for explicit save", async () => {
   render(view());
@@ -313,7 +317,7 @@ it("preserves edits across pages and saves the shared draft from any page", asyn
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
   expect(screen.getByText(t("settings_unsaved"))).toBeTruthy();
   goTo("library");
-  fireEvent.change(screen.getByRole("combobox", { name: t("exp") }), { target: { value: "mp3" } });
+  fireEvent.change(screen.getByRole("combobox", { name: t("download_default") }), { target: { value: "mp3" } });
   goTo("models");
   fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
   goTo("about");
@@ -322,7 +326,7 @@ it("preserves edits across pages and saves the shared draft from any page", asyn
   goTo("generation");
   expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("75");
   goTo("library");
-  expect((screen.getByRole("combobox", { name: t("exp") }) as HTMLSelectElement).value).toBe("mp3");
+  expect((screen.getByRole("combobox", { name: t("download_default") }) as HTMLSelectElement).value).toBe("mp3");
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ timeout_minutes: 75, export_format: "mp3", expert_mode: true }));
 });
@@ -359,6 +363,27 @@ it("applies the appearance layout immediately and dismisses with the close contr
   expect(mocks.saveSettings).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: t("desktop_close") }));
   expect(callbacks.onClose).toHaveBeenCalledOnce();
+});
+
+it("offers all eight themes and saves a selection immediately without committing the settings draft", async () => {
+  const dialog = render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  goTo("appearance");
+  const themes = within(screen.getByRole("group", { name: "Theme" }));
+  const names = ["Classic", "Light", "Dark", "Pink", "Green", "Triphop", "Techno Bunker", "Lofi"];
+  expect(themes.getAllByRole("radio")).toEqual(names.map(name => themes.getByRole("radio", { name })));
+  expect(themes.getByRole<HTMLInputElement>("radio", { name: "Classic" }).checked).toBe(true);
+  const light = themes.getByRole<HTMLInputElement>("radio", { name: "Light" });
+  fireEvent.click(light);
+  expect(light.checked).toBe(true);
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(localStorage.getItem("desktop_theme")).toBe("light");
+  goTo("generation");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton").value).toBe("75");
+  fireEvent.click(screen.getByRole("button", { name: t("cancel") }));
+  dialog.rerender(view(false));
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
 });
 
 it("starts a reopened dialog on generation with a fresh settings draft", async () => {

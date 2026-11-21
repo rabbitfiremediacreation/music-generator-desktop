@@ -73,7 +73,7 @@ pub(super) fn export<R: tauri::Runtime>(
     }
     let destination = absolute(string(&args, "destination")?)?;
     let overwrite = args["overwrite"].as_bool().unwrap_or(false);
-    let target = export_target::Target::new(&state, &kind, &destination, overwrite)?;
+    let target = export_target::Target::new(&state, &kind, id.as_deref(), &destination, overwrite)?;
     let cancel = operation.cancellation();
     let task = tasks::for_app(app).begin("export_file", cancel.clone())?;
     let result = task.accepted();
@@ -84,7 +84,7 @@ pub(super) fn export<R: tauri::Runtime>(
         crate::exports::export_contents(
             state.db.clone(),
             state.resources.clone(),
-            kind,
+            crate::exports::ExportSelection::parse(&kind, None)?,
             id,
             folder,
             target.path().into(),

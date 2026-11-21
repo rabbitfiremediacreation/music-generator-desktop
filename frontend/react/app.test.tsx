@@ -7,7 +7,7 @@ import { createAppQueryClient } from "./data";
 import { measuredBackend, setupFixture, standard } from "./setup/fixtures";
 import { setLang, t } from "../i18n.js";
 import source from "../../models/catalog.json";
-import type { PhoneAccess } from "../types";
+import type { JobProgress, PhoneAccess } from "../types";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
 vi.mock("@tauri-apps/api/event",()=>({listen:mocks.listen}));
@@ -49,6 +49,35 @@ async function mount(path="/"){
   });
   return router;
 }
+it("shows overall progress and the estimated remaining time across phase and view changes", async () => {
+  firstRun = false;
+  const handlers = new Map<string, (event: { payload: unknown }) => void>();
+  mocks.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => {}; });
+  await mount();
+  await screen.findByText("Nothing yet");
+  const phase: JobProgress = { job_id: "running-song", sequence: 2, phase: "dit", step: 6, total_steps: 30, elapsed_seconds: 12, overall_percent: 62, estimated_remaining_seconds: 32 };
+  const sendProgress = (progress: JobProgress) => act(() => handlers.get("generation-progress")?.({ payload: progress }));
+  sendProgress({ ...phase, sequence: 1, phase: "loading", step: null, total_steps: null, overall_percent: 0, estimated_remaining_seconds: undefined });
+  const meter = (parent: string) => document.querySelector<HTMLProgressElement>(`${parent} progress`);
+  await waitFor(() => expect(meter(".titlebar")?.getAttribute("value")).toBe("0"));
+  expect(document.querySelector(".titlebar .song-activity-estimate")).toBeNull();
+  expect(document.querySelector("#dropzone .app-wave[data-active]")).toBeTruthy();
+  sendProgress(phase);
+  await waitFor(() => expect(meter(".titlebar")?.value).toBe(62));
+  expect(meter(".titlebar")?.max).toBe(100);
+  expect(meter(".genbar")).toBeNull();
+  expect(meter(".titlebar")?.getAttribute("aria-valuetext")).toBe("DiT · 6/30 · 0:12 · ≈ 62% · Remaining ≈ 0:32");
+  expect(meter(".library-generation-status")?.value).toBe(62);
+  sendProgress({ ...phase, sequence: 3, phase: "vae", step: null, total_steps: null, overall_percent: 89, estimated_remaining_seconds: 10 });
+  await waitFor(() => expect(meter(".titlebar")?.value).toBe(89));
+  fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
+  await waitFor(() => expect(document.querySelector("#settingsForm")).toBeTruthy());
+  expect(meter("#settingsForm")).toBeNull();
+  expect(meter(".titlebar")?.getAttribute("aria-valuetext")).toContain("Remaining ≈ 0:10");
+  act(() => handlers.get("library-changed")?.({ payload: null }));
+  await waitFor(() => expect(meter(".titlebar")).toBeNull());
+  expect(document.querySelector("#dropzone .app-wave[data-active]")).toBeNull();
+});
 it("keeps startup pending until the first library and saved form values are ready",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
   let finishPreferences!:(value:unknown)=>void,finishSongs!:(value:unknown)=>void;

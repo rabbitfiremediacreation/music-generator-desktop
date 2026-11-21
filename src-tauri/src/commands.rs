@@ -388,7 +388,9 @@ pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     let settings = state.db.settings()?;
     let mut result = serde_json::to_value(&settings)?;
     result["songs_dir_default"] = json!(state.db.root.join("songs"));
-    result["mp3_available"] = json!(crate::audio_export::codec_path(&state.resources).is_file());
+    let formats = crate::audio_export::available(&state.resources);
+    result["mp3_available"] = json!(formats.contains(&crate::audio_export::AudioFormat::Mp3));
+    result["export_formats"] = json!(formats);
     let hardware = crate::hardware::inspect();
     result["cpu_only"] = json!(hardware.cpu_only);
     result["recommended_profiles"] = json!(crate::catalog::catalog().recommendations_for_build(
@@ -486,15 +488,16 @@ pub async fn export_file(
     id: Option<String>,
     folder: Option<String>,
     destination: String,
+    format: Option<crate::audio_export::AudioFormat>,
 ) -> Result<()> {
     let destination = PathBuf::from(destination);
     if !destination.is_absolute() {
         return Err(message("Select an absolute destination"));
     }
-    crate::exports::export(
+    crate::exports::export_selected(
         state.db.clone(),
         state.resources.clone(),
-        kind,
+        crate::exports::ExportSelection::parse(&kind, format)?,
         id,
         folder,
         destination,

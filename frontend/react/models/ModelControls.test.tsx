@@ -5,13 +5,32 @@ import { setLang } from "../../i18n.js";
 import { profileKey } from "../../creator-models";
 import type { ModelSelection, Settings } from "../../types";
 import { standard } from "../setup/fixtures";
-import { handlers, ipc, mountControls, resetDesktop, saved, turbo, xl } from "./test-support";
+import { catalogFixture, handlers, ipc, mountControls, resetDesktop, saved, turbo, xl } from "./test-support";
 
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
 const modelSelect = () => screen.getByRole("combobox", { name: "Modelle" }) as HTMLSelectElement;
 async function ready() { await waitFor(() => expect(modelSelect().disabled).toBe(false)); }
 function emit(name: string) { act(() => handlers.get(name)!({ payload: undefined })); }
+
+it("only lists runnable local profiles and refreshes the list after model changes", async () => {
+  const snapshot = structuredClone(catalogFixture);
+  const weight = snapshot.models.find(model => model.file === xl.synthesis)!;
+  weight.present = weight.verified = false;
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation(async (name, args) => name === "model_catalog" ? structuredClone(snapshot) : invoke(name, args));
+  mountControls(); await ready();
+  const options = () => [...modelSelect().options].map(option => option.value);
+  expect(options()).not.toContain(profileKey(xl));
+  weight.present = weight.verified = true;
+  emit("models-changed");
+  await waitFor(() => expect(options()).toContain(profileKey(xl)));
+  snapshot.ace_step_available = false;
+  emit("models-changed");
+  await waitFor(() => expect(modelSelect().disabled).toBe(true));
+  expect(options()).toEqual([""]);
+  expect(screen.getByText("Keine einsatzbereiten Modelle")).toBeTruthy();
+});
 
 it("preserves a later historical song choice when an earlier activation completes", async () => {
   let finish!: (selection: ModelSelection) => void;

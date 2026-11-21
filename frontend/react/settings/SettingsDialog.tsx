@@ -43,7 +43,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   if (!props.open) return null;
   const navigate = (action: () => void) => { props.onClose(); action(); };
   const error = failure ?? pathError;
-  const errorText = error instanceof Error && error.message === "mp3_failed" ? t("mp3_failed") : error ? pathErrorText(modelErrorText(error, t)) : "";
+  const errorText = error instanceof Error && ["mp3_failed", "audio_export_format_unavailable"].includes(error.message) ? t(error.message) : error ? pathErrorText(modelErrorText(error, t)) : "";
   const outside = (x: number, y: number) => {
     const bounds = dialog.current!.getBoundingClientRect();
     return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom;
@@ -81,7 +81,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <p id="settingsStatus" className="small" role="status" aria-live="polite">{status && t(status)}</p>
           {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
           {settingsGroups.flatMap(group => group.pages).map(value => <section key={value} id={`settings-${value}`} data-settings-page={value} hidden={page !== value} aria-labelledby="settingsPageHeading">
-            {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={loading || !draft || busy}>
+            {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={busy || (value !== "appearance" && (loading || !draft))}>
               {value === "generation" && <GenerationSettings state={state} />}
               {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager} />}
               {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}

@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use crate::engine::yue2::options::{
+    Planning as Yue2Planning, Sampling as Yue2Sampling, Yue2Options,
+};
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CpuIterationBehavior {
@@ -88,6 +92,8 @@ pub struct GenerateRequest {
     pub keep_caption: bool,
     pub title: String,
     pub duration: f64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub ignore_recommended_duration: bool,
     pub bpm: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bars: Option<u32>,
@@ -98,6 +104,8 @@ pub struct GenerateRequest {
     pub variants: u32,
     pub inference_steps: u32,
     pub lm_temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yue2: Option<Yue2Options>,
     pub group_id: Option<String>,
     pub folder_id: Option<String>,
 }
@@ -115,6 +123,7 @@ impl Default for GenerateRequest {
             keep_caption: true,
             title: String::new(),
             duration: 0.0,
+            ignore_recommended_duration: false,
             bpm: 0,
             bars: None,
             keyscale: String::new(),
@@ -124,6 +133,7 @@ impl Default for GenerateRequest {
             variants: 1,
             inference_steps: 0,
             lm_temperature: None,
+            yue2: None,
             group_id: None,
             folder_id: None,
         }

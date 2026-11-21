@@ -63,7 +63,8 @@ export async function prepareEngine() {
     } else {
       built = await prepareWindowsEngine(cache, work, source);
     }
-    const iterationLimit = await verifyIterationContract(path.join(built, platform === "windows" ? "ace-server.exe" : "ace-server"));
+    const engineExecutable = platform === "windows" ? "ace-server.exe" : "ace-server";
+    const iterationLimit = await verifyIterationContract(path.join(built, engineExecutable));
     await rm(engineFolder, { recursive: true, force: true }); await mkdir(engineFolder, { recursive: true }); await writeFile(path.join(engineFolder,".gitkeep"), "");
     // Preserve the complete runtime directory, including dynamically loaded GPU backends.
     for (const file of await files(built)) {
@@ -72,7 +73,10 @@ export async function prepareEngine() {
       const dest = path.join(engineFolder, relative); await mkdir(path.dirname(dest), { recursive: true }); await cp(file, dest, { dereference: true });
       if (platform === "linux" && /\.so(?:\.\d+)*$/.test(file) && path.dirname(dest) !== engineFolder) await cp(file, path.join(engineFolder,path.basename(file)), { dereference: true });
     }
-    if (platform === "macos") await relocateMac();
+    if (platform === "macos") {
+      await relocateMac();
+      await verifyIterationContract(path.join(engineFolder, engineExecutable));
+    }
     if (platform === "windows") await copyWindowsCrt();
     if (shipsYue2()) await prepareYue2(engineFolder, work);
     await prepareTitle();
@@ -125,8 +129,8 @@ async function relocateMac() {
       const dependency = line.trim().split(" (compatibility")[0];
       if (dependency.startsWith("/") && !dependency.startsWith("/usr/lib/") && !dependency.startsWith("/System/") && await exists(path.join(engineFolder, path.basename(dependency)))) await run("install_name_tool", ["-change", dependency, `@loader_path/${path.basename(dependency)}`, file]);
     }
-    const inheritance = ["ace-server", "mp3-codec"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
-    await run("codesign", ["--force", "--sign", "-", ...inheritance, file]);
+    // Development launches these binaries directly. build.mjs signs the packaged copies for sandbox inheritance.
+    await run("codesign", ["--force", "--sign", "-", file]);
   }
 }
 

@@ -20,7 +20,7 @@ export async function verifyMacSandbox(app, engine) {
   const audioCraft = path.join(engine, "audiocraft", "audiocraft-synth");
   if (await exists(audioCraft)) helpers.push(audioCraft);
   if (target.arch === "arm64") helpers.push(path.join(engine, "mimetic-synth"));
-  if (shipsYue2()) helpers.push(path.join(engine, yue2.executable));
+  if (shipsYue2()) helpers.push(path.join(engine, yue2.executable), path.join(engine, yue2.planner));
   for (const file of helpers) {
     const child = entitlements(file);
     assert(enabled(child,"com.apple.security.app-sandbox") && enabled(child,"com.apple.security.inherit"), "Engine helper must inherit the app sandbox");
@@ -30,8 +30,8 @@ export async function verifyMacSandbox(app, engine) {
   try {
     const sentinel = path.join(denied,"unselected.txt"); await writeFile(sentinel,"Sandbox boundary fixture");
     await run(app,["--sandbox-probe",sentinel]);
-    if (shipsYue2()) {
-      const args = ["--engine-supervisor", path.join(engine, yue2.executable), "--help"];
+    for (const runtime of shipsYue2() ? [yue2.executable, yue2.planner] : []) {
+      const args = ["--engine-supervisor", path.join(engine, runtime), "--help"];
       const options = { encoding: "utf8", timeout: 15000, env: { ...process.env, MUSIC_SANDBOX_DENIED_PATH: sentinel } };
       await assert.rejects(promisify(execFile)(app, args, options), error => {
         assert.equal(error.code, 1, error.stderr);

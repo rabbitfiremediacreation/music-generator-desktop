@@ -82,6 +82,15 @@ fn main() {
         provider_files.sort_unstable();
         let mut expected_provider_files = Vec::new();
         if platform == "macos" && arch == "aarch64" {
+            let yue2: serde_json::Value =
+                serde_json::from_str(include_str!("../models/yue2-runtime.json"))
+                    .expect("Invalid YuE2 runtime pin");
+            for key in ["executable", "planner"] {
+                assert!(
+                    files.contains_key(yue2[key].as_str().expect("Missing YuE2 runtime path")),
+                    "YuE2 runtime is missing: run npm run engine:prepare"
+                );
+            }
             assert!(
                 files.contains_key("mimetic-synth")
                     && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),

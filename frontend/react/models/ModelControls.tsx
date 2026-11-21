@@ -19,6 +19,7 @@ export interface ModelControlsProps {
 export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
   const { t } = useI18n(), client = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: backend.settings, networkMode: "always", retry: false });
+  const catalog = useQuery({ queryKey: ["models", "catalog"], queryFn: backend.modelCatalog, networkMode: "always", retry: false });
   const [localOpen, setLocalOpen] = useState(false), [error, setError] = useState<unknown>(null), [pending, setPending] = useState<ModelSelection | null>(null);
   const open = controlledOpen ?? localOpen;
   const setOpen = (value: boolean) => { setLocalOpen(value); onOpenChange?.(value); };
@@ -56,10 +57,16 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
   const recommendations = settings.data?.recommended_profiles || [];
   const chosen = selection || (settings.data ? selectionFromSettings(settings.data) : undefined);
   const allowed = modelAllowed(chosen, settings.data?.expert_mode || false, recommendations);
-  const options = creatorOptions(recommendations, chosen, settings.data?.expert_mode || false);
+  const options = catalog.data && settings.data
+    ? creatorOptions({ ...catalog.data, recommended_profiles: recommendations, expert_mode: settings.data.expert_mode }, chosen)
+    : [];
+  const selected = chosen && options.some(option => option.value === profileKey(chosen));
+  const showXlHint = chosen?.provider === "ace-step" && !recommendations.some(profile => profile.synthesis.includes("-xl-"));
+  const loading = settings.isPending || catalog.isPending;
+  const loadError = settings.error || catalog.error;
   function choose(value: string) {
-    const option = options.find(item => item.value === value && !item.disabled);
-    if (!option || downloadBusy) return;
+    const option = options.find(item => item.value === value);
+    if (!option || loadError || downloadBusy) return;
     setError(null);
     activate.mutate({ next: option.selection, before: ++intent.current.revision });
   }
@@ -69,14 +76,18 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
   }
   return <>
     <div className="model-bar">
-      <label className="field"><span className="lbl">{t("picker_title")}</span><select id="creatorModel" value={chosen ? profileKey(chosen) : ""} disabled={settings.isPending || downloadBusy || !options.some(option => !option.disabled)} aria-describedby={recommendations.some(profile => profile.synthesis.includes("-xl-")) ? "currentModels" : "currentModels creatorXlRamHint"} onChange={event => choose(event.target.value)}>
-        {!options.length && <option value="">{t("expert_no_recommendation")}</option>}{options.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
-      </select></label>
-      <span id="currentModels" className="small" role="status">{chosen?.language ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
+      <label className="lbl" htmlFor="creatorModel">{t("picker_title")}</label>
+      <div className="model-select">
+        <select id="creatorModel" value={selected && chosen ? profileKey(chosen) : ""} disabled={loading || !!loadError || downloadBusy || !options.length} aria-describedby={showXlHint ? "currentModels creatorXlRamHint" : "currentModels"} onChange={event => choose(event.target.value)}>
+          {!selected && <option value="" disabled>{t(loading ? "desktop_checking" : options.length ? "picker_choose" : "picker_no_ready_models")}</option>}
+          {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>
       <button type="button" className="sek" onClick={() => onOpenManager ? onOpenManager(pending || chosen || null) : setOpen(true)}>{t("picker_choose")}</button>
+      <span id="currentModels" className="small" role="status">{selected && chosen?.language ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
     </div>
-    {!recommendations.some(profile => profile.synthesis.includes("-xl-")) && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
-    {(error || settings.error) && <div><p className="setup-error" role="alert">{modelErrorText(error || settings.error, t)}</p>{settings.isError && <button type="button" className="sek" onClick={() => void settings.refetch()}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
+    {showXlHint && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
+    {(error || loadError) && <div><p className="setup-error" role="alert">{modelErrorText(error || loadError, t)}</p>{loadError && <button type="button" className="sek" onClick={() => { if (settings.isError) void settings.refetch(); if (catalog.isError) void catalog.refetch(); }}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
     {!allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
     {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onOpenSettings={openSettings} onRecommendedSteps={onRecommendedSteps} />}
   </>;

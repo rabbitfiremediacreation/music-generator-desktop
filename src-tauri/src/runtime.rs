@@ -2,7 +2,10 @@ use crate::{
     engine::progress::Progress,
     error::{message, Error, Result},
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 use tokio::sync::{Notify, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
@@ -31,6 +34,9 @@ impl OperationKind {
 pub struct JobProgress {
     pub job_id: String,
     pub sequence: u64,
+    pub overall_percent: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_remaining_seconds: Option<u64>,
     #[serde(flatten)]
     pub progress: Progress,
 }
@@ -38,8 +44,60 @@ pub struct JobProgress {
 struct Active {
     kind: OperationKind,
     cancel: CancellationToken,
-    song: Option<String>,
+    song: Option<RunningSong>,
     progress: Option<JobProgress>,
+}
+
+struct RunningSong {
+    id: String,
+    started_at: Instant,
+    remaining_time_sample: Option<RemainingTimeSample>,
+}
+
+struct RemainingTimeSample {
+    elapsed: Duration,
+    finish_at_seconds: f64,
+}
+
+/// Extrapolate from whole-song progress once startup no longer dominates the estimate.
+fn estimate_remaining_seconds(elapsed_seconds: u64, overall_percent: u8) -> Option<u64> {
+    if overall_percent >= 100 {
+        return Some(0);
+    }
+    if elapsed_seconds < 5 || overall_percent < 10 {
+        return None;
+    }
+    let unfinished = u64::from(100 - overall_percent);
+    Some(
+        elapsed_seconds
+            .saturating_mul(unfinished)
+            .div_ceil(u64::from(overall_percent)),
+    )
+}
+
+/// Smooth the predicted finish time with a four-second half-life so report frequency
+/// does not change how fast the estimate reacts. The remaining time still counts down.
+fn smooth_remaining_seconds(
+    sample: &mut Option<RemainingTimeSample>,
+    elapsed: Duration,
+    overall_percent: u8,
+) -> Option<u64> {
+    let raw = estimate_remaining_seconds(elapsed.as_secs(), overall_percent)?;
+    if raw == 0 {
+        return Some(0);
+    }
+    let seconds = elapsed.as_secs_f64();
+    let raw_finish = seconds + raw as f64;
+    let finish_at_seconds = sample.as_ref().map_or(raw_finish, |previous| {
+        let delta = elapsed.saturating_sub(previous.elapsed).as_secs_f64();
+        let weight = 1.0 - (-delta / 4.0).exp2();
+        previous.finish_at_seconds + weight * (raw_finish - previous.finish_at_seconds)
+    });
+    *sample = Some(RemainingTimeSample {
+        elapsed,
+        finish_at_seconds,
+    });
+    Some((finish_at_seconds - seconds).ceil().max(1.0) as u64)
 }
 
 #[derive(Default)]
@@ -169,7 +227,7 @@ impl Runtime {
         if let Some(active) = status
             .active
             .as_ref()
-            .filter(|active| cancelled && active.song.as_deref() == Some(id))
+            .filter(|active| cancelled && active.song.as_ref().is_some_and(|song| song.id == id))
         {
             active.cancel.cancel();
         }
@@ -226,25 +284,38 @@ impl Operation {
     }
     pub(crate) fn start_song(&self, id: &str) {
         assert_eq!(self.kind, OperationKind::Generation);
-        self.runtime
-            .status
-            .lock()
-            .unwrap()
-            .active
-            .as_mut()
-            .unwrap()
-            .song = Some(id.into());
-    }
-    pub(crate) fn report(&self, progress: Progress) -> Option<JobProgress> {
         let mut status = self.runtime.status.lock().unwrap();
-        let id = status.active.as_ref()?.song.clone()?;
+        let active = status.active.as_mut().unwrap();
+        active.song = Some(RunningSong {
+            id: id.into(),
+            started_at: Instant::now(),
+            remaining_time_sample: None,
+        });
+        active.progress = None;
+    }
+    pub(crate) fn report(&self, progress: Progress, estimate: u8) -> Option<JobProgress> {
+        let mut status = self.runtime.status.lock().unwrap();
+        let sequence = status.sequence;
+        let active = status.active.as_mut()?;
+        let song = active.song.as_mut()?;
+        let previous = active
+            .progress
+            .as_ref()
+            .map_or(0, |value| value.overall_percent);
+        let overall_percent = estimate.max(previous);
         let update = JobProgress {
-            job_id: id,
-            sequence: status.sequence,
+            job_id: song.id.clone(),
+            sequence,
+            overall_percent,
+            estimated_remaining_seconds: smooth_remaining_seconds(
+                &mut song.remaining_time_sample,
+                song.started_at.elapsed(),
+                overall_percent,
+            ),
             progress,
         };
+        active.progress = Some(update.clone());
         status.sequence += 1;
-        status.active.as_mut()?.progress = Some(update.clone());
         Some(update)
     }
 }

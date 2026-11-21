@@ -56,11 +56,11 @@ All bodies are JSON; errors are `{"detail": "…"}`.
 | `GET /api/songs/{id}` | one song |
 | `PATCH /api/songs/{id}` with any of `favorite`, `title`, `folder_id` (`null` = unsorted) | updated song |
 | `GET /api/songs/{id}/audio` | audio with `Accept-Ranges: bytes`; `Range: bytes=a-b`, `a-` and `-n` answer `206` with `Content-Range`, unsatisfiable ranges `416` |
-| `GET /api/songs/{id}/audio?download=true` | same, as attachment `<title>_<seed>.<ext>`; MP3 when Settings → Export is MP3 (same converter and cache as the studio export) |
+| `GET /api/songs/{id}/audio?download=true&format=<key>` | attachment `<title>_<seed>.<ext>` in the requested format, using the studio converter and cache. Use a key from `audio_export.formats`. Omitting `format` preserves the legacy download behavior. |
 | `GET /api/pwa/library?q=&favorites=true&folder=` | PWA cards and folder counts as `{songs, folders}`, with `ETag`; matching `If-None-Match` returns an empty `304` |
 | `GET /api/folders` | `{folders:[{id,name,count}], all, none}` |
 | `POST /api/folders {name}` | `{id, name}` |
-| `GET /api/queue` | `{running:[{id,status,message,caption}], queued, library:{count,bytes}, active, progress}` |
+| `GET /api/queue` | `{running:[{id,status,message,caption}], queued, library:{count,bytes}, active, progress, audio_export:{default_format,formats}}` |
 | `POST /api/generate` | `{group_id, ids}` |
 | `POST /api/analyze`, multipart field `audio` | `{caption, lyrics, bpm, keyscale, timesignature, vocal_language, duration}` |
 

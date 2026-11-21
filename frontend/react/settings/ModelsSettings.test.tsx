@@ -21,15 +21,19 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: ipc.confirm }));
 const handlers = new Map<string, (event: { payload: unknown }) => void>();
 const onClose = vi.fn(), onUse = vi.fn();
 let current: Settings, catalog: ModelCatalog;
+let huggingFaceConfigured: boolean;
 beforeEach(() => {
   vi.resetAllMocks(); handlers.clear(); setLang("en");
   ipc.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => handlers.delete(name); });
   current = saved(); catalog = structuredClone(catalogFixture);
+  huggingFaceConfigured = false;
   catalog.hardware.ram_bytes = 64 * 1024 ** 3;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "get_settings") return { ...current };
     if (name === "model_catalog") return structuredClone(catalog);
     if (name === "discover_hugging_face_models") return { candidates: [], unavailable_repositories: [] };
+    if (name === "hugging_face_token_status") return huggingFaceConfigured;
+    if (name === "set_hugging_face_token") return huggingFaceConfigured = args.token !== null;
     if (name === "save_settings") { current = { ...current, ...args.values }; return { ...current }; }
     if (name === "download_title_model") { catalog.title_model = { ...catalog.title_model, present: true, verified: true }; return; }
     if (name === "use_models" || name === "select_models") {
@@ -62,6 +66,26 @@ async function addModel() {
   return screen.findByRole("dialog", { name: t("models_add") });
 }
 function closeCatalog(dialog: HTMLElement) { fireEvent.keyDown(dialog, { key: "Escape" }); }
+
+it("sets and removes a masked Hugging Face token without submitting the settings draft", async () => {
+  mount();
+  const timeout = await screen.findByRole("spinbutton");
+  fireEvent.change(timeout, { target: { value: "75" } });
+  goTo("models");
+  const input = await screen.findByLabelText<HTMLInputElement>(t("hf_token"));
+  expect(input.type).toBe("password");
+  fireEvent.change(input, { target: { value: "  hf_example-only  " } });
+  fireEvent.click(screen.getByRole("button", { name: t("hf_token_save") }));
+  await screen.findByText(t("hf_token_saved"));
+  expect(ipc.invoke).toHaveBeenCalledWith("set_hugging_face_token", { token: "hf_example-only" });
+  expect(input.value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: t("hf_token_remove") }));
+  await waitFor(() => expect(screen.queryByText(t("hf_token_saved"))).toBeNull());
+  expect(ipc.invoke).toHaveBeenCalledWith("set_hugging_face_token", { token: null });
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "save_settings")).toBe(false);
+  goTo("generation");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton").value).toBe("75");
+});
 
 it("lists local models first and opens the catalog only from Add model", async () => {
   catalog.models = catalog.models.map(model => ({

@@ -15,11 +15,34 @@ pub fn model_catalog(state: State<'_, Arc<AppState>>) -> Result<Value> {
 }
 
 #[tauri::command]
+pub fn hugging_face_token_status(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+) -> Result<bool> {
+    if window.label() != "main" {
+        return Err(message("hf_token_read_failed"));
+    }
+    crate::hugging_face_token::configured(&state.db.root)
+}
+
+#[tauri::command]
+pub fn set_hugging_face_token(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    token: Option<String>,
+) -> Result<bool> {
+    if window.label() != "main" {
+        return Err(message("hf_token_write_failed"));
+    }
+    crate::hugging_face_token::set(&state.db.root, token.as_deref())
+}
+
+#[tauri::command]
 pub async fn discover_hugging_face_models(
     state: State<'_, Arc<AppState>>,
 ) -> Result<catalog::hugging_face::Discovery> {
     let current = Selection::from_settings(&state.db.settings()?);
-    catalog::hugging_face::discover(&current).await
+    catalog::hugging_face::discover(&state.db.root, &current).await
 }
 
 #[tauri::command]
@@ -51,6 +74,7 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     )
     .backend;
     let mut result = serde_json::to_value(&catalog)?;
+    result["ace_step_available"] = json!(crate::engine::engine_path(&state.resources).is_file());
     result["models"] = Value::Array(
         catalog
             .models

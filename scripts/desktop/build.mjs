@@ -52,7 +52,7 @@ if (platform === "macos") {
   const work = await mkdtemp(path.join(tmpdir(), "music-mac-release-"));
   try {
     await withMacSigning(signing, async (sign, notarize) => {
-      const executableNames = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth", "mimetic-synth", yue2.executable];
+      const executableNames = ["ace-server", "mp3-codec", "music-title", "audiocpp_cli", "mrt2-record", "audiocraft-synth", "mimetic-synth", path.basename(yue2.executable), path.basename(yue2.planner)];
       const inherit = ["--entitlements", path.join(root, "src-tauri/Engine.entitlements")];
       for (const file of await files(bundledEngine)) {
         const handle = await open(file);

@@ -467,13 +467,17 @@ async fn bounded_body(mut response: Response, limit: usize) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-async fn repository(client: &Client, name: &str, revision: Option<&str>) -> Result<Repository> {
+async fn repository(
+    client: &Client,
+    root: &Path,
+    name: &str,
+    revision: Option<&str>,
+) -> Result<Repository> {
     let base = format!("https://huggingface.co/api/models/{name}");
     let url = revision.map_or(base.clone(), |revision| {
         format!("{base}/revision/{revision}")
     });
-    let response = client
-        .get(url)
+    let response = crate::hugging_face_token::get(client, &url, root)?
         .query(&[("blobs", "true")])
         .send()
         .await?
@@ -485,13 +489,13 @@ async fn repository(client: &Client, name: &str, revision: Option<&str>) -> Resu
     Ok(data)
 }
 
-pub(crate) async fn discover(current: &Selection) -> Result<Discovery> {
+pub(crate) async fn discover(root: &Path, current: &Selection) -> Result<Discovery> {
     let client = client()?;
     let (ace, yue, audio, heartmula) = tokio::join!(
-        repository(&client, ACE, None),
-        repository(&client, YUE, None),
-        repository(&client, AUDIO_CPP, None),
-        repository(&client, HEARTMULA_HNY, None),
+        repository(&client, root, ACE, None),
+        repository(&client, root, YUE, None),
+        repository(&client, root, AUDIO_CPP, None),
+        repository(&client, root, HEARTMULA_HNY, None),
     );
     let mut discovery = Discovery {
         candidates: Vec::new(),
@@ -551,16 +555,21 @@ pub(crate) async fn adopt(
         return Err(message("expert_mode_required"));
     }
     let client = client()?;
-    let metadata = repository(&client, &pin.source.repository, Some(&pin.source.revision))
-        .await
-        .map_err(|_| message("hf_metadata_unavailable"))?;
+    let metadata = repository(
+        &client,
+        root,
+        &pin.source.repository,
+        Some(&pin.source.revision),
+    )
+    .await
+    .map_err(|_| message("hf_metadata_unavailable"))?;
     if !metadata
         .pins(&pin.source.repository)
         .any(|published| published == pin)
     {
         return Err(message("hf_model_changed"));
     }
-    validate_header(&client, &pin, &candidate).await?;
+    validate_header(&client, root, &pin, &candidate).await?;
 
     let mut guard = registry();
     let registry = guard
@@ -584,10 +593,14 @@ pub(crate) async fn adopt(
     Ok(selection)
 }
 
-async fn validate_header(client: &Client, pin: &Pin, candidate: &Variant) -> Result<()> {
+async fn validate_header(
+    client: &Client,
+    root: &Path,
+    pin: &Pin,
+    candidate: &Variant,
+) -> Result<()> {
     let last = HEADER_BYTES - 1;
-    let response = client
-        .get(pin.source.url())
+    let response = crate::hugging_face_token::get(client, &pin.source.url(), root)?
         .header(header::RANGE, format!("bytes=0-{last}"))
         .send()
         .await
@@ -806,8 +819,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires access to Hugging Face"]
     async fn live_repository_metadata_and_gguf_prefixes() {
+        let root = tempfile::tempdir().unwrap();
         let catalog = embedded_catalog();
-        let found = discover(&starter()).await.unwrap();
+        let found = discover(root.path(), &starter()).await.unwrap();
         assert!(
             found.unavailable_repositories.is_empty(),
             "{:?}",
@@ -833,18 +847,21 @@ mod tests {
                 .unwrap_or_else(|| panic!("Missing {path}"));
             assert!(row.selection.is_some());
             let candidate = variant(&catalog, &row.pin).unwrap();
-            validate_header(&client, &row.pin, &candidate)
+            validate_header(&client, root.path(), &row.pin, &candidate)
                 .await
                 .unwrap_or_else(|error| panic!("{path}: {error}"));
         }
         let pin = &found.candidates[0].pin;
-        assert!(
-            repository(&client, &pin.source.repository, Some(&pin.source.revision))
-                .await
-                .unwrap()
-                .pins(&pin.source.repository)
-                .any(|published| published == *pin)
-        );
+        assert!(repository(
+            &client,
+            root.path(),
+            &pin.source.repository,
+            Some(&pin.source.revision)
+        )
+        .await
+        .unwrap()
+        .pins(&pin.source.repository)
+        .any(|published| published == *pin));
         let new_count = found
             .candidates
             .iter()

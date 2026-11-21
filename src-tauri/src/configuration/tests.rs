@@ -321,7 +321,7 @@ async fn invalid_settings_fail_before_authorization_or_side_effects() {
             ..Default::default()
         },
         SettingsPatch {
-            export_format: Some("mp3".into()),
+            export_format: Some("unknown".into()),
             ..Default::default()
         },
     ] {
