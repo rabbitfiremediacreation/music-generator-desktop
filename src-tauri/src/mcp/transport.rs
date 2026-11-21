@@ -26,6 +26,8 @@ pub(super) struct ConnectionInfo {
     pub url: String,
     pub token: String,
     pub pid: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_der_base64: Option<String>,
 }
 
 pub(super) struct ConnectionFile {

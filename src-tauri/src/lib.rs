@@ -18,6 +18,7 @@ pub mod hardware;
 mod hugging_face_token;
 pub mod import;
 mod jobs;
+mod lan_tls;
 mod launch_location;
 pub mod library;
 pub mod manifest;

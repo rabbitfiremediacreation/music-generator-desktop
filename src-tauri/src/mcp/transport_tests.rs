@@ -56,6 +56,7 @@ fn credentials_are_private_and_shutdown_preserves_replacement() {
         url: "http://127.0.0.1:1234/mcp".into(),
         token: "a".repeat(64),
         pid: 1,
+        ca_der_base64: None,
     };
     let descriptor = ConnectionFile::create(root.path(), info.clone()).unwrap();
     #[cfg(unix)]

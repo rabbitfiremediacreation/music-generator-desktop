@@ -1,11 +1,21 @@
 import qrcode from "qrcode-generator";
 import type { PhoneAccess } from "./types";
 
-/** Link for the iPhone camera: opens the app, which takes over address (fallback: IP) and key. */
+/** The native app and PWA share the HTTPS listener. The native app needs the origin. */
+export function phoneNativeAddresses(status: PhoneAccess): string[] {
+  return (status.web_addresses ?? []).flatMap(address => {
+    if (!URL.canParse(address)) return [];
+    const url = new URL(address);
+    return url.protocol === "https:" && !url.username && !url.password ? [url.origin] : [];
+  });
+}
+
+/** Link for the iPhone camera: opens the app with a trusted HTTPS endpoint and key. */
 export function phoneAccessLink(status: PhoneAccess): string | null {
-  if (!status.enabled || !status.addresses.length || !status.token) return null;
-  const query = new URLSearchParams({ server: status.addresses[0], token: status.token });
-  if (status.addresses[1]) query.set("alt", status.addresses[1]);
+  const [server, alt] = phoneNativeAddresses(status);
+  if (!status.enabled || !server || !status.token) return null;
+  const query = new URLSearchParams({ server, token: status.token });
+  if (alt) query.set("alt", alt);
   return `musicgenerator://connect?${query}`;
 }
 

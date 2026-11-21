@@ -12,14 +12,16 @@ fn connection_file_cannot_redirect_bearer_token_outside_the_local_server() {
         assert!(validate_connection(&ConnectionInfo {
             url: url.into(),
             token: "a".repeat(64),
-            pid: 1
+            pid: 1,
+            ca_der_base64: None,
         })
         .is_err());
     }
     assert!(validate_connection(&ConnectionInfo {
         url: "http://127.0.0.1:1234/mcp".into(),
+        ca_der_base64: None,
         token: "a".repeat(64),
-        pid: 1
+        pid: 1,
     })
     .is_ok());
 }

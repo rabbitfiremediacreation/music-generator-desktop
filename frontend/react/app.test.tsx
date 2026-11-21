@@ -18,7 +18,7 @@ let firstRun=true;
 let phoneAccess:PhoneAccess;
 beforeEach(()=>{
   vi.resetAllMocks();setLang("en");firstRun=true;
-  phoneAccess={enabled:false,port:8767,token:"",addresses:["http://studio.local:8767"]};
+  phoneAccess={enabled:false,port:8767,token:"",addresses:["http://studio.local:8767"],web_addresses:["https://studio.local:8768/mobile/"]};
   mocks.listen.mockResolvedValue(()=>{});mocks.close.mockResolvedValue(()=>{});
   mocks.invoke.mockImplementation(async(name,args)=>{
     if(name==="bootstrap")return {...setupFixture,needs_setup:firstRun};

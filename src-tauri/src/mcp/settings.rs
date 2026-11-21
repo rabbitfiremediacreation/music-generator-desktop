@@ -2,9 +2,11 @@
 use super::transport::{self, ConnectionFile, ConnectionInfo};
 use crate::{
     error::{message, Result},
+    lan_tls,
     paths::write_private,
     state::AppState,
 };
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
@@ -16,6 +18,8 @@ use std::{
 };
 use tauri::Manager;
 use tokio_util::sync::CancellationToken;
+
+const TLS_FOLDER: &str = "mcp-lan-tls";
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,6 +60,7 @@ pub struct McpSettingsStatus {
     pub client_config: String,
     pub managed_by_environment: bool,
     pub error: Option<String>,
+    pub certificate_fingerprint: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -128,6 +133,7 @@ struct Server {
     url: String,
     urls: Vec<String>,
     port: u16,
+    certificate_fingerprint: Option<String>,
     cancellation: CancellationToken,
     closed: tokio::sync::watch::Receiver<bool>,
     error: Mutex<Option<String>>,
@@ -324,6 +330,11 @@ impl Control {
                 .as_ref()
                 .filter(|_| running)
                 .map(|server| server.url.clone()),
+            certificate_fingerprint: current
+                .server
+                .as_ref()
+                .filter(|_| running)
+                .and_then(|server| server.certificate_fingerprint.clone()),
             config_path: descriptor.to_string_lossy().into_owned(),
             client_config: serde_json::to_string_pretty(&config)?,
             managed_by_environment: self.environment.port.is_some(),
@@ -395,16 +406,30 @@ impl Control {
                 }
             }
             let listener = bind_listener(bind, settings.port)?;
-            let address = listener.local_addr()?;
-            Some((
-                listener,
-                ConnectionInfo {
-                    url: format!("http://127.0.0.1:{}/mcp", address.port()),
-                    token,
-                    pid: std::process::id(),
-                },
-                addresses,
-            ))
+            let port = listener.local_addr()?.port();
+            // Use one address snapshot for the leaf certificate, Host checks and client URLs.
+            let identity = if settings.scope == McpScope::Network {
+                Some(lan_tls::prepare(
+                    &self.root.join(TLS_FOLDER),
+                    addresses.iter().map(ToString::to_string),
+                )?)
+            } else {
+                None
+            };
+            let authorities = addresses
+                .into_iter()
+                .map(|address| format!("{address}:{port}"))
+                .collect();
+            let scheme = if identity.is_some() { "https" } else { "http" };
+            let info = ConnectionInfo {
+                url: format!("{scheme}://127.0.0.1:{port}/mcp"),
+                token,
+                pid: std::process::id(),
+                ca_der_base64: identity.as_ref().map(|identity| {
+                    base64::engine::general_purpose::STANDARD.encode(&identity.certificate)
+                }),
+            };
+            Some((listener, authorities, identity, info))
         } else {
             None
         };
@@ -426,7 +451,7 @@ impl Control {
         let mut old_descriptor = old_server
             .as_ref()
             .map(|server| server.descriptor.lock().unwrap());
-        let next = if let Some((listener, info, addresses)) = prepared {
+        let next = if let Some((listener, authorities, identity, info)) = prepared {
             let descriptor = match ConnectionFile::create(&self.root, info.clone()) {
                 Ok(descriptor) => descriptor,
                 Err(error) => {
@@ -444,7 +469,15 @@ impl Control {
                     return Err(error);
                 }
             };
-            Some(serve(state, app, listener, descriptor, info, addresses))
+            Some(serve(
+                state,
+                app,
+                listener,
+                descriptor,
+                info,
+                authorities,
+                identity,
+            ))
         } else {
             None
         };
@@ -511,24 +544,25 @@ fn serve<R: tauri::Runtime>(
     listener: TcpListener,
     descriptor: ConnectionFile,
     info: ConnectionInfo,
-    addresses: Vec<Ipv4Addr>,
+    authorities: Vec<String>,
+    identity: Option<lan_tls::Identity>,
 ) -> Arc<Server> {
     let cancellation = state.runtime.cancellation();
     let (closed, receiver) = tokio::sync::watch::channel(false);
     let port = listener.local_addr().expect("bound MCP listener").port();
-    let authorities: Vec<_> = addresses
-        .into_iter()
-        .map(|address| format!("{address}:{port}"))
-        .collect();
+    let scheme = if identity.is_some() { "https" } else { "http" };
     let urls = authorities
         .iter()
-        .map(|authority| format!("http://{authority}/mcp"))
+        .map(|authority| format!("{scheme}://{authority}/mcp"))
         .collect();
     let server = Arc::new(Server {
         descriptor: Mutex::new(Some(descriptor)),
         url: info.url,
         urls,
         port,
+        certificate_fingerprint: identity
+            .as_ref()
+            .map(|identity| identity.fingerprint.clone()),
         cancellation: cancellation.clone(),
         closed: receiver,
         error: Mutex::new(None),
@@ -538,17 +572,20 @@ fn serve<R: tauri::Runtime>(
     tauri::async_runtime::spawn(async move {
         let result = async {
             let listener = tokio::net::TcpListener::from_std(listener)?;
-            let shutdown = cancellation.clone();
-            let serving = axum::serve(listener, router).with_graceful_shutdown(shutdown.cancelled_owned()).into_future();
-            tokio::pin!(serving);
-            tokio::select! {
-                result = &mut serving => result,
-                _ = cancellation.cancelled() => {
-                    // Release the listener even if an old client leaves a request open.
-                    tokio::time::timeout(Duration::from_secs(1), &mut serving).await.unwrap_or(Ok(()))
+            // Both variants are polled through the same cancellation path.
+            match identity {
+                Some(identity) => {
+                    serve_until_stopped(
+                        lan_tls::Listener::new(listener, identity.config),
+                        router,
+                        cancellation,
+                    )
+                    .await
                 }
+                None => serve_until_stopped(listener, router, cancellation).await,
             }
-        }.await;
+        }
+        .await;
         if let Err(error) = result {
             *control.error.lock().unwrap() = Some(error.to_string());
             tracing::error!(%error, "MCP server stopped");
@@ -557,6 +594,28 @@ fn serve<R: tauri::Runtime>(
         let _ = closed.send(true);
     });
     server
+}
+
+async fn serve_until_stopped<L: axum::serve::Listener>(
+    listener: L,
+    router: axum::Router,
+    cancellation: CancellationToken,
+) -> std::io::Result<()>
+where
+    L::Addr: std::fmt::Debug,
+{
+    let shutdown = cancellation.clone();
+    let serving = axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown.cancelled_owned())
+        .into_future();
+    tokio::pin!(serving);
+    tokio::select! {
+        result = &mut serving => result,
+        _ = cancellation.cancelled() => {
+            // Release the listener even if an old client leaves a request open.
+            tokio::time::timeout(Duration::from_secs(1), &mut serving).await.unwrap_or(Ok(()))
+        }
+    }
 }
 
 pub(super) fn start<R: tauri::Runtime>(

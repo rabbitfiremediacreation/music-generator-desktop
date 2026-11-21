@@ -31,6 +31,8 @@ struct Fixture {
     song: String,
     audio: Vec<u8>,
     base: String,
+    onboarding: String,
+    web_port: u16,
     http: reqwest::Client,
 }
 
@@ -73,13 +75,35 @@ impl Fixture {
         let status = set(&state, changed, Some(true), false, 0).await.unwrap();
         Self {
             _root: root,
-            base: format!("http://127.0.0.1:{}", status.port),
+            base: format!("https://127.0.0.1:{}", status.web_port),
+            onboarding: format!("http://127.0.0.1:{}", status.port),
+            web_port: status.web_port,
+            http: tls_tests::trusted_client(&state),
             state,
             changes,
             song: ids[0].clone(),
             audio,
-            http: reqwest::Client::builder().no_proxy().build().unwrap(),
         }
+    }
+
+    async fn tls_connection(&self) -> tokio_rustls::client::TlsStream<tokio::net::TcpStream> {
+        use tokio_rustls::rustls;
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(certificate(&self.state).unwrap().into()).unwrap();
+        let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let tcp = tokio::net::TcpStream::connect(("127.0.0.1", self.web_port))
+            .await
+            .unwrap();
+        tokio_rustls::TlsConnector::from(Arc::new(config))
+            .connect("localhost".try_into().unwrap(), tcp)
+            .await
+            .unwrap()
     }
 
     fn token(&self) -> String {
@@ -961,8 +985,8 @@ async fn switch_persists_and_reports_a_busy_port() {
     assert!(on.enabled);
     assert_eq!(on.token.len(), 24);
     assert!(enabled(&state).unwrap());
-    let url = format!("http://127.0.0.1:{}/api/queue", on.port);
-    let http = reqwest::Client::builder().no_proxy().build().unwrap();
+    let url = format!("https://127.0.0.1:{}/api/queue", on.web_port);
+    let http = tls_tests::trusted_client(&state);
     assert_eq!(
         http.get(&url)
             .bearer_auth(&on.token)
@@ -1001,20 +1025,17 @@ async fn switch_persists_and_reports_a_busy_port() {
 #[tokio::test]
 async fn web_pairing_serves_only_public_assets_and_certificate() {
     let f = Fixture::new().await;
-    let shell = f
-        .http
-        .get(format!("{}/mobile/", f.base))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(shell.status(), 200);
-    assert_eq!(shell.headers()["referrer-policy"], "no-referrer");
-    let html = shell.text().await.unwrap();
-    assert!(html.contains("manifest.webmanifest"));
-    assert!(!html.contains(&f.token()));
+    for base in [&f.onboarding, &f.base] {
+        let shell = f.http.get(format!("{base}/mobile/")).send().await.unwrap();
+        assert_eq!(shell.status(), 200);
+        assert_eq!(shell.headers()["referrer-policy"], "no-referrer");
+        let html = shell.text().await.unwrap();
+        assert!(html.contains("manifest.webmanifest"));
+        assert!(!html.contains(&f.token()));
+    }
     let response = f
         .http
-        .get(format!("{}/mobile/connection.json", f.base))
+        .get(format!("{}/mobile/connection.json", f.onboarding))
         .send()
         .await
         .unwrap();
@@ -1031,7 +1052,7 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
     assert!(info.get("token").is_none());
     let cert = f
         .http
-        .get(format!("{}/mobile-ca.crt", f.base))
+        .get(format!("{}/mobile-ca.crt", f.onboarding))
         .send()
         .await
         .unwrap();
@@ -1041,7 +1062,7 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
         cert.bytes().await.unwrap().as_ref(),
         certificate(&f.state).unwrap()
     );
-    let profile_url = format!("{}/mobile-ca.mobileconfig", f.base);
+    let profile_url = format!("{}/mobile-ca.mobileconfig", f.onboarding);
     let response = f.http.get(&profile_url).send().await.unwrap();
     assert_eq!(response.status(), 200);
     assert_eq!(
@@ -1074,7 +1095,7 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
     ] {
         assert_eq!(
             f.http
-                .get(format!("{}{path}", f.base))
+                .get(format!("{}{path}", f.onboarding))
                 .send()
                 .await
                 .unwrap()
@@ -1082,7 +1103,19 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
             404
         );
     }
-    // Neither an asset request nor a token in a query authenticates an API request.
+    // Both APIs are available only over HTTPS, even if the HTTP client has the key.
+    for path in ["/api/songs", "/api/pwa/library"] {
+        let plain = f
+            .http
+            .get(format!("{}{path}", f.onboarding))
+            .bearer_auth(f.token())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(plain.status(), 404);
+        assert!(!plain.headers().contains_key("location"));
+    }
+    // A query parameter does not authenticate on HTTPS.
     assert_eq!(
         f.http
             .get(format!("{}/api/songs?token={}", f.base, f.token()))
@@ -1098,9 +1131,7 @@ async fn web_pairing_serves_only_public_assets_and_certificate() {
 #[tokio::test]
 async fn switching_off_cancels_an_incomplete_upload() {
     let f = Fixture::new().await;
-    let mut connection = tokio::net::TcpStream::connect(f.base.trim_start_matches("http://"))
-        .await
-        .unwrap();
+    let mut connection = f.tls_connection().await;
     connection
         .write_all(
             format!(
@@ -1129,13 +1160,15 @@ async fn switching_off_cancels_an_incomplete_upload() {
     .unwrap();
     assert!(!off.enabled);
     let mut response = Vec::new();
-    timeout(
+    let result = timeout(
         Duration::from_secs(2),
         connection.read_to_end(&mut response),
     )
     .await
-    .expect("the upload connection must close")
-    .unwrap();
+    .expect("the upload connection must close");
+    if let Err(error) = result {
+        assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
     assert!(response.starts_with(b"HTTP/1.1 503"));
     assert_eq!(f.changes.load(Ordering::SeqCst), 0);
 }
@@ -1153,9 +1186,7 @@ async fn switching_off_interrupts_a_download_and_can_be_enabled_again() {
         .unwrap()
         .set_len(length)
         .unwrap();
-    let mut connection = tokio::net::TcpStream::connect(f.base.trim_start_matches("http://"))
-        .await
-        .unwrap();
+    let mut connection = f.tls_connection().await;
     connection
         .write_all(
             format!(
@@ -1205,7 +1236,10 @@ async fn switching_off_interrupts_a_download_and_can_be_enabled_again() {
     .expect("the download connection must close after switching off");
     // Depending on the platform Hyper's truncated response ends with EOF or a reset.
     if let Err(error) = result {
-        assert_eq!(error.kind(), std::io::ErrorKind::ConnectionReset);
+        assert!(matches!(
+            error.kind(),
+            std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::UnexpectedEof
+        ));
     }
     assert!(
         (received.len() as u64) < length,
@@ -1221,7 +1255,7 @@ async fn switching_off_interrupts_a_download_and_can_be_enabled_again() {
     assert_eq!(on.token, f.token());
     let response = f
         .http
-        .get(format!("http://127.0.0.1:{}/api/queue", on.port))
+        .get(format!("https://127.0.0.1:{}/api/queue", on.web_port))
         .bearer_auth(&on.token)
         .send()
         .await
