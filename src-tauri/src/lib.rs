@@ -80,14 +80,19 @@ pub fn run() {
             }
         })
         .plugin(
-            tauri_plugin_window_state::Builder::default()
-                .with_denylist(&["splash"])
-                .with_state_flags(
-                    tauri_plugin_window_state::StateFlags::all()
-                        - tauri_plugin_window_state::StateFlags::DECORATIONS
-                        - tauri_plugin_window_state::StateFlags::VISIBLE,
-                )
-                .build(),
+            {
+                let builder = tauri_plugin_window_state::Builder::default();
+                #[cfg(windows)]
+                let builder = builder.skip_initial_state("main");
+                builder
+            }
+            .with_denylist(&["splash"])
+            .with_state_flags(
+                tauri_plugin_window_state::StateFlags::all()
+                    - tauri_plugin_window_state::StateFlags::DECORATIONS
+                    - tauri_plugin_window_state::StateFlags::VISIBLE,
+            )
+            .build(),
         )
         .setup(move |app| {
             #[cfg(target_os = "macos")]

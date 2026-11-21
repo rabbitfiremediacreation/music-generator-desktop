@@ -260,3 +260,29 @@ Fehlt der aktuelle Pfad, folgt der zuletzt bestätigte Ordner dieses Zwecks, dan
 Auf macOS sind diese Pfade nur Vorschläge, keine Zugriffsberechtigungen. Ein externer Ordner muss bei Bedarf über **Auswählen…** freigegeben werden. Zielordner erhalten weiterhin persistente Sandbox-Bookmarks; Importquellen und zur Analyse ausgewählte Audiodateien benötigen nur die aktuelle Sitzungsfreigabe. Ein verlorener Bookmark erfordert erneute native Auswahl.
 
 Klick, Enter und Leertaste auf das Upload-Logo öffnen einen nativen Audio-Dateidialog für WAV, MP3, FLAC, M4A und OGG. Rust liest ausschließlich dessen bestätigte Datei und begrenzt sie auf 60 MiB, bevor sie denselben Analyseablauf wie Drag-and-drop und Mikrofonaufnahmen durchläuft.
+
+## Windows window placement (#89)
+
+The tester reported 31 physical pixels of height growth per normal relaunch on
+Windows 10 with a GTX 1060, one monitor and 100% scaling. The installed build
+`2c9daeb8` reproduced it from a saved 1200 × 800 client size. Main
+`f1a1af708fb64bf239439169c538a5ae958eae2c` and PR #83
+`ed37f502fe60855f388208d50f1bbd004fecff74` had the same startup window
+creation and native presentation recovery code when compared for this fix.
+
+The window-state plugin saves physical client dimensions and previously replayed
+them through a post-creation inner resize. Windows must translate that resize
+into outer bounds for the undecorated, shadowed frame. The fix moves the hidden
+window to the target monitor, recalculates its frame, measures its actual
+non-client extents, then sets the outer bounds in physical pixels. The plugin
+continues saving state at close. The exact source of the reported 31-pixel
+offset still needs a native trace.
+
+For native acceptance, save a normal window that fits on the monitor and close
+the app. Run `scripts/desktop/test-window-relaunch.ps1 -Executable <exe>` in
+PowerShell. Repeat with a maximized window and on a secondary monitor at a
+different scale. For a disconnected monitor or an oversized legacy state,
+first verify that the window opens on an available work area, then close it
+and run the five-launch check against the repaired state. Record Windows
+version, build commit, monitor layout, scale and measured bounds in
+[issue #89](https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/89).

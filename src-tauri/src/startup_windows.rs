@@ -16,7 +16,15 @@ pub fn initialize<R: Runtime>(
         eprintln!("Unable to initialize startup logging: {error}");
     }
     for config in &app.config().app.windows {
-        WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
+        let window = WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
+        #[cfg(windows)]
+        if window.label() == "main" {
+            if let Err(error) = placement::restore(&window) {
+                eprintln!("Unable to restore saved window placement: {error}");
+            }
+        }
+        #[cfg(not(windows))]
+        drop(window);
     }
     Ok(())
 }
@@ -79,3 +87,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(windows)]
+mod placement;
