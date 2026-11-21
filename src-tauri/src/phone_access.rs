@@ -275,7 +275,8 @@ pub fn addresses(port: u16) -> Vec<String> {
     if let Ok(socket) = std::net::UdpSocket::bind(("0.0.0.0", 0)) {
         if socket.connect(("10.255.255.255", 1)).is_ok() {
             if let Ok(local) = socket.local_addr() {
-                names.push(local.ip().to_string());
+                // Prefer the address family supported by both phone-access listeners.
+                names.insert(0, local.ip().to_string());
             }
         }
     }
