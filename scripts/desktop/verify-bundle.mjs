@@ -18,6 +18,8 @@ import { verifyIterationContract } from "./engine-contract.mjs";
 import { msiArguments } from "./windows-msi.mjs";
 import { pathTestGguf } from "./windows-unicode.mjs";
 import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, verifyDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
+import { appcastUrl, macUpdateRelease } from "./macos-updater.mjs";
+import { appcastName } from "./release-assets.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -192,13 +194,23 @@ try {
     assert.equal(minimum, target.minimumSystemVersion);
     const identifier = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(identifier, "de.alphatester.music-generator", "Unexpected package identifier");
-    if (process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true") {
+    const requiresNotarization = process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true";
+    if (requiresNotarization) {
       await run("xcrun", ["stapler", "validate", bundle]);
       if (diskImage) await run("xcrun", ["stapler", "validate", artifact]);
-      if (!audioCraft) {
-        const feed = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :SUFeedURL", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
-        assert.equal(feed, `https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/latest/download/appcast-macos-${architecture}.xml`);
-      }
+    }
+    const macTarget = `macos-${architecture}`;
+    const hasAppcast = await exists(path.join(output, appcastName(macTarget)));
+    if (!audioCraft && (requiresNotarization || hasAppcast)) {
+      const update = macUpdateRelease(process.env, version);
+      assert(update && hasAppcast, "Missing Sparkle appcast");
+      const plist = key => execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+      assert(await exists(path.join(bundle, "Contents/Frameworks/Sparkle.framework")), "Missing Sparkle framework");
+      assert.equal(plist("SUFeedURL"), appcastUrl(update.stream, macTarget));
+      assert.equal(plist("CFBundleVersion"), update.bundleVersion);
+      assert.equal(plist("CFBundleShortVersionString"), version);
+      assert.equal(plist("SUVerifyUpdateBeforeExtraction"), "true");
+      assert.equal(plist("SURequireSignedFeed"), "true");
     }
     if (target.cpuOnly) assert(!packagedFiles.some(file => /ggml-metal/i.test(path.basename(file))), "Intel engine must not include a Metal backend");
     await verifyMacSandbox(app, engines, utilities, probeWithArchives);

@@ -6,15 +6,19 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { run } from "./common.mjs";
 
+const signingKeys = ["APPLE_SIGNING_IDENTITY", "APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD"];
+const notaryKeys = ["APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
+
 export function macSigningSettings(env) {
-  const keys = ["APPLE_SIGNING_IDENTITY", "APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
+  const keys = [...signingKeys, ...notaryKeys];
   const values = Object.fromEntries(keys.map(key => [key, env[key]]));
   const required = env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true";
-  if (!required && !Object.values(values).some(Boolean)) return null;
-  const signingKeys = keys.filter(key => key !== "APPLE_CERTIFICATE" && key !== "APPLE_CERTIFICATE_PASSWORD");
-  const hasCertificate = Boolean(values.APPLE_CERTIFICATE || values.APPLE_CERTIFICATE_PASSWORD);
-  const missing = (hasCertificate ? keys : signingKeys).filter(key => !values[key]);
-  if (missing.length) throw new Error(`Missing macOS signing settings: ${missing.join(", ")}`);
+  const hasCertificate = values.APPLE_CERTIFICATE || values.APPLE_CERTIFICATE_PASSWORD;
+  const requiredKeys = hasCertificate ? keys : ["APPLE_SIGNING_IDENTITY", ...notaryKeys];
+  const missing = requiredKeys.filter(key => !values[key]);
+  if (required && missing.length) throw new Error(`Missing macOS signing settings: ${missing.join(", ")}`);
+  const canSign = hasCertificate ? signingKeys.every(key => values[key]) : missing.length === 0;
+  if (!canSign) return null;
   if (!values.APPLE_SIGNING_IDENTITY.startsWith("Developer ID Application: ")) {
     throw new Error("A Developer ID Application signing identity is required");
   }
@@ -51,7 +55,7 @@ export async function withMacSigning(settings, build) {
 async function signedBuild(settings, build, keychain = []) {
   const sign = (file, flags = []) => run("codesign", ["--force", ...keychain,
     "--sign", settings.APPLE_SIGNING_IDENTITY, "--options", "runtime", "--timestamp", ...flags, file]);
-  const notarize = async (upload, staple) => {
+  const notarize = notaryKeys.every(key => settings[key]) ? async (upload, staple) => {
     const { stdout } = await promisify(execFile)("xcrun", [
       "notarytool", "submit", upload, "--wait", "--timeout", "45m", "--output-format", "json",
       "--apple-id", settings.APPLE_ID, "--password", settings.APPLE_PASSWORD, "--team-id", settings.APPLE_TEAM_ID,
@@ -63,6 +67,6 @@ async function signedBuild(settings, build, keychain = []) {
       await run("xcrun", ["stapler", "staple", staple]);
       await run("xcrun", ["stapler", "validate", staple]);
     }
-  };
+  } : undefined;
   return build(sign, notarize);
 }

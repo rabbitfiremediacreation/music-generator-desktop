@@ -154,10 +154,11 @@ async fn verify_yue2(resources: &Path) -> Result<()> {
     let revision = pin["revision"].as_str().unwrap_or_default();
     let expected = format!("yue2.cpp {}", &revision[..7]);
     for entry in ["yue-synth", "yue-plan"] {
-        let output = crate::engine::process::probe_command(&resources.join("engine/yue2").join(entry))?
-            .arg("--help")
-            .output()
-            .await?;
+        let output =
+            crate::engine::process::probe_command(&resources.join("engine/yue2").join(entry))?
+                .arg("--help")
+                .output()
+                .await?;
         let stderr = String::from_utf8_lossy(&output.stderr);
         if output.status.code() != Some(1)
             || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
@@ -168,12 +169,18 @@ async fn verify_yue2(resources: &Path) -> Result<()> {
             )));
         }
     }
-    println!("App Sandbox: YuE2 planner and synthesizer plug-ins start; unselected file access denied.");
+    println!(
+        "App Sandbox: YuE2 planner and synthesizer plug-ins start; unselected file access denied."
+    );
     Ok(())
 }
 
 async fn verify_audiocraft(resources: &Path) -> Result<()> {
-    verify_plugin(&resources.join("engine/audiocraft/audiocraft-synth"), "audiocraft-synth/1").await
+    verify_plugin(
+        &resources.join("engine/audiocraft/audiocraft-synth"),
+        "audiocraft-synth/1",
+    )
+    .await
 }
 
 async fn verify_plugin(executable: &Path, protocol: &str) -> Result<()> {
@@ -249,7 +256,8 @@ async fn probe_audio_cpp(launcher: &Path, root: &Path, option: &str, expected: &
 
 #[cfg(target_arch = "aarch64")]
 async fn verify_mimetic(resources: &Path) -> Result<()> {
-    let mut command = crate::engine::process::probe_command(&resources.join("engine/mimetic-synth"))?;
+    let mut command =
+        crate::engine::process::probe_command(&resources.join("engine/mimetic-synth"))?;
     command.arg("--self-test").kill_on_drop(true);
     let output = tokio::time::timeout(std::time::Duration::from_secs(600), command.output())
         .await

@@ -19,7 +19,7 @@ import "./settings.css";
 export interface SettingsDialogProps {
   open: boolean; onClose: () => void; onBusyChange: (busy: boolean) => void;
   modelManager: SettingsModelManager; onMoveLibrary: () => void;
-  initialPage?: SettingsPage;
+  pageRequest?: { page: SettingsPage };
   layout: "auto" | "stack" | "side"; onLayoutChange: (value: "auto" | "stack" | "side") => void;
 }
 
@@ -36,11 +36,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const { draft, loading, saving, pending, status, failure } = state;
   useEffect(() => {
     if (props.open && !dialog.current?.open) {
-      setPage(props.initialPage ?? "generation"); setPathError(undefined);
+      setPathError(undefined);
       dialog.current?.showModal();
     }
     if (!props.open && dialog.current?.open) dialog.current?.close();
-  }, [props.open, props.initialPage]);
+  }, [props.open]);
+  useEffect(() => {
+    if (!props.open) return;
+    setPage(props.pageRequest?.page ?? "generation");
+    if (content.current) content.current.scrollTop = 0;
+  }, [props.open, props.pageRequest]);
   if (!props.open) return null;
   const navigate = (action: () => void) => { props.onClose(); action(); };
   const error = failure ?? pathError;

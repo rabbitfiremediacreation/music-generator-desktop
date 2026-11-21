@@ -23,6 +23,8 @@ await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await readFile(path.join(root,"package.json"),"utf8"));
 const signing = platform === "macos" ? macSigningSettings(process.env) : null;
 const updater = platform === "macos" && !audioCraft ? macUpdaterSettings(process.env, pkg.version) : null;
+const updateNotes = updater && process.env.MUSIC_GENERATOR_UPDATE_NOTES
+  ? await readFile(process.env.MUSIC_GENERATOR_UPDATE_NOTES, "utf8") : undefined;
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("APPLE_") || key === "SPARKLE_PRIVATE_KEY") delete process.env[key];
 }
@@ -114,7 +116,7 @@ try {
         await notarize(dmg, dmg);
       }
       artifacts.push(dmg);
-      if (signer) artifacts.push(await writeAppcast(signer, output, artifact, updater, desktop.minimumSystemVersion));
+      if (signer) artifacts.push(await writeAppcast(signer, output, artifact, updater, desktop.minimumSystemVersion, updateNotes));
     });
   } else if (platform === "windows") {
     await pack();

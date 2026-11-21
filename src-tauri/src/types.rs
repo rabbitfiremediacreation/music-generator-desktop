@@ -59,6 +59,9 @@ impl Default for Settings {
             dit: "standard".into(),
             lm_device: "auto".into(),
             export_format: "wav".into(),
+            #[cfg(target_os = "macos")]
+            update_stream: crate::updates::macos::bundled_stream(),
+            #[cfg(not(target_os = "macos"))]
             update_stream: UpdateStream::Stable,
             expert_mode: false,
             cpu_iteration_behavior: CpuIterationBehavior::Ask,

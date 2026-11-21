@@ -533,7 +533,7 @@ pub async fn check_update(
         None => state.db.settings()?.update_stream,
     };
     #[cfg(target_os = "macos")]
-    if stream == crate::types::UpdateStream::Stable && crate::updates::macos::check(&_app).await? {
+    if crate::updates::macos::check(&_app, stream).await? {
         return Ok(
             json!({"native": true, "available": false, "current": env!("CARGO_PKG_VERSION")}),
         );
