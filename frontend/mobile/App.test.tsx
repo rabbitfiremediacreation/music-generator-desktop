@@ -79,7 +79,7 @@ it("limits HeartMuLa generation to lyrics, style tags, seed and its profile dura
   const style = await screen.findByRole("textbox", { name: "Style tags" });
   expect(screen.getByRole("textbox", { name: "Style tags", description: "Separate style tags with commas." })).toBe(style);
   expect(screen.queryByRole("textbox", { name: "Your idea" })).toBeNull();
-  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Instrumental" })).toBeNull();
   expect(screen.queryByText("Use an audio idea")).toBeNull();
   const generate = screen.getByRole("button", { name: "Generate on computer" }) as HTMLButtonElement;
   expect(generate.disabled).toBe(true);
@@ -154,7 +154,7 @@ it("sends the metered clip controls and validates the same length limit as Studi
   const generate = screen.getByRole<HTMLButtonElement>("button", { name: "Generate on computer" });
   expect(generate.disabled).toBe(true);
   expect(screen.queryByRole("spinbutton", { name: "Length (seconds)" })).toBeNull();
-  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Instrumental" })).toBeNull();
   const bars = screen.getByRole("combobox", { name: "Bars (4/4)" });
   const bpm = screen.getByRole("spinbutton", { name: "BPM" });
   fireEvent.change(description, { target: { value: "analog synth melody" } });
@@ -190,7 +190,7 @@ it("sends a Stable Audio instrumental without lyrics controls", async () => {
   const prompt = await screen.findByRole("textbox", { name: "Your idea", description: hint });
   expect(screen.getByRole("textbox", { name: "Style", description: hint })).toBeTruthy();
   fireEvent.change(prompt, { target: { value: "warm piano" } });
-  expect(screen.queryByRole("checkbox", { name: "Instrumental" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Instrumental" })).toBeNull();
   expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
   expect((screen.getByRole("spinbutton", { name: "Length (seconds)" }) as HTMLInputElement).max).toBe("120");
   fireEvent.click(screen.getByRole("button", { name: "Generate on computer" }));
@@ -420,7 +420,7 @@ it("remembers a QR connection across launches and lets the user opt out", async 
   cleanup(); window.history.replaceState(null, "", "/mobile/");
   render(<App />); await screen.findByRole("heading", { name: "Rain song" });
   fireEvent.click(screen.getByText("Connection", { selector: "summary" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Remember the key on this device" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Remember the key on this device" }));
   await waitFor(() => expect(window.localStorage.getItem(connectionKey)).toBeNull());
   expect(screen.getByRole("heading", { name: "Rain song" })).toBeTruthy();
   cleanup(); render(<App />);

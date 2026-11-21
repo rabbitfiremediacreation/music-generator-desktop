@@ -4,6 +4,7 @@ import { randomPrompt, randomStyle, randomTitle, STYLE_TAGS } from "../../prompt
 import { bundledProfile, modelErrorText } from "../../expert-mode";
 import { ACE_STEP_ABILITIES, DEFAULT_CLIP_BPM, MAX_CLIP_BPM, MAX_EXTENDED_DURATION, boundedDuration, clipSeconds, supportsExtendedDuration } from "../../generation-limits";
 import { profileKey } from "../../creator-models";
+import { Switch } from "../../Switch";
 import type { Generation, ModelSelection, Song, Yue2Options } from "../../types";
 import { Yue2Fields, yue2OptionsError } from "../../yue2/Yue2Fields";
 import { yue2ErrorText, yue2Text } from "../../yue2/messages";
@@ -247,21 +248,16 @@ export function GenerationForm({ selection, reference, onSelectionChange, settin
           {abilities.min_duration === abilities.max_duration
             ? <span>{t("provider_duration_hint", duration, duration)}</span>
             : <Slider name="duration" label={durationLabel} title={extendedDuration ? t("provider_duration_hint", durationBounds.min_duration, durationBounds.max_duration) : minimax ? t("minimax_music3_duration_hint") : abilities.advanced ? t("length_tip") : t("provider_duration_hint", abilities.min_duration, abilities.max_duration)} value={duration} min={durationBounds.min_duration} max={durationBounds.max_duration} step={abilities.advanced ? 5 : 1} format="duration" onChange={changeDuration} />}
-          {canExtend && <label className="duration-override">
-            <input className="sr-only" type="checkbox" role="switch" checked={extendedDuration} aria-describedby={extendedDuration ? "extended-duration-hint" : undefined}
-              onChange={event => setExtendedProfile(event.target.checked ? durationKey : null)} />
-            <span className="duration-switch" aria-hidden="true" />
-            {t("ignore_recommended_duration")}
-          </label>}
+          {canExtend && <Switch className="duration-override" label={t("ignore_recommended_duration")} checked={extendedDuration}
+            aria-describedby={extendedDuration ? "extended-duration-hint" : undefined}
+            onChange={event => setExtendedProfile(event.target.checked ? durationKey : null)} />}
           {extendedDuration && <span className="small" id="extended-duration-hint">{t("extended_duration_hint")}</span>}
           {duration > 300 && <span className="small" id="lenHint" aria-live="polite">{t("len_long")}</span>}
         </div>
         {abilities.bpm && <div className="field"><span className="lbl" title={t("bpm_tip")}>BPM</span><Slider name="bpm" label="BPM" value={values.bpm} min={50} max={200} format="bpm" onChange={bpm => update({ bpm })} /></div>}
       </>}
-      {abilities.lyrics_required && abilities.instrumental && <label className="check check-row">
-        <input name="instrumental_mode" type="checkbox" checked={instrumental} onChange={event => setInstrumentalChoice(event.target.checked)} />
-        {t("instrumental")}
-      </label>}
+      {abilities.lyrics_required && abilities.instrumental && <Switch className="check-row" label={t("instrumental")}
+        name="instrumental_mode" checked={instrumental} onChange={event => setInstrumentalChoice(event.target.checked)} />}
       {abilities.lyrics && !(abilities.lyrics_required && instrumental) && <LyricsFields values={values} update={update} open={lyricsOpen} setOpen={setLyricsOpen} required={abilities.lyrics_required} />}
       {abilities.advanced ? <AdvancedFields values={values} update={update} risk={risk} open={advancedOpen} setOpen={setAdvancedOpen} /> :
         <label className="field"><span className="lbl">{yue2 ? yue2Text(language).acousticSeed : "Seed"}</span><input name="seed" type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} placeholder={t("seed_ph")} value={values.seed} onChange={event => update({ seed: event.target.value })} /></label>}

@@ -6,6 +6,8 @@ The additional downloader dialog uses a split catalog and detail view. Search an
 
 **Hardware test in setup wizard…** on the settings models page opens the full setup flow for storage locations, model downloads and a function test. Completing the wizard activates a recommended Standard or XL starter profile; use the settings models page for regular model changes.
 
+Install the engine you need under **Settings → Engines**, then open **Settings → Models and hardware → Add model**. The Creator and model picker only offer profiles whose engine is installed. Cached weights can still be managed from the installed-model inventory.
+
 ## Simple selection and Expert Mode
 
 When no XL recommendation fits this computer's RAM budget, a visible hint beside the Creator drop-down explains that XL requires more memory and is not recommended. This also appears in Expert Mode: installing an XL file or enabling that mode does not add an XL recommendation or remove the backend's memory checks. The hint and all Settings labels/status messages are localized in all twelve UI languages and update when the language changes.
@@ -76,7 +78,7 @@ Turbo families offer eight recommended iterations; SFT/Base retain the app's 80-
 
 ## HeartMuLa 3B Happy New Year
 
-Open **Settings → Models and hardware → Add model** and select HeartMuLa. The model card shows runtime, model and codec licenses, platform requirements, and the individual file pins. Download and use verifies all twelve files before switching the active profile. The full download is 22,400,063,577 bytes (20.86 GiB). The downloader stores the files under `heartmula/` in the selected models directory. The installer contains the native helper for the supported package and the model files are stored separately. [Pinned catalog](../models/catalog.json) · [Runtime package pins](../models/audio-cpp-runtime.json)
+Open **Settings → Models and hardware → Add model** and select HeartMuLa. The model card shows runtime, model and codec licenses, platform requirements, and the individual file pins. Download and use verifies all twelve files before switching the active profile. The full download is 22,400,063,577 bytes (20.86 GiB). The downloader stores the files under `heartmula/` in the selected models directory. Install the shared **audio.cpp** engine from Settings. The voice and codec weights are stored in the configured models folder. [Pinned catalog](../models/catalog.json) · [Runtime package pins](../models/audio-cpp-runtime.json)
 
 Enter your own lyrics and comma-separated style tags such as `acoustic, indie pop, warm vocals`. Specify a duration cap and optionally a seed from 0 to 4,294,967,295. The model can finish early and the codec rounds to audio frames. The library reads the stored WAV to determine its playback duration and keeps native runtime separately. Studio, phone access and MCP share the same limits and use the existing queue and cancellation controls. The first-run assistant continues to install the ACE-Step starter profile.
 
@@ -164,7 +166,7 @@ MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the A
 
 ## Text2midi
 
-Choose **Text2midi** in the add-model catalog. The profile shows both model sources, file sizes and checksums, usage terms, and the tested CPU backend. On macOS arm64 the picker shows the one-time terminal command when its Python 3.12 environment is missing. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
+Install the **Text2midi** engine from **Settings → Engines** on Apple Silicon. Its package supplies the Python runtime. Then choose **Text2midi** in the add-model catalog, where you can review the model sources, file sizes, checksums and usage terms. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
 
 ## Downloads and persistence
 

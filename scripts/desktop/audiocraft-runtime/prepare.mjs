@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { download, exists, hash, root, run } from "../common.mjs";
+import { pluginLinkerFlags, probeMacPlugin } from "../macos-plugin.mjs";
 
 const exec = promisify(execFile);
 const recipe = fileURLToPath(new URL(".", import.meta.url));
@@ -92,15 +93,18 @@ export async function prepareAudiocraft(destination) {
     await run("/usr/bin/xcrun", [
       "clang++", "-std=c++17", "-arch", "arm64", "-mmacosx-version-min=14.0",
       `-I${path.join(embedded, "include/python3.11")}`, `-L${path.join(embedded, "lib")}`,
-      "-Wl,-rpath,@executable_path/python/lib", "-lpython3.11", "-framework", "Foundation",
-      path.join(recipe, "launcher.mm"), path.join(root, "scripts/desktop/engine-sandbox.mm"),
+      ...pluginLinkerFlags, "-Wl,-rpath,@loader_path/python/lib", "-lpython3.11", "-framework", "Foundation",
+      '-DMUSIC_PYTHON_SCRIPT="audiocraft_synth.py"',
+      path.join(root, "scripts/desktop/embedded-python-plugin.cpp"), path.join(root, "scripts/desktop/engine-sandbox.mm"),
       "-o", executable,
     ]);
     await rm(path.join(embedded, "bin"), { recursive: true });
     await rm(path.join(embedded, "include"), { recursive: true });
     console.log("Verifying the bundled AudioCraft CPU runtime…");
-    const { stdout: protocol } = await exec(executable, ["--self-test"], { env: { PATH: "" } });
-    if (protocol.trim() !== "audiocraft-synth/1") throw new Error(`Unexpected AudioCraft protocol: ${protocol}`);
+    const probe = await probeMacPlugin(executable, ["--self-test"], { env: { PATH: "" }, timeout: 60000 });
+    if (probe.status !== 0 || probe.stdout.trim() !== "audiocraft-synth/1") {
+      throw new Error(`Unexpected AudioCraft protocol: ${probe.stderr || probe.stdout}`);
+    }
 
     const metadata = {
       revision: "72cb16f9fb239e9cf03f7bd997198c7d7a67a01c+desktop.1",

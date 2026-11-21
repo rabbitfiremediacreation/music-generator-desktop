@@ -289,7 +289,7 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
   expect(await screen.findByText("Meine Aufnahme.wav")).toBeTruthy();
   fireEvent.submit(form);
   expect(requests).toHaveLength(0);
-  fireEvent.click(screen.getByRole("checkbox", { name: /Die Referenz gehört mir/ }));
+  fireEvent.click(screen.getByRole("switch", { name: /Die Referenz gehört mir/ }));
   fireEvent.submit(form);
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toMatchObject({
@@ -339,7 +339,7 @@ it("does not admit generation when remembering the CPU choice fails and preserve
   fireEvent.change(screen.getByRole("slider", { name: "Iterationen" }), { target: { value: "80" } });
   fireEvent.submit(screen.getByRole("button", { name: "2× GENERIEREN" }).closest("form")!);
   await screen.findByRole("dialog");
-  fireEvent.click(screen.getByRole("checkbox", { name: "Diese Entscheidung merken" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Diese Entscheidung merken" }));
   fireEvent.click(screen.getByRole("button", { name: "Trotzdem starten" }));
   await screen.findByRole("alert");
   expect(requests).toHaveLength(0);
@@ -686,7 +686,7 @@ it("lets YuE2 queue an instrumental without lyrics and keeps the vocal draft whe
   const generate = screen.getByRole<HTMLButtonElement>("button", { name: "GENERIEREN" });
   expect(generate.disabled).toBe(true);
   fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: lyrics } });
-  const mode = screen.getByRole("checkbox", { name: "Instrumental" });
+  const mode = screen.getByRole("switch", { name: "Instrumental" });
   fireEvent.click(mode);
   expect(screen.queryByRole("textbox", { name: "Lyrics" })).toBeNull();
   fireEvent.click(mode);
@@ -727,7 +727,7 @@ it("queues multiple YuE2 versions with independent planning and synthesis contro
   currentPolicy = { ...policy, available: true, capabilities: profile.capabilities };
   const { container } = mount({ selection: profile.selection });
   fireEvent.change(await screen.findByRole("textbox", { name: "Stil-Tags" }), { target: { value: "lofi, upright piano" } });
-  fireEvent.click(screen.getByRole("checkbox", { name: "Instrumental" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Instrumental" }));
   const versions = screen.getByRole<HTMLInputElement>("slider", { name: "Versionen" });
   expect(versions.value).toBe("1");
   expect(versions.max).toBe("8");

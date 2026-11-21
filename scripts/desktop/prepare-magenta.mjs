@@ -122,6 +122,7 @@ export async function prepareMagenta(folder = magentaFolder) {
   await run("cmake", [
     "-S", source, "-B", build, "-G", "Ninja",
     "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DBUILD_SHARED_LIBS=OFF",
+    "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
     `-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=${path.join(recipeFolder, "register.cmake")}`,
   ]);

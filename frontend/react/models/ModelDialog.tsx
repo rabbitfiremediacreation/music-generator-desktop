@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { ActivityStatus } from "../ActivityStatus";
 import { useI18n } from "../i18n";
 import { ModelManager, type ModelManagerProps } from "./ModelManager";
 
@@ -22,7 +23,8 @@ export function ModelDialog({ onClose, title, ...props }: ModelDialogProps) {
     }}
     onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
-    <div className="model-picker-head"><h2 id="modelPickerHeading">{title ?? t("picker_title")}</h2>
+    <div className="model-picker-head">
+      <div><h2 id="modelPickerHeading">{title ?? t("picker_title")}</h2><ActivityStatus className="model-picker-activity" /></div>
       <button type="button" className="sek" onClick={onClose}>{t("desktop_close")}</button>
     </div>
     <ModelManager {...props} />

@@ -1,7 +1,7 @@
 use super::{classify, Mount};
 use std::{
     ffi::{c_char, c_void, CStr, CString},
-    path::PathBuf,
+    path::{Path, PathBuf},
     ptr,
 };
 
@@ -117,25 +117,49 @@ fn mounts() -> Option<Vec<Mount>> {
     }
 }
 
-pub(super) fn inspect() -> Option<bool> {
-    let executable = std::env::current_exe().ok()?.canonicalize().ok()?;
+fn app_bundle(executable: &Path) -> Option<&Path> {
     let macos = executable.parent()?;
     let contents = macos.parent()?;
     let bundle = contents.parent()?;
-    // Raw development binaries are not application bundles and must keep their normal startup.
-    if macos.file_name()? != "MacOS"
-        || contents.file_name()? != "Contents"
-        || bundle
-            .extension()
-            .is_none_or(|extension| extension != "app")
-    {
+    (macos.file_name()? == "MacOS"
+        && contents.file_name()? == "Contents"
+        && bundle.extension()? == "app")
+        .then_some(bundle)
+}
+
+pub(crate) fn inside_app_bundle() -> bool {
+    std::env::current_exe()
+        .ok()
+        .is_some_and(|executable| app_bundle(&executable).is_some())
+}
+
+pub(super) fn inspect() -> Option<bool> {
+    let executable = std::env::current_exe().ok()?.canonicalize().ok()?;
+    let Some(bundle) = app_bundle(&executable) else {
         return Some(false);
-    }
+    };
     classify(bundle, &mounts()?, is_disk_image)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recognizes_packaged_executables_and_leaves_cargo_binaries_outside() {
+        use std::path::Path;
+
+        let app = Path::new("/tmp/Music Generator.app");
+        assert_eq!(
+            super::app_bundle(&app.join("Contents/MacOS/music-generator")),
+            Some(app)
+        );
+        assert_eq!(
+            super::app_bundle(Path::new(
+                "/worktree/src-tauri/target/debug/music-generator"
+            )),
+            None
+        );
+    }
+
     #[test]
     fn unknown_device_has_no_disk_image_classification() {
         assert_eq!(

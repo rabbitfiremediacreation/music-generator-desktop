@@ -16,13 +16,15 @@ catalog records the SHA-256 and size of each downloaded file.
 
 ## Install and use
 
-Open **Settings → Models and hardware test → Text2midi**. On Apple silicon with
-macOS 14 or later,
-install an arm64 CPython 3.12, run the one-time command shown in the ModelPicker,
-and reopen it. The command installs the hash-pinned Python wheels into the
-app’s data directory. It uses PyPI by default and accepts a local wheel directory
-as its second argument for an offline installation. In a development checkout
-run the following command with the app data directory.
+On Apple Silicon with macOS 14 or later, install **PyTorch** from **Settings → Engines**.
+The engine ZIP supplies the Text2midi and Mimetic A0 runners with one CPython 3.11
+and PyTorch 2.7.1 installation. Open the model picker after installation and choose
+the Text2midi weights.
+
+For a development checkout without a release engine manifest, install arm64
+CPython 3.12 and run the following command with the app data directory. The
+command uses PyPI by default and accepts a local wheel directory as its second
+argument.
 
 ```sh
 bash src-tauri/resources/text2midi/install.sh /path/to/app-data

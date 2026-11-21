@@ -6,6 +6,12 @@ export function modelProfile(catalog: ModelCatalog, selection: ModelSelection): 
     profile.synthesis === selection.synthesis && profile.language === selection.language);
 }
 
+export function hasModelEngine(catalog: ModelCatalog, selection: ModelSelection): boolean {
+  if (selection.provider === "ace-step") return catalog.ace_step_available !== false;
+  const metadata = modelProfile(catalog, selection);
+  return metadata ? metadata.engine_installed !== false : catalog.ace_step_available === undefined;
+}
+
 export function profileModels(catalog: ModelCatalog, selection: ModelSelection): CatalogModel[] {
   const metadata = modelProfile(catalog, selection);
   if (metadata) return metadata.files.flatMap(file => catalog.models.filter(m => m.provider === selection.provider && m.file === file));
@@ -26,7 +32,7 @@ export function profile(catalog: ModelCatalog, selection: ModelSelection) {
     catalog.providers.some(p => p.id === selection.provider && p.status === "available") &&
     models.some(m => m.role === "synthesis" && m.file === selection.synthesis) &&
     models.some(m => m.role === "language" && m.file === selection.language);
-  const valid = complete && (metadata?.available ?? true);
+  const valid = complete && hasModelEngine(catalog, selection) && (metadata?.available ?? true);
   const filesVerified = complete && models.every(m => m.verified);
   const platforms = [...(metadata?.platforms ?? []), ...(metadata?.evaluation_platforms ?? [])]
     .filter(platform => platform.os === catalog.hardware.platform);

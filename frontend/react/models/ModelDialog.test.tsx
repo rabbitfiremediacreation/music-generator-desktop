@@ -15,6 +15,27 @@ async function open() {
   return screen.findByRole("dialog", { name: "Modelle" });
 }
 
+it("shows only the model families whose engines are installed", async () => {
+  const catalog = catalogWithAudioCraft(true);
+  catalog.ace_step_available = false;
+  catalog.profiles = catalog.profiles?.map(profile => ({ ...profile, engine_installed: false }));
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(structuredClone(catalog)) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  await dialog.findByText("Installiere zuerst die passende Engine in den Einstellungen.");
+  expect(dialog.queryByRole("button", { name: "SFT" })).toBeNull();
+  const model = catalog.profiles![0];
+  model.engine_installed = true;
+  act(() => handlers.get("models-changed")?.({ payload: null }));
+  expect(await dialog.findByRole("button", { name: model.name })).toBeTruthy();
+  expect(dialog.queryByRole("button", { name: "SFT" })).toBeNull();
+  model.engine_installed = false;
+  act(() => handlers.get("models-changed")?.({ payload: null }));
+  await dialog.findByText("Installiere zuerst die passende Engine in den Einstellungen.");
+  expect(dialog.queryByRole("button", { name: model.name })).toBeNull();
+});
+
 it.each([false, true])("shows DiffRhythm terms before download (evaluation runner available: %s)", async available => {
   const catalog = catalogWithDiffRhythm2();
   const diffrhythm = catalog.profiles![0];
@@ -410,17 +431,25 @@ it("shows download progress and allows cancellation without changing the durable
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "model_catalog") return catalog;
     if (name === "use_models") return new Promise((_, reject) => { fail = reject; });
-    if (name === "cancel_model_download") { fail(new Error("Operation cancelled")); return; }
+    if (name === "cancel_model_download") {
+      handlers.get("model-download-progress")!({ payload: null });
+      fail(new Error("Operation cancelled"));
+      return;
+    }
     return invoke(name, args);
   });
   mountControls(); const dialog = await open();
-  fireEvent.click(await within(dialog).findByRole("button", { name: "Herunterladen und verwenden" }));
+  const footer = within(dialog.querySelector<HTMLElement>(".model-browser-footer")!);
+  expect(footer.getByText("Freier Speicherplatz")).toBeTruthy();
+  fireEvent.click(await footer.findByRole("button", { name: "Herunterladen und verwenden" }));
   await waitFor(() => expect(typeof fail).toBe("function"));
   act(() => handlers.get("model-download-progress")!({ payload: { file: "weights.gguf", phase: "downloading", downloaded: 1, total: 2, bytes_per_second: 0 } }));
-  expect(await within(dialog).findByText(/weights.gguf/)).toBeTruthy();
+  const pickerHeader = within(dialog.querySelector<HTMLElement>(".model-picker-head")!);
+  expect((await pickerHeader.findByRole<HTMLProgressElement>("progressbar")).value).toBe(50);
   expect(within(dialog).queryByRole("button", { name: "Hardwaretest im Einrichtungsassistenten …" })).toBeNull();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Download abbrechen" }));
+  fireEvent.click(footer.getByRole("button", { name: "Download abbrechen" }));
   expect(await within(dialog).findByRole("alert")).toBeTruthy();
+  expect(pickerHeader.queryByRole("progressbar")).toBeNull();
   expect(screen.getByLabelText("selection").textContent).toBe("acestep-v15-sft-Q8_0.gguf");
 });
 

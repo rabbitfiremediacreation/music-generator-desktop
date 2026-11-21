@@ -2,8 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
+import { buildBranding } from "./scripts/desktop/build-branding.mjs";
 
 export default defineConfig({
+  define: { "import.meta.env.MUSIC_GENERATOR_BRANDING": JSON.stringify(buildBranding(process.env.MUSIC_GENERATOR_UPDATE_BUILD)) },
   plugins: [react(), tailwindcss()],
   root: "frontend",
   publicDir: "../static",

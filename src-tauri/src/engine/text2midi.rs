@@ -17,11 +17,25 @@ pub async fn generate(
     cancel: &CancellationToken,
     progress: impl Fn(Progress),
 ) -> Result<(Vec<u8>, String, Value)> {
-    let entry = profile.runtime.executable(resources);
-    let python = profile
-        .runtime
-        .interpreter(data_root)
-        .ok_or_else(|| message("Text2midi runtime interpreter is not configured"))?;
+    let (runner, mut args) = match profile.runtime.packaged_plugin(resources) {
+        Some(plugin) => (plugin, Vec::new()),
+        None => {
+            let python = profile
+                .runtime
+                .interpreter(data_root)
+                .ok_or_else(|| message("Text2midi runtime interpreter is not configured"))?;
+            let script = profile.runtime.executable(resources);
+            (
+                python,
+                vec![
+                    "-E".into(),
+                    "-s".into(),
+                    "-B".into(),
+                    script.to_string_lossy().into_owned(),
+                ],
+            )
+        }
+    };
     let prompt = params["caption"]
         .as_str()
         .map(str::trim)
@@ -33,7 +47,7 @@ pub async fn generate(
         .ok_or_else(|| message("Invalid Text2midi seed"))?;
     let platform = profile.platform(crate::hardware::inspect())?;
     let job = NativeJob {
-        executable: &python,
+        executable: &runner,
         model_folder,
         data_root,
         log_name: "text2midi.log",
@@ -42,11 +56,7 @@ pub async fn generate(
     };
     let (midi, mut meta) = job
         .run_file("mid", params, cancel, progress, |output| {
-            vec![
-                "-E".into(),
-                "-s".into(),
-                "-B".into(),
-                entry.to_string_lossy().into_owned(),
+            args.extend([
                 "--model-dir".into(),
                 model_folder.to_string_lossy().into_owned(),
                 format!("--prompt={prompt}"),
@@ -54,7 +64,8 @@ pub async fn generate(
                 output.to_string_lossy().into_owned(),
                 "--seed".into(),
                 seed.to_string(),
-            ]
+            ]);
+            args
         })
         .await?;
     meta["midi"] = inspect(&midi)?;

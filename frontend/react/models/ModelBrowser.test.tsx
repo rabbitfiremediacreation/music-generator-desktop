@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { setLang, t } from "../../i18n.js";
 import type { ModelCatalog, ModelSelection } from "../../types";
-import { catalogFixture } from "./model-fixtures";
+import { catalogFixture, catalogWithHeartMuLa } from "./model-fixtures";
 import { standard } from "../setup/fixtures";
 import { ModelBrowser } from "./ModelBrowser";
 
@@ -29,6 +29,19 @@ it("selects a searched family in the details without applying or downloading it"
   expect(screen.getByLabelText("draft").textContent).toBe("acestep-v15-xl-sft-Q5_K_M.gguf");
   expect(changed).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "XL SFT" }).getAttribute("aria-pressed")).toBe("true");
+});
+
+it("finds and selects native models in the list without a provider dropdown", () => {
+  const catalog = catalogWithHeartMuLa();
+  const model = catalog.profiles![0];
+  mount(catalog);
+  expect(screen.queryByRole("combobox")).toBeNull();
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: model.upstream_sources[0].repository } });
+  const results = within(screen.getByRole("list", { name: t("browser_catalog") }));
+  fireEvent.click(results.getByRole("button", { name: model.name }));
+  expect(screen.getByRole("heading", { name: model.name })).toBeTruthy();
+  expect(changed).toHaveBeenCalledWith(model.selection);
+  expect(results.queryByRole("button", { name: "SFT" })).toBeNull();
 });
 
 it("shows only installed families and leaves the selection intact when a search has no results", () => {

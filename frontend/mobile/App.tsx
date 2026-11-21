@@ -3,6 +3,7 @@ import { audioFormats, orderedAudioFormats, type AudioFormat } from "../audio-fo
 import { DownloadFormatMenu } from "../DownloadFormatMenu";
 import { DEFAULT_CLIP_BPM, MAX_CLIP_BPM, MAX_EXTENDED_DURATION, boundedDuration, clipSeconds, supportsExtendedDuration } from "../generation-limits";
 import { GenerationProgress, WaveLogo } from "../GenerationActivity";
+import { Switch } from "../Switch";
 import { progressText } from "../progress";
 import { analyzedYue2Style } from "../style-tags";
 import type { ActiveGenerationProfile, Folder, Generation, Queue, Yue2Options } from "../types";
@@ -82,7 +83,7 @@ function SecureSetup({ t, token, remember, setRemember, language }: { t: Transla
         <li><strong>{de ? "Einmalig dem Rechner vertrauen" : "Trust this computer once"}</strong><p>{de ? "iPhone: Öffne den Link in Safari und erlaube das geladene Profil. Dann Einstellungen → Allgemein → VPN und Geräteverwaltung → Music Generator → Installieren." : "iPhone: open the link in Safari and allow the profile download. Then Settings → General → VPN & Device Management → Music Generator → Install."}</p><p>{de ? "Aktiviere anschließend unter Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen das volle Vertrauen für Music Generator." : "Then enable full trust for Music Generator in Settings → General → About → Certificate Trust Settings."}</p><details><summary>{de ? "Android-Anleitung" : "Android instructions"}</summary><p>{de ? "Suche in den Einstellungen nach „Zertifikat installieren“ und installiere die geladene Datei als CA-Zertifikat. Menünamen unterscheiden sich je nach Gerät." : "Search Settings for “Install a certificate” and install the downloaded file as a CA certificate. Menu names vary by device."}</p></details></li>
         <li><strong>{de ? "Zur sicheren Web-App wechseln" : "Continue to the secure web app"}</strong><p>{de ? "Kehre hierher zurück und öffne den folgenden Link. Dein Schlüssel ist enthalten und wird am Handy gemerkt. In der sicheren Web-App kannst du sie zum Home-Bildschirm hinzufügen." : "Return here and open the link below. It includes your key and remembers it on this phone. You can then add the secure web app to your home screen."}</p>{!link && <p className="muted">{de ? "Scanne den Web-App-QR-Code am Rechner erneut, um die passende Adresse zu öffnen." : "Scan the web-app QR code on your computer again to open the matching address."}</p>}</li>
       </ol>
-      <label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label>
+      <Switch label={t("remember")} checked={remember} onChange={event => setRemember(event.target.checked)} />
       <p className="fine">{t("keyTip")}</p>
     </>}
   </section>;
@@ -222,7 +223,7 @@ export function App() {
     {loginError && <Failure t={t}>{t("scanInvalid")}</Failure>}
     <form onSubmit={event => { event.preventDefault(); const value = keyDraft.trim(); if (!value) return; const paired = pairingToken(value); if (value.includes("://") && !paired) { setLoginError(true); return; } setToken(paired || value); if (paired) setRemember(true); setAuthMessage(false); setLoginError(false); setKeyDraft(""); }}>
       <Field title={t("key")}><input type="password" autoComplete="off" required value={keyDraft} placeholder={t("scanLink")} onChange={event => setKeyDraft(event.target.value)} /></Field>
-      <label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label>
+      <Switch label={t("remember")} checked={remember} onChange={event => setRemember(event.target.checked)} />
       <button className="primary wide" type="submit">{t("connect")} <span aria-hidden="true">→</span></button>
     </form><p className="fine">{t("keyTip")}</p>
   </section> : !secure ? <SecureSetup t={t} token={token} remember={remember} setRemember={setRemember} language={language} /> : <>
@@ -260,7 +261,10 @@ export function App() {
         </div>
       </article>)}</div>
     </section><div hidden={page !== "create"}><CreateForm active={page === "create"} api={api} folders={folders.folders} language={language} t={t} onQueued={() => { setToast("sent"); setRevision(value => value + 1); }} /></div>
-    <details className="connection-details"><summary>{t("connection")}</summary><p className="fine">{window.location.host}</p><label className="check"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t("remember")}</label><p className="fine">{t("keyTip")}</p>{storageError && <p className="fine" role="status">{t("storageDenied")}</p>}<button className="secondary" type="button" onClick={() => disconnect()}>{t("disconnect")}</button></details>
+    <details className="connection-details"><summary>{t("connection")}</summary><p className="fine">{window.location.host}</p>
+      <Switch label={t("remember")} checked={remember} onChange={event => setRemember(event.target.checked)} />
+      <p className="fine">{t("keyTip")}</p>{storageError && <p className="fine" role="status">{t("storageDenied")}</p>}<button className="secondary" type="button" onClick={() => disconnect()}>{t("disconnect")}</button>
+    </details>
     <details className="install-details"><summary>{t("installTitle")}</summary><p className="fine">{t("installIos")}</p>{installPrompt && <button className="secondary" type="button" onClick={() => { void installPrompt.prompt().then(() => installPrompt.userChoice).finally(() => setInstallPrompt(null)); }}>{t("install")}</button>}</details>
     <nav className="bottom-nav" aria-label="Music Generator"><button className={page === "library" ? "selected" : ""} type="button" aria-current={page === "library" ? "page" : undefined} onClick={() => setPage("library")}><Icon name="library" />{t("library")}</button><button className={page === "create" ? "selected" : ""} type="button" aria-current={page === "create" ? "page" : undefined} onClick={() => setPage("create")}><Icon name="create" />{t("create")}</button></nav>
   </>;
@@ -396,7 +400,8 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
         <input value={draft.style} placeholder={t("styleHint")} required={!abilities.prompt} aria-describedby={abilities.prompt ? promptHint.id : styleHint.id}
           onChange={event => setDraft(value => ({ ...value, style: event.target.value }))} />
       </Field>}
-      {abilities.lyrics && abilities.instrumental && !barOptions && <label className="check"><input type="checkbox" checked={draft.instrumental} onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />{t("instrumental")}</label>}
+      {abilities.lyrics && abilities.instrumental && !barOptions && <Switch label={t("instrumental")} checked={draft.instrumental}
+        onChange={event => setDraft(value => ({ ...value, instrumental: event.target.checked }))} />}
       {!instrumental && <Field title={t("lyrics")}><textarea rows={4} required={abilities.lyrics_required} value={draft.lyrics} onChange={event => setDraft(value => ({ ...value, lyrics: event.target.value }))} /></Field>}
       <div className="field-grid">
         {barOptions ? <>
@@ -420,14 +425,12 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
         {!abilities.advanced && <Field title={yue2 ? yue2Text(language).acousticSeed : t("seed")}><input type="number" min={-1} max={abilities.max_seed ?? Number.MAX_SAFE_INTEGER} value={draft.seed} onChange={event => setDraft(value => ({ ...value, seed: event.target.value }))} /></Field>}
         <Field title={t("folder")}><select value={draft.folder_id} onChange={event => setDraft(value => ({ ...value, folder_id: event.target.value }))}><option value="">{t("unsorted")}</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></Field>
       </div>
-      {canExtend && <label className="check">
-        <input type="checkbox" role="switch" checked={extendedDuration} aria-describedby={extendedDuration ? "remote-extended-duration-hint" : undefined}
-          onChange={event => {
-            setExtendedProfile(event.target.checked ? profileKey : null);
-            if (!event.target.checked) setDraft(value => ({ ...value, duration: String(boundedDuration(Number(value.duration), abilities)) }));
-          }} />
-        {t("ignoreRecommendedDuration")}
-      </label>}
+      {canExtend && <Switch label={t("ignoreRecommendedDuration")} checked={extendedDuration}
+        aria-describedby={extendedDuration ? "remote-extended-duration-hint" : undefined}
+        onChange={event => {
+          setExtendedProfile(event.target.checked ? profileKey : null);
+          if (!event.target.checked) setDraft(value => ({ ...value, duration: String(boundedDuration(Number(value.duration), abilities)) }));
+        }} />}
       {extendedDuration && <p className="fine" id="remote-extended-duration-hint">{t("extendedDurationHint")}</p>}
       {barOptions && <output className="field muted" aria-live="polite">
         {clipDuration !== undefined && `${clipDuration.toLocaleString(language, { maximumFractionDigits: 3 })} ${t("seconds")}`}

@@ -7,6 +7,9 @@ use std::path::Path;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
+#[path = "pytorch_probe.rs"]
+mod pytorch_probe;
+
 /// Exercise the real startup detector inside a signed bundle without opening user data or windows.
 pub fn startup_location() {
     println!(
@@ -49,20 +52,38 @@ pub fn run(forbidden: &Path) -> Result<()> {
         ..Settings::default()
     };
     let result = tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(async {
-        let engine = Engine::start(&resources, &root.join("logs"), &settings, &CancellationToken::new()).await?;
+        crate::engine_packages::install_probe_archives(&root)?;
+        let ace = crate::engine_packages::ace_resources(&resources, &root);
+        verify_ace_cpu(&exe, &ace).await?;
+        let engine = Engine::start(&ace, &root.join("logs"), &settings, &CancellationToken::new()).await?;
         if crate::hardware::cpu_only() {
             if engine.client.synth != engine.client.lm { return Err(message("Intel CPU engine unexpectedly duplicated the language-model process")); }
         } else if engine.client.synth == engine.client.lm { return Err(message("CPU-only language model did not start a separate process")); }
         drop(engine);
+        let log = std::fs::read_to_string(root.join("logs/ace-server.log"))?;
+        if !log.contains("[Desktop Sandbox] Unselected file access denied") {
+            return Err(message("Engine sandbox enforcement was not confirmed"));
+        }
+        println!("App Sandbox: ACE-Step loopback health, unselected file access denied, supervisor shutdown passed.");
         verify_exports(&resources, &root).await?;
         let title = crate::titles::probe(&resources,&CancellationToken::new()).await?;
         if !title.contains("[Desktop Sandbox] Unselected file access denied") || !title.contains("music-title=ready") { return Err(message("Title runtime sandbox enforcement was not confirmed")); }
         println!("App Sandbox: native title runtime starts; unselected file access denied.");
-        verify_audiocraft(&resources).await?;
+        let runtime = |entry| crate::engine_packages::resources_for(&resources, &root, Path::new(entry));
+        verify_audiocraft(&runtime("engine/audiocraft/audiocraft-synth")).await?;
+        let magenta = "engine/magenta/mrt2-record";
+        verify_plugin(&runtime(magenta).join(magenta), "mrt2-record/1").await?;
         #[cfg(target_arch = "aarch64")]
-        verify_audio_cpp(&resources, &root).await?;
+        verify_audio_cpp(&runtime("engine/providers/audio.cpp/audiocpp_cli"), &root).await?;
         #[cfg(target_arch = "aarch64")]
-        verify_mimetic(&resources).await?;
+        verify_mimetic(&runtime("engine/mimetic-synth")).await?;
+        #[cfg(target_arch = "aarch64")]
+        verify_yue2(&runtime("engine/yue2/yue-synth")).await?;
+        let midi = "engine/text2midi/text2midi-runner";
+        verify_plugin(&runtime(midi).join(midi), "text2midi-runner/1").await?;
+        if let Some(models) = std::env::var_os("MUSIC_PYTORCH_SMOKE_MODELS") {
+            pytorch_probe::verify(&resources, &root, models.as_ref()).await?;
+        }
         // Optional real-model acceptance; fixture must already be inside this app's container.
         if let Some(model)=std::env::var_os("MUSIC_TITLE_SMOKE_MODEL") {
             let pin=crate::titles::manifest();
@@ -75,38 +96,115 @@ pub fn run(forbidden: &Path) -> Result<()> {
             if std::fs::read_dir(root.join("title-work"))?.next().is_some() { return Err(message("Title request files were not removed")); }
         }
 
-        let log = std::fs::read_to_string(root.join("logs/ace-server.log"))?;
-        if !log.contains("[Desktop Sandbox] Unselected file access denied") { return Err(message("Engine sandbox enforcement was not confirmed")); }
-        println!("App Sandbox: unselected read/write denied; inherited engine read denied; container storage, loopback health and supervisor shutdown passed.");
         Ok(())
     });
     let _ = std::fs::remove_dir_all(root);
     result
 }
 
+async fn verify_ace_cpu(app: &Path, resources: &Path) -> Result<()> {
+    let engine = crate::engine::engine_path(resources);
+    let folder = resources.join("engine");
+    let supervisor = app.with_file_name("music-engine-supervisor");
+    let mut probe = tokio::process::Command::new(supervisor);
+    probe
+        .current_dir(&folder)
+        .arg("--synthesis-backend-probe")
+        .arg(&folder)
+        .arg("--cpu");
+    let backend = probe_output(probe).await?;
+    if !backend.status.success()
+        || String::from_utf8_lossy(&backend.stdout).lines().last() != Some("\"cpu\"")
+    {
+        return Err(message(format!(
+            "The relocated ACE-Step CPU backend did not initialize ({}): {}",
+            backend.status,
+            String::from_utf8_lossy(&backend.stderr)
+        )));
+    }
+    for (requested, expected) in [("0", "50"), ("120", "120"), ("200", "200"), ("201", "200")] {
+        let mut probe = crate::engine::process::probe_command(&engine)?;
+        probe
+            .current_dir(&folder)
+            .args(["--desktop-iteration-probe", requested]);
+        let result = probe_output(probe).await?;
+        if !result.status.success()
+            || String::from_utf8_lossy(&result.stdout).lines().last() != Some(expected)
+        {
+            return Err(message(format!(
+                "The relocated engine changed the iteration limit for {requested} steps"
+            )));
+        }
+    }
+    Ok(())
+}
+
+async fn probe_output(mut command: tokio::process::Command) -> Result<std::process::Output> {
+    command.kill_on_drop(true);
+    tokio::time::timeout(Duration::from_secs(15), command.output())
+        .await
+        .map_err(|_| message("Engine package probe timed out"))?
+        .map_err(Into::into)
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn verify_yue2(resources: &Path) -> Result<()> {
+    let pin: serde_json::Value =
+        serde_json::from_str(include_str!("../../../models/yue2-runtime.json"))?;
+    let revision = pin["revision"].as_str().unwrap_or_default();
+    let expected = format!("yue2.cpp {}", &revision[..7]);
+    for entry in ["yue-synth", "yue-plan"] {
+        let output =
+            crate::engine::process::probe_command(&resources.join("engine/yue2").join(entry))?
+                .arg("--help")
+                .output()
+                .await?;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.code() != Some(1)
+            || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
+            || !stderr.contains(&expected)
+        {
+            return Err(message(format!(
+                "YuE2 sandbox enforcement was not confirmed: {stderr}"
+            )));
+        }
+    }
+    println!(
+        "App Sandbox: YuE2 planner and synthesizer plug-ins start; unselected file access denied."
+    );
+    Ok(())
+}
+
 async fn verify_audiocraft(resources: &Path) -> Result<()> {
-    let executable = resources.join("engine/audiocraft/audiocraft-synth");
+    verify_plugin(
+        &resources.join("engine/audiocraft/audiocraft-synth"),
+        "audiocraft-synth/1",
+    )
+    .await
+}
+
+async fn verify_plugin(executable: &Path, protocol: &str) -> Result<()> {
     if !executable.is_file() {
         return Ok(());
     }
-    let mut launcher = tokio::process::Command::new(executable);
+    let mut launcher = crate::engine::process::probe_command(executable)?;
     launcher
         .arg("--self-test")
         .env("PATH", "")
         .kill_on_drop(true);
     let output = tokio::time::timeout(Duration::from_secs(60), launcher.output())
         .await
-        .map_err(|_| message("AudioCraft runtime self-test timed out"))??;
+        .map_err(|_| message(format!("{protocol} plug-in self-test timed out")))??;
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success()
-        || String::from_utf8_lossy(&output.stdout).trim() != "audiocraft-synth/1"
+        || String::from_utf8_lossy(&output.stdout).trim() != protocol
         || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
     {
         return Err(message(format!(
-            "AudioCraft runtime self-test failed: {stderr}"
+            "{protocol} plug-in self-test failed: {stderr}"
         )));
     }
-    println!("App Sandbox: packaged AudioCraft starts with an empty PATH; unselected file access denied.");
+    println!("App Sandbox: {protocol} starts with an empty PATH; unselected file access denied.");
     Ok(())
 }
 
@@ -158,7 +256,8 @@ async fn probe_audio_cpp(launcher: &Path, root: &Path, option: &str, expected: &
 
 #[cfg(target_arch = "aarch64")]
 async fn verify_mimetic(resources: &Path) -> Result<()> {
-    let mut command = tokio::process::Command::new(resources.join("engine/mimetic-synth"));
+    let mut command =
+        crate::engine::process::probe_command(&resources.join("engine/mimetic-synth"))?;
     command.arg("--self-test").kill_on_drop(true);
     let output = tokio::time::timeout(std::time::Duration::from_secs(600), command.output())
         .await

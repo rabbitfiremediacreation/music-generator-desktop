@@ -74,6 +74,11 @@ export interface BackendStatus {
 }
 export interface Health { ok: boolean; error?: string; props?: { models?: Record<string, string[]> }; backend_status: BackendStatus }
 export interface SetupResult { ok: boolean; mode: string; backend_status: BackendStatus }
+export interface EngineVersion { tag: string | null; revision: string }
+export interface EnginePackage {
+  id: string; bytes: number; installed: boolean; update_available: boolean; removable: boolean; install_command: string | null;
+  installed_version: EngineVersion | null; available_version: EngineVersion | null;
+}
 export interface CudaStatus {
   state: "not_applicable" | "unsupported_build" | "unsupported_gpu" | "check_failed" | "driver_error" | "runtime_missing" | "cuda_failed" | "ready";
   download_bytes: number; details: string | null;
@@ -82,6 +87,7 @@ export interface Update { native?: boolean; available: boolean; current: string;
 export interface Model { file: string; estimated_bytes: number; sha256: string; kind: string }
 export interface Bootstrap {
   recommended_profiles: ModelSelection[];
+  optional_engines?: boolean;
   needs_setup: boolean; settings: Settings; version: string; data_dir: string; error: string | null;
   hardware: {
     ram_bytes: number; gpu: string; vram_bytes: number | null; recommended_lm: string; vae_chunk: number | null; platform: string; cpu_only: boolean;
@@ -92,7 +98,7 @@ export interface Bootstrap {
   manifest: { version: number; base_url: string; models: Model[] };
 }
 export interface SetupRequest { lm: string; xl: boolean; models_dir: string; songs_dir: string }
-export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
+export interface DownloadProgress { file: string; phase: "downloading" | "verifying" | "installing"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
   job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "complete";
@@ -152,7 +158,7 @@ export interface CatalogProfile {
   evaluation_platforms?: ProfilePlatform[];
   runtime_note?: string;
   expert_only?: boolean;
-  available: boolean; unavailable_reason?: string | null;
+  available: boolean; engine_installed?: boolean; unavailable_reason?: string | null;
   install_command?: string;
 }
 export interface ActiveGenerationProfile {

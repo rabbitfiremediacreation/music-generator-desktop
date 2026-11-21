@@ -7,7 +7,7 @@ pub async fn cpu_arguments(binary: &Path, cancel: &CancellationToken) -> Result<
     if cancel.is_cancelled() {
         return Err(Error::Cancelled);
     }
-    let mut command = tokio::process::Command::new(binary);
+    let mut command = super::process::probe_command(binary)?;
     if let Some(folder) = binary.parent() {
         command.current_dir(folder);
     }

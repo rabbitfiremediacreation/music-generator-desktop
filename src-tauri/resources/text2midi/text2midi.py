@@ -3,6 +3,7 @@
 import argparse
 from base64 import b64decode
 from contextlib import contextmanager
+from importlib import import_module
 import json
 import os
 from pathlib import Path
@@ -102,6 +103,12 @@ def run(model_dir, prompt, output, seed, max_tokens):
 
 
 def main():
+    if sys.argv[1:] == ["--self-test"]:
+        for module in ("decoder", "miditok", "sentencepiece", "symusic", "torch", "transformers"):
+            import_module(module)
+        load_vocabulary()
+        print("text2midi-runner/1")
+        return 0
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--prompt", required=True)

@@ -34,7 +34,7 @@ export function creatorOptions(catalog: ModelCatalog, chosen: ModelSelection | u
   const options = new Map<string, { selection: ModelSelection; value: string; label: string }>();
   function add(selection: ModelSelection) {
     const value = profileKey(selection);
-    if (options.has(value) || (selection.provider === "ace-step" && catalog.ace_step_available === false)) return;
+    if (options.has(value)) return;
     const candidate = profile(catalog, selection);
     if (!candidate.allowed || !candidate.compatible || !candidate.verified || candidate.models.some(model => !model.present)) return;
     options.set(value, { selection, value, label: selectionLabel(catalog, selection, recommended.has(value)) });

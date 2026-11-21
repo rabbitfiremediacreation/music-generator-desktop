@@ -74,6 +74,8 @@ export function installBrowserPreview() {
       case "get_song": return songs.find(song => song.id === args.id);
       case "list_folders": return { folders: [], all: songs.length, none: songs.length };
       case "queue": return { running: [], queued: 0, active: false, progress: null, library: { count: songs.length, bytes: 0 } };
+      case "engine_package_status":
+        return [{ id: "ace-step", bytes: 0, installed: true, update_available: false, install_command: null }];
       case "model_catalog": {
         const titlePresent = !removedModels.has(setupFixture.title_model.file);
         return {

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { backend } from "../backend";
+import { desktopBranding } from "../build-branding";
+import { currentTitlebarDesign, subscribeTitlebarDesign } from "../titlebar-design";
 import type { ModelSelection } from "../types";
 import { ComputeStatus } from "./ComputeStatus";
-import { GenerationStatus } from "./generation/GenerationStatus";
+import { ActivityStatus } from "./ActivityStatus";
 import { useI18n } from "./i18n";
 
 export function useDesktop(busy:boolean, flush:RefObject<()=>Promise<void>>) {
@@ -35,9 +37,14 @@ export function useDesktop(busy:boolean, flush:RefObject<()=>Promise<void>>) {
 
 export function WindowBar({onClose,studioControls}:{onClose:()=>Promise<void>;studioControls?:{selection:ModelSelection|null;onSettings:()=>void;inert:boolean}}){
   const {t}=useI18n();
-  return <header className="titlebar">
-    <span data-tauri-drag-region className="titlebar-name">♫ &nbsp; Music Generator</span>
-    <GenerationStatus className="titlebar-generation-status" />
+  const choice = useSyncExternalStore(subscribeTitlebarDesign, currentTitlebarDesign);
+  const design = choice === "auto" ? desktopBranding?.id : choice === "classic" ? undefined : choice;
+  return <header className="titlebar" data-titlebar-design={design}>
+    <span data-tauri-drag-region className="titlebar-name">
+      {design ? <img src={`/branding/${design}.svg`} width="18" height="18" alt="" /> : <>♫ &nbsp; </>}
+      Music Generator{desktopBranding && ` · ${desktopBranding.label}`}
+    </span>
+    <ActivityStatus className="titlebar-activity-status" showGeneration />
     {studioControls&&<div className="titlebar-tools" inert={studioControls.inert}>
       <ComputeStatus selection={studioControls.selection}/>
       <button id="btnSettings" type="button" className="gear" title={t("settings_title")} aria-label={t("settings_title")} onClick={studioControls.onSettings}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M9 3h6l1 4 4 2v6l-4 2-1 4H9l-1-4-4-2V9l4-2z"/></svg></button>

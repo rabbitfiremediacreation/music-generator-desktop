@@ -14,6 +14,8 @@ const suffixes = {
 
 export const releaseTargets = Object.freeze(Object.keys(suffixes));
 export const appcastName = target => `appcast-${target}.xml`;
+export const engineManifestName = target => `engine-packages-${target}.json`;
+export const engineAssetName = (version, target, id) => `Music-Generator-Engine-${id}-${version}-${target}.zip`;
 
 // Release tags must identify the exact version shared by all application manifests.
 export function validateReleaseVersion(tag, versions) {
@@ -45,9 +47,25 @@ export async function sha256(file) {
 }
 
 // Validate the entire platform set before allowing any release mutation.
-export async function validateAssets(tag, target, directory, { requireAppcast = false } = {}) {
-  const names = expectedAssets(tag, target);
+export async function validateAssets(tag, target, directory, { requireAppcast = false, releaseTag = tag } = {}) {
+  const desktop = expectedAssets(tag, target);
   const actual = await readdir(directory);
+  const manifest = engineManifestName(target);
+  assert(actual.includes(manifest), "Release files are missing or unexpected: missing engine manifest");
+  const file = path.join(directory, manifest);
+  assert((await lstat(file)).isFile(), "Engine manifest must be a regular file");
+  const engines = JSON.parse(await readFile(file, "utf8"));
+  assert(engines.format === 1 && engines.tag === releaseTag && Array.isArray(engines.packages), "Invalid engine release manifest");
+  const packages = new Map();
+  for (const entry of engines.packages) {
+    assert(typeof entry.id === "string" && /^[a-z][a-z0-9-]*$/.test(entry.id), "Invalid engine ID");
+    assert(entry.file === engineAssetName(tag.slice(1), target, entry.id) && !packages.has(entry.file), "Invalid engine asset name");
+    assert(/^[a-f0-9]{64}$/.test(entry.sha256) && Number.isSafeInteger(entry.bytes) && entry.bytes > 0 && Number.isSafeInteger(entry.unpacked_bytes) && entry.unpacked_bytes > 0, "Invalid engine asset metadata");
+    assert(entry.bytes < 2 * 1024 ** 3, `GitHub release asset exceeds 2 GiB: ${entry.file}`);
+    packages.set(entry.file, entry);
+  }
+  assert(packages.has(engineAssetName(tag.slice(1), target, "ace-step")), "ACE-Step release asset is missing");
+  const names = [...[...packages.keys(), manifest].flatMap(name => [name, `${name}.sha256`]), ...desktop];
   if (target.startsWith("macos-")) {
     const appcast = appcastName(target);
     if (requireAppcast || actual.includes(appcast)) names.push(appcast, `${appcast}.sha256`);
@@ -56,8 +74,12 @@ export async function validateAssets(tag, target, directory, { requireAppcast = 
   const assets = [];
   for (const name of names) {
     const file = path.join(directory, name);
-    assert((await lstat(file)).isFile(), `Release asset must be a regular file: ${name}`);
-    assets.push({ name, file, digest: `sha256:${await sha256(file)}` });
+    const info = await lstat(file);
+    assert(info.isFile(), `Release asset must be a regular file: ${name}`);
+    const digest = await sha256(file);
+    const engine = packages.get(name);
+    if (engine) assert(engine.sha256 === digest && engine.bytes === info.size, `Engine archive does not match manifest: ${name}`);
+    assets.push({ name, file, digest: `sha256:${digest}` });
   }
   for (const asset of assets.filter(asset => !asset.name.endsWith(".sha256"))) {
     const checksum = await readFile(`${asset.file}.sha256`, "utf8");

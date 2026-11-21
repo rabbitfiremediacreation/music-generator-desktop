@@ -43,7 +43,7 @@ if (!existing || existing.isDraft) {
   const notes = "update-notes/release-notes.md";
   assert((await readFile(notes, "utf8")).trim(), "Missing generated update notes");
   const assets = (await Promise.all(releaseTargets.map(target =>
-    validateAssets(versionTag, target, path.join("packages", `Music-Generator-${target}`)),
+    validateAssets(versionTag, target, path.join("packages", `Music-Generator-${target}`), { releaseTag: tag }),
   ))).flat();
   withAppcasts = hasPreviewAppcasts(assets);
   if (!existing) {

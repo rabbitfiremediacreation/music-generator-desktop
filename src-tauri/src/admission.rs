@@ -155,15 +155,11 @@ pub(crate) fn generation_policy(
     let mut policy = if capabilities.advanced {
         state
             .synthesis_probe
-            .session_policy(&state.resources, selection, refresh, || {
+            .session_policy(&state.ace_resources(), selection, refresh, || {
                 state.backend_status()
             })
     } else {
-        let metal_available = selection.provider == "yue2"
-            && available
-            && state
-                .synthesis_probe
-                .metal_available(&state.resources, refresh);
+        let metal_available = selection.provider == "yue2" && available;
         let backend = if metal_available {
             Backend::Gpu
         } else {

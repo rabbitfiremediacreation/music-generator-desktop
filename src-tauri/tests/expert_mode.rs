@@ -44,6 +44,9 @@ fn state(root: &Path) -> Arc<AppState> {
     turbo().apply(&mut settings).unwrap();
     db.save_settings(&settings).unwrap();
     let state = Arc::new(AppState::new(db, root.join("resources")));
+    let executable = music_generator::engine::engine_path(&state.resources);
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    std::fs::write(executable, []).unwrap();
     state.restore_setup().unwrap();
     state
 }

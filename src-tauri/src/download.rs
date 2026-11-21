@@ -16,6 +16,9 @@ use std::{
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
+mod events;
+pub(crate) use events::ProgressEvents;
+
 #[derive(Clone, Serialize)]
 pub struct DownloadProgress {
     pub file: String,
@@ -284,6 +287,17 @@ pub(crate) async fn fetch(
     let start = Instant::now();
     let initial = downloaded;
     let mut last = Instant::now();
+    let report_download = |downloaded| {
+        progress(DownloadProgress {
+            file: model.file.clone(),
+            phase: "downloading",
+            downloaded,
+            total,
+            bytes_per_second: ((downloaded - initial) as f64
+                / start.elapsed().as_secs_f64().max(0.01)) as u64,
+        });
+    };
+    report_download(downloaded);
     loop {
         let chunk = tokio::select! { _ = cancel.cancelled() => { file.flush().await?; return Err(Error::Cancelled); }, chunk = stream.next() => chunk };
         let Some(chunk) = chunk else {
@@ -299,15 +313,7 @@ pub(crate) async fn fetch(
         }
         file.write_all(&chunk).await?;
         if last.elapsed().as_millis() >= 200 {
-            progress(DownloadProgress {
-                file: model.file.clone(),
-                phase: "downloading",
-                downloaded,
-                total,
-                bytes_per_second: ((downloaded - initial) as f64
-                    / start.elapsed().as_secs_f64().max(0.01))
-                    as u64,
-            });
+            report_download(downloaded);
             last = Instant::now();
         }
     }

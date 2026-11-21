@@ -47,14 +47,13 @@ select.language { width: auto; padding: 8px; border-radius: 9px; color: var(--mu
 input, select, textarea { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 12px 13px; color: #efeee9; background: #101218; font-size: 16px; line-height: 1.4; }
 input::placeholder, textarea::placeholder { color: #6f7483; }
 input:focus, textarea:focus, select:focus { outline: 1px solid var(--gold); outline-offset: 1px; }
-input[type=checkbox] { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--gold); }
 .field { display: flex; flex-direction: column; gap: 9px; margin-bottom: 19px; }
 .field > span { font-size: 11px; color: #a6a9b4; font-weight: 600; letter-spacing: .03em; }
 .field-with-hint { margin-bottom: 19px; }
 .field-with-hint > .field { margin-bottom: 6px; }
 .field-with-hint > small { display: block; margin: 0; }
 textarea { resize: vertical; }
-.check { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #c6c8d0; line-height: 1.5; margin: 18px 0; }
+.ui-switch-row { font-size: 12px; color: #c6c8d0; line-height: 1.5; margin: 18px 0; }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; border-radius: 10px; padding: 11px 15px; text-decoration: none; font-size: 12px; font-weight: 600; line-height: 1.4; }
 .primary { border: 1px solid #d2b680; color: #171711; background: linear-gradient(140deg,#e3cd9e,#b89c67); box-shadow: 0 4px 13px #d8bd8712; }
 .secondary { border: 1px solid #373b46; color: #dddfe5; background: #1c2029; }

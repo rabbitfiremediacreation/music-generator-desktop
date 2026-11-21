@@ -10,6 +10,7 @@ import { McpSettings } from "./McpSettings";
 import { SettingsNavigation, settingsGroups, type SettingsPage } from "./SettingsNavigation";
 import { GenerationSettings } from "./GenerationSettings";
 import { ModelsSettings, type SettingsModelManager } from "./ModelsSettings";
+import { EnginesSettings } from "./EnginesSettings";
 import { LibrarySettings } from "./LibrarySettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { AboutSettings } from "./AboutSettings";
@@ -88,7 +89,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
           {settingsGroups.flatMap(group => group.pages).map(value => <section key={value} id={`settings-${value}`} data-settings-page={value} hidden={page !== value} aria-labelledby="settingsPageHeading">
             {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={busy || (value !== "appearance" && (loading || !draft))}>
               {value === "generation" && <GenerationSettings state={state} />}
-              {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager} />}
+              {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager} onOpenEngines={() => selectPage("engines")} />}
+              {value === "engines" && page === "engines" && <EnginesSettings />}
               {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}
               {value === "appearance" && <AppearanceSettings layout={props.layout} onLayoutChange={props.onLayoutChange} />}
               {value === "mcp" && <McpSettings onBusyChange={setMcpSaving} />}

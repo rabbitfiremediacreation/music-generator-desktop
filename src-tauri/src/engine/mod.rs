@@ -44,7 +44,15 @@ pub fn device_plan(settings: &Settings, cpu_only: bool) -> (bool, bool) {
 }
 
 pub fn engine_path(resources: &Path) -> PathBuf {
-    resources.join("engine").join(if cfg!(windows) {
+    let directory = resources.join("engine");
+    #[cfg(target_os = "macos")]
+    {
+        let plugin = directory.join(process::ACE_PLUGIN);
+        if plugin.is_file() {
+            return plugin;
+        }
+    }
+    directory.join(if cfg!(windows) {
         "ace-server.exe"
     } else {
         "ace-server"

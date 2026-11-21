@@ -58,7 +58,6 @@
       "app"
     ],
     "resources": {
-      "resources/engine/": "engine/",
       "resources/text2midi/text2midi.py": "text2midi/text2midi.py",
       "resources/text2midi/decoder.py": "text2midi/decoder.py",
       "resources/text2midi/vocab_remi.json": "text2midi/vocab_remi.json",

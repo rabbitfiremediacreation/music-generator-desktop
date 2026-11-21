@@ -31,8 +31,10 @@ export function useSetup(bootstrap: Bootstrap, onReady?: () => void) {
   const progress = useQuery<DownloadProgress | null>({ queryKey: ["setup", "progress"], queryFn: async () => null, enabled: false, networkMode: "always" }).data;
   const stage = useQuery<string | null>({ queryKey: ["setup", "stage"], queryFn: async () => null, enabled: false, networkMode: "always" }).data;
   const setup = useMutation({
-    mutationKey: ["setup"], networkMode: "always", mutationFn: backend.setup,
-    onMutate: () => { cancel.reset(); client.setQueryData(["setup", "progress"], null); client.setQueryData(["setup", "stage"], null); },
+    mutationKey: ["setup"], networkMode: "always",
+    mutationFn: ({ request, foldersOnly = false }: { request: SetupRequest; foldersOnly?: boolean }) =>
+      foldersOnly ? backend.setupLibrary(request) : backend.setup(request),
+    onMutate: () => { cancel.reset(); client.setQueryData(["setup", "stage"], null); },
     onSuccess: async () => {
       client.setQueryData<Bootstrap>(["bootstrap"], old => old ? { ...old, needs_setup: false, settings: { ...old.settings, setup_complete: true } } : old);
       await Promise.all(["settings", "models", "generation-policy", "songs", "folders", "queue", "health"].map(key => client.invalidateQueries({ queryKey: [key] })));

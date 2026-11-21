@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Language } from "../../locales";
+import { Switch } from "../../Switch";
 import { modelErrorText } from "../../expert-mode";
 import { pickFolder, pathErrorText } from "../../path-dialogs";
 import type { Bootstrap } from "../../types";
@@ -46,7 +47,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
   const activeProgress = state.cuda.operation.isPending ? state.cuda.progress : progress;
   const activeStage = state.cuda.operation.isPending ? state.cuda.stage : stage;
   const progressText = state.cuda.operation.isPending ? activeStage ? t(activeStage === "installing" ? "cuda_installing" : "cuda_checking") : activeProgress ? `${t("cuda_downloading")} ${activeProgress.file} · ${bytes(activeProgress.downloaded)} / ${bytes(activeProgress.total)}` : t(state.cuda.operation.variables ? "cuda_downloading" : "cuda_checking") : stage ? t(stage === "starting" ? "desktop_starting" : stage === "testing" ? "desktop_testing" : "desktop_cpu_fallback") : progress
-    ? `${t(`desktop_${progress.phase}`)} ${progress.file} · ${bytes(progress.downloaded)} / ${bytes(progress.total)}${progress.bytes_per_second ? ` · ${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(progress.bytes_per_second / 1024 ** 2)} MiB/s` : ""}` : t("desktop_checking");
+    ? progress.phase === "installing" ? t("engine_installing") : `${t(`desktop_${progress.phase}`)} ${progress.file} · ${bytes(progress.downloaded)} / ${bytes(progress.total)}${progress.bytes_per_second ? ` · ${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(progress.bytes_per_second / 1024 ** 2)} MiB/s` : ""}` : t("desktop_checking");
   const steps = ["setup_step_library", "setup_step_models", "setup_step_test"];
   const pathsPending = state.debouncing || state.estimate.isFetching;
   const invalidPaths = !request.models_dir || !request.songs_dir || state.estimate.isError;
@@ -66,11 +67,11 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
       if (busy || result) return;
       if (step === 1 && !pathsPending && !invalidPaths) setStep(2);
       else if (step === 2 && !cudaChecking) setStep(3);
-      else if (step === 3 && !cannotStart) { setError(null); setup.mutate(request); }
+      else if (step === 3 && !cannotStart) { setError(null); setup.mutate({ request }); }
     }} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLSelectElement) event.preventDefault(); }}>
       <div id="setupContent" ref={stepContent} className="setup-content">
         <div className="setup-page-heading">
-          <h2 ref={stepHeading} id="setupStepHeading" tabIndex={-1}>{result ? t("backend_setup_result") : t(steps[step - 1])}</h2>
+          <h2 ref={stepHeading} id="setupStepHeading" tabIndex={-1}>{t(result && !setup.variables?.foldersOnly ? "backend_setup_result" : steps[step - 1])}</h2>
           {!result && <p className="small">{t(step === 1 ? "setup_library_hint" : step === 2 ? "setup_models_hint" : "setup_test_hint")}</p>}
         </div>
         <PhoneAccessField />
@@ -90,7 +91,8 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
             <div className="setup-hardware"><HardwareCard hardware={bootstrap.hardware} backend={state.policy.data?.backend || "unknown"} /><CudaSetup state={state.cuda} disabled={busy} /></div>
             <div className="setup-model-options">
               <label className="field"><span className="lbl">{t("desktop_language_model")}</span><select value={request.lm} disabled={!bootstrap.settings.expert_mode} onChange={event => setDraft(current => ({ ...current, lm: event.target.value }))}>{(bootstrap.settings.expert_mode ? ["0.6B", "1.7B", "4B"] : [request.lm]).map(size => <option key={size}>{size}</option>)}</select><span className="small">{t("desktop_recommended")}: {bootstrap.hardware.recommended_lm}</span></label>
-              {state.canUseXl && <label className="check-row"><input type="checkbox" checked={draft.xl} onChange={event => setDraft(current => ({ ...current, xl: event.target.checked }))} /><span>{t("desktop_xl")}</span></label>}
+              {state.canUseXl && <Switch label={t("desktop_xl")} checked={draft.xl}
+                onChange={event => setDraft(current => ({ ...current, xl: event.target.checked }))} />}
               <details className="setup-model-files"><summary>{t("setup_model_files")} · {models.length}</summary><div className="model-list">{models.map(model => <div key={model.file}>{model.file} · ~{bytes(model.estimated_bytes)}</div>)}</div></details>
             </div>
           </div>}
@@ -98,6 +100,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
             <div><dt>{t("songs_dir")}</dt><dd>{request.songs_dir}<p className="small">{t("desktop_songs_tip")}</p></dd></div>
             <div><dt>{t("desktop_models_folder")}</dt><dd>{request.models_dir}</dd></div>
             <div><dt>{t("desktop_language_model")}</dt><dd>{request.lm}{request.xl ? " · XL" : ""}</dd></div>
+            {!!state.estimate.data?.engine_bytes && <div><dt>ACE-Step</dt><dd>{t("picker_download")} · {bytes(state.estimate.data.engine_bytes)}</dd></div>}
           </dl>)}
         </fieldset>
         {!result && <p id="spaceEstimate" className={`small${state.estimate.isError || state.unsupported ? " setup-error" : ""}`} aria-live="polite">{spaceText}</p>}
@@ -105,10 +108,11 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
         {(error || (!cancelled && setup.error) || state.cancel.error) && <p role="alert" className="setup-error">{errorText(error || state.cancel.error || setup.error)}</p>}
       </div>
       <footer className="setup-footer">
-        {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!activeStage && activeProgress ? activeProgress.downloaded / Math.max(activeProgress.total, 1) : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p></div>}
+        {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!activeStage && activeProgress?.total ? activeProgress.downloaded / activeProgress.total : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p></div>}
         <div className="setup-actions">
           {!result && <div className="setup-back-actions">
             {step > 1 && <button className="sek" type="button" disabled={busy} onClick={() => setStep(current => current - 1)}>{t("setup_previous")}</button>}
+            {bootstrap.needs_setup && bootstrap.optional_engines && <button className="sek" type="button" disabled={busy || !request.models_dir || !request.songs_dir} onClick={() => { setError(null); setup.mutate({ request, foldersOnly: true }); }}>{t("setup_without_engines")}</button>}
             {!bootstrap.needs_setup && onBack && <button id="setupBack" className="sek" type="button" disabled={busy} onClick={onBack}>{t("desktop_back")}</button>}
           </div>}
           {result ? <button type="button" ref={enter} className="aktion big" onClick={onComplete}>{t("backend_enter_studio")}</button> : busy ? <button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button> : <button className="aktion big" type="submit" disabled={step === 1 ? pathsPending || invalidPaths : step === 2 ? cudaChecking : cannotStart}>{t(step < 3 ? "setup_next" : "desktop_start")}</button>}

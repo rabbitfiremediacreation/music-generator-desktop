@@ -32,7 +32,10 @@ export function installedModels(catalog: ModelCatalog) {
       verified: complete && present.every(model => model.verified),
     });
   }
-  const rows: InstalledModel[] = [...local.filter(model => !grouped.has(model)), ...groups];
+  const standalone = local.filter(model => !grouped.has(model)).map((model): InstalledModel =>
+    model.role === "language" && !model.category ? { ...model, category: "llm" } : model,
+  );
+  const rows = [...standalone, ...groups];
   let totalBytes = local.reduce((total, model) => total + model.estimated_bytes, 0);
   if ((catalog.title_model.present || catalog.title_model.verified) && !local.some(model => model.file === catalog.title_model.file)) {
     rows.push({ ...catalog.title_model, role: "title", category: "llm", precision: catalog.title_model.file.match(/-(BF16|Q\d_[\w]+)\.gguf$/)?.[1] ?? "—" });

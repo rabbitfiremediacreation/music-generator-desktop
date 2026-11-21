@@ -1,5 +1,6 @@
 #include <magentart/detail/autorelease_pool.h>
 #include <magentart/mlx_engine.h>
+#include <mlx/mlx.h>
 
 #include <algorithm>
 #include <array>
@@ -219,7 +220,15 @@ void prepare_prompt(MLXEngine& engine, const char* prompt) {
 }
 } // namespace
 
-int main(int argc, char** argv) try {
+extern "C" int music_generator_engine_main_v1(int argc, char** argv) try {
+    if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
+        namespace mx = mlx::core;
+        auto check = mx::add(mx::ones({1}), mx::ones({1}), mx::Device::gpu);
+        mx::eval(check);
+        if (check.item<float>() != 2.0f) return EXIT_FAILURE;
+        std::cout << "mrt2-record/1\n";
+        return EXIT_SUCCESS;
+    }
     const auto launched = Clock::now();
     int frames = 0;
     int seed = 0;

@@ -3,6 +3,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import { backend } from "../../backend";
 import { creatorOptions, profileKey, selectionFromSettings } from "../../creator-models";
 import { modelAllowed, modelErrorText, modelLabel } from "../../expert-mode";
+import { hasModelEngine } from "../../model-options";
 import type { ModelSelection } from "../../types";
 import { useI18n } from "../i18n";
 import { ModelDialog } from "./ModelDialog";
@@ -12,11 +13,12 @@ export interface ModelControlsProps {
   selection: ModelSelection | null; onSelectionChange: (selection: ModelSelection) => void;
   selectionRevision?: number;
   onManage: () => void; onOpenSettings?: (selection?: ModelSelection | null) => void; onOpenManager?: (selection: ModelSelection | null) => void; onRecommendedSteps?: (steps: number) => void; onReady?: () => void;
+  onOpenEngines?: () => void;
   open?: boolean; onOpenChange?: (open: boolean) => void;
 }
 
 /** A restored song is local intent; delayed settings and activation replies cannot replace it. */
-export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
+export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onOpenEngines, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
   const { t } = useI18n(), client = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: backend.settings, networkMode: "always", retry: false });
   const catalog = useQuery({ queryKey: ["models", "catalog"], queryFn: backend.modelCatalog, networkMode: "always", retry: false });
@@ -61,7 +63,8 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     ? creatorOptions({ ...catalog.data, recommended_profiles: recommendations, expert_mode: settings.data.expert_mode }, chosen)
     : [];
   const selected = chosen && options.some(option => option.value === profileKey(chosen));
-  const showXlHint = chosen?.provider === "ace-step" && !recommendations.some(profile => profile.synthesis.includes("-xl-"));
+  const missingEngine = Boolean(catalog.data && chosen && !hasModelEngine(catalog.data, chosen));
+  const showXlHint = !missingEngine && chosen?.provider === "ace-step" && !recommendations.some(profile => profile.synthesis.includes("-xl-"));
   const loading = settings.isPending || catalog.isPending;
   const loadError = settings.error || catalog.error;
   function choose(value: string) {
@@ -88,7 +91,8 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     </div>
     {showXlHint && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
     {(error || loadError) && <div><p className="setup-error" role="alert">{modelErrorText(error || loadError, t)}</p>{loadError && <button type="button" className="sek" onClick={() => { if (settings.isError) void settings.refetch(); if (catalog.isError) void catalog.refetch(); }}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
-    {!allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
+    {missingEngine && <div role="status"><p className="small">{t("engine_install_required")}</p>{onOpenEngines && <button type="button" className="sek" onClick={onOpenEngines}>{t("settings_page_engines")}</button>}</div>}
+    {!missingEngine && !allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
     {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onOpenSettings={openSettings} onRecommendedSteps={onRecommendedSteps} />}
   </>;
 }

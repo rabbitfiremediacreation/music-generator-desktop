@@ -1,6 +1,9 @@
 #[cfg(target_os = "macos")]
 mod macos;
 
+#[cfg(target_os = "macos")]
+pub(crate) use macos::inside_app_bundle;
+
 #[cfg(any(target_os = "macos", all(test, unix)))]
 use std::path::{Path, PathBuf};
 

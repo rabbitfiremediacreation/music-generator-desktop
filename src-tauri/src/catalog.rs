@@ -219,11 +219,19 @@ impl Catalog {
         self.recommended_profiles(hardware)
             .into_iter()
             .filter(|selection| {
-                self.profile(selection).is_none_or(|profile| {
-                    profile
-                        .ensure_runtime(resources, data_root, hardware)
-                        .is_ok()
-                })
+                self.profile(selection).map_or_else(
+                    || {
+                        crate::engine::engine_path(&crate::engine_packages::ace_resources(
+                            resources, data_root,
+                        ))
+                        .is_file()
+                    },
+                    |profile| {
+                        profile
+                            .ensure_runtime(resources, data_root, hardware)
+                            .is_ok()
+                    },
+                )
             })
             .collect()
     }

@@ -1,0 +1,5 @@
+# Additional Text2midi wheels for the pinned Mimetic CPython 3.11 environment.
+miditok==3.0.3 --hash=sha256:2dad7d2888f58ef7e47e7bc3b90e21e76f56e18eaa81a0433520db346e2cd185
+platformdirs==4.14.8 --hash=sha256:1e34af590de4d978631b751eb2202f2fee4497537a17c1720b12fcf57b331392
+pysmartdl==1.3.4 --hash=sha256:671c277ca710fb9b6603b19176f5c091041ec4ef6dcdb507c9a983a89ca35d31
+symusic==0.5.5 --hash=sha256:4f34ab4ae41d47c251a529c481272d77cc358ef000930888f53e1ac5bf0f94ff

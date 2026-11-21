@@ -57,6 +57,19 @@ test("preview signing and Sparkle work independently of Apple notarization", () 
   assert.throws(() => macSigningSettings(notarized), /Missing macOS signing settings/);
 });
 
+test("a notarized build can use a Developer ID identity from the local keychain", () => {
+  const local = {
+    ...notarized,
+    APPLE_SIGNING_IDENTITY: "Developer ID Application: Music Generator",
+    APPLE_ID: "builder@example.test",
+    APPLE_PASSWORD: "notary-fixture",
+    APPLE_TEAM_ID: "TEAMID",
+  };
+  assert.equal(macSigningSettings(local).APPLE_SIGNING_IDENTITY, local.APPLE_SIGNING_IDENTITY);
+  assert.throws(() => macSigningSettings({ ...local, APPLE_CERTIFICATE: "certificate-fixture" }),
+    /Missing macOS signing settings: APPLE_CERTIFICATE_PASSWORD/);
+});
+
 test("a preview offering manual downloads can retain an existing Sparkle release", async () => {
   const appcasts = Object.keys(feeds).map(name => ({ name }));
   assert.equal(hasPreviewAppcasts([{ name: "Music-Generator-0.2.0-macos-arm64.zip" }]), false);

@@ -121,7 +121,7 @@ function DesktopShell(){
         {studio&&<Header selection={selection} reference={reference} blocked={blocked||closingAccepted} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
-          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onReady={modelsInitialized}/>
+          <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onOpenEngines={()=>openSettings("engines")} onReady={modelsInitialized}/>
           <GenerationForm selection={selection} reference={reference} onSelectionChange={selectModel} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
         </section>
         <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>

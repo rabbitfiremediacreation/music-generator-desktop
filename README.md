@@ -8,7 +8,7 @@ Lokale Musikgenerierung als rahmenlose **Tauri-Desktop-App** für macOS, Windows
 
 **Stand: 8. November 2026 · Version: 0.2.0** (siehe [`package.json`](package.json) und [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)). Die Anwendung nutzt Tauri, Rust und eine React-/TypeScript-Oberfläche mit TanStack Router, TanStack Query und Tailwind CSS. In diesem Repository ersetzt die Desktop-App den Python-Webserver mit Installations- und ON/OFF-Skripten. Die Web-App wird im Repository [music-generator](https://github.com/rabbitfiremediacreation/music-generator) weiter gepflegt.
 
-ACE-Step ist das Standardmodell. Der [Modellkatalog](docs/model-picker.md) enthält weitere lokale Profile für Musik, Remixe, Soundeffekte und MIDI. Welche Profile sich aktivieren lassen, hängt vom Paket und von der Hardware ab. Die App bietet außerdem automatische lokale Songtitel, Echtzeit-Fortschritt und native Exporte. Die Änderungen seit v0.1.3 stehen in den [Versionshinweisen zu v0.2.0](docs/release-0.2.0.md).
+ACE-Step ist das Standardmodell. Der [Modellkatalog](docs/model-picker.md) enthält weitere lokale Profile für Musik, Remixe, Soundeffekte und MIDI. Unter **Einstellungen → Engines** kannst du die benötigten Engines separat herunterladen, aktualisieren oder aus einer Release-ZIP installieren. Die Modellauswahl zeigt nur Modelle für installierte Engines. Welche davon sich aktivieren lassen, hängt auch von der Hardware ab. Die App bietet außerdem automatische lokale Songtitel, Echtzeit-Fortschritt und native Exporte. Die Änderungen seit v0.1.3 stehen in den [Versionshinweisen zu v0.2.0](docs/release-0.2.0.md).
 
 ## Oberfläche
 

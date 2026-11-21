@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const view = () => render(<McpSettings onBusyChange={busy} />);
-const enable = () => screen.getByRole("checkbox", { name: t("mcp_enable") });
+const enable = () => screen.getByRole("switch", { name: t("mcp_enable") });
 const port = () => screen.getByRole("textbox", { name: t("mcp_port") }) as HTMLInputElement;
 const apply = () => screen.getByRole("button", { name: t("mcp_apply") });
 
@@ -193,7 +193,7 @@ it("retrieves credentials only on request and masks the key and JSON by default"
   expect(token.type).toBe("password"); expect(token.value).toBe(credentials.token);
   const configuration = screen.getByRole("textbox", { name: t("mcp_connection") }) as HTMLTextAreaElement;
   expect(configuration.value).not.toContain(credentials.token);
-  fireEvent.click(screen.getByRole("checkbox", { name: t("mcp_show_token") }));
+  fireEvent.click(screen.getByRole("switch", { name: t("mcp_show_token") }));
   expect(token.type).toBe("text"); expect(configuration.value).toContain(credentials.token);
   expect(clipboard).not.toHaveBeenCalled();
 });

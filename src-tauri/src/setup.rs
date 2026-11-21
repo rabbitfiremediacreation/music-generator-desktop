@@ -72,7 +72,7 @@ pub fn fingerprint(lm: &str, gpu: &str) -> String {
 pub async fn configure(
     state: Arc<AppState>,
     request: SetupRequest,
-    progress: impl Fn(crate::download::DownloadProgress) + Sync,
+    progress: impl Fn(crate::download::DownloadProgress) + Send + Sync,
     stage: impl Fn(&str) + Sync,
     authorize: impl FnOnce(&Path) -> Result<()>,
 ) -> Result<Value> {
@@ -92,21 +92,49 @@ pub async fn configure(
     Ok(json!({"ok":true,"mode":settings.mode,"backend_status":state.backend_status()}))
 }
 
+pub(crate) async fn configure_library(
+    state: Arc<AppState>,
+    request: SetupRequest,
+    authorize: impl FnOnce(&Path) -> Result<()>,
+) -> Result<Value> {
+    let change = Change::begin(state.clone(), OperationKind::Setup)?;
+    let mut settings = state.db.settings()?;
+    if settings.setup_complete {
+        return Err(message("setup_already_complete"));
+    }
+    let (models, songs) = prepare_folders(&request)?;
+    settings.models_dir = models.to_string_lossy().into();
+    settings.songs_dir = songs.to_string_lossy().into();
+    settings.vae_chunk = hardware::inspect().vae_chunk;
+    settings.setup_complete = true;
+    let settings = change.commit(async { Ok(settings) }, authorize).await?;
+    Ok(json!({"ok":true,"mode":settings.mode,"backend_status":state.backend_status()}))
+}
+
+fn prepare_folders(request: &SetupRequest) -> Result<(std::path::PathBuf, std::path::PathBuf)> {
+    let (models, songs) = crate::paths::setup_folders(&request.models_dir, &request.songs_dir)?;
+    for folder in [&models, &songs] {
+        std::fs::create_dir_all(folder).map_err(|_| message("path_access"))?;
+        crate::sandbox::remember(folder).map_err(|_| message("path_access"))?;
+    }
+    Ok((models, songs))
+}
+
 async fn prepare_configuration(
     state: &AppState,
     operation: &Operation,
     request: &SetupRequest,
     cancel: &CancellationToken,
-    progress: &impl Fn(crate::download::DownloadProgress),
+    progress: &(impl Fn(crate::download::DownloadProgress) + Sync),
     stage: &impl Fn(&str),
 ) -> Result<Settings> {
     let selected = plan(request)?;
-    let (models, songs) = crate::paths::setup_folders(&request.models_dir, &request.songs_dir)?;
-    std::fs::create_dir_all(&models).map_err(|_| message("path_access"))?;
-    std::fs::create_dir_all(&songs).map_err(|_| message("path_access"))?;
-    crate::sandbox::remember(&models).map_err(|_| message("path_access"))?;
-    crate::sandbox::remember(&songs).map_err(|_| message("path_access"))?;
+    let (models, songs) = prepare_folders(request)?;
     state.stop_engine();
+    if !crate::engine::engine_path(&state.ace_resources()).is_file() {
+        crate::engine_packages::install(&state.db.root, "ace-step", cancel, progress).await?;
+        state.synthesis_probe.clear();
+    }
     let required: u64 = selected
         .iter()
         .filter(|(m, _)| !models.join(&m.file).exists())

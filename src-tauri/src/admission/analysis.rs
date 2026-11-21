@@ -14,7 +14,7 @@ pub(super) fn installed_ace_step(
     settings: &Settings,
     hardware: &Hardware,
 ) -> Option<Selection> {
-    if !crate::engine::engine_path(&state.resources).is_file() {
+    if !crate::engine::engine_path(&state.ace_resources()).is_file() {
         return None;
     }
     let catalog = catalog::catalog();

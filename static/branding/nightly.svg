@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 84" width="840" height="840">
+  <defs>
+    <radialGradient id="sky" cx=".6" cy=".35" r=".75">
+      <stop stop-color="#293765"/><stop offset=".64" stop-color="#111b36"/><stop offset="1" stop-color="#080d1b"/>
+    </radialGradient>
+    <linearGradient id="wave" x2="0" y2="1">
+      <stop stop-color="#faf8ff"/><stop offset="1" stop-color="#a4bafb"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="78" height="78" rx="16" fill="url(#sky)" stroke="#778ec8" stroke-opacity=".54"/>
+  <g fill="#b9d2ff">
+    <circle cx="17" cy="16" r="1.1"/><circle cx="27" cy="13" r=".8"/><circle cx="47" cy="11" r=".7"/>
+    <circle cx="13" cy="29" r=".8"/><circle cx="73" cy="27" r="1"/><circle cx="70" cy="42" r=".85"/>
+    <circle cx="16" cy="57" r="1.05"/><circle cx="27" cy="68" r=".85"/><circle cx="73" cy="62" r=".9"/>
+    <circle cx="40" cy="73" r=".85"/><circle cx="54" cy="69" r="1"/><circle cx="62" cy="75" r=".65"/>
+  </g>
+  <path d="m64 10 1.15 4.85L70 16l-4.85 1.15L64 22l-1.15-4.85L58 16l4.85-1.15ZM18 62l.8 3.2L22 66l-3.2.8L18 70l-.8-3.2L14 66l3.2-.8Z" fill="#e7efff"/>
+  <g transform="translate(1 0)" fill="url(#wave)">
+    <rect x="16" y="36" width="5" height="12" rx="2.5"/><rect x="25" y="28" width="5" height="28" rx="2.5"/>
+    <rect x="34" y="20" width="5" height="44" rx="2.5"/><rect x="43" y="30" width="5" height="24" rx="2.5"/>
+    <rect x="52" y="24" width="5" height="36" rx="2.5"/><rect x="61" y="34" width="5" height="16" rx="2.5"/>
+  </g>
+</svg>

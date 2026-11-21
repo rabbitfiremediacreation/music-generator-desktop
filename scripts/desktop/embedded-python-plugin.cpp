@@ -2,21 +2,17 @@
 
 #include <cstdio>
 #include <filesystem>
-#include <mach-o/dyld.h>
 #include <stdexcept>
-#include <vector>
+
+#ifndef MUSIC_PYTHON_SCRIPT
+#error MUSIC_PYTHON_SCRIPT must name the bundled script
+#endif
+
+#ifndef MUSIC_PYTHON_HOME
+#define MUSIC_PYTHON_HOME "python"
+#endif
 
 namespace {
-std::filesystem::path executable_path() {
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);
-    std::vector<char> path(size);
-    if (_NSGetExecutablePath(path.data(), &size) != 0) {
-        throw std::runtime_error("Could not locate the AudioCraft launcher");
-    }
-    return std::filesystem::canonical(path.data());
-}
-
 void check(PyStatus status) {
     if (PyStatus_Exception(status)) {
         Py_ExitStatusException(status);
@@ -24,12 +20,12 @@ void check(PyStatus status) {
 }
 }  // namespace
 
-int main(int argc, char **argv) {
+extern "C" int music_generator_engine_main_v1(int argc, char **argv) {
     try {
-        const auto executable = executable_path();
+        const std::filesystem::path executable(argv[0]);
         const auto folder = executable.parent_path();
-        const auto home = folder / "python";
-        const auto script = folder / "audiocraft_synth.py";
+        const auto home = (folder / MUSIC_PYTHON_HOME).lexically_normal();
+        const auto script = folder / MUSIC_PYTHON_SCRIPT;
 
         PyPreConfig preconfig;
         PyPreConfig_InitIsolatedConfig(&preconfig);
@@ -38,6 +34,7 @@ int main(int argc, char **argv) {
 
         PyConfig config;
         PyConfig_InitIsolatedConfig(&config);
+        config.parse_argv = 0;
         config.write_bytecode = 0;
         check(PyConfig_SetBytesString(&config, &config.program_name, executable.c_str()));
         check(PyConfig_SetBytesString(&config, &config.home, home.c_str()));
@@ -49,7 +46,7 @@ int main(int argc, char **argv) {
         // CPython runs in the process that resolved the model-folder bookmark.
         return Py_RunMain();
     } catch (const std::exception &error) {
-        std::fprintf(stderr, "AudioCraft launcher: %s\n", error.what());
+        std::fprintf(stderr, "Embedded Python plug-in: %s\n", error.what());
         return 1;
     }
 }

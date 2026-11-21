@@ -25,7 +25,7 @@ it("provides every new message in all registered languages", () => {
   expect(Object.keys(modelSettingsTranslations).sort()).toEqual(Object.keys(LANGS).sort());
   for (const language of Object.keys(LANGS)) {
     const messages = (I18N as Record<string, Record<string, unknown>>)[language];
-    for (const key of [...settingsKeys, ...settingsPageKeys, ...modelBrowserKeys, ...modelInventoryKeys, ...Object.keys(modelSettingsTranslations.en), "settings_saving", "settings_theme", "settings_theme_hint", "creator_xl_ram_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
+    for (const key of [...settingsKeys, ...settingsPageKeys, ...modelBrowserKeys, ...modelInventoryKeys, ...Object.keys(modelSettingsTranslations.en), "settings_saving", "settings_theme", "settings_theme_hint", "settings_titlebar_design", "creator_xl_ram_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
     for (const key of ["creator_manage_models", "desktop_manage", "desktop_manage_hint"]) expect(messages[key], `${language}:${key}`).toBeTruthy();
     expect(messages.desktop_xl_missing).toContain(messages.creator_manage_models);
   }

@@ -1,18 +1,29 @@
 import { useSyncExternalStore } from "react";
 import { currentTheme, desktopThemes, setTheme, subscribeTheme } from "../../desktop-theme";
 import { LANGS, type Language } from "../../locales";
+import { currentTitlebarDesign, setTitlebarDesign, subscribeTitlebarDesign, titlebarDesigns } from "../../titlebar-design";
 import { useI18n } from "../i18n";
 import type { SettingsDialogProps } from "./SettingsDialog";
 
 export function AppearanceSettings({ layout, onLayoutChange }: Pick<SettingsDialogProps, "layout" | "onLayoutChange">) {
   const { language, setLanguage, t } = useI18n();
   const theme = useSyncExternalStore(subscribeTheme, currentTheme);
+  const titlebar = useSyncExternalStore(subscribeTitlebarDesign, currentTitlebarDesign);
+  const titlebarNames = { auto: t("vt_auto"), classic: "Classic", dev: "Dev", nightly: "Nightly" };
   return <>
     <div className="settings-section">
       <label className="field">
         <span className="lbl">{t("language")}</span>
         <select id="uiLang" value={language} onChange={event => setLanguage(event.target.value as Language)}>
           {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select>
+      </label>
+    </div>
+    <div className="settings-section">
+      <label className="field">
+        <span className="lbl">{t("settings_titlebar_design")}</span>
+        <select value={titlebar} onChange={event => setTitlebarDesign(event.target.value)}>
+          {titlebarDesigns.map(id => <option key={id} value={id}>{titlebarNames[id]}</option>)}
         </select>
       </label>
     </div>
