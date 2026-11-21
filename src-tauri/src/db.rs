@@ -349,6 +349,9 @@ impl Database {
                 req.seed + i as i64
             };
             params["seed"] = json!(seed);
+            if req.yue2.as_ref().and_then(|options| options.lm_seed) == Some(-1) {
+                params["yue2"]["lm_seed"] = json!(uuid::Uuid::new_v4().as_u128() as u32);
+            }
             tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id,output_kind) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9,?10)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,params.to_string(),folder,capabilities.output_kind.as_str()])?;
             ids.push(sid);
         }

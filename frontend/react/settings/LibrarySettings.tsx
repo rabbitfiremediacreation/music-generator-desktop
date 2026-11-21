@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { audioFormats, orderedAudioFormats } from "../../audio-formats";
 import { backend } from "../../backend";
 import type { Settings } from "../../types";
 import { useI18n } from "../i18n";
@@ -11,6 +12,8 @@ export function LibrarySettings({ state, onMoveLibrary }: {
   const { draft, pending, change } = state;
   const openFolder = useMutation({ mutationFn: backend.openSongsFolder, retry: false, networkMode: "always" });
   if (!draft) return null;
+  const formats = orderedAudioFormats(undefined, draft.export_formats, draft.mp3_available);
+  const formatLabel = (format: Settings["export_format"]) => audioFormats[format]?.label ?? t("download_original");
   return <>
     <div className="settings-section">
       <label className="field"><span className="lbl" title={t("desktop_songs_tip")}>{t("songs_dir")}</span><span className="path-picker"><input name="songs_dir" aria-describedby="settingsSongsHint" value={draft.songs_dir} placeholder={draft.songs_dir_default || ""} onChange={event => change({ songs_dir: event.target.value })} />
@@ -23,9 +26,10 @@ export function LibrarySettings({ state, onMoveLibrary }: {
       {openFolder.error && <p role="alert" className="small err">{t("settings_open_folder_failed")}</p>}
     </div>
     <div className="settings-section">
-      <label className="field"><span className="lbl" title={t("exp_tip")}>{t("exp")}</span><select name="export_format" value={draft.export_format} onChange={event => change({ export_format: event.target.value as Settings["export_format"] })}>
-        <option value="wav">{t("exp_wav")}</option><option value="mp3" disabled={!draft.mp3_available}>{t("exp_mp3")}</option>
-      </select>{!draft.mp3_available && <span className="small">{t("exp_no_mp3")}</span>}</label>
+      <label className="field"><span id="settingsDownloadFormat" className="lbl">{t("download_default")}</span><select name="export_format" aria-labelledby="settingsDownloadFormat" aria-describedby="settingsDownloadHint" value={draft.export_format} onChange={event => change({ export_format: event.target.value as Settings["export_format"] })}>
+        {!formats.includes(draft.export_format) && <option disabled value={draft.export_format}>{formatLabel(draft.export_format)} · {t("audio_export_format_unavailable")}</option>}
+        {formats.map(format => <option key={format} value={format}>{formatLabel(format)}</option>)}
+      </select><span id="settingsDownloadHint" className="small">{t("download_default_hint")}</span></label>
     </div>
   </>;
 }

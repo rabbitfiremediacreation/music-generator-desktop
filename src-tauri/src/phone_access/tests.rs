@@ -609,6 +609,34 @@ async fn audio_streams_with_ranges_and_downloads_as_attachment() {
     );
     assert_eq!(download.bytes().await.unwrap().len(), len);
 
+    let queue: Value = f
+        .get("/api/queue")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(queue["audio_export"]["default_format"], "wav");
+    assert!(queue["audio_export"]["formats"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("wav")));
+    let explicit = f
+        .get(&format!("{path}?download=true&format=wav"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(explicit.status(), 200);
+    assert_eq!(explicit.headers()["content-type"], "audio/wav");
+    assert_eq!(explicit.bytes().await.unwrap().as_ref(), f.audio.as_slice());
+    let invalid = f
+        .get(&format!("{path}?download=true&format=unknown"))
+        .send()
+        .await
+        .unwrap();
+    assert!(invalid.status().is_client_error());
+
     let songs = f.state.db.songs(&SongFilter::default()).unwrap();
     let running = songs.iter().find(|s| s.id != f.song).unwrap();
     let pending = f
@@ -826,11 +854,13 @@ async fn generation_and_analysis_report_desktop_errors_as_json() {
 fn phone_requests_map_onto_desktop_generation() {
     let phone: PhoneGeneration = serde_json::from_value(json!({
         "prompt":"piano","style":"jazz","lyrics":"","instrumental":false,"title":"",
-        "duration":90.0,"bpm":121.6,"keyscale":"","timesignature":"","inference_steps":80,
+        "duration":900.0,"ignore_recommended_duration":true,"bpm":121.6,"keyscale":"","timesignature":"","inference_steps":80,
         "lm_temperature":0.85,"vocal_language":"en","variants":2,"folder_id":""
     }))
     .unwrap();
     let request = phone.request("group".into()).unwrap();
+    assert_eq!(request.duration, 900.0);
+    assert!(request.ignore_recommended_duration);
     assert_eq!(request.bpm, 122);
     assert_eq!(request.inference_steps, 80);
     assert_eq!(request.variants, 2);
@@ -843,6 +873,7 @@ fn phone_requests_map_onto_desktop_generation() {
     assert!(request.model_selection.is_none());
     let defaults: PhoneGeneration = serde_json::from_value(json!({"prompt":"x"})).unwrap();
     assert!(defaults.instrumental);
+    assert!(!defaults.ignore_recommended_duration);
     assert!(PhoneGeneration {
         bpm: f64::NAN,
         ..Default::default()

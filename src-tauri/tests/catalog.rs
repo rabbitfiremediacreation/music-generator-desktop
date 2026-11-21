@@ -705,7 +705,7 @@ fn yue2_generation_pins_only_the_backbone_and_stereo_vae() {
     let packaged: serde_json::Value =
         serde_json::from_str(include_str!("../../models/yue2-runtime.json")).unwrap();
     assert_eq!(profile.runtime.revision, packaged["revision"]);
-    assert_eq!(profile.runtime.executable, "engine/yue-synth");
+    assert_eq!(profile.runtime.executable, "engine/yue2/yue-synth");
     assert_eq!(
         profile
             .usage
@@ -717,8 +717,9 @@ fn yue2_generation_pins_only_the_backbone_and_stereo_vae() {
         Some("MODEL_LICENSE")
     );
     assert_eq!(profile.capabilities.min_duration, 10);
-    assert_eq!(profile.capabilities.max_duration, 60);
+    assert_eq!(profile.capabilities.max_duration, 360);
     assert!(profile.capabilities.lyrics_required);
+    assert!(profile.capabilities.instrumental);
     assert!(!profile.capabilities.analysis);
     let assets = catalog.required(&profile.selection).unwrap();
     assert_eq!(
@@ -753,6 +754,9 @@ fn yue2_quantizations_keep_separate_checkpoint_pins_and_share_the_codec() {
         .filter(|profile| profile.selection.provider == "yue2")
         .collect();
     assert_eq!(profiles.len(), 4);
+    assert!(profiles
+        .iter()
+        .all(|profile| profile.capabilities.max_duration == 360));
     let root = tempfile::tempdir().unwrap();
     let db = Database::open(root.path()).unwrap();
     let mut settings = db.settings().unwrap();

@@ -22,7 +22,9 @@ export function ModelDialog({ onClose, title, ...props }: ModelDialogProps) {
     }}
     onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
-    <div className="model-picker-head"><h2 id="modelPickerHeading">{title ?? t("picker_title")}</h2><button type="button" className="sek" onClick={onClose}>{t("desktop_close")}</button></div>
+    <div className="model-picker-head"><h2 id="modelPickerHeading">{title ?? t("picker_title")}</h2>
+      <button type="button" className="sek" onClick={onClose}>{t("desktop_close")}</button>
+    </div>
     <ModelManager {...props} />
   </dialog>, document.body);
 }

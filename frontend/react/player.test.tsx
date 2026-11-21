@@ -1,13 +1,16 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
+import { URL as NodeURL } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PlayerProvider, Player, usePlayer } from "./player";
 import { I18nProvider } from "./i18n";
+import { setTheme } from "../desktop-theme";
 import { setLang } from "../i18n.js";
 import type { Song } from "../types";
 const ipc = vi.hoisted(() => ({ songAudio: vi.fn() }));
 vi.mock("../backend", () => ({ backend: ipc }));
-const engine = { loadBlob: vi.fn(), play: vi.fn(), pause: vi.fn(), playPause: vi.fn(), destroy: vi.fn(), on: vi.fn(), setVolume: vi.fn(), getDuration: vi.fn(), getCurrentTime: vi.fn() };
+const engine = { loadBlob: vi.fn(), play: vi.fn(), pause: vi.fn(), playPause: vi.fn(), destroy: vi.fn(), on: vi.fn(), setVolume: vi.fn(), getDuration: vi.fn(), getCurrentTime: vi.fn(), setOptions: vi.fn() };
 const handlers = new Map<string,(error?: Error)=>void>();
 const song = (id: string) => ({id,title:id,url:`asset:${id}`,caption:id,seed:1} as Song);
 function Choices() { const player = usePlayer(); return <><button onClick={() => player.play(song("first"))}>first</button><button onClick={() => player.play(song("second"))}>second</button><button onClick={() => player.clear("first")}>delete first</button></>; }
@@ -30,7 +33,28 @@ it.each([[5.6,"0:05"],[29.8,"0:29"]])("uses the whole-second audio clock for %s 
   act(()=>{handlers.get("timeupdate")?.();handlers.get("finish")?.();});
   expect(screen.getByText(`${clock} / ${clock}`)).toBeTruthy();
 });
-afterEach(() => { cleanup();localStorage.clear(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); delete document.documentElement.dataset.theme; vi.unstubAllGlobals(); });
+
+it("recolors an active waveform without reloading or interrupting audio", async () => {
+  const style = document.createElement("style");
+  style.textContent = readFileSync(new NodeURL("./themes.css", import.meta.url), "utf8");
+  document.head.append(style);
+  try {
+    render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
+    fireEvent.click(screen.getByText("first"));
+    await waitFor(() => expect(engine.play).toHaveBeenCalledOnce());
+    act(() => setTheme("green"));
+    expect(engine.setOptions).toHaveBeenCalledWith({ waveColor: "#a5c1ac", progressColor: "#c4d98a" });
+    expect(engine.loadBlob).toHaveBeenCalledOnce();
+    expect(engine.pause).not.toHaveBeenCalled();
+    expect(engine.destroy).not.toHaveBeenCalled();
+    cleanup();
+    act(() => setTheme("classic"));
+    expect(engine.setOptions).toHaveBeenCalledOnce();
+  } finally {
+    style.remove();
+  }
+});
 
 it.each(["play", "pause"])("leaves Space on a focused summary to the browser after %s", async event => {
   render(<I18nProvider><PlayerProvider><Choices/><details><summary>Erweitert</summary></details><Player/></PlayerProvider></I18nProvider>);

@@ -1,4 +1,5 @@
 use crate::{
+    audio_export::{self, AudioFormat},
     db::Database,
     error::{message, Result},
     types::OutputKind,
@@ -10,6 +11,25 @@ use std::{
 };
 
 mod staging;
+
+pub(crate) enum ExportSelection {
+    Audio(Option<AudioFormat>),
+    Zip(Option<AudioFormat>),
+    Lyrics,
+    Midi,
+}
+
+impl ExportSelection {
+    pub(crate) fn parse(kind: &str, format: Option<AudioFormat>) -> Result<Self> {
+        match (kind, format) {
+            ("audio", format) => Ok(Self::Audio(format)),
+            ("zip", format) => Ok(Self::Zip(format)),
+            ("midi", None) => Ok(Self::Midi),
+            ("lyrics", None) => Ok(Self::Lyrics),
+            _ => Err(message("Unknown export format")),
+        }
+    }
+}
 
 impl Database {
     pub fn export_default_path(&self, filename: &str, fallback: &Path) -> Result<PathBuf> {
@@ -187,22 +207,22 @@ pub async fn export(
     destination: PathBuf,
     cancel: tokio_util::sync::CancellationToken,
 ) -> Result<()> {
-    if !destination.is_absolute() {
-        return Err(message("Select an absolute destination"));
-    }
-    if let Some(parent) = destination.parent() {
-        if let Err(error) = db.remember_export_directory(parent) {
-            tracing::warn!(%error, "Could not remember export directory");
-        }
-    }
-    export_contents(db, resources, kind, sid, folder, destination, cancel).await
+    export_selected(
+        db,
+        resources,
+        ExportSelection::parse(&kind, None)?,
+        sid,
+        folder,
+        destination,
+        cancel,
+    )
+    .await
 }
 
-/// Export bytes without remembering a temporary staging directory as the user's destination.
-pub(crate) async fn export_contents(
+pub(crate) async fn export_selected(
     db: std::sync::Arc<Database>,
     resources: PathBuf,
-    kind: String,
+    selection: ExportSelection,
     sid: Option<String>,
     folder: Option<String>,
     destination: PathBuf,
@@ -211,57 +231,104 @@ pub(crate) async fn export_contents(
     if !destination.is_absolute() {
         return Err(message("Select an absolute destination"));
     }
-    let mp3 = db.settings()?.export_format == "mp3";
+    if let Some(parent) = destination.parent() {
+        if let Err(error) = db.remember_export_directory(parent) {
+            tracing::warn!(%error, "Could not remember export directory");
+        }
+    }
+    export_contents(db, resources, selection, sid, folder, destination, cancel).await
+}
+
+/// Export bytes without remembering a temporary staging directory as the user's destination.
+pub(crate) async fn export_contents(
+    db: std::sync::Arc<Database>,
+    resources: PathBuf,
+    selection: ExportSelection,
+    sid: Option<String>,
+    folder: Option<String>,
+    destination: PathBuf,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    if !destination.is_absolute() {
+        return Err(message("Select an absolute destination"));
+    }
+    if matches!(selection, ExportSelection::Audio(_)) && destination.is_dir() {
+        return Err(message("Export destination is a directory"));
+    }
     let mut sources = HashMap::new();
-    if mp3 && (kind == "audio" || kind == "zip") {
-        let ids = if kind == "audio" {
+    if let ExportSelection::Audio(format) | ExportSelection::Zip(format) = selection {
+        let explicit = format.is_some();
+        let format = match format {
+            Some(format) => format,
+            None => audio_export::legacy_format(&db.settings()?.export_format),
+        };
+        let ids = if matches!(selection, ExportSelection::Audio(_)) {
             vec![sid.clone().ok_or_else(|| message("Missing song"))?]
+        } else if format == AudioFormat::Original {
+            Vec::new()
         } else {
             db.export_song_ids(folder.as_deref().unwrap_or(""))?
         };
         for id in ids {
             let song = db.song(&id)?;
-            if kind == "zip" && !song.output_kind.is_audio() {
+            if matches!(selection, ExportSelection::Zip(_)) && !song.output_kind.is_audio() {
                 continue;
             }
             let path = song
                 .audio_path()
+                .filter(|_| song.status == "done")
                 .ok_or_else(|| message("Song has no audio file"))?;
-            if Path::new(path).canonicalize()? == destination.canonicalize().unwrap_or_default() {
+            let path = Path::new(path);
+            if path.canonicalize()? == destination.canonicalize().unwrap_or_default() {
                 return Err(message(
                     "Choose a destination outside the source audio file",
                 ));
             }
-            sources.insert(
-                id.clone(),
-                crate::audio_export::mp3(&resources, &db.root, &id, Path::new(path), &cancel)
-                    .await?,
-            );
+            let source = if !explicit && format == AudioFormat::Mp3 {
+                audio_export::mp3(&resources, &db.root, &id, path, &cancel).await?
+            } else {
+                audio_export::convert(&resources, &db.root, &id, path, format, &cancel).await?
+            };
+            if explicit && matches!(selection, ExportSelection::Audio(_)) {
+                let extension = source.extension().and_then(|value| value.to_str());
+                if !extension
+                    .zip(destination.extension().and_then(|value| value.to_str()))
+                    .is_some_and(|(actual, requested)| requested.eq_ignore_ascii_case(actual))
+                {
+                    return Err(message("audio_export_extension_mismatch"));
+                }
+            }
+            sources.insert(id, source);
         }
     }
     if cancel.is_cancelled() {
         return Err(crate::error::Error::Cancelled);
     }
-    tauri::async_runtime::spawn_blocking(move || match kind.as_str() {
-        "audio" => {
+    tauri::async_runtime::spawn_blocking(move || match selection {
+        ExportSelection::Audio(_) => {
             let sid = sid.as_deref().ok_or_else(|| message("Missing song"))?;
             if let Some(source) = sources.get(sid) {
-                std::fs::copy(source, destination)?;
-                Ok(())
+                let temp = staging::StagedExport::new(&destination)?;
+                std::fs::copy(source, temp.path())?;
+                if cancel.is_cancelled() {
+                    return Err(crate::error::Error::Cancelled);
+                }
+                temp.commit(&destination)
             } else {
                 db.export_audio(sid, &destination)
             }
         }
-        "lyrics" => db.export_lyrics(
+        ExportSelection::Lyrics => db.export_lyrics(
             sid.as_deref().ok_or_else(|| message("Missing song"))?,
             &destination,
         ),
-        "midi" => db.export_midi(
+        ExportSelection::Midi => db.export_midi(
             sid.as_deref().ok_or_else(|| message("Missing song"))?,
             &destination,
         ),
-        "zip" => db.export_zip_sources(folder.as_deref().unwrap_or(""), &destination, &sources),
-        _ => Err(message("Unknown export format")),
+        ExportSelection::Zip(_) => {
+            db.export_zip_sources(folder.as_deref().unwrap_or(""), &destination, &sources)
+        }
     })
     .await
     .map_err(|e| message(e.to_string()))?

@@ -6,9 +6,11 @@ use crate::{
 };
 use serde_json::{json, Value};
 use std::{
+    io::SeekFrom,
     path::Path,
     time::{Duration, Instant},
 };
+use tokio::io::{AsyncBufReadExt, AsyncSeekExt, BufReader};
 use tokio_util::sync::CancellationToken;
 
 pub struct NativeJob<'a> {
@@ -21,6 +23,14 @@ pub struct NativeJob<'a> {
 }
 
 pub type WavJob<'a> = NativeJob<'a>;
+
+type ProgressParser<'a> = &'a mut (dyn FnMut(&str) -> Option<Progress> + Send);
+
+#[derive(Default)]
+struct RunOptions<'a> {
+    with_report: bool,
+    parse: Option<ProgressParser<'a>>,
+}
 
 impl NativeJob<'_> {
     pub async fn run(
@@ -46,7 +56,34 @@ impl NativeJob<'_> {
         arguments: impl FnOnce(&Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, Value)> {
         let (bytes, metadata, _) = self
-            .run_job(extension, params, cancel, progress, false, |output, _| {
+            .run_job(
+                extension,
+                params,
+                cancel,
+                progress,
+                RunOptions::default(),
+                |output, _| arguments(output),
+            )
+            .await?;
+        Ok((bytes, metadata))
+    }
+
+    /// Read progress from this invocation's appended log while the engine is running.
+    pub async fn run_file_observed(
+        &self,
+        extension: &str,
+        params: &Value,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+        arguments: impl FnOnce(&Path) -> Vec<String>,
+        mut parse: impl FnMut(&str) -> Option<Progress> + Send,
+    ) -> Result<(Vec<u8>, Value)> {
+        let options = RunOptions {
+            parse: Some(&mut parse),
+            ..Default::default()
+        };
+        let (bytes, metadata, _) = self
+            .run_job(extension, params, cancel, progress, options, |output, _| {
                 arguments(output)
             })
             .await?;
@@ -61,7 +98,17 @@ impl NativeJob<'_> {
         arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, String, Value, Vec<u8>)> {
         let (audio, metadata, report) = self
-            .run_job("wav", params, cancel, progress, true, arguments)
+            .run_job(
+                "wav",
+                params,
+                cancel,
+                progress,
+                RunOptions {
+                    with_report: true,
+                    ..Default::default()
+                },
+                arguments,
+            )
             .await?;
         let metadata = wav_metadata(&audio, params, metadata)?;
         Ok((audio, "wav".into(), metadata, report))
@@ -73,7 +120,7 @@ impl NativeJob<'_> {
         params: &Value,
         cancel: &CancellationToken,
         progress: impl Fn(Progress),
-        with_report: bool,
+        mut options: RunOptions<'_>,
         arguments: impl FnOnce(&Path, &Path) -> Vec<String>,
     ) -> Result<(Vec<u8>, Value, Vec<u8>)> {
         if cancel.is_cancelled() {
@@ -87,20 +134,28 @@ impl NativeJob<'_> {
         let output = work.path().join(format!("song.{extension}"));
         let report = work.path().join("report.json");
         let args = arguments(&output, &report);
+        let log = logs.join(self.log_name);
+        let mut reader = if options.parse.is_some() {
+            open_log_tail(&log).await
+        } else {
+            None
+        };
+        let mut line = Vec::new();
         let started = Instant::now();
         let mut process = OwnedProcess::spawn_with_model_folder(
             self.executable,
             &args,
             false,
-            &logs.join(self.log_name),
+            &log,
             Some(self.model_folder),
         )?;
-        let mut elapsed = None;
-        let phase = if extension == "wav" {
-            "generation"
-        } else {
-            "synth"
+        let phase = match extension {
+            "wav" => "generation",
+            "abc" => "planning",
+            _ => "synth",
         };
+        let mut current = Progress::new(phase);
+        let mut emitted = None;
         let runtime_seconds = loop {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
@@ -111,7 +166,28 @@ impl NativeJob<'_> {
                     self.log_name
                 )));
             }
-            if let Some(status) = process.status()? {
+            let status = process.status()?;
+            if let (Some(reader), Some(parse)) = (&mut reader, &mut options.parse) {
+                while reader
+                    .read_until(b'\n', &mut line)
+                    .await
+                    .is_ok_and(|read| read > 0)
+                    && line.ends_with(b"\n")
+                {
+                    if let Ok(text) = std::str::from_utf8(&line) {
+                        if let Some(update) = parse(text.trim_end()) {
+                            current = update;
+                        }
+                    }
+                    line.clear();
+                }
+            }
+            current.elapsed_seconds = started.elapsed().as_secs();
+            if emitted.as_ref() != Some(&current) {
+                progress(current.clone());
+                emitted = Some(current.clone());
+            }
+            if let Some(status) = status {
                 if !status.success() {
                     return Err(message(format!(
                         "Native music generation failed ({status}). See {}",
@@ -119,14 +195,6 @@ impl NativeJob<'_> {
                     )));
                 }
                 break started.elapsed().as_secs_f64();
-            }
-            let seconds = started.elapsed().as_secs();
-            if elapsed != Some(seconds) {
-                progress(Progress {
-                    elapsed_seconds: seconds,
-                    ..Progress::new(phase)
-                });
-                elapsed = Some(seconds);
             }
             tokio::select! {
                 _ = cancel.cancelled() => return Err(Error::Cancelled),
@@ -138,7 +206,7 @@ impl NativeJob<'_> {
             _ = cancel.cancelled() => return Err(Error::Cancelled),
             output = async {
                 let bytes = tokio::fs::read(output).await?;
-                let report = if with_report { tokio::fs::read(report).await? } else { Vec::new() };
+                let report = if options.with_report { tokio::fs::read(report).await? } else { Vec::new() };
                 std::io::Result::Ok((bytes, report))
             } => output?,
         };
@@ -151,7 +219,19 @@ impl NativeJob<'_> {
     }
 }
 
-fn wav_metadata(audio: &[u8], params: &Value, mut metadata: Value) -> Result<Value> {
+async fn open_log_tail(path: &Path) -> Option<BufReader<tokio::fs::File>> {
+    let mut file = tokio::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open(path)
+        .await
+        .ok()?;
+    file.seek(SeekFrom::End(0)).await.ok()?;
+    Some(BufReader::new(file))
+}
+
+pub(super) fn wav_metadata(audio: &[u8], params: &Value, mut metadata: Value) -> Result<Value> {
     let wav = audio_facts::wav_facts(audio)?;
     metadata["audio_format"] = json!({
         "container": "wav",

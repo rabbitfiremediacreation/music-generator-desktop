@@ -1,6 +1,9 @@
 import { I18N } from "./i18n.js";
 import type { Language } from "./locales";
 
+Object.assign(I18N.de, { picker_no_ready_models: "Keine einsatzbereiten Modelle" });
+Object.assign(I18N.en, { picker_no_ready_models: "No ready-to-use models" });
+
 export const xlMemoryHints: Record<Language, string> = {
   de: "XL benötigt mehr Arbeitsspeicher und wird für diesen Computer nicht empfohlen.",
   en: "XL needs more memory and is not recommended for this computer.",

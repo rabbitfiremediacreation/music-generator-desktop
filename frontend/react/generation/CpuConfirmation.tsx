@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import type { CpuIterationBehavior, GenerationPolicy } from "../../types";
 import { useI18n } from "../i18n";
+import { GenerationStatus } from "./GenerationStatus";
 import type { CpuChoice } from "./admission";
 import "../../cpu-i18n";
 
@@ -25,6 +26,7 @@ export function CpuConfirmation({ device, onChoice }: { device: GenerationPolicy
     onChoice(choice);
   }
   return <dialog ref={dialog} className="cpu-dialog" aria-labelledby="cpuDialogTitle" aria-describedby="cpuDialogText" onCancel={event => { event.preventDefault(); if (!saving.current) onChoice(null); }}>
+    <GenerationStatus className="dialog-generation-status" />
     <h2 id="cpuDialogTitle">{t("cpu_title")}</h2><p id="cpuDialogText">{t(device === "cpu" ? "cpu_warning" : "cpu_unknown_warning")}</p>
     <form onSubmit={event => event.preventDefault()} aria-busy={mutation.isPending}>
       <label className="check-row"><input type="checkbox" name="remember_cpu_decision" checked={remember} disabled={mutation.isPending} onChange={event => setRemember(event.target.checked)} />{t("cpu_remember")}</label>

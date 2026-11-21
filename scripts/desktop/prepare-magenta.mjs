@@ -95,7 +95,7 @@ export async function stageMagenta(source, build, folder = magentaFolder) {
     for (const dependency of tfliteDependencies) {
       await copyNotices(path.join(build, dependency), dependency, staging);
     }
-    await run("codesign", ["--force", "--sign", "-", "--entitlements", entitlements, executable]);
+    await run("codesign", ["--force", "--sign", "-", executable]);
     await recordMagenta(staging);
     await verifyMagenta(staging);
     await rm(folder, { recursive: true, force: true });

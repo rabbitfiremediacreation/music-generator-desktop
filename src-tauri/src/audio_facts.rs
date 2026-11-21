@@ -8,6 +8,7 @@ use std::{
     time::SystemTime,
 };
 mod wav;
+pub(crate) use wav::WavAssembly;
 pub(crate) use wav::WavFacts;
 
 #[derive(PartialEq, Eq)]

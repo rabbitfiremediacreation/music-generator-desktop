@@ -1,6 +1,21 @@
 use crate::error::{message, Result};
-use std::path::{Path, PathBuf};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 use tauri::Manager;
+
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    // NamedTempFile is private on Unix and atomically replaces existing files on Windows too.
+    let mut temporary = tempfile::NamedTempFile::new_in(
+        path.parent()
+            .ok_or_else(|| message("Missing private file directory"))?,
+    )?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist(path).map_err(|error| error.error)?;
+    Ok(())
+}
 
 /// Validate existing ancestors and access before setup creates folders or downloads models.
 pub fn setup_folders(models: &str, songs: &str) -> Result<(PathBuf, PathBuf)> {

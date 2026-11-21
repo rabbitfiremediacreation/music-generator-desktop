@@ -49,12 +49,12 @@ pub(super) fn tools() -> Vec<Value> {
             .remove("default");
     }
     for (name, description) in [
-        ("duration", "Requested seconds for audio profiles, within the profile's limits. Metered profiles derive duration from bars and BPM. For other audio profiles, omit to inherit the source song or use the selected profile's default. Omit this field for MIDI."),
+        ("duration", "Requested seconds for audio profiles. For supported song profiles, ignore_recommended_duration allows up to 900 seconds. Metered profiles derive duration from bars and BPM. For other audio profiles, omit to inherit the source song or use the selected profile's default. Omit this field for MIDI."),
         ("inference_steps", "ACE-Step sampling control. Omit to inherit the source song or use the saved studio or device default. CPU iteration policy still applies."),
         ("lm_temperature", "ACE-Step language-model control. Omit to inherit the source song or use the saved studio preference."),
         ("instrumental", "Omit to inherit the source song or use the selected profile's default. Stable Audio 3 and Mimetic A0 generate instrumentals. Vocal tag-based profiles require lyrics."),
         ("keep_caption", "Omitted values inherit the source song; new music preserves the supplied caption by default."),
-        ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A nonnegative seed fixes the language-model and synthesis seeds. Audio can vary with the model and compute backend."),
+        ("seed", "Omitted values and -1 select random seeds, including when deriving source-song variants. A nonnegative seed fixes the starting seed. YuE2 allows an independent planning seed through yue2.lm_seed."),
     ] {
         generate["inputSchema"]["properties"][name]["description"] = json!(description);
     }

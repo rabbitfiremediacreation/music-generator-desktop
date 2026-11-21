@@ -15,6 +15,10 @@ fn invalid() -> crate::error::Error {
 
 /// Read chunk headers only; validate PCM frame boundaries against the complete container length.
 pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
+    parse(input, |_, _| {})
+}
+
+fn parse(input: &mut (impl Read + Seek), mut data_chunk: impl FnMut(u64, u64)) -> Result<WavFacts> {
     let file_size = input.seek(SeekFrom::End(0))?;
     input.seek(SeekFrom::Start(0))?;
     let mut header = [0u8; 12];
@@ -69,6 +73,7 @@ pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
             format = Some((rate, align, channels, bits));
         } else if &chunk[..4] == b"data" {
             audio_bytes = audio_bytes.checked_add(size).ok_or_else(invalid)?;
+            data_chunk(body, size);
         }
         position = next;
     }
@@ -84,6 +89,77 @@ pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
         bits_per_sample: bits,
         frames,
     })
+}
+
+/// Assemble PCM16 sections in one WAV, blending up to 30 ms at each seam.
+#[derive(Default)]
+pub(crate) struct WavAssembly {
+    format: Option<(u32, u32)>,
+    samples: Vec<u8>,
+}
+
+impl WavAssembly {
+    pub(crate) fn append(&mut self, wav: &[u8]) -> Result<()> {
+        let mut chunks = Vec::new();
+        let facts = parse(&mut std::io::Cursor::new(wav), |start, size| {
+            chunks.push(&wav[start as usize..(start + size) as usize]);
+        })?;
+        let format = (facts.sample_rate_hz, facts.channels);
+        if facts.bits_per_sample != 16 || self.format.is_some_and(|existing| existing != format) {
+            return Err(message(
+                "The generated sections have incompatible WAV formats",
+            ));
+        }
+        self.format = Some(format);
+        let align = facts.channels as usize * 2;
+        let first = chunks.first().ok_or_else(invalid)?;
+        let overlap = (facts.sample_rate_hz as usize * 30 / 1000)
+            .min(self.samples.len() / align / 2)
+            .min(first.len() / align / 2);
+        let overlap_bytes = overlap * align;
+        let start = self.samples.len() - overlap_bytes;
+        for (i, (old, new)) in self.samples[start..]
+            .as_chunks_mut::<2>()
+            .0
+            .iter_mut()
+            .zip(first.as_chunks::<2>().0)
+            .enumerate()
+        {
+            let weight = (i / facts.channels as usize + 1) as i64;
+            let total = overlap as i64 + 1;
+            let a = i64::from(i16::from_le_bytes(*old));
+            let b = i64::from(i16::from_le_bytes(*new));
+            let sample = (a * (total - weight) + b * weight) / total;
+            old.copy_from_slice(&(sample as i16).to_le_bytes());
+        }
+        self.samples.extend_from_slice(&first[overlap_bytes..]);
+        for chunk in &chunks[1..] {
+            self.samples.extend_from_slice(chunk);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn finish(mut self, limit: f64) -> Result<Vec<u8>> {
+        let (rate, channels) = self.format.ok_or_else(invalid)?;
+        let align = channels * 2;
+        self.samples
+            .truncate((limit * f64::from(rate)).floor() as usize * align as usize);
+        let size = u32::try_from(self.samples.len()).map_err(|_| invalid())?;
+        let riff_size = size.checked_add(36).ok_or_else(invalid)?;
+        let mut wav = Vec::with_capacity(self.samples.len() + 44);
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&riff_size.to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt \x10\0\0\0\x01\0");
+        wav.extend_from_slice(&(channels as u16).to_le_bytes());
+        wav.extend_from_slice(&rate.to_le_bytes());
+        wav.extend_from_slice(&(rate * align).to_le_bytes());
+        wav.extend_from_slice(&(align as u16).to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&size.to_le_bytes());
+        wav.append(&mut self.samples);
+        Ok(wav)
+    }
 }
 
 #[cfg(test)]

@@ -80,6 +80,42 @@ fn installed(state: &AppState, selection: &Selection) {
 }
 
 #[test]
+fn yue2_analysis_uses_verified_ace_step_without_changing_the_active_profile() {
+    let root = tempfile::tempdir().unwrap();
+    let state = state(root.path());
+    let ace = turbo();
+    let yue2 = catalog::catalog()
+        .profiles
+        .into_iter()
+        .find(|profile| profile.selection.provider == "yue2")
+        .unwrap()
+        .selection;
+    let mut settings = state.db.settings().unwrap();
+    yue2.apply(&mut settings).unwrap();
+    state.db.save_settings(&settings).unwrap();
+    let engine = music_generator::engine::engine_path(&state.resources);
+    std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
+    std::fs::write(engine, b"engine fixture").unwrap();
+    assert_eq!(
+        admission::analysis_settings(&state, None)
+            .unwrap_err()
+            .to_string(),
+        "yue2_analysis_requires_ace_step"
+    );
+    installed(&state, &ace);
+    assert_eq!(
+        Selection::from_settings(&admission::analysis_settings(&state, None).unwrap()),
+        ace
+    );
+    assert_eq!(
+        Selection::from_settings(&state.db.settings().unwrap()),
+        yue2
+    );
+    std::fs::remove_file(Path::new(&settings.models_dir).join(&ace.language)).unwrap();
+    assert!(admission::analysis_settings(&state, Some(yue2)).is_err());
+}
+
+#[test]
 fn defaults_and_legacy_settings_are_disabled_and_both_values_survive_restart() {
     assert!(!Settings::default().expert_mode);
     let legacy: Settings =

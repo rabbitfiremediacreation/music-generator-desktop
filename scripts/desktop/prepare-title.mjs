@@ -43,7 +43,7 @@ export async function prepareTitle() {
   await cp(path.join(build, "bin", exe), path.join(titleFolder, exe));
   await cp(path.join(source, "LICENSE"), path.join(titleFolder, "LICENSE-llama.cpp"));
   await cp(path.join(source, "licenses/LICENSE-jsonhpp"), path.join(titleFolder, "LICENSE-nlohmann-json.txt"));
-  if (platform === "macos") await run("codesign", ["--force", "--sign", "-", "--entitlements", path.join(root, "src-tauri/Engine.entitlements"), path.join(titleFolder, exe)]);
+  if (platform === "macos") await run("codesign", ["--force", "--sign", "-", path.join(titleFolder, exe)]);
   await recordTitle(); await verifyTitle();
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await prepareTitle();

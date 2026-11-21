@@ -577,6 +577,7 @@ fn failure(error: Error) -> Response {
         "audio_size" => "The audio file is larger than 60 MB.".to_string(),
         "audio_type" => "Only audio files (WAV, MP3, FLAC, M4A, OGG) can be analyzed.".to_string(),
         "mp3_failed" => "MP3 conversion failed.".to_string(),
+        "audio_conversion_failed" => "Audio conversion failed.".to_string(),
         other => other.to_string(),
     };
     detail(status, text)
@@ -781,7 +782,17 @@ async fn create_folder(State(remote): State<Remote>, body: Bytes) -> Response {
 
 async fn queue(State(remote): State<Remote>) -> Response {
     let db = remote.state.db.clone();
-    match blocking(move || db.queue()).await {
+    let resources = remote.state.resources.clone();
+    match blocking(move || {
+        let mut queue = db.queue()?;
+        queue["audio_export"] = json!({
+            "default_format": db.settings()?.export_format,
+            "formats": crate::audio_export::available(&resources),
+        });
+        Ok(queue)
+    })
+    .await
+    {
         Ok(mut queue) => {
             queue["active"] = json!(remote.state.runtime.is_busy());
             queue["progress"] = json!(remote.state.runtime.progress());
@@ -811,6 +822,7 @@ pub struct PhoneGeneration {
     pub keep_caption: bool,
     pub title: String,
     pub duration: f64,
+    pub ignore_recommended_duration: bool,
     pub bpm: f64,
     pub bars: Option<u32>,
     pub keyscale: String,
@@ -820,6 +832,7 @@ pub struct PhoneGeneration {
     pub variants: u32,
     pub inference_steps: f64,
     pub lm_temperature: Option<f64>,
+    pub yue2: Option<crate::types::Yue2Options>,
     pub folder_id: Option<String>,
 }
 
@@ -835,6 +848,7 @@ impl Default for PhoneGeneration {
             keep_caption: true,
             title: String::new(),
             duration: 0.0,
+            ignore_recommended_duration: false,
             bpm: 0.0,
             bars: None,
             keyscale: String::new(),
@@ -844,6 +858,7 @@ impl Default for PhoneGeneration {
             variants: 1,
             inference_steps: 0.0,
             lm_temperature: None,
+            yue2: None,
             folder_id: None,
         }
     }
@@ -871,6 +886,7 @@ impl PhoneGeneration {
             keep_caption: self.keep_caption,
             title: self.title,
             duration: self.duration,
+            ignore_recommended_duration: self.ignore_recommended_duration,
             bpm: whole(self.bpm)?,
             bars: self.bars,
             keyscale: self.keyscale,
@@ -880,6 +896,7 @@ impl PhoneGeneration {
             variants: self.variants,
             inference_steps: whole(self.inference_steps)?,
             lm_temperature: self.lm_temperature,
+            yue2: self.yue2,
             group_id: Some(group_id),
             folder_id: self.folder_id.filter(|f| !f.is_empty()),
         })
@@ -987,6 +1004,7 @@ fn content_type(path: &Path) -> &'static str {
         Some("mp3") => "audio/mpeg",
         Some("flac") => "audio/flac",
         Some("ogg") => "audio/ogg",
+        Some("aac") => "audio/aac",
         Some("m4a") => "audio/mp4",
         Some("mid") => "audio/midi",
         _ => "application/octet-stream",
@@ -1035,23 +1053,32 @@ async fn audio(
     let download = flag(query.get("download"));
     let mut path = std::path::PathBuf::from(&source);
     if download {
-        let mp3 = match remote.state.db.settings() {
-            Ok(settings) => settings.export_format == "mp3",
+        use crate::audio_export::{self, AudioFormat};
+        let explicit = query.get("format");
+        let format = match explicit.map_or_else(
+            || {
+                remote
+                    .state
+                    .db
+                    .settings()
+                    .map(|settings| audio_export::legacy_format(&settings.export_format))
+            },
+            |format| AudioFormat::parse(format),
+        ) {
+            Ok(format) => format,
             Err(error) => return failure(error),
         };
-        if mp3 {
-            match crate::audio_export::mp3(
-                &remote.state.resources,
-                &remote.state.db.root,
-                &song.id,
-                &path,
-                &remote.state.runtime.cancellation(),
-            )
-            .await
-            {
-                Ok(converted) => path = converted,
-                Err(error) => return failure(error),
-            }
+        let resources = &remote.state.resources;
+        let root = &remote.state.db.root;
+        let cancel = remote.state.runtime.cancellation();
+        let converted = if explicit.is_none() && format == AudioFormat::Mp3 {
+            audio_export::mp3(resources, root, &song.id, &path, &cancel).await
+        } else {
+            audio_export::convert(resources, root, &song.id, &path, format, &cancel).await
+        };
+        match converted {
+            Ok(converted) => path = converted,
+            Err(error) => return failure(error),
         }
     }
     stream_song(&song, &path, &headers, download).await

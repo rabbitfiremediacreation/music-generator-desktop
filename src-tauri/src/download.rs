@@ -6,12 +6,12 @@ use crate::{
 use futures_util::StreamExt;
 use reqwest::{
     header::{CONTENT_RANGE, RANGE},
-    StatusCode,
+    RequestBuilder, StatusCode,
 };
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
@@ -23,6 +23,25 @@ pub struct DownloadProgress {
     pub downloaded: u64,
     pub total: u64,
     pub bytes_per_second: u64,
+}
+
+pub(crate) fn client() -> Result<reqwest::Client> {
+    let redirects = reqwest::redirect::Policy::default();
+    Ok(reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .read_timeout(Duration::from_secs(60))
+        .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+            if attempt.url().scheme() != "https"
+                && attempt
+                    .previous()
+                    .last()
+                    .is_some_and(|url| url.scheme() == "https")
+            {
+                return attempt.error("Download redirect must preserve HTTPS");
+            }
+            redirects.redirect(attempt)
+        }))
+        .build()?)
 }
 
 // A partial response is only appendable when its start and declared size agree.
@@ -110,7 +129,16 @@ pub async fn download_model(
     cancel: &CancellationToken,
     progress: impl Fn(DownloadProgress),
 ) -> Result<PathBuf> {
-    download(client, (url, None), root, model, verifier, cancel, progress).await
+    fetch(
+        || Ok(client.get(url)),
+        None,
+        root,
+        model,
+        verifier,
+        cancel,
+        progress,
+    )
+    .await
 }
 
 pub async fn download_pinned_model(
@@ -122,9 +150,9 @@ pub async fn download_pinned_model(
     cancel: &CancellationToken,
     progress: impl Fn(DownloadProgress),
 ) -> Result<PathBuf> {
-    download(
-        client,
-        (url, Some(model.estimated_bytes)),
+    fetch(
+        || Ok(client.get(url)),
+        Some(model.estimated_bytes),
         root,
         model,
         verifier,
@@ -134,9 +162,9 @@ pub async fn download_pinned_model(
     .await
 }
 
-async fn download(
-    client: &reqwest::Client,
-    (url, pinned_bytes): (&str, Option<u64>),
+pub(crate) async fn fetch(
+    request: impl FnOnce() -> Result<RequestBuilder>,
+    pinned_bytes: Option<u64>,
     root: &Path,
     model: &Model,
     verifier: &mut ModelVerifier,
@@ -183,9 +211,10 @@ async fn download(
         tokio::fs::remove_file(&partial).await?;
         offset = 0;
     }
+    let request = request()?.header(RANGE, format!("bytes={offset}-"));
     let response = tokio::select! {
         _ = cancel.cancelled() => return Err(Error::Cancelled),
-        response = client.get(url).header(RANGE, format!("bytes={offset}-")).send() => response?,
+        response = request.send() => response.map_err(reqwest::Error::without_url)?,
     };
     // A fully downloaded .part may remain after cancellation during checksum verification.
     if response.status() == StatusCode::RANGE_NOT_SATISFIABLE && offset > 0 {
@@ -205,7 +234,16 @@ async fn download(
             "Partial download is invalid; retry to download from the beginning",
         ));
     }
-    let response = response.error_for_status()?;
+    if matches!(
+        response.status(),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+    ) && crate::hugging_face_token::is_hub(response.url())
+    {
+        return Err(message("hf_download_auth"));
+    }
+    let response = response
+        .error_for_status()
+        .map_err(reqwest::Error::without_url)?;
     let (append, total) = if response.status() == StatusCode::PARTIAL_CONTENT {
         let total = response
             .headers()
@@ -251,7 +289,7 @@ async fn download(
         let Some(chunk) = chunk else {
             break;
         };
-        let chunk = chunk?;
+        let chunk = chunk.map_err(reqwest::Error::without_url)?;
         downloaded += chunk.len() as u64;
         if pinned_bytes.is_some_and(|size| downloaded > size) {
             return Err(message(format!(
@@ -303,6 +341,75 @@ async fn download(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn authenticated_resume_drops_credentials_at_the_redirect_destination() {
+        use axum::{
+            http::{header::AUTHORIZATION, HeaderMap},
+            response::Redirect,
+            routing::get,
+            Router,
+        };
+        use sha2::{Digest, Sha256};
+
+        let cdn = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cdn_url = format!("http://{}/file", cdn.local_addr().unwrap());
+        let cdn_task = tokio::spawn(async move {
+            let routes = Router::new().route(
+                "/file",
+                get(|headers: HeaderMap| async move {
+                    assert!(!headers.contains_key(AUTHORIZATION));
+                    assert_eq!(headers[RANGE], "bytes=3-");
+                    (
+                        StatusCode::PARTIAL_CONTENT,
+                        [(CONTENT_RANGE, "bytes 3-5/6")],
+                        "def",
+                    )
+                }),
+            );
+            axum::serve(cdn, routes).await.unwrap();
+        });
+        let hub = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hub_url = format!("http://{}/model", hub.local_addr().unwrap());
+        let hub_task = tokio::spawn(async move {
+            let routes = Router::new().route(
+                "/model",
+                get(move |headers: HeaderMap| {
+                    let cdn_url = cdn_url.clone();
+                    async move {
+                        assert_eq!(headers[AUTHORIZATION], "Bearer hf_test-example");
+                        assert_eq!(headers[RANGE], "bytes=3-");
+                        Redirect::temporary(&cdn_url)
+                    }
+                }),
+            );
+            axum::serve(hub, routes).await.unwrap();
+        });
+
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        let client = client().unwrap();
+        let model = Model {
+            file: "model.gguf".into(),
+            estimated_bytes: 6,
+            sha256: format!("{:x}", Sha256::digest(b"abcdef")),
+            kind: "required".into(),
+        };
+        std::fs::write(root.join("model.gguf.part"), b"abc").unwrap();
+        let result = fetch(
+            || Ok(client.get(hub_url).bearer_auth("hf_test-example")),
+            Some(model.estimated_bytes),
+            root,
+            &model,
+            &mut ModelVerifier::open(root),
+            &CancellationToken::new(),
+            |_| {},
+        )
+        .await;
+        hub_task.abort();
+        cdn_task.abort();
+        assert_eq!(std::fs::read(result.unwrap()).unwrap(), b"abcdef");
+    }
 
     #[test]
     fn disk_space_boundary_and_diagnostics() {

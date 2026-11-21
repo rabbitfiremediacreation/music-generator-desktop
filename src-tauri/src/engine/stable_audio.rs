@@ -148,6 +148,7 @@ mod tests {
             advanced: false,
             analysis: false,
             reference_audio: false,
+            yue2_options: false,
             max_seed: None,
             output_kind: crate::types::OutputKind::Audio,
             bars: None,

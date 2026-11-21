@@ -2,14 +2,26 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { Song } from "../types";
 import { audioTime } from "../song-result";
 import { backend } from "../backend";
+import { subscribeTheme } from "../desktop-theme";
 import { useI18n } from "./i18n";
+
+type WaveformColors = { waveColor: string; progressColor: string };
 
 interface Waveform {
   loadBlob(blob: Blob): Promise<void>; play(): Promise<void>; pause(): void; playPause(): Promise<void>;
   destroy(): void; on(event: string, callback: (error?: Error) => void): () => void; setVolume(volume: number): void;
   getCurrentTime(): number; getDuration(): number;
+  setOptions(options: WaveformColors): void;
 }
 declare global { interface Window { WaveSurfer: {create(options: Record<string, unknown>): Waveform} } }
+
+function waveformColors(): WaveformColors {
+  const css = getComputedStyle(document.documentElement);
+  return {
+    waveColor: css.getPropertyValue("--theme-wave").trim() || css.getPropertyValue("--border").trim() || "#2a2e38",
+    progressColor: css.getPropertyValue("--accent2").trim() || "#d1a75c",
+  };
+}
 
 function saved<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback; } catch { return fallback; }
@@ -76,10 +88,10 @@ export function Player() {
     const loadSequence = sequence;
     const version = ++loadSequence.current;
     setTime("0:00 / 0:00");
-    const css = getComputedStyle(document.documentElement);
     const instance = window.WaveSurfer.create({ container: waveform.current, height:44, barWidth:2, barGap:1, barRadius:2,
-      waveColor:css.getPropertyValue("--border").trim() || "#2a2e38", progressColor:css.getPropertyValue("--accent2").trim() || "#d1a75c", cursorWidth:0 });
+      ...waveformColors(), cursorWidth:0 });
     engine.current = instance;
+    const stopTheme = subscribeTheme(() => instance.setOptions(waveformColors()));
     const fail = (cause: unknown) => {
       if (version !== sequence.current) return;
       loadSequence.current++; playback.current = "error";
@@ -98,7 +110,7 @@ export function Player() {
     }).catch(fail);
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
-    return () => { loadSequence.current++; offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
+    return () => { loadSequence.current++; stopTheme(); offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
   }, [song, engine, sequence, playback, setPlaying, setError]);
   useEffect(() => {
     engine.current?.setVolume(muted ? 0 : volume);

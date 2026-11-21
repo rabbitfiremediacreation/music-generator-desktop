@@ -45,7 +45,7 @@ export function songPageQuery(filter: Filter, offset: number, limit: number) {
   });
 }
 export const foldersQuery = () => queryOptions({ queryKey: queryKeys.folders, queryFn: backend.folders });
-export const queueQuery = () => queryOptions({ queryKey: queryKeys.queue, queryFn: backend.queue });
+export const queueQuery = () => queryOptions({ queryKey: queryKeys.queue, queryFn: () => backend.queue() });
 
 export async function invalidateLibrary(client: QueryClient) {
   await Promise.all([queryKeys.songs(), ["song"], queryKeys.folders, queryKeys.queue].map(queryKey => client.invalidateQueries({ queryKey })));

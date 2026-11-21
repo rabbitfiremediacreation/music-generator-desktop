@@ -12,6 +12,31 @@ fn cpu_choice() -> Value {
     json!({"type": "string", "enum": ["limit_30", "continue"], "description": "One-call choice for more than 30 CPU/unknown-backend iterations when the saved behavior is Ask. Saved limit_30/continue preferences take precedence."})
 }
 
+fn yue2_options() -> Value {
+    let sampling = json!({"type": "object", "additionalProperties": false, "properties": {
+        "temperature": {"type": "number", "minimum": 0, "maximum": 5},
+        "top_p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "top_k": {"type": "integer", "minimum": 1, "maximum": i32::MAX},
+        "repetition_penalty": {"type": "number", "exclusiveMinimum": 0},
+        "penalty_window": {"type": "integer", "minimum": 1, "maximum": 100},
+        "min_tokens": {"type": "integer", "minimum": 0, "maximum": 32768},
+        "max_tokens": {"type": "integer", "minimum": 1, "maximum": 32768}
+    }});
+    json!({"type": ["object", "null"], "additionalProperties": false,
+        "description": "YuE2 score planning, token sampling and audio synthesis settings. Omit a field to use the model default. Use null to clear inherited options.",
+        "properties": {
+            "lm_seed": {"type": "integer", "minimum": -1, "maximum": u32::MAX, "description": "Omit to use the audio seed, -1 for an independent random seed, or fix a planning seed across versions."},
+            "steps": {"type": "integer", "minimum": 1, "maximum": crate::generation_limits::MAX_INFERENCE_STEPS},
+            "cot": {"enum": ["full", "melody", "off"], "description": "Instrumental mode and custom ABC require full or melody."},
+            "cfg_scale": {"anyOf": [{"const": -1}, {"type": "number", "minimum": 0, "maximum": 10}]},
+            "peak_clip": {"type": "integer", "minimum": 0, "maximum": 999},
+            "abc": text(16384),
+            "abc_sampling": sampling,
+            "semantic_sampling": sampling,
+        }
+    })
+}
+
 fn generation() -> Value {
     json!({
         "prompt": text(20000), "style": text(4000), "caption": text(24000),
@@ -19,7 +44,8 @@ fn generation() -> Value {
         "reference_audio": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Reference ID from a MuLaCover job. Choose the recording in the desktop app. Set null to clear an inherited reference."},
         "instrumental": {"type": "boolean", "description": "Applies to profiles that expose the instrumental control."},
         "keep_caption": {"type": "boolean", "default": true},
-        "duration": {"type": "number", "minimum": 0.8, "maximum": 600, "description": "Requested seconds within the selected profile's limits from get_generation_policy. Metered profiles derive this value from BPM and bars."},
+        "duration": {"type": "number", "minimum": 0.8, "maximum": crate::generation_limits::MAX_EXTENDED_DURATION, "description": "Requested audio seconds. Metered profiles derive duration from BPM and bars."},
+        "ignore_recommended_duration": {"type": "boolean", "description": "Allow a supported song profile to render up to 900 seconds in sections above its recommended duration."},
         "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "Metered profiles require a positive tempo. For ACE-Step, 0 selects automatic tempo."},
         "bars": {"type": "integer", "enum": [1, 2, 4], "description": "Required by metered short-clip profiles. BPM and 4/4 bars determine the duration."},
         "keyscale": text(100), "timesignature": text(100), "vocal_language": text(100),
@@ -27,6 +53,7 @@ fn generation() -> Value {
         "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Use the selected profile's limits from get_generation_policy. ACE-Step uses the saved studio preference when omitted."},
         "inference_steps": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Omitted values use the saved studio preference or device/model recommendation."},
         "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 0.85."},
+        "yue2": yue2_options(),
         "group_id": id(), "folder_id": {"type": ["string", "null"], "maxLength": 200},
         "model_selection": {
             "type": "object", "additionalProperties": false,

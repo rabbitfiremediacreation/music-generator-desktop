@@ -4,6 +4,7 @@ import { backend } from "../../backend";
 import { pickFolder, pathErrorText, type FolderPurpose } from "../../path-dialogs";
 import type { ImportProgress, ImportRequest, ImportResult } from "../../types";
 import { useI18n } from "../i18n";
+import { GenerationStatus } from "../generation/GenerationStatus";
 
 export interface ImportDialogProps {
   open: boolean; mode: "import" | "move"; songsDirectory: string; platform: string;
@@ -99,6 +100,7 @@ function ImportSession({ mode, songsDirectory, platform, onClose, onImported }: 
   const currentError = failure ?? preview.error;
   return <dialog ref={dialog} id="importWizard" aria-labelledby="importHeading" onCancel={event => { event.preventDefault(); close(); }}>
     <h2 id="importHeading">{t(mode === "import" ? "import_title" : "import_move_title")}</h2>
+    {mode === "import" && <GenerationStatus className="dialog-generation-status" />}
     <p className="small">{t(mode === "import" ? "import_hint" : "import_move_hint")}</p>
     {mode === "import" && <section><h3>{t("import_step_source")}</h3><button type="button" className="sek" disabled={disabled} onClick={() => void choose("import_root", request.root)}>{t("import_choose_source")}</button><p className="small">{request.root}</p></section>}
     <section><h3>{mode === "move" ? t("import_step_target").replace(/^2/, "1") : t("import_step_target")}</h3><p className="small">{request.songs_dir}</p>

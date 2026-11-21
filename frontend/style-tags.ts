@@ -45,4 +45,22 @@ function extractStyleTags(text: string, hasVocals: boolean, max = 6) {
 }
 
 
+/** Merge detected sound and tempo into the editable YuE2 style tags. */
+export function analyzedYue2Style(style: string, analysis: Record<string, unknown>): string {
+  const description = String(analysis.caption || analysis.prompt || "").trim();
+  const hasVocals = Boolean(String(analysis.lyrics || "").replace(/\[[^\]]*\]/g, "").trim());
+  const tags = extractStyleTags(description, hasVocals);
+  if (!tags.length && description) tags.push(...description.split(",").map(tag => tag.trim()).filter(Boolean));
+  const bpm = Number(analysis.bpm);
+  if (Number.isFinite(bpm) && bpm > 0 && bpm <= 300) tags.push(`${Math.round(bpm)} bpm`);
+  const existing = style.split(",").map(tag => tag.trim()).filter(Boolean);
+  const seen = new Set(existing.map(tag => tag.toLowerCase()));
+  for (const tag of tags) {
+    if (seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    existing.push(tag);
+  }
+  return existing.join(", ");
+}
+
 export { extractStyleTags };

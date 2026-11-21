@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Library } from "./library/Library";
 import { I18nProvider } from "./i18n";
@@ -12,6 +12,7 @@ import { setLang } from "../i18n.js";
 import type { Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: async ({ defaultPath }: { defaultPath: string }) => defaultPath }));
 const waveform={loadBlob:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
 let songs: Song[];
 beforeEach(() => {
@@ -68,6 +69,39 @@ function seedPages(count: number) {
     folder_id:index%2===0?"ideas":null,
   }));
 }
+
+it("opens the song and ZIP format dropdowns and exports the chosen format", async () => {
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "get_settings") return { export_format: "mp3_320", export_formats: ["wav", "mp3_320", "ogg", "original"] };
+    if (name === "export_default_path") return `/Downloads/${args.filename}`;
+    return original(name, args);
+  });
+  mount();
+  const download = await screen.findByRole("button", { name: "Download" });
+  fireEvent.keyDown(download, { key: "ArrowDown" });
+  const songMenu = screen.getByRole("menu", { name: "Download format" });
+  const [first, second] = within(songMenu).getAllByRole("menuitem");
+  expect(first.textContent).toBe("MP3 · 320 kbit/s");
+  expect(document.activeElement).toBe(first);
+  fireEvent.keyDown(first, { key: "ArrowDown" });
+  expect(document.activeElement).toBe(second);
+  fireEvent.keyDown(second, { key: "Escape" });
+  expect(screen.queryByRole("menu", { name: "Download format" })).toBeNull();
+  expect(document.activeElement).toBe(download);
+  fireEvent.click(download);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Ogg/Opus · 160 kbit/s" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
+    kind: "audio", destination: "/Downloads/A song.ogg", id: "one", folder: null, format: "ogg",
+  }));
+  fireEvent.click(screen.getByRole("button", { name: "Download all" }));
+  const zipMenu = screen.getByRole("menu", { name: "Audio format in ZIP" });
+  expect(within(zipMenu).getAllByRole("menuitem")[0].textContent).toBe("MP3 · 320 kbit/s");
+  fireEvent.click(within(zipMenu).getByRole("menuitem", { name: "WAV" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
+    kind: "zip", destination: "/Downloads/Music Generator.zip", id: null, folder: "", format: "wav",
+  }));
+});
 
 it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
   seedPages(106);

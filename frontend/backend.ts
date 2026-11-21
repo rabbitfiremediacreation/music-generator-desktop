@@ -1,4 +1,5 @@
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
+import type { AudioFormat } from "./audio-formats";
 import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -23,6 +24,8 @@ export const backend = {
   estimate: (request: SetupRequest) => command<{ missing_bytes: number; free_bytes: number }>("setup_estimate", { request }),
   cancelSetup: () => command<void>("cancel_setup"),
   modelCatalog: () => command<ModelCatalog>("model_catalog"),
+  huggingFaceTokenStatus: () => command<boolean>("hugging_face_token_status"),
+  setHuggingFaceToken: (token: string | null) => command<boolean>("set_hugging_face_token", { token }),
   discoverHuggingFaceModels: () => command<import("./types").HuggingFaceDiscovery>("discover_hugging_face_models"),
   adoptHuggingFaceModel: (pin: import("./types").HuggingFacePin, draft: ModelSelection) =>
     command<ModelSelection>("adopt_hugging_face_model", { pin, draft }),
@@ -77,7 +80,7 @@ export const backend = {
     if (!response.ok) throw new Error(typeof result === "string" ? result : "audio_read");
     return result as Record<string, unknown>;
   },
-  export: (kind: "audio" | "midi" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null) => command<void>("export_file", { kind, destination, id, folder }),
+  export: (kind: "audio" | "midi" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null, format?: AudioFormat) => command<void>("export_file", { kind, destination, id, folder, ...(format ? { format } : {}) }),
   exportDefaultPath: (filename: string) => command<string>("export_default_path", { filename }),
   checkUpdate: (stream: UpdateStream) => command<Update>("check_update", { stream }),
   exit: () => command<void>("exit_app"),

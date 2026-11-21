@@ -12,6 +12,17 @@ Object.assign(I18N.en, {
   hf_model_changed: "The published file metadata has changed. Reload the variants.",
   hf_model_header: "The GGUF header could not be verified for this engine.",
   hf_pins_unavailable: "The local Hugging Face catalog could not be opened.",
+  hf_token: "Hugging Face token",
+  hf_token_hint: "Use a read token from your Hugging Face account for model downloads that require access.",
+  hf_token_placeholder: "Paste a read token",
+  hf_token_replace: "Paste a new token to replace the saved one",
+  hf_token_save: "Save token",
+  hf_token_remove: "Remove token",
+  hf_token_saved: "Hugging Face token saved.",
+  hf_token_invalid: "Enter a valid Hugging Face token.",
+  hf_token_read_failed: "Could not read the saved Hugging Face token.",
+  hf_token_write_failed: "Could not update the Hugging Face token.",
+  hf_download_auth: "Hugging Face denied the download. Check access to the model and the read token in Settings → Models and hardware.",
 });
 
 Object.assign(I18N.de, {
@@ -26,4 +37,15 @@ Object.assign(I18N.de, {
   hf_model_changed: "Die veröffentlichten Dateidaten haben sich geändert. Lade die Varianten neu.",
   hf_model_header: "Der GGUF-Header konnte für diese Engine nicht bestätigt werden.",
   hf_pins_unavailable: "Der lokale Hugging-Face-Katalog konnte nicht geöffnet werden.",
+  hf_token: "Hugging-Face-Token",
+  hf_token_hint: "Nutze ein Lese-Token aus deinem Hugging-Face-Konto für zugangsbeschränkte Modell-Downloads.",
+  hf_token_placeholder: "Lese-Token einfügen",
+  hf_token_replace: "Neues Token einfügen, um das gespeicherte zu ersetzen",
+  hf_token_save: "Token speichern",
+  hf_token_remove: "Token entfernen",
+  hf_token_saved: "Hugging-Face-Token gespeichert.",
+  hf_token_invalid: "Gib ein gültiges Hugging-Face-Token ein.",
+  hf_token_read_failed: "Das gespeicherte Hugging-Face-Token konnte nicht gelesen werden.",
+  hf_token_write_failed: "Das Hugging-Face-Token konnte nicht aktualisiert werden.",
+  hf_download_auth: "Hugging Face hat den Download abgelehnt. Prüfe den Modellzugriff und das Lese-Token unter Einstellungen → Modelle und Hardware.",
 });

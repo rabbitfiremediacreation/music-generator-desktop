@@ -363,36 +363,24 @@ pub async fn install_profile(
     if missing > 0 {
         crate::download::ensure_space(root, missing.saturating_add(512 * 1024 * 1024))?;
     }
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(30))
-        .read_timeout(std::time::Duration::from_secs(60))
-        .build()?;
+    let client = crate::download::client()?;
     let mut verifier = ModelVerifier::open(&db.root);
     for model in models {
         let pinned = model.download();
-        if let Some(source) = &model.source {
-            crate::download::download_pinned_model(
-                &client,
-                &source.url(),
-                root,
-                &pinned,
-                &mut verifier,
-                cancel,
-                &progress,
-            )
-            .await?;
-        } else {
-            crate::download::download_model(
-                &client,
-                &format!("{}/{}", catalog.base_url, model.file),
-                root,
-                &pinned,
-                &mut verifier,
-                cancel,
-                &progress,
-            )
-            .await?;
-        }
+        let (url, bytes) = model.source.as_ref().map_or_else(
+            || (format!("{}/{}", catalog.base_url, model.file), None),
+            |source| (source.url(), Some(pinned.estimated_bytes)),
+        );
+        crate::download::fetch(
+            || crate::hugging_face_token::get(&client, &url, &db.root),
+            bytes,
+            root,
+            &pinned,
+            &mut verifier,
+            cancel,
+            &progress,
+        )
+        .await?;
     }
     activate_installed(db, &mut settings, selection, cancel)
 }

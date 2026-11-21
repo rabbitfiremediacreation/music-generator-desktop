@@ -11,8 +11,7 @@ import { catalogWithNativeProfiles, catalogWithAudioCraft, catalogWithDiffRhythm
 beforeEach(() => { resetDesktop(); setLang("de"); });
 afterEach(cleanup);
 async function open() {
-  await waitFor(() => expect((screen.getByRole("combobox", { name: "Modelle" }) as HTMLSelectElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: "Modelle wählen" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Modelle wählen" }));
   return screen.findByRole("dialog", { name: "Modelle" });
 }
 

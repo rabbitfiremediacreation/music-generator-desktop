@@ -29,6 +29,10 @@ export function songMachineGeneratedBy(song: Pick<Song, "result_meta">): string 
 
 /** Locally verified execution wins; an uninitialised old request without a model does not establish its actual steps. */
 export function songIterations(song: ResultSong): number | null {
+  if (song.params.model_selection?.provider === "yue2") {
+    const steps = song.result_meta?.effective_inference_steps ?? song.params.yue2?.steps;
+    return positive(steps) && Number.isInteger(steps) && steps <= MAX_INFERENCE_STEPS ? steps : null;
+  }
   if (song.params.model_selection && !song.params.model_selection.language) return null;
   const unfinished = song.status !== undefined && song.status !== "done";
   const limit = unfinished || song.result_meta?.inference_steps_limit === MAX_INFERENCE_STEPS ? MAX_INFERENCE_STEPS : LEGACY_INFERENCE_STEPS_LIMIT;
