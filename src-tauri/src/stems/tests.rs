@@ -26,18 +26,19 @@ fn state(root: &Path, resources: PathBuf) -> AppState {
 
 #[cfg(unix)]
 fn synthetic_audio(path: &Path) {
-    let frames = 48_000_u32;
+    let rate = 48_000_u32;
+    let frames = 4 * rate;
     let size = frames * 2;
     let mut wave = Vec::with_capacity(size as usize + 44);
     wave.extend_from_slice(b"RIFF");
     wave.extend_from_slice(&(size + 36).to_le_bytes());
     wave.extend_from_slice(b"WAVEfmt \x10\0\0\0\x01\0\x01\0");
-    wave.extend_from_slice(&frames.to_le_bytes());
-    wave.extend_from_slice(&size.to_le_bytes());
+    wave.extend_from_slice(&rate.to_le_bytes());
+    wave.extend_from_slice(&(rate * 2).to_le_bytes());
     wave.extend_from_slice(b"\x02\0\x10\0data");
     wave.extend_from_slice(&size.to_le_bytes());
     for frame in 0..frames {
-        let radians = std::f32::consts::TAU * 440.0 * frame as f32 / frames as f32;
+        let radians = std::f32::consts::TAU * 440.0 * frame as f32 / rate as f32;
         wave.extend_from_slice(&((radians.sin() * 4096.0).round() as i16).to_le_bytes());
     }
     std::fs::write(path, wave).unwrap();
@@ -112,7 +113,8 @@ async fn offline_separation_mix_and_export_after_restart_and_model_removal() {
             name: "Reference separation".into(),
             folder_id: None,
             start: 0.15,
-            end: Some(0.85),
+            // This range resamples to 132413.00625 frames, which rounds down in float32.
+            end: Some(151_323.0 / 48_000.0),
             quality: if profile.id == "htdemucs-6s" {
                 jobs::Quality::Standard
             } else {
@@ -192,7 +194,7 @@ async fn offline_separation_mix_and_export_after_restart_and_model_removal() {
             project.frames,
             project.source_start_frame
         ),
-        (44_100, 2, 30_870, 7_200)
+        (44_100, 2, 132_414, 7_200)
     );
     assert_eq!(job.request.pin, pin);
     let original_stem = job.audio_path(root, "vocals").unwrap();

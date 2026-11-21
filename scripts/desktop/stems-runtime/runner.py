@@ -134,10 +134,22 @@ def load_model(path, expected):
     return model.eval()
 
 
+def resample_waveform(waveform, source_rate):
+    """Keep torchaudio's frame-count calculation in float64 and the audio in float32."""
+    import torch
+    from torchaudio.functional import resample
+
+    previous_dtype = torch.get_default_dtype()
+    try:
+        torch.set_default_dtype(torch.float64)
+        return resample(waveform, source_rate, RATE)
+    finally:
+        torch.set_default_dtype(previous_dtype)
+
+
 def read_waveform(config):
     import soundfile as sf
     import torch
-    from torchaudio.functional import resample
 
     with sf.SoundFile(config["input"]) as source:
         source.seek(config["first"])
@@ -146,7 +158,7 @@ def read_waveform(config):
             raise ValueError("Source changed after preflight")
         waveform = torch.from_numpy(audio.T.copy())
         if source.samplerate != RATE:
-            waveform = resample(waveform, source.samplerate, RATE)
+            waveform = resample_waveform(waveform, source.samplerate)
     if waveform.shape[0] == 1:
         waveform = waveform.expand(2, -1).contiguous()
     if waveform.shape[0] != 2 or not torch.isfinite(waveform).all():
