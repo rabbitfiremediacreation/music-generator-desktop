@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 
-// Load the updater from the signed bundle. Development builds have no framework.
+// Load the updater from the signed bundle. Local builds have no framework.
 @interface NSObject (MusicGeneratorSparkle)
 - (instancetype)initWithStartingUpdater:(BOOL)start updaterDelegate:(id)delegate userDriverDelegate:(id)driver;
 - (id)updater;
@@ -36,8 +36,8 @@ static id updater(void) {
     return [controller updater];
 }
 
-void music_configure_updates(BOOL stable) {
-    [updater() setAutomaticallyChecksForUpdates:stable];
+void music_configure_updates(BOOL enabled) {
+    [updater() setAutomaticallyChecksForUpdates:enabled];
 }
 
 BOOL music_check_native_update(void) {

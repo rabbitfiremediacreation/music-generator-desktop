@@ -59,7 +59,7 @@ export const backend = {
   deleteFolder: (id: string) => command<void>("delete_folder", { id }),
   queue: () => command<Queue>("queue"),
   settings: () => command<Settings>("get_settings"),
-  configureSettingsMenu: (text: string, enabled: boolean) => command<void>("configure_settings_menu", { text, enabled }),
+  configureAppMenu: (labels: Record<string, string>, enabled: string[]) => command<void>("configure_app_menu", { labels, enabled }),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),
   openSongsFolder: () => command<void>("open_songs_folder"),
   phoneAccess: () => command<import("./types").PhoneAccess>("phone_access_status"),
@@ -82,6 +82,6 @@ export const backend = {
   },
   export: (kind: "audio" | "midi" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null, format?: AudioFormat) => command<void>("export_file", { kind, destination, id, folder, ...(format ? { format } : {}) }),
   exportDefaultPath: (filename: string) => command<string>("export_default_path", { filename }),
-  checkUpdate: (stream: UpdateStream) => command<Update>("check_update", { stream }),
+  checkUpdate: (stream: UpdateStream | null = null) => command<Update>("check_update", { stream }),
   exit: () => command<void>("exit_app"),
 };

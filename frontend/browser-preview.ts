@@ -48,7 +48,7 @@ export function installBrowserPreview() {
       case "startup_allowed": return true;
       case "startup_show_main":
       case "startup_complete":
-      case "configure_settings_menu":
+      case "configure_app_menu":
         return undefined;
       case "bootstrap": return { ...setupFixture, needs_setup: false, settings };
       case "get_settings": return settings;

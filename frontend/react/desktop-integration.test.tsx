@@ -10,12 +10,12 @@ import { profileKey } from "../creator-models";
 import { setLang, t } from "../i18n.js";
 import type { BackendStatus, GenerationFormPreferences, Settings, SettingsPatch, Song } from "../types";
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), nativeClose: vi.fn(), offNative: vi.fn(), confirm: vi.fn(), saveSettings: vi.fn(), savePreferences: vi.fn() }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), nativeClose: vi.fn(), offNative: vi.fn(), confirm: vi.fn(), message: vi.fn(), openUrl: vi.fn(), checkUpdate: vi.fn(), saveSettings: vi.fn(), savePreferences: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc: (path: string) => path }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: mocks.listen }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: mocks.nativeClose, minimize: vi.fn(), toggleMaximize: vi.fn() }) }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: mocks.confirm, open: vi.fn(), save: vi.fn() }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: mocks.confirm, message: mocks.message, open: vi.fn(), save: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: mocks.openUrl }));
 
 const handlers = new Map<string, (event: { payload?: unknown }) => void>();
 const defaults: GenerationFormPreferences = { duration: 90, bpm: 0, inference_steps: 30, lm_temperature: 1.2, variants: 2 };
@@ -31,13 +31,15 @@ beforeEach(() => {
   backendStatus = structuredClone(observed); queueActive = false;
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
-  mocks.confirm.mockResolvedValue(true); mocks.savePreferences.mockResolvedValue(undefined);
+  mocks.confirm.mockResolvedValue(true); mocks.message.mockResolvedValue("Ok"); mocks.openUrl.mockResolvedValue(undefined); mocks.savePreferences.mockResolvedValue(undefined);
   mocks.nativeClose.mockResolvedValue(mocks.offNative);
   mocks.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => { if (handlers.get(name) === handler) handlers.delete(name); }; });
   mocks.saveSettings.mockImplementation(async (values: SettingsPatch) => { settings = { ...settings, ...values }; return { ...settings }; });
   mocks.invoke.mockImplementation(async (name, args) => {
-    if (name === "bootstrap") return { ...setupFixture, needs_setup: false, settings };
+    if (name === "bootstrap") return { ...setupFixture, needs_setup: !settings.setup_complete, settings };
     if (name === "get_settings") return { ...settings };
+    if (name === "phone_access_status") return { enabled: false, addresses: [] };
+    if (name === "check_update") return mocks.checkUpdate(args.stream);
     if (name === "save_settings") return mocks.saveSettings(args.values);
     if (name === "generation_policy") return { backend: "gpu", detected_backend: "metal", cpu_iteration_behavior: "ask", recommended_steps: 80, defaults };
     if (name === "get_generation_form_preferences") return { ...defaults };
@@ -51,7 +53,7 @@ beforeEach(() => {
     if (name === "retry_song") return songs[1];
     if (name === "model_catalog") return { ...source, expert_mode: false, selection: standard, recommended_profiles: [standard], hardware: setupFixture.hardware, free_bytes: null, models_dir: "/models", busy: false, title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 }, models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })) };
     if (name === "select_models" || name === "use_models") return args.selection;
-    if (name === "startup_show_main" || name === "startup_complete" || name === "exit_app" || name === "configure_settings_menu") return undefined;
+    if (name === "startup_show_main" || name === "startup_complete" || name === "exit_app" || name === "configure_app_menu" || name === "open_songs_folder") return undefined;
     throw new Error(`Unexpected command ${name}`);
   });
 });
@@ -75,6 +77,9 @@ async function attemptAll(form: HTMLFormElement) {
   fireEvent.click(within(screen.getByText("error song A").closest("article")!).getByRole("button", { name: t("retry") }));
   await act(async () => { await Promise.resolve(); });
 }
+async function menuAction(payload: string) {
+  await act(async () => handlers.get("app-menu-action")!({ payload }));
+}
 it("blocks all generation entrypoints in Settings and releases them after Cancel", async () => {
   const { form } = await mount();
   fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
@@ -87,11 +92,10 @@ it("blocks all generation entrypoints in Settings and releases them after Cancel
 });
 it.each(["shortcut", "menu"])("opens Settings from the macOS %s and preserves edits on repeated requests", async entry => {
   const { prompt } = await mount();
-  await waitFor(() => expect(handlers.has("open-settings")).toBe(true));
-  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("configure_settings_menu", { text: "Settings…", enabled: true }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("configure_app_menu", { labels: expect.objectContaining({ settings: "Settings…" }), enabled: expect.arrayContaining(["settings"]) }));
   const open = async () => {
     if (entry === "shortcut") fireEvent.keyDown(prompt, { key: ",", code: "Comma", metaKey: true });
-    else await act(async () => handlers.get("open-settings")!({}));
+    else await menuAction("settings");
   };
   await open();
   const dialog = await screen.findByRole("dialog", { name: t("settings_title") });
@@ -103,6 +107,54 @@ it.each(["shortcut", "menu"])("opens Settings from the macOS %s and preserves ed
   expect(calls("save_settings")).toHaveLength(0);
   fireEvent.keyDown(timeout, { key: "Escape" });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+it("links the macOS menu to the studio, song folder, settings pages and documentation", async () => {
+  const { prompt } = await mount();
+  await menuAction("library");
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: t("library") }));
+  await menuAction("creator");
+  expect(document.activeElement).toBe(prompt);
+  await menuAction("songs-folder");
+  expect(calls("open_songs_folder")).toHaveLength(1);
+  await menuAction("documentation");
+  expect(mocks.openUrl).toHaveBeenCalledWith("https://github.com/rabbitfiremediacreation/music-generator-desktop/blob/main/docs/desktop.md");
+
+  await menuAction("models");
+  const dialog = await screen.findByRole("dialog", { name: t("settings_title") });
+  expect(within(dialog).getByRole("heading", { name: t("settings_page_models") })).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("button", { name: t("settings_page_generation") }));
+  const timeout = await within(dialog).findByRole("spinbutton", { name: t("timeout") });
+  fireEvent.change(timeout, { target: { value: "75" } });
+  await menuAction("phone");
+  expect(within(dialog).getByRole("heading", { name: t("settings_page_phone") })).toBeTruthy();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  fireEvent.click(within(dialog).getByRole("button", { name: t("settings_page_generation") }));
+  expect((within(dialog).getByRole("spinbutton", { name: t("timeout") }) as HTMLInputElement).value).toBe("75");
+  expect(calls("save_settings")).toHaveLength(0);
+});
+it("uses the saved update channel during setup and lets the user open the available bundle", async () => {
+  settings = { ...settings, setup_complete: false, update_stream: "daily" };
+  const url = "https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/daily-42/Music-Generator.dmg";
+  mocks.checkUpdate.mockResolvedValue({ available: true, current: "0.2.0", latest: "0.2.1", url });
+  const client = createAppQueryClient();
+  const router = createAppRouter(client, createMemoryHistory({ initialEntries: ["/setup"] }));
+  render(<DesktopApp client={client} router={router} />);
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("configure_app_menu", { labels: expect.any(Object), enabled: ["documentation", "updates"] }));
+  await menuAction("updates");
+  await waitFor(() => expect(mocks.openUrl).toHaveBeenCalledWith(url));
+  expect(calls("check_update")).toEqual([["check_update", { stream: null }]]);
+  expect(mocks.confirm).toHaveBeenCalledWith("0.2.0 → 0.2.1", expect.objectContaining({ okLabel: t("desktop_download_release") }));
+});
+it("lets Sparkle present native updates and ignores duplicate requests while checking", async () => {
+  let finish!: (result: unknown) => void;
+  mocks.checkUpdate.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  await mount();
+  await menuAction("updates");
+  await menuAction("updates");
+  expect(calls("check_update")).toHaveLength(1);
+  await act(async () => finish({ native: true, available: false, current: "0.2.0" }));
+  expect(mocks.confirm).not.toHaveBeenCalled();
+  expect(mocks.message).not.toHaveBeenCalled();
 });
 it.each([false, true])("keeps generation blocked after closing an inline model operation and preserves a newer song choice=%s", async restore => {
   const xl = { ...standard, synthesis: "acestep-v15-xl-sft-Q8_0.gguf" };

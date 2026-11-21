@@ -12,14 +12,34 @@ const sparkleVersion = "2.10.1";
 const sparkleDigest = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27";
 const repository = "rabbitfiremediacreation/music-generator-desktop";
 
+export function macUpdateRelease(env, version) {
+  const build = env.MUSIC_GENERATOR_UPDATE_BUILD;
+  if (!build && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true") return null;
+  assert(/^\d+\.\d+\.\d+$/.test(version), "macOS update versions must be numeric");
+  if (!build) return { stream: "stable", tag: `v${version}`, version, bundleVersion: version };
+  const preview = /^(daily|develop)-([1-9]\d*)$/.exec(build);
+  assert(preview, "Invalid macOS preview build tag");
+  const [, stream, run] = preview;
+  return { stream, tag: build, version, bundleVersion: run };
+}
+
+export const previewFeedBranch = stream => `desktop-feed-${stream}`;
+
+export function appcastUrl(stream, target) {
+  const feed = appcastName(target);
+  if (stream === "stable") return `https://github.com/${repository}/releases/latest/download/${feed}`;
+  return `https://raw.githubusercontent.com/${repository}/${previewFeedBranch(stream)}/${feed}`;
+}
+
 export function macUpdaterSettings(env, version) {
-  if (env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true") return null;
   const { SPARKLE_PUBLIC_KEY: publicKey, SPARKLE_PRIVATE_KEY: privateKey, GITHUB_REPOSITORY } = env;
-  assert(GITHUB_REPOSITORY === repository, "Stable updates must be built in the desktop release repository");
+  if (env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION !== "true" && (!publicKey || !privateKey?.trim())) return null;
+  const release = macUpdateRelease(env, version);
+  if (!release) return null;
+  assert(GITHUB_REPOSITORY === repository, "Sparkle updates must be built in the desktop release repository");
   assert(/^[A-Za-z0-9+/]{43}=$/.test(publicKey), "Missing or invalid SPARKLE_PUBLIC_KEY");
   assert(privateKey?.trim(), "Missing SPARKLE_PRIVATE_KEY");
-  assert(/^\d+\.\d+\.\d+$/.test(version), "Stable macOS release versions must be numeric");
-  return { publicKey, privateKey: privateKey.trim(), version };
+  return { ...release, publicKey, privateKey: privateKey.trim() };
 }
 
 function sparkleSign(binary, privateKey, args) {
@@ -64,10 +84,14 @@ export async function installSparkle(app, work, settings, sign) {
   await run("ditto", [path.join(work, "LICENSE"), path.join(app, "Contents/Resources/Sparkle-LICENSE.txt")]);
 
   const plist = path.join(app, "Contents/Info.plist");
-  const feed = appcastName(`macos-${architecture}`);
+  // Sparkle compares CFBundleVersion. CI's run number also orders builds with the same display version.
+  if (settings.stream !== "stable") {
+    await run("/usr/libexec/PlistBuddy", ["-c", `Set :CFBundleVersion ${settings.bundleVersion}`, plist]);
+  }
   for (const [key, type, value] of [
-    ["SUFeedURL", "string", `https://github.com/${repository}/releases/latest/download/${feed}`],
+    ["SUFeedURL", "string", appcastUrl(settings.stream, `macos-${architecture}`)],
     ["SUPublicEDKey", "string", settings.publicKey],
+    ["SUVerifyUpdateBeforeExtraction", "bool", "true"],
     ["SURequireSignedFeed", "bool", "true"],
     ["SUEnableInstallerLauncherService", "bool", "true"],
     ["SUEnableAutomaticChecks", "bool", "false"],
@@ -76,31 +100,36 @@ export async function installSparkle(app, work, settings, sign) {
     await run("/usr/libexec/PlistBuddy", ["-c", `Add :${key} ${type} ${value}`, plist]);
   }
   const { stdout: bundleVersion } = await execute("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleVersion", plist]);
-  assert.equal(bundleVersion.trim(), settings.version);
+  assert.equal(bundleVersion.trim(), settings.bundleVersion);
   return signer;
 }
 
-export async function writeAppcast(signer, output, artifact, settings, minimumVersion) {
+export async function writeAppcast(signer, output, artifact, settings, minimumVersion, notes) {
   const signature = await sparkleSign(signer, settings.privateKey, ["-p", artifact]);
   assert(/^[A-Za-z0-9+/]{86}==$/.test(signature), "Invalid Sparkle archive signature");
   const filename = appcastName(`macos-${architecture}`);
-  const url = `https://github.com/${repository}/releases/download/v${settings.version}/${path.basename(artifact)}`;
   const length = (await stat(artifact)).size;
   const feed = path.join(output, filename);
-  await writeFile(feed, `<?xml version="1.0" encoding="UTF-8"?>
+  await writeFile(feed, appcastXml(settings, path.basename(artifact), minimumVersion, signature, length, notes));
+  await sparkleSign(signer, settings.privateKey, [feed]);
+  return feed;
+}
+
+export function appcastXml(settings, filename, minimumVersion, signature, length, notes) {
+  const url = `https://github.com/${repository}/releases/download/${settings.tag}/${filename}`;
+  const description = notes ? `\n      <description><![CDATA[${notes.replaceAll("]]>", "]]]]><![CDATA[>")}]]></description>` : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Music Generator</title>
     <item>
       <title>Music Generator ${settings.version}</title>
-      <sparkle:version>${settings.version}</sparkle:version>
+      <sparkle:version>${settings.bundleVersion}</sparkle:version>
       <sparkle:shortVersionString>${settings.version}</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>${minimumVersion}</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>${minimumVersion}</sparkle:minimumSystemVersion>${description}
       <enclosure url="${url}" sparkle:edSignature="${signature}" length="${length}" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
-`);
-  await sparkleSign(signer, settings.privateKey, [feed]);
-  return feed;
+`;
 }
