@@ -5,18 +5,19 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>243</sparkle:version>
+      <sparkle:version>244</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <description><![CDATA[<h2>Changes since develop-241</h2>
 <ul>
+<li>Release Web Audio resources and report decode failures (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/153">#153</a>)</li>
 <li>Restore Windows window placement on the destination monitor (#89) (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/152">#152</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/89">#89 Windows: Gespeicherten normalen Fensterzustand beim Start wiederherstellen</a></li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/f3ac2ae866597f83427dbb3ed69ba5c9f28f322b...47a9a10b62111a0c24863f4e1bf4b1886ad15662">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-243/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="a8wfPu1D1ZmIsl3nyZltRRKUksO+jcVO3RgAQj/OnFW3kiVPVxcp/5kJZRmILpL9rwPTZRaWXukYW80Rpx8FAw==" length="13704793" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/f3ac2ae866597f83427dbb3ed69ba5c9f28f322b...a9d295ad38e2849e6d4dc74ea92f9e7e8e030871">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-244/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="ImPu2TZ18Wd3Qc1Dn0g2Oy7k8XC2ej+rUp0dbwaEHQN00TqMffn6/ne9RROTCek09jEPrEkr9nn35mqmJMrTCA==" length="13704758" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: xLB/7WqNeifMiQh+pzzkoTqFo8HkYM3gm+xRv7DUZBxJRs2/zk/x6my/WvYXIG6UibT56fWxxE9mJQyo59HXBQ==
-length: 1665
+edSignature: fqxBXrcencEINSvXgFaTJVEW94mC5N9w4tqxJuZ8yL/tnd5yApkBH9NtiBa3zoa0/fMe5wm1KF86catx3bfLBg==
+length: 1826
 -->
