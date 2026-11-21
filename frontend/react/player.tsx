@@ -72,7 +72,7 @@ export function usePlayer() {
 }
 
 /** Keep playback across route changes; isolate each song's media events and pending reads. */
-export function Player() {
+export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
   const { t } = useI18n();
   const { song, playing, play, playback, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
   const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null);
@@ -83,6 +83,8 @@ export function Player() {
   });
   const [muted, setMuted] = useState(() => saved<number>("muted", 0) === 1);
   const active = song !== null;
+  const inMixer = useRef(mixerOpen);
+  inMixer.current = mixerOpen;
   useEffect(() => {
     if (!song || !waveform.current) return;
     const loadSequence = sequence;
@@ -106,7 +108,7 @@ export function Player() {
       await instance.loadBlob(new Blob([bytes]));
       if (version !== sequence.current) return;
       playback.current = "ready";
-      await instance.play();
+      if (!inMixer.current) await instance.play();
     }).catch(fail);
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
@@ -117,15 +119,19 @@ export function Player() {
     try {localStorage.setItem("volume", String(volume)); localStorage.setItem("muted", muted ? "1" : "0");} catch { /* Audio does not depend on saved preferences. */ }
   }, [volume, muted, song, engine]);
   useEffect(() => {
+    if (mixerOpen) { engine.current?.pause(); setPlaying(false); }
+  }, [mixerOpen, engine, setPlaying]);
+  useEffect(() => {
+    if (mixerOpen) return;
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,summary,[role="button"],dialog,[contenteditable="true"]')) {
+      if (!event.defaultPrevented && event.code === "Space" && active && !target?.closest('input,textarea,select,button,summary,[role="button"],dialog,[contenteditable="true"]')) {
         event.preventDefault(); if (song) play(song);
       }
     };
     document.addEventListener("keydown", keyboard);
     return () => document.removeEventListener("keydown", keyboard);
-  }, [active, song, play]);
+  }, [active, mixerOpen, song, play]);
   return <footer id="player" ref={footer} hidden={!song}>
     <div className="player-in">
       <button id="playBtn" className="aktion round" aria-label={t(playing ? "pause" : "play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>

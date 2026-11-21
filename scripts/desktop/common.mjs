@@ -73,7 +73,7 @@ export async function engineRecipeHash(buildTarget = target) {
     }
   }
   if (buildTarget.platform === "macos" && buildTarget.arch === "arm64") {
-    for (const name of ["prepare-pytorch.mjs", "mimetic-runtime/launcher.cpp", "mimetic-runtime/generate_clip.py", "mimetic-runtime/requirements-midi.txt"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+    for (const name of ["prepare-pytorch.mjs", "mimetic-runtime/launcher.cpp", "mimetic-runtime/generate_clip.py", "mimetic-runtime/requirements-midi.txt", "prepare-stems.mjs", "stems-runtime/runner.py", "stems-runtime/requirements-macos-arm64.txt"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
     for (const name of ["scripts/desktop/prepare-text2midi.mjs", "scripts/desktop/embedded-python-plugin.cpp",
       "src-tauri/resources/text2midi/text2midi.py",
       "src-tauri/resources/text2midi/decoder.py", "src-tauri/resources/text2midi/vocab_remi.json"]) {
@@ -126,6 +126,10 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (buildPlatform === "macos" && buildTarget.arch === "arm64" && (!provenance.files["mimetic-synth"] || !provenance.files["pytorch/PYTORCH_RUNTIME.json"])) throw new Error("The shared PyTorch runtime is missing from checksums");
   if (buildPlatform === "macos" && buildTarget.arch === "arm64" && !provenance.files["text2midi/text2midi-runner"]) {
     throw new Error("Text2midi plug-in is missing from checksums");
+  }
+  if (buildPlatform === "macos" && buildTarget.arch === "arm64" &&
+    (!provenance.files["pytorch/stem-runner"] || !provenance.files["pytorch/stem_runner.py"])) {
+    throw new Error("The Demucs plug-in is missing from checksums");
   }
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
   const providerFiles = Object.keys(provenance.files).filter(file => file.startsWith(`${audioCppDirectory}/`)).sort();

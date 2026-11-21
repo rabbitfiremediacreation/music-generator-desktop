@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { EnginePackage, EngineVersion } from "../../types";
 import { useI18n } from "../i18n";
 
@@ -19,8 +20,9 @@ function Version({ version, showBuild = false }: { version: EngineVersion; showB
   return <code className="wrap-anywhere" title={version.revision}>{[version.tag, revision].filter(Boolean).join(" · ")}</code>;
 }
 
-export function EngineTable({ packages, busy, onInstall, onRemove }: {
+export function EngineTable({ packages, busy, onInstall, onRemove, children }: {
   packages: EnginePackage[]; busy: boolean; onInstall: (id: string) => void; onRemove: (id: string) => void;
+  children?: ReactNode;
 }) {
   const { t, language } = useI18n();
   const number = new Intl.NumberFormat(language, { maximumFractionDigits: 1 });
@@ -65,7 +67,7 @@ export function EngineTable({ packages, busy, onInstall, onRemove }: {
               aria-label={`${remove} · ${packageLabel}`} onClick={() => onRemove(engine.id)}>{remove}</button>}
           </div></td>
         </tr>;
-      })}</tbody>
+      })}{children}</tbody>
     </table>
   </div>;
 }

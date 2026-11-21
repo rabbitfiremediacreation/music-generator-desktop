@@ -85,6 +85,10 @@ it("requires Mimetic and the pinned audio.cpp runtime resources in Apple Silicon
     await assert.rejects(verifyEngine(work, macos), /Text2midi plug-in is missing/);
     await mkdir(path.join(work, "text2midi"));
     await writeFile(path.join(work, "text2midi/text2midi-runner"), "test plug-in");
+    await recordHashes(work, metadata);
+    await assert.rejects(verifyEngine(work, macos), /Demucs plug-in is missing/);
+    await writeFile(path.join(work, "pytorch/stem-runner"), "test plug-in");
+    await writeFile(path.join(work, "pytorch/stem_runner.py"), "test adapter");
 
     const runtime = path.join(work, "providers/audio.cpp");
     await mkdir(path.join(runtime, "model_specs"), { recursive: true });

@@ -1271,3 +1271,31 @@ async fn switching_off_interrupts_a_download_and_can_be_enabled_again() {
     );
     f.state.phone_access.stop().await;
 }
+
+#[tokio::test]
+async fn separation_endpoints_share_pairing_and_do_not_return_hub_credentials() {
+    let fixture = Fixture::new().await;
+    crate::hugging_face_token::set(&fixture.state.db.root, Some("hf_separation_test-token"))
+        .unwrap();
+    let denied = fixture
+        .http
+        .get(format!("{}/api/stems/models", fixture.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+    let response = fixture.get("/api/stems/models").send().await.unwrap();
+    assert!(response.status().is_success());
+    let body = response.text().await.unwrap();
+    assert!(!body.contains("hf_separation_test-token"));
+    let models: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(models["models"][0]["id"], "htdemucs");
+    assert_eq!(models["models"][1]["id"], "htdemucs-6s");
+    let response = fixture
+        .get("/api/stems/jobs/not-a-project/audio/original")
+        .send()
+        .await
+        .unwrap();
+    assert!(!response.status().is_success());
+    fixture.state.phone_access.stop().await;
+}

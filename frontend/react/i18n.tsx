@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import "../desktop-i18n";
+import "../stems-i18n";
+import "../stems-locales";
 import "../download-format-i18n";
 import "../setup-i18n";
 import "../cuda-setup-i18n";

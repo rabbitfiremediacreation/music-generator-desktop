@@ -57,6 +57,7 @@ impl Database {
                 [],
             )?;
         }
+        crate::stems::recover(&db)?;
         Ok(db)
     }
 
@@ -178,7 +179,10 @@ impl Database {
         let mut stmt = con.prepare_cached(&format!(
             "SELECT *,
                 (SELECT COUNT(*) FROM songs older WHERE older.group_id=songs.group_id AND older.rowid<songs.rowid) AS variant_index,
-                (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count
+                (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count,
+                (SELECT COUNT(*) FROM stem_jobs j JOIN stem_sources s ON s.id=j.source_id WHERE s.song_id=songs.id AND j.status='done' AND json_extract(j.request,'$.preview')=0) AS stem_project_count,
+                (SELECT COUNT(*) FROM stem_mixes m JOIN stem_jobs j ON j.id=m.project_id JOIN stem_sources s ON s.id=j.source_id WHERE s.song_id=songs.id) AS stem_mix_count,
+                (SELECT j.status FROM stem_jobs j JOIN stem_sources s ON s.id=j.source_id WHERE s.song_id=songs.id AND json_extract(j.request,'$.preview')=0 ORDER BY j.created_at DESC LIMIT 1) AS stem_status
              {SONG_FILTER} ORDER BY created_at DESC,rowid DESC LIMIT ?7 OFFSET ?8"
         ))?;
         let search = format!("%{}%", filter.q);
@@ -193,6 +197,9 @@ impl Database {
                 let count: u32 = row.get("variant_count")?;
                 Ok(Song {
                     id: row.get("id")?,
+                    stem_project_count: row.get("stem_project_count")?,
+                    stem_mix_count: row.get("stem_mix_count")?,
+                    stem_status: row.get("stem_status")?,
                     group_id: row.get("group_id")?,
                     created_at: row.get("created_at")?,
                     started_at: row.get("started_at")?,
@@ -552,7 +559,7 @@ fn nonempty(s: &str) -> Option<&str> {
         Some(s.trim())
     }
 }
-fn parse_json(s: String) -> rusqlite::Result<Value> {
+pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(s: String) -> rusqlite::Result<T> {
     serde_json::from_str(&s).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
     })

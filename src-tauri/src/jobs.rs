@@ -71,17 +71,33 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             drop(operation);
             continue;
         }
-        let next = match state.db.claim_next() {
+        let next = match state.db.claim_work() {
             Ok(next) => next,
             Err(e) => {
                 tracing::error!("Queue: {e}");
                 None
             }
         };
-        let Some((sid, params)) = next else {
-            drop(operation);
-            state.runtime.wait().await;
-            continue;
+        use crate::stems::jobs::Work;
+        let (sid, params) = match next {
+            Some(Work::Song(id, params)) => (id, params),
+            Some(Work::Separate(id)) => {
+                operation.start_song(&id);
+                let _awake = crate::power::KeepAwake::new();
+                crate::stems::jobs::run(&state, &id, &operation, || state.changed(&app)).await;
+                continue;
+            }
+            Some(Work::Export(id)) => {
+                operation.start_song(&id);
+                crate::stems::jobs::run_export(&state, &id, &operation, || state.changed(&app))
+                    .await;
+                continue;
+            }
+            None => {
+                drop(operation);
+                state.runtime.wait().await;
+                continue;
+            }
         };
         let cancel = operation.cancellation();
         operation.start_song(&sid);

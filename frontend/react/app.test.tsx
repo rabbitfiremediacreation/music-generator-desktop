@@ -4,11 +4,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { createMemoryHistory } from "@tanstack/react-router";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
+import { turbo } from "./models/model-fixtures";
 import { measuredBackend, setupFixture, standard } from "./setup/fixtures";
 import { setLang, t } from "../i18n.js";
 import source from "../../models/catalog.json";
-import type { JobProgress, PhoneAccess } from "../types";
+import type { JobProgress, PhoneAccess, Song } from "../types";
 import { restoreTitlebarDesign } from "../titlebar-design";
+import type { StemJob } from "../stems";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
 vi.mock("@tauri-apps/api/event",()=>({listen:mocks.listen}));
@@ -29,6 +31,7 @@ beforeEach(()=>{
     if(name==="setup_estimate")return {missing_bytes:0,free_bytes:1000000};
     if(name==="setup_models")return {ok:true,mode:"single",backend_status:measuredBackend};
     if(name==="discover_hugging_face_models")return {candidates:[],unavailable_repositories:[]};
+    if(name==="hugging_face_token_status")return false;
     if(name==="model_catalog")return {...source,selection:standard,expert_mode:false,recommended_profiles:[standard],hardware:setupFixture.hardware,free_bytes:null,models_dir:"/models",busy:false,title_model:{...setupFixture.title_model,verified:true,present:true,partial_bytes:0},models:source.models.map(model=>({...model,verified:true,present:true,partial_bytes:0}))};
     if(name==="list_song_page")return {songs:[],total:0};
     if(name==="list_folders")return {folders:[],all:0,none:0};
@@ -50,6 +53,120 @@ async function mount(path="/"){
   });
   return router;
 }
+it("starts another separation from the mixer and keeps its draft until the user switches projects", async () => {
+  firstRun = false;
+  const roles = ["vocals", "drums"];
+  const metadata = { frames: 44100, channels: 2, rate: 44100 };
+  const project: StemJob = {
+    id: "separation", status: "done", phase: "done", error: null, created_at: "", finished_at: "",
+    project: { ...metadata, source_start_frame: 0, source_frames: metadata.frames, roles, engine: "Demucs", engine_version: "4.0.1",
+      backend: "cpu", original_peak: 0, track_peaks: [] },
+    request: { source_id: "source", pin: { model: "htdemucs", repository: "fixture", revision: "abc" }, name: "Two channels",
+      start: 0, end: null, quality: "standard", overlap: .25, preview: false, outputs: roles },
+    source: { id: "source", name: "Test", song_id: null, hash: "hash", audio: { ...metadata, peaks: [] } },
+  };
+  const invoke = mocks.invoke.getMockImplementation()!;
+  const nextProject = { ...project, id: "new-separation", request: { ...project.request, name: "New project" } };
+  const preview = { ...project, id: "preview", request: { ...project.request, name: "Preview project", preview: true } };
+  let queued = false;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "stem_jobs") return queued ? [nextProject, project] : [project];
+    if (name === "stem_mixes" || name === "stem_exports") return [];
+    if (name === "stem_models") return { engine_ready: true, platform_supported: true,
+      models: [{ id: "htdemucs", name: "HTDemucs", status: "ready", roles, active: project.request.pin }] };
+    if (name === "stem_source_audio") return "source.wav";
+    if (name === "stem_preflight") return { frames: 44100, bytes: 1024, seconds: 1 };
+    if (name === "stem_start") {
+      if (args.request.preview) return preview.id;
+      queued = true; return nextProject.id;
+    }
+    if (name === "stem_job") return args.id === preview.id ? preview : nextProject;
+    return invoke(name, args);
+  });
+  await mount();
+  fireEvent.click(await screen.findByRole("button", { name: t("stem_projects") }));
+  fireEvent.click(await screen.findByRole("button", { name: t("stem_mixer") }));
+  const mixer = await screen.findByRole("region", { name: "Stem-Mixer" });
+  expect(mixer.closest("main")?.id).toBe("stem-mixer-view");
+  expect(mixer.closest("dialog")).toBeNull();
+  expect(document.getElementById("studio")?.hidden).toBe(true);
+
+  const draft = within(mixer).getByLabelText<HTMLInputElement>(t("stem_mix_name"));
+  fireEvent.change(draft, { target: { value: "Unsaved draft" } });
+  const mute = within(mixer).getByRole("button", { name: /Vocals.*MUTE/ });
+  fireEvent.click(mute);
+  fireEvent.click(within(mixer).getByRole("button", { name: t("stem_new") }));
+  const wizard = within(await screen.findByRole("dialog", { name: t("stem_title") }));
+  await wizard.findByRole("button", { name: `${t("del")} · ${project.source.name}` });
+  expect(mocks.invoke).not.toHaveBeenCalledWith("stem_song_source", expect.anything());
+  fireEvent.click(wizard.getByRole("button", { name: t("stem_continue") }));
+  const audition = wizard.getByText(t("stem_preview"), { selector: "summary" }).closest("details")!;
+  audition.open = true;
+  fireEvent.click(within(audition).getByRole("button", { name: t("stem_preview") }));
+  fireEvent.click(await wizard.findByRole("button", { name: t("stem_preview_result") }));
+  const previewName = await screen.findByText(preview.request.name);
+  expect(mixer.closest("main")?.hidden).toBe(true);
+  fireEvent.click(within(previewName.closest("main")!).getByRole("button", { name: t("stem_back") }));
+  expect(await wizard.findByRole("button", { name: t("stem_preview_result") })).toBeTruthy();
+  expect(mixer.closest("main")?.hidden).toBe(false);
+  fireEvent.click(wizard.getByRole("button", { name: t("stem_continue") }));
+  fireEvent.click(wizard.getByRole("button", { name: t("stem_start") }));
+  await wizard.findByText(nextProject.request.name);
+  expect(mocks.invoke).toHaveBeenCalledWith("stem_start", { request: expect.objectContaining({ source_id: project.source.id }) });
+  fireEvent.click(wizard.getByRole("button", { name: t("close") }));
+  expect(draft.isConnected && draft.value).toBe("Unsaved draft");
+  expect(mute.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(within(mixer).getByRole("button", { name: t("stem_undo") }));
+  expect(mute.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(within(mixer).getByRole("button", { name: t("stem_back") }));
+  expect(await screen.findByRole("dialog", { name: t("stem_title") })).toBeTruthy();
+  expect(document.getElementById("studio")?.hidden).toBe(false);
+});
+it("opens a song's latest project directly and restores separation after confirmed removal", async () => {
+  firstRun = false;
+  const song: Song = { id: "song", title: "Library song", caption: "Music", status: "done", path: "/songs/song.wav",
+    group_id: "group", letter: "", created_at: "2026-01-01", finished_at: "2026-01-01", message: null,
+    lyrics: null, seed: 1, params: {}, result_meta: null, file: "song.wav", audio_missing: false, favorite: false, folder_id: null };
+  const audio = { frames: 44100, channels: 2, rate: 44100, peaks: [] };
+  const roles = ["vocals", "drums"];
+  const project: StemJob = {
+    id: "project", status: "done", phase: "done", error: null, created_at: "2026-01-01", finished_at: "2026-01-01",
+    project: { ...audio, source_start_frame: 0, source_frames: audio.frames, roles, engine: "Demucs", engine_version: "4.0.1",
+      backend: "cpu", original_peak: 0, track_peaks: [] },
+    request: { source_id: "source", pin: { model: "htdemucs", repository: "fixture", revision: "abc" }, name: "Song project",
+      start: 0, end: null, quality: "standard", overlap: .25, preview: false, outputs: roles },
+    source: { id: "source", name: song.title!, song_id: song.id, hash: "hash", audio },
+  };
+  let exists = true;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "list_song_page") return { songs: [{ ...song, stem_project_count: Number(exists), stem_mix_count: exists ? 2 : 0 }], total: 1 };
+    if (name === "stem_latest_project") return project;
+    if (name === "stem_jobs") return exists ? [project] : [];
+    if (name === "stem_mixes" || name === "stem_exports") return [];
+    if (name === "stem_remove_project") { exists = false; return; }
+    return invoke(name, args);
+  });
+  await mount();
+  const row = within(await screen.findByRole("article", { name: song.title! }));
+  expect(row.queryByRole("button", { name: t("stem_split") })).toBeNull();
+  fireEvent.click(row.getByRole("button", { name: t("stem_mixer") }));
+  const mixer = await screen.findByRole("region", { name: "Stem-Mixer" });
+  expect(mocks.invoke).toHaveBeenCalledWith("stem_latest_project", { songId: song.id });
+  expect(screen.queryByRole("dialog", { name: t("stem_title") })).toBeNull();
+  fireEvent.click(within(mixer).getByRole("button", { name: t("stem_back") }));
+  const dialog = within(await screen.findByRole("dialog", { name: t("stem_title") }));
+  const remove = await dialog.findByRole("button", { name: `${t("stem_remove_project")} · ${project.request.name}` });
+  mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  fireEvent.click(remove);
+  await waitFor(() => expect((remove as HTMLButtonElement).disabled).toBe(false));
+  expect(mocks.invoke).not.toHaveBeenCalledWith("stem_remove_project", { id: project.id });
+  fireEvent.click(remove);
+  await dialog.findByText(t("stem_empty_projects"));
+  expect(mocks.invoke).toHaveBeenCalledWith("stem_remove_project", { id: project.id });
+  fireEvent.click(dialog.getByRole("button", { name: t("close") }));
+  expect(await row.findByRole("button", { name: t("stem_split") })).toBeTruthy();
+});
 it("changes the title bar design immediately and restores it independently of the app theme", async () => {
   firstRun = false;
   await mount();
@@ -180,7 +297,7 @@ it("keeps a studio draft when visiting setup and returning",async()=>{
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).disabled).toBe(false));
   fireEvent.change(prompt,{target:{value:"keep this idea"}});
   fireEvent.click(screen.getByRole("button",{name:"Settings"}));
-  fireEvent.click(await screen.findByRole("button",{name:"Models and hardware"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Music generation"}));
   fireEvent.click(await screen.findByRole("button",{name:"Hardware test in setup wizard…"}));
   await screen.findByRole("heading",{name:"Welcome to Music Generator"});
   fireEvent.click(screen.getByRole("button",{name:"Back to studio"}));
@@ -198,7 +315,22 @@ it("opens the creator model chooser directly on the settings models page", async
   expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
 });
 
-it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten …"], ["en", "Models and hardware", "Hardware test in setup wizard…"]])("opens model management before explicitly running the existing hardware test in %s", async (language, entry, action) => {
+it("opens general settings from the Creator's Expert Mode notice", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    const result = await invoke(name, args);
+    return name === "get_settings" ? { ...result, expert_mode: false, synthesis_model: turbo.synthesis } : result;
+  });
+  await mount();
+  fireEvent.click(await screen.findByRole("button", { name: t("expert_settings") }));
+  const dialog = within(await screen.findByRole("dialog", { name: t("settings_title") }));
+  expect(dialog.getByRole("heading", { name: t("settings_page_general") })).toBeTruthy();
+  expect(await dialog.findByRole("switch", { name: t("expert_mode") })).toBeTruthy();
+  expect(dialog.getByLabelText(t("hf_token"))).toBeTruthy();
+});
+
+it.each([["de", "Musikerzeugung", "Hardwaretest im Einrichtungsassistenten …"], ["en", "Music generation", "Hardware test in setup wizard…"]])("opens model management before explicitly running the existing hardware test in %s", async (language, entry, action) => {
   setLang(language); firstRun=false;
   const router=await mount();
   const prompt=await screen.findByRole("textbox",{name:t("prompt")});
@@ -246,10 +378,10 @@ it.each(["pending", "failed"])("keeps setup reachable when the model catalog is 
     : original(name,args));
   const router=await mount();
   fireEvent.click(await screen.findByRole("button",{name:"Settings"}));
-  fireEvent.click(await screen.findByRole("button",{name:"Models and hardware"}));
-  await screen.findByRole("dialog",{name:"Settings"});
-  if(status==="failed")await screen.findByText("catalog unavailable");
-  fireEvent.click(screen.getByRole("button",{name:"Hardware test in setup wizard…"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Music generation"}));
+  const dialog=within(await screen.findByRole("dialog",{name:"Settings"}));
+  if(status==="failed")await dialog.findByText("catalog unavailable");
+  fireEvent.click(dialog.getByRole("button",{name:"Hardware test in setup wizard…"}));
   await waitFor(()=>expect(router.state.location.pathname).toBe("/setup"));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="setup_models")).toBe(false);
 });

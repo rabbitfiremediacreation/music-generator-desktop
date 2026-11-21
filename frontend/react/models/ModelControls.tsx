@@ -14,11 +14,12 @@ export interface ModelControlsProps {
   selectionRevision?: number;
   onManage: () => void; onOpenSettings?: (selection?: ModelSelection | null) => void; onOpenManager?: (selection: ModelSelection | null) => void; onRecommendedSteps?: (steps: number) => void; onReady?: () => void;
   onOpenEngines?: () => void;
+  onOpenExpertSettings?: () => void;
   open?: boolean; onOpenChange?: (open: boolean) => void;
 }
 
 /** A restored song is local intent; delayed settings and activation replies cannot replace it. */
-export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onOpenEngines, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
+export function ModelControls({ selection, selectionRevision, onSelectionChange, onManage, onOpenSettings, onOpenManager, onOpenEngines, onOpenExpertSettings, onRecommendedSteps, onReady, open: controlledOpen, onOpenChange }: ModelControlsProps) {
   const { t } = useI18n(), client = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: backend.settings, networkMode: "always", retry: false });
   const catalog = useQuery({ queryKey: ["models", "catalog"], queryFn: backend.modelCatalog, networkMode: "always", retry: false });
@@ -74,6 +75,10 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     activate.mutate({ next: option.selection, before: ++intent.current.revision });
   }
   function openSettings() { setOpen(false); if (onOpenSettings) onOpenSettings(pending || chosen || null); else onManage(); }
+  function openExpertSettings() {
+    if (onOpenExpertSettings) { setOpen(false); onOpenExpertSettings(); }
+    else openSettings();
+  }
   function accept(next: ModelSelection, before: number) {
     if (intent.current.revision === before) { preserveSongSelection.current = false; onSelectionChange(next); setPending(null); setError(null); }
   }
@@ -90,9 +95,9 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
       <span id="currentModels" className="small" role="status">{selected && chosen?.language ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
     </div>
     {showXlHint && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
-    {(error || loadError) && <div><p className="setup-error" role="alert">{modelErrorText(error || loadError, t)}</p>{loadError && <button type="button" className="sek" onClick={() => { if (settings.isError) void settings.refetch(); if (catalog.isError) void catalog.refetch(); }}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
+    {(error || loadError) && <div><p className="setup-error" role="alert">{modelErrorText(error || loadError, t)}</p>{loadError && <button type="button" className="sek" onClick={() => { if (settings.isError) void settings.refetch(); if (catalog.isError) void catalog.refetch(); }}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={error instanceof Error && error.message === "expert_mode_required" ? openExpertSettings : openSettings}>{t("expert_settings")}</button></div>}
     {missingEngine && <div role="status"><p className="small">{t("engine_install_required")}</p>{onOpenEngines && <button type="button" className="sek" onClick={onOpenEngines}>{t("settings_page_engines")}</button>}</div>}
-    {!missingEngine && !allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openSettings}>{t("expert_settings")}</button></div>}
-    {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onOpenSettings={openSettings} onRecommendedSteps={onRecommendedSteps} />}
+    {!missingEngine && !allowed && <div role="status"><p className="small">{t("expert_mode_required")}</p><button type="button" className="sek" onClick={openExpertSettings}>{t("expert_settings")}</button></div>}
+    {open && <ModelDialog selection={pending || chosen || null} currentSelection={chosen || null} selectionRevision={intent.current.revision} onUse={accept} onClose={() => setOpen(false)} onOpenSettings={openExpertSettings} onRecommendedSteps={onRecommendedSteps} />}
   </>;
 }

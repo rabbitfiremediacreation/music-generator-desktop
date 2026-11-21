@@ -544,12 +544,12 @@ html[data-platform=macos] .titlebar nav { display: none; }
 .model-bar > .sek { min-height: 38px; }
 #currentModels { overflow-wrap: anywhere; }
 #currentModels:empty { display: none; }
-#modelPicker { width: min(1040px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: clamp(12px, 2vw, 20px); box-sizing: border-box; overflow: auto; }
+.model-picker-dialog { width: min(1040px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: clamp(12px, 2vw, 20px); box-sizing: border-box; overflow: auto; }
 .model-picker-head, .model-step-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .model-picker-head > div { flex: 1; min-width: 0; }
 .model-picker-head h2 { margin: 0; font-size: 18px; }
 .model-picker-activity { margin-top: 8px; max-width: 285px; }
-#modelPicker p { overflow-wrap: anywhere; }
+.model-picker-dialog p { overflow-wrap: anywhere; }
 .title-model-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 16px 0; }
 .title-model-card h3 { margin: 0 0 8px; font-size: 14px; }
 .title-model-card button { max-width: 100%; white-space: normal; }

@@ -15,10 +15,24 @@ fn invalid() -> crate::error::Error {
 
 /// Read chunk headers only; validate PCM frame boundaries against the complete container length.
 pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
-    parse(input, |_, _| {})
+    parse(input, 1, |_, _| {})
 }
 
-fn parse(input: &mut (impl Read + Seek), mut data_chunk: impl FnMut(u64, u64)) -> Result<WavFacts> {
+/// Locate a single IEEE float32 data chunk for the separator and streaming mixer.
+pub(crate) fn float_data(input: &mut (impl Read + Seek)) -> Result<(WavFacts, u64)> {
+    let mut chunks = Vec::new();
+    let facts = parse(input, 3, |start, _| chunks.push(start))?;
+    match chunks.as_slice() {
+        [start] => Ok((facts, *start)),
+        _ => Err(invalid()),
+    }
+}
+
+fn parse(
+    input: &mut (impl Read + Seek),
+    encoding: u16,
+    mut data_chunk: impl FnMut(u64, u64),
+) -> Result<WavFacts> {
     let file_size = input.seek(SeekFrom::End(0))?;
     input.seek(SeekFrom::Start(0))?;
     let mut header = [0u8; 12];
@@ -61,7 +75,8 @@ fn parse(input: &mut (impl Read + Seek), mut data_chunk: impl FnMut(u64, u64)) -
             let byte_rate = u32::from_le_bytes(fmt[8..12].try_into().unwrap());
             let align = u32::from(u16::from_le_bytes(fmt[12..14].try_into().unwrap()));
             let bits = u32::from(u16::from_le_bytes(fmt[14..16].try_into().unwrap()));
-            if tag != 1
+            if tag != encoding
+                || (encoding == 3 && bits != 32)
                 || channels == 0
                 || rate == 0
                 || ![8, 16, 24, 32].contains(&bits)
@@ -101,7 +116,7 @@ pub(crate) struct WavAssembly {
 impl WavAssembly {
     pub(crate) fn append(&mut self, wav: &[u8]) -> Result<()> {
         let mut chunks = Vec::new();
-        let facts = parse(&mut std::io::Cursor::new(wav), |start, size| {
+        let facts = parse(&mut std::io::Cursor::new(wav), 1, |start, size| {
             chunks.push(&wav[start as usize..(start + size) as usize]);
         })?;
         let format = (facts.sample_rate_hz, facts.channels);

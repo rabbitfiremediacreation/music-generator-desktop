@@ -22,7 +22,7 @@ Object.assign(I18N.en, {
   hf_token_invalid: "Enter a valid Hugging Face token.",
   hf_token_read_failed: "Could not read the saved Hugging Face token.",
   hf_token_write_failed: "Could not update the Hugging Face token.",
-  hf_download_auth: "Hugging Face denied the download. Check access to the model and the read token in Settings → Models and hardware.",
+  hf_download_auth: "Hugging Face denied the download. Check access to the model and the read token in Settings → General → App settings.",
 });
 
 Object.assign(I18N.de, {
@@ -47,5 +47,5 @@ Object.assign(I18N.de, {
   hf_token_invalid: "Gib ein gültiges Hugging-Face-Token ein.",
   hf_token_read_failed: "Das gespeicherte Hugging-Face-Token konnte nicht gelesen werden.",
   hf_token_write_failed: "Das Hugging-Face-Token konnte nicht aktualisiert werden.",
-  hf_download_auth: "Hugging Face hat den Download abgelehnt. Prüfe den Modellzugriff und das Lese-Token unter Einstellungen → Modelle und Hardware.",
+  hf_download_auth: "Hugging Face hat den Download abgelehnt. Prüfe den Modellzugriff und das Lese-Token unter Einstellungen → Allgemeines → App-Einstellungen.",
 });

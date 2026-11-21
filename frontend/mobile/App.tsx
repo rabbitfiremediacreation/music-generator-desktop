@@ -1,3 +1,4 @@
+import { MobileStems } from "./Stems";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { audioFormats, orderedAudioFormats, type AudioFormat } from "../audio-formats";
 import { DownloadFormatMenu } from "../DownloadFormatMenu";
@@ -102,7 +103,8 @@ export function App() {
   const [loginError, setLoginError] = useState(false);
   const [authMessage, setAuthMessage] = useState(false);
   const [storageError, setStorageError] = useState(false);
-  const [page, setPage] = useState<"library" | "create">("library");
+  const [page, setPage] = useState<"library" | "create" | "stems">("library");
+  const [stemSong, setStemSong] = useState<SongCard>();
   const [search, setSearch] = useState(""), [folder, setFolder] = useState(""), [favorites, setFavorites] = useState(false);
   const [songs, setSongs] = useState<SongCard[]>([]), [folders, setFolders] = useState<FolderList>(noFolders), [queue, setQueue] = useState<Queue | null>(null);
   const libraryValidator = useRef<{ api: RemoteApi; query: string; etag?: string } | null>(null);
@@ -182,6 +184,12 @@ export function App() {
     try { await work(); } catch (error) { if (!isAborted(error) && !(error instanceof AuthenticationError)) setFailure(error instanceof Error ? error.message : String(error)); }
     finally { setAction(null); }
   }
+  function openStems(song?: SongCard) {
+    clearMedia();
+    setStemSong(song);
+    setPage("stems");
+  }
+  const stemTitle = language === "de" ? "Spurprojekte" : "Stem projects";
   async function play(song: SongCard) {
     await run(`play-${song.id}`, async () => {
       const { blob } = await api.blob(`/api/songs/${encodeURIComponent(song.id)}/audio`);
@@ -236,7 +244,7 @@ export function App() {
     </section>
     {failure && <Failure t={t} retry={() => setRevision(value => value + 1)}>{failure}</Failure>}
     <section hidden={page !== "library"} aria-labelledby="library-heading">
-      <div className="section-heading"><div><p className="eyebrow">MUSIC GENERATOR</p><h1 id="library-heading">{t("library")}</h1></div><span className="count">{folders.all}</span></div>
+      <div className="section-heading"><div><p className="eyebrow">MUSIC GENERATOR</p><h1 id="library-heading">{t("library")}</h1></div><button type="button" className="secondary" onClick={() => openStems()}>{stemTitle}</button><span className="count">{folders.all}</span></div>
       <div className="filters"><input className="search" type="search" aria-label={t("search")} placeholder={t("search")} value={search} onChange={event => setSearch(event.target.value)} /><button className={`favorite-filter ${favorites ? "selected" : ""}`} type="button" aria-label={t("favorites")} aria-pressed={favorites} onClick={() => setFavorites(value => !value)}>★</button></div>
       <div className="folder-bar"><select aria-label={t("folder")} value={folder} onChange={event => setFolder(event.target.value)}><option value="">{t("all")}</option><option value="none">{t("unsorted")}</option>{folders.folders.map(item => <option key={item.id} value={item.id}>{item.name} · {item.count}</option>)}</select><NewFolder api={api} t={t} disabled={Boolean(action)} onCreated={() => setRevision(value => value + 1)} onError={setFailure} /></div>
       {loading && <p className="muted" role="status">{t("loading")}</p>}
@@ -257,10 +265,12 @@ export function App() {
                 originalLabel={t("downloadOriginal")} className="secondary small-button" disabled={Boolean(action)}
                 onChoose={format => void download(song, format)}><Icon name="download" /></DownloadFormatMenu>}
           {song.has_audio && song.output_kind !== "midi" && <button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title}`}><Icon name="play" /></button>}
+          {song.has_audio && song.output_kind !== "midi" && <button type="button" className="secondary" onClick={() => openStems(song)}>{stemTitle}</button>}
           {(song.status === "queued" || song.status === "running") && <button className="secondary" type="button" disabled={Boolean(action)} onClick={() => void cancelSong(song)} aria-label={`${t("cancel")}: ${song.title}`}>{t("cancel")}</button>}
         </div>
       </article>)}</div>
     </section><div hidden={page !== "create"}><CreateForm active={page === "create"} api={api} folders={folders.folders} language={language} t={t} onQueued={() => { setToast("sent"); setRevision(value => value + 1); }} /></div>
+    {page === "stems" && <MobileStems api={api} song={stemSong} language={language} exit={() => setPage("library")} />}
     <details className="connection-details"><summary>{t("connection")}</summary><p className="fine">{window.location.host}</p>
       <Switch label={t("remember")} checked={remember} onChange={event => setRemember(event.target.checked)} />
       <p className="fine">{t("keyTip")}</p>{storageError && <p className="fine" role="status">{t("storageDenied")}</p>}<button className="secondary" type="button" onClick={() => disconnect()}>{t("disconnect")}</button>

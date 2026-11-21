@@ -18,7 +18,7 @@ export async function verifyMacSandbox(app, engines, utilities, probeWithArchive
   if (engines.magenta) plugins.push(path.join(engines.magenta, "magenta/mrt2-record"));
   if (engines.audiocraft) plugins.push(path.join(engines.audiocraft, "audiocraft/audiocraft-synth"));
   if (target.arch === "arm64") {
-    plugins.push(path.join(engines.pytorch, "mimetic-synth"), path.join(engines.pytorch, "text2midi/text2midi-runner"));
+    plugins.push(path.join(engines.pytorch, "mimetic-synth"), path.join(engines.pytorch, "text2midi/text2midi-runner"), path.join(engines.pytorch, "pytorch/stem-runner"));
   }
   if (shipsYue2()) plugins.push(path.join(engines.yue2, yue2.executable), path.join(engines.yue2, yue2.planner));
   for (const file of plugins) {

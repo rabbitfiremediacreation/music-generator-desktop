@@ -8,9 +8,12 @@ import { useSettingsDraft } from "./useSettingsDraft";
 import { PhoneAccessField } from "./PhoneAccessField";
 import { McpSettings } from "./McpSettings";
 import { SettingsNavigation, settingsGroups, type SettingsPage } from "./SettingsNavigation";
+import { GeneralSettings } from "./GeneralSettings";
 import { GenerationSettings } from "./GenerationSettings";
 import { ModelsSettings, type SettingsModelManager } from "./ModelsSettings";
+import { TextModelsSettings } from "./TextModelsSettings";
 import { EnginesSettings } from "./EnginesSettings";
+import { StemModelsSettings } from "./StemModelsSettings";
 import { LibrarySettings } from "./LibrarySettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { AboutSettings } from "./AboutSettings";
@@ -88,9 +91,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
           {status === "settings_load_failed" && <button type="button" className="sek" onClick={() => void state.load()}>{t("settings_retry")}</button>}
           {settingsGroups.flatMap(group => group.pages).map(value => <section key={value} id={`settings-${value}`} data-settings-page={value} hidden={page !== value} aria-labelledby="settingsPageHeading">
             {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={busy || (value !== "appearance" && (loading || !draft))}>
+              {value === "general" && page === "general" && <GeneralSettings state={state} modelBusy={modelBusy} />}
               {value === "generation" && <GenerationSettings state={state} />}
-              {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager} onOpenEngines={() => selectPage("engines")} />}
+              {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager}
+                onOpenEngines={() => selectPage("engines")} onOpenExpertSettings={() => selectPage("general")} />}
               {value === "engines" && page === "engines" && <EnginesSettings />}
+              {value === "llm" && page === "llm" && <TextModelsSettings state={state} manager={props.modelManager} />}
+              {value === "stems" && <StemModelsSettings active={page === "stems"} onOpenEngines={() => selectPage("engines")} />}
               {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}
               {value === "appearance" && <AppearanceSettings layout={props.layout} onLayoutChange={props.onLayoutChange} />}
               {value === "mcp" && <McpSettings onBusyChange={setMcpSaving} />}

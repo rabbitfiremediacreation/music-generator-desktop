@@ -23,6 +23,7 @@ pub(super) fn is_plugin(path: &Path) -> bool {
                 | "audiocraft-synth"
                 | "mrt2-record"
                 | "text2midi-runner"
+                | "stem-runner"
         )
     )
 }

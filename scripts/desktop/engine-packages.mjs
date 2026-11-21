@@ -58,7 +58,7 @@ export async function packageEngines({ source, provenance, version, output, work
   if (await exists(path.join(source, "pytorch/PYTORCH_RUNTIME.json"))) {
     const { details, recipe } = JSON.parse(await readFile(path.join(source, "pytorch/PYTORCH_RUNTIME.json"), "utf8"));
     const revision = `${details.torch}:${createHash("sha256").update(JSON.stringify(recipe)).digest("hex")}`;
-    specs.push(["pytorch", "mimetic-synth", entries.filter(entry => pytorchFiles.test(entry)), revision, ["text2midi/text2midi-runner"]]);
+    specs.push(["pytorch", "mimetic-synth", entries.filter(entry => pytorchFiles.test(entry)), revision, ["text2midi/text2midi-runner", "pytorch/stem-runner"]]);
   }
   for (const [id, executable, match] of optional) {
     if (!await exists(path.join(source, executable))) continue;

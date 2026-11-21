@@ -397,6 +397,7 @@ pub fn library_events<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Changed {
 // ---------------------------------------------------------------- HTTP API
 
 mod pwa_library;
+mod stems;
 mod web;
 
 #[derive(Clone)]
@@ -423,6 +424,7 @@ fn router(remote: Remote) -> Router {
             "/api/analyze",
             post(analyze).layer(DefaultBodyLimit::max(MAX_UPLOAD + 1024 * 1024)),
         )
+        .merge(stems::routes())
         .fallback(|| async { detail(StatusCode::NOT_FOUND, "Not Found") })
         .layer(middleware::from_fn_with_state(remote.clone(), guard))
         .with_state(remote.clone())
@@ -1125,6 +1127,21 @@ async fn midi(
 }
 
 async fn stream_song(song: &Song, path: &Path, headers: &HeaderMap, download: bool) -> Response {
+    let name = download.then(|| {
+        let base = crate::exports::clean_name(
+            song.title
+                .as_deref()
+                .filter(|t| !t.trim().is_empty())
+                .unwrap_or(&song.caption.chars().take(40).collect::<String>()),
+        )
+        .replace(' ', "_");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("wav");
+        format!("{base}_{}.{ext}", song.seed)
+    });
+    stream_file(path, headers, name.as_deref()).await
+}
+
+async fn stream_file(path: &Path, headers: &HeaderMap, download: Option<&str>) -> Response {
     let mut file = match tokio::fs::File::open(path).await {
         Ok(file) => file,
         Err(_) => return detail(StatusCode::NOT_FOUND, "Not Found"),
@@ -1163,20 +1180,8 @@ async fn stream_song(song: &Song, path: &Path, headers: &HeaderMap, download: bo
     if status == StatusCode::PARTIAL_CONTENT {
         response = response.header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"));
     }
-    if download {
-        let base = crate::exports::clean_name(
-            song.title
-                .as_deref()
-                .filter(|t| !t.trim().is_empty())
-                .unwrap_or(&song.caption.chars().take(40).collect::<String>()),
-        )
-        .replace(' ', "_");
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("wav");
-        if let Ok(value) =
-            HeaderValue::from_str(&attachment(&format!("{base}_{}.{ext}", song.seed)))
-        {
-            response = response.header(header::CONTENT_DISPOSITION, value);
-        }
+    if let Some(value) = download.and_then(|name| HeaderValue::from_str(&attachment(name)).ok()) {
+        response = response.header(header::CONTENT_DISPOSITION, value);
     }
     let body = Body::from_stream(tokio_util::io::ReaderStream::new(file.take(length)));
     response.body(body).unwrap_or_default()

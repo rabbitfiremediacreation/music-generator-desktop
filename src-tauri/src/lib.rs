@@ -38,6 +38,7 @@ pub mod setup;
 mod startup;
 mod startup_windows;
 pub mod state;
+pub mod stems;
 pub mod synthesis_policy;
 pub mod titles;
 pub mod types;
@@ -113,6 +114,39 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            stems::desktop::stem_models,
+            stems::desktop::stem_search,
+            stems::desktop::stem_cancel_search,
+            stems::desktop::stem_hf_check,
+            stems::desktop::stem_check_update,
+            stems::desktop::stem_install_engine,
+            stems::desktop::stem_install_model,
+            stems::desktop::stem_pause_transfer,
+            stems::desktop::stem_discard_partial,
+            stems::desktop::stem_model_removal,
+            stems::desktop::stem_remove_model,
+            stems::desktop::stem_activate_model,
+            stems::desktop::stem_song_source,
+            stems::desktop::stem_pick_sources,
+            stems::desktop::stem_source_audio,
+            stems::desktop::stem_project_audio,
+            stems::desktop::stem_add_track,
+            stems::desktop::stem_relink_source,
+            stems::desktop::stem_preflight,
+            stems::desktop::stem_start,
+            stems::desktop::stem_jobs,
+            stems::desktop::stem_job,
+            stems::desktop::stem_latest_project,
+            stems::desktop::stem_remove_project,
+            stems::desktop::stem_cancel,
+            stems::desktop::stem_retry,
+            stems::desktop::stem_mixes,
+            stems::desktop::stem_save_mix,
+            stems::desktop::stem_start_export,
+            stems::desktop::stem_exports,
+            stems::desktop::stem_cancel_export,
+            stems::desktop::stem_save_export,
+            stems::desktop::stem_open_export,
             startup::startup_status,
             startup::startup_splash_progress,
             startup::startup_allowed,

@@ -8,8 +8,8 @@ use std::{
     time::SystemTime,
 };
 mod wav;
-pub(crate) use wav::WavAssembly;
 pub(crate) use wav::WavFacts;
+pub(crate) use wav::{float_data, WavAssembly};
 
 #[derive(PartialEq, Eq)]
 struct Signature {

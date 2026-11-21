@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import type { HuggingFacePin, ModelSelection } from "../../types";
-import { invalidateModels } from "./model-state";
+import { invalidateModels, useTitleModelDownload } from "./model-state";
 import { hasModelEngine } from "../../model-options";
 
 export function useModelDialog(selection: ModelSelection | null, selectionRevision: number, onUse: (selection: ModelSelection, before: number) => void) {
@@ -39,11 +39,7 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
     },
     onError: invalidate,
   });
-  const title = useMutation({
-    mutationKey: ["models", "title-download"], mutationFn: backend.downloadTitleModel, networkMode: "always",
-    onMutate: () => setMessage(""),
-    onSuccess: async () => { setMessage("picker_selected"); await invalidate(); }, onError: invalidate,
-  });
+  const title = useTitleModelDownload(setMessage);
   const cancel = useMutation({ mutationFn: backend.cancelModelDownload, networkMode: "always" });
   const adopt = useMutation({
     mutationKey: ["models", "hugging-face-adopt"], networkMode: "always",

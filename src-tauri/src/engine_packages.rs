@@ -131,6 +131,10 @@ impl Package {
     }
 }
 
+pub(crate) fn contains(id: &str) -> bool {
+    release().packages.iter().any(|package| package.id == id)
+}
+
 pub(crate) fn resources_for(bundled: &Path, data: &Path, executable: &Path) -> PathBuf {
     release()
         .packages

@@ -2,7 +2,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App, secureConnectionUrl } from "./App";
-import { connectionKey } from "./client";
+import { connectionKey, RemoteApi } from "./client";
+import { MobileStems } from "./Stems";
 import { ACE_STEP_ABILITIES } from "../generation-limits";
 import type { ActiveGenerationProfile } from "../types";
 import models from "../../models/catalog.json";
@@ -31,6 +32,31 @@ beforeEach(() => {
   });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it("exports the selected mobile Original from a legacy mix with current package selection rules", async () => {
+  const project = {
+    id: "separation", status: "done", phase: "done", project: { frames: 44100, roles: ["vocals"] },
+    request: { name: "Rain stems", pin: { model: "htdemucs" }, preview: false },
+  };
+  const legacy = { id: "saved", name: "Legacy version", updated_at: "", mix: {
+    version: 1, first: 12, end: 218, master_db: -3, looping: false,
+    tracks: [{ role: "vocals", name: "Voice", gain_db: -2, pan: .25, mute: false, solo: false, fade_in: 0, fade_out: 0 }],
+  } };
+  request.mockImplementation(async (path: string) => {
+    const body = path === "/api/stems/models" ? { models: [] }
+      : path === "/api/stems/jobs" ? [project] : path.endsWith("/mixes") ? [legacy] : path === "/api/stems/exports" ? { id: "export" } : [];
+    return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+  });
+  render(<MobileStems api={new RemoteApi("paired-key", "en", vi.fn())} language="en" exit={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole("button", { name: "Mixer" }));
+  await screen.findByRole("option", { name: legacy.name });
+  fireEvent.change(screen.getByRole("combobox", { name: "Stem" }), { target: { value: "original" } });
+  fireEvent.click(screen.getByRole("button", { name: "Export stem package" }));
+  await waitFor(() => expect(request.mock.calls.find(([path]) => path === "/api/stems/exports")).toBeTruthy());
+  const [, options] = request.mock.calls.find(([path]) => path === "/api/stems/exports")!;
+  expect(JSON.parse(options.body)).toMatchObject({ project_id: "separation", kind: "package", selected: [], include_original: true, include_mix: true,
+    mix: { ...legacy.mix, version: 2 } });
+});
 
 it("pairs from the QR fragment, shows the library and submits a generation to the same computer", async () => {
   render(<App />);
