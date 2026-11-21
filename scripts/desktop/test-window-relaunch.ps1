@@ -31,6 +31,9 @@ try {
         if ([Placement89]::IsZoomed($window) -ne $expected.maximized) { throw "Wrong maximized state" }
         $bounds = "$($outer.Left),$($outer.Top),$($outer.Right),$($outer.Bottom)"
         Write-Output "Run $run - outer $bounds, client $($client.Right)x$($client.Bottom)"
+        if (!$expected.maximized -and ($outer.Left -ne $expected.x -or $outer.Top -ne $expected.y)) {
+            throw "Window did not restore its saved position (use a fitting seed on the current monitor)"
+        }
         if ($run -eq 1) { $firstBounds = $bounds }
         if ($bounds -ne $firstBounds) { throw "Native placement drifted" }
         if (!$expected.maximized -and ($client.Right -ne $expected.width -or $client.Bottom -ne $expected.height)) {

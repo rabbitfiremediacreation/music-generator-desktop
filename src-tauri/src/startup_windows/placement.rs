@@ -1,5 +1,8 @@
 use serde::Deserialize;
-use tauri::{utils::config::WindowConfig, App, Runtime};
+use tauri::{Manager, Runtime, WebviewWindow};
+use windows::Win32::UI::WindowsAndMessaging::{
+    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+};
 
 #[derive(Deserialize)]
 struct SavedWindow {
@@ -13,14 +16,12 @@ struct SavedWindow {
     fullscreen: bool,
 }
 
-/// Supply the saved client size to Tao at creation, when it computes the native
-/// frame for the target monitor. The plugin continues tracking moves and saves.
-pub(super) fn restore_config<R: Runtime>(app: &App<R>, config: &WindowConfig) -> WindowConfig {
-    use tauri::Manager;
-    let mut config = config.clone();
-    if config.label != "main" {
-        return config;
-    }
+/// Restore while the main HWND is hidden, on the setup thread. The plugin
+/// still saves physical client dimensions and outer screen coordinates.
+pub(super) fn restore<R: Runtime>(
+    window: &WebviewWindow<R>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let app = window.app_handle();
     let saved = app
         .path()
         .app_config_dir()
@@ -30,9 +31,7 @@ pub(super) fn restore_config<R: Runtime>(app: &App<R>, config: &WindowConfig) ->
             serde_json::from_slice::<std::collections::HashMap<String, SavedWindow>>(&bytes).ok()
         })
         .and_then(|mut states| states.remove("main"));
-    let Some(saved) = saved else { return config };
-    config.maximized = saved.maximized;
-    config.fullscreen = saved.fullscreen;
+    let Some(saved) = saved else { return Ok(()) };
     let (x, y) = if saved.maximized {
         (saved.prev_x, saved.prev_y)
     } else {
@@ -45,47 +44,72 @@ pub(super) fn restore_config<R: Runtime>(app: &App<R>, config: &WindowConfig) ->
         .or_else(|| app.primary_monitor().ok().flatten());
     if let Some(monitor) = monitor {
         let area = monitor.work_area();
-        let scale = monitor.scale_factor();
-        (config.x, config.width) = fit(
+        let hwnd = window.hwnd()?;
+        let flags = SWP_NOZORDER | SWP_NOACTIVATE;
+        // Move first so Windows applies the destination monitor's DPI before
+        // measuring the non-client frame.
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                None,
+                area.position.x,
+                area.position.y,
+                0,
+                0,
+                flags | SWP_NOSIZE | SWP_FRAMECHANGED,
+            )?;
+        }
+        let inner = window.inner_size()?;
+        let outer = window.outer_size()?;
+        let (left, width) = fit_axis(
             x,
             saved.width,
-            config.width,
-            config.min_width,
+            inner.width,
+            outer.width,
             area.position.x,
             area.size.width,
-            scale,
         );
-        (config.y, config.height) = fit(
+        let (top, height) = fit_axis(
             y,
             saved.height,
-            config.height,
-            config.min_height,
+            inner.height,
+            outer.height,
             area.position.y,
             area.size.height,
-            scale,
         );
+        unsafe {
+            SetWindowPos(hwnd, None, left, top, width, height, flags)?;
+        }
     }
-    config
+    if saved.maximized {
+        window.maximize()?;
+    }
+    if saved.fullscreen {
+        window.set_fullscreen(true)?;
+    }
+    Ok(())
 }
 
-fn fit(
+// All coordinates and lengths here are physical pixels.
+fn fit_axis(
     position: i32,
-    size: u32,
-    default: f64,
-    minimum: Option<f64>,
+    saved_client: u32,
+    client: u32,
+    outer: u32,
     origin: i32,
     extent: u32,
-    scale: f64,
-) -> (Option<f64>, f64) {
-    let size = if size == 0 {
-        default * scale
+) -> (i32, i32) {
+    let requested = if saved_client == 0 {
+        client
     } else {
-        f64::from(size)
+        saved_client
     };
-    let size = size
-        .max(minimum.unwrap_or_default() * scale)
-        .min(f64::from(extent));
-    let origin = f64::from(origin);
-    let position = f64::from(position).clamp(origin, origin + f64::from(extent) - size);
-    (Some(position / scale), size / scale)
+    let size = requested
+        .saturating_add(outer.saturating_sub(client))
+        .min(extent);
+    let last = i64::from(origin) + i64::from(extent - size);
+    (
+        i64::from(position).clamp(i64::from(origin), last) as i32,
+        size as i32,
+    )
 }
