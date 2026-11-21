@@ -70,6 +70,7 @@ fn verify_selections(state: &AppState, selections: &[catalog::Selection]) {
     .unwrap();
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn compact_catalog_selections_queue_distinct_jobs_without_switching_the_default() {
     let (_root, state) = fixture();
