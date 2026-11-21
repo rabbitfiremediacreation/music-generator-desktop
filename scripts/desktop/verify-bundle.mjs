@@ -14,6 +14,7 @@ import { verifyIterationContract } from "./engine-contract.mjs";
 import { msiArguments } from "./windows-msi.mjs";
 import { pathTestGguf } from "./windows-unicode.mjs";
 import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, verifyDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
+import { appcastUrl, macUpdateRelease } from "./macos-updater.mjs";
 
 function startupLocation(app) {
   return JSON.parse(execFileSync(app, ["--startup-location-probe"], { encoding: "utf8", timeout: 15000 }));
@@ -146,8 +147,15 @@ try {
     if (process.env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION === "true") {
       await run("xcrun", ["stapler", "validate", bundle]);
       if (diskImage) await run("xcrun", ["stapler", "validate", artifact]);
-      const feed = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :SUFeedURL", path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
-      assert.equal(feed, `https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/latest/download/appcast-macos-${architecture}.xml`);
+      const update = macUpdateRelease(process.env, version);
+      if (!audioCraft) {
+        const plist = key => execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+        assert(await exists(path.join(bundle, "Contents/Frameworks/Sparkle.framework")), "Missing Sparkle framework");
+        assert.equal(plist("SUFeedURL"), appcastUrl(update.stream, `macos-${architecture}`));
+        assert.equal(plist("CFBundleVersion"), update.bundleVersion);
+        assert.equal(plist("CFBundleShortVersionString"), version);
+        assert.equal(plist("SURequireSignedFeed"), "true");
+      }
     }
     if (target.cpuOnly) assert(!extracted.some(file => /ggml-metal/i.test(path.basename(file))), "Intel bundle must not include a Metal backend");
     await verifyMacSandbox(app, engine);
