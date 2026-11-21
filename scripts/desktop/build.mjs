@@ -36,7 +36,9 @@ const target = path.join(root,"src-tauri/target/release");
 let artifact;
 const artifacts = [];
 const resources = { "resources/desktop-utilities/": "engine/" };
-const work = await mkdtemp(path.join(tmpdir(), "music-desktop-release-"));
+const workRoot = platform === "windows" ? target : tmpdir();
+await mkdir(workRoot, { recursive: true });
+const work = await mkdtemp(path.join(workRoot, "music-desktop-release-"));
 async function pack(source = engineFolder) {
   const packages = await packageEngines({ source, provenance, version: pkg.version, output, work });
   process.env.MUSIC_GENERATOR_ENGINE_PACKAGES = packages.manifest;

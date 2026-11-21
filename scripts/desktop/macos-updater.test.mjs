@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { macSigningSettings } from "./macos-signing.mjs";
+import { importedSigningIdentity, macSigningSettings } from "./macos-signing.mjs";
 import { appcastUrl, appcastXml, macUpdateRelease, macUpdaterSettings } from "./macos-updater.mjs";
 import { hasPreviewAppcasts, publishPreviewFeeds, readPreviewFeed } from "./preview-feeds.mjs";
 
@@ -68,6 +68,16 @@ test("a notarized build can use a Developer ID identity from the local keychain"
   assert.equal(macSigningSettings(local).APPLE_SIGNING_IDENTITY, local.APPLE_SIGNING_IDENTITY);
   assert.throws(() => macSigningSettings({ ...local, APPLE_CERTIFICATE: "certificate-fixture" }),
     /Missing macOS signing settings: APPLE_CERTIFICATE_PASSWORD/);
+});
+
+test("CI signs with the fingerprint of the configured identity from its P12", () => {
+  const name = "Developer ID Application: Music Generator (TEAMID)";
+  const fingerprint = "A".repeat(40);
+  const other = `  1) ${"B".repeat(40)} "Developer ID Application: Other (OTHERTEAM)"\n`;
+  const match = `  2) ${fingerprint} "${name}"\n`;
+  assert.equal(importedSigningIdentity(other + match + "     2 valid identities found\n", name), fingerprint);
+  assert.throws(() => importedSigningIdentity(other, name), /matching APPLE_SIGNING_IDENTITY/);
+  assert.throws(() => importedSigningIdentity(match + match, name), /exactly one valid/);
 });
 
 test("a preview offering manual downloads can retain an existing Sparkle release", async () => {
