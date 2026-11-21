@@ -5,18 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>241</sparkle:version>
+      <sparkle:version>243</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-237</h2>
+      <description><![CDATA[<h2>Changes since develop-241</h2>
 <ul>
-<li>Add local stem separation and mixer workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/158">#158</a>)</li>
+<li>Restore Windows window placement on the destination monitor (#89) (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/152">#152</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/89">#89 Windows: Gespeicherten normalen Fensterzustand beim Start wiederherstellen</a></li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/aed66029dd1358842e605dba36314963ab0204b1...f3ac2ae866597f83427dbb3ed69ba5c9f28f322b">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-241/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="zXhOMm7ESHB5WPjCKI4w7tECd4pX+cxmswjyJx+/VPbSiOr86UEh6CsQrzmp14GZNq0bIok0dNsnftgsKtspCw==" length="13691574" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/f3ac2ae866597f83427dbb3ed69ba5c9f28f322b...47a9a10b62111a0c24863f4e1bf4b1886ad15662">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-243/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="a8wfPu1D1ZmIsl3nyZltRRKUksO+jcVO3RgAQj/OnFW3kiVPVxcp/5kJZRmILpL9rwPTZRaWXukYW80Rpx8FAw==" length="13704793" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: QKpWjufOgiQBR1d5qQ2k85JktPdG/mJ3h8wydat6AoPpTswTNqMAfGSW9ocpcOBVkeWoiCiBL46nItTufmkNAg==
-length: 1472
+edSignature: xLB/7WqNeifMiQh+pzzkoTqFo8HkYM3gm+xRv7DUZBxJRs2/zk/x6my/WvYXIG6UibT56fWxxE9mJQyo59HXBQ==
+length: 1665
 -->
