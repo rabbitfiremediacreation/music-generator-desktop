@@ -35,8 +35,8 @@ export async function isElf(file) {
   } finally { await handle.close(); }
 }
 
-export async function relocateLinuxRuntime(engine) {
-  for (const file of await files(engine)) if (await isElf(file)) await run("patchelf", ["--set-rpath", linuxRpath(file, engine), file]);
+export async function relocateLinuxRuntime(engine, folder = engine) {
+  for (const file of await files(folder)) if (await isElf(file)) await run("patchelf", ["--set-rpath", linuxRpath(file, engine), file]);
 }
 
 export function assertLinuxDependencies(output, engine) {

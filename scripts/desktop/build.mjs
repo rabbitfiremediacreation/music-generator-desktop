@@ -3,6 +3,7 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import { macSigningSettings, withMacSigning } from "./macos-signing.mjs";
 import { installSparkle, macUpdaterSettings, writeAppcast } from "./macos-updater.mjs";
+import { prepareWebView } from "./prepare-webview.mjs";
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { packageEngines, utilityResources } from "./engine-packages.mjs";
@@ -11,7 +12,7 @@ import { recordTitle } from "./prepare-title.mjs";
 import { diffrhythm2ArtifactSuffix, diffrhythm2Enabled, prepareDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
 import { recordMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { buildBranding, buildIconConfig } from "./build-branding.mjs";
-import { architecture, download, exists, files, hash, platform, root, run, target as desktop, verifyEngine } from "./common.mjs";
+import { architecture, exists, files, hash, platform, root, run, target as desktop } from "./common.mjs";
 
 const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, desktop);
 const audioCraft = process.argv.includes("--audiocraft");
@@ -28,8 +29,7 @@ const updateNotes = updater && process.env.MUSIC_GENERATOR_UPDATE_NOTES
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("APPLE_") || key === "SPARKLE_PRIVATE_KEY") delete process.env[key];
 }
-await prepareEngine();
-const provenance = await verifyEngine(engineFolder);
+const provenance = await prepareEngine();
 const name = `Music-Generator-${pkg.version}`;
 const cli = path.join(root,"node_modules/@tauri-apps/cli/tauri.js");
 const target = path.join(root,"src-tauri/target/release");
@@ -122,18 +122,7 @@ try {
     });
   } else if (platform === "windows") {
     await pack();
-    const runtimeDir = path.join(root,"src-tauri/resources/WebView2");
-    if (!await exists(runtimeDir)) {
-      const pinned = JSON.parse(await readFile(path.join(root,"models/webview2.json"),"utf8"));
-      const cab = path.join(root,".cache/desktop/WebView2.cab");
-      await download(pinned.url,cab,pinned.sha256);
-      const unpack = path.join(root,".cache/desktop/webview-unpack"); await rm(unpack,{recursive:true,force:true}); await mkdir(unpack,{recursive:true});
-      await run("expand.exe",[cab,"-F:*",unpack]);
-      const dirs = await readdir(unpack); const extracted = dirs.find(n=>n.startsWith("Microsoft.WebView2.FixedVersionRuntime."));
-      if (!extracted) throw new Error("Invalid WebView2 cabinet");
-      await cp(path.join(unpack,extracted),runtimeDir,{recursive:true});
-    }
-    if (!await exists(path.join(runtimeDir,"msedgewebview2.exe"))) throw new Error("WebView2 runtime is incomplete");
+    const runtimeDir = await prepareWebView();
     const wix = path.join(target,"bundle/msi");
     await rm(wix,{recursive:true,force:true});
     // Load runtime resources only after preparation; plain cargo tests need no downloaded WebView2.

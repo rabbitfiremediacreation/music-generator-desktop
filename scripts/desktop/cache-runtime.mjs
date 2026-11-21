@@ -1,26 +1,31 @@
 import { appendFile, cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
-import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, root, run, target, verifyEngine } from "./common.mjs";
+import { architecture, engineRecipeHash, exists, hash, platform, root, run, target, verifyEngine } from "./common.mjs";
+import { componentRecipes } from "./engine-recipes.mjs";
+import { reusableComponents } from "./engine-components.mjs";
+import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
+import { prepareWebView } from "./prepare-webview.mjs";
 import { verifyTitle } from "./prepare-title.mjs";
 
 const resources = path.join(root, "src-tauri/resources");
 const tar = platform === "windows" ? "tar.exe" : "tar";
 
-// App versions and package/test scripts do not change the compiled native runtime.
+// A partial restore must have a compatible runner, backend and fixed WebView2 installation.
+export async function runtimeCachePrefix(buildTarget = target) {
+  const parts = ["desktop-runtime-v3", process.env.DESKTOP_RUNNER || "local", buildTarget.platform, buildTarget.arch, buildTarget.backend || "native"];
+  if (buildTarget.platform === "windows") {
+    for (const file of ["models/webview2.json", "scripts/desktop/prepare-webview.mjs"]) parts.push(await hash(path.join(root, file)));
+  }
+  return parts.join("-") + "-";
+}
+
 export async function runtimeCacheKey(buildTarget = target) {
-  const digest = createHash("sha256").update(await engineRecipeHash(buildTarget));
-  digest.update(JSON.stringify(manifest.engines[buildTarget.platform]));
-  const inputs = ["models/title-model.json", "scripts/desktop/common.mjs", "scripts/desktop/prepare-title.mjs", "scripts/desktop/engine-sandbox.mm", "src-tauri/Engine.entitlements"];
-  if (buildTarget.platform === "windows") inputs.push("models/webview2.json");
-  inputs.push(...await files(path.join(root, "scripts/desktop/title-runtime")));
-  for (const file of inputs.sort()) digest.update(await readFile(path.isAbsolute(file) ? file : path.join(root, file)));
-  return `desktop-runtime-v2-${buildTarget.platform}-${buildTarget.arch}-${buildTarget.backend || "native"}-${digest.digest("hex")}`;
+  return await runtimeCachePrefix(buildTarget) + await engineRecipeHash(buildTarget);
 }
 
 // Tag-scoped Actions caches cannot see caches from earlier release tags.
@@ -86,7 +91,17 @@ async function pack() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const command = process.argv[2];
   if (command === "key") {
-    const key = await runtimeCacheKey(); console.log(key); await output("key", key);
+    const key = await runtimeCacheKey(); console.log(key); await output("key", key); await output("prefix", await runtimeCachePrefix());
+  }
+  else if (command === "prepare") {
+    await prepareEngine();
+    if (platform === "windows") await prepareWebView();
+  }
+  else if (command === "check-ace") {
+    const previous = await readFile(path.join(engineFolder, "VERSION.desktop.json"), "utf8").then(JSON.parse).catch(() => undefined);
+    const { "ace-step": ace } = await componentRecipes();
+    const reusable = await reusableComponents(engineFolder, { "ace-step": ace }, previous);
+    await output("build", String(!reusable.has("ace-step")));
   }
   else if (command === "restore") await restore();
   else if (command === "pack") await pack();

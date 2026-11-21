@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findRuntimeArtifact, runtimeCacheKey } from "./cache-runtime.mjs";
+import { findRuntimeArtifact, runtimeCacheKey, runtimeCachePrefix } from "./cache-runtime.mjs";
 import { desktopTarget } from "./targets.mjs";
 
 test("native runtime cache keeps both Linux backends and Mac architectures separate", async () => {
   const targets = [desktopTarget("linux", "x64", "vulkan"), desktopTarget("linux", "x64", "cuda"), desktopTarget("macos", "arm64"), desktopTarget("macos", "x64")];
   const keys = await Promise.all(targets.map(runtimeCacheKey));
+  const prefixes = await Promise.all(targets.map(runtimeCachePrefix));
+  assert.equal(new Set(prefixes).size, 4);
+  for (const [index, key] of keys.entries()) assert(key.startsWith(prefixes[index]));
   assert.equal(new Set(keys).size, 4);
   assert.equal(await runtimeCacheKey(targets[1]), keys[1]);
 });
