@@ -10,8 +10,30 @@ export interface DurationWarning {
 }
 const positive = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value > 0;
 
+/** The native adapter records the format after parsing the generated WAV. */
+export function songWavFormat(song: Pick<Song, "result_meta">) {
+  const value = song.result_meta?.audio_format;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { container, encoding, sample_rate_hz, channels, bits_per_sample } = value as Record<string, unknown>;
+  if (container !== "wav" || encoding !== "pcm") return null;
+  if (!positive(sample_rate_hz) || !positive(channels) || !positive(bits_per_sample)) return null;
+  if (![sample_rate_hz, channels, bits_per_sample].every(Number.isSafeInteger)) return null;
+  return { sampleRateHz: sample_rate_hz, channels, bitsPerSample: bits_per_sample };
+}
+
+export function songMachineGeneratedBy(song: Pick<Song, "result_meta">): string | null {
+  const meta = song.result_meta;
+  if (meta?.machine_generated !== true || typeof meta.generated_by !== "string") return null;
+  return meta.generated_by.trim() || null;
+}
+
 /** Locally verified execution wins; an uninitialised old request without a model does not establish its actual steps. */
 export function songIterations(song: ResultSong): number | null {
+  if (song.params.model_selection?.provider === "yue2") {
+    const steps = song.result_meta?.effective_inference_steps ?? song.params.yue2?.steps;
+    return positive(steps) && Number.isInteger(steps) && steps <= MAX_INFERENCE_STEPS ? steps : null;
+  }
+  if (song.params.model_selection && !song.params.model_selection.language) return null;
   const unfinished = song.status !== undefined && song.status !== "done";
   const limit = unfinished || song.result_meta?.inference_steps_limit === MAX_INFERENCE_STEPS ? MAX_INFERENCE_STEPS : LEGACY_INFERENCE_STEPS_LIMIT;
   const verified = song.result_meta?.effective_inference_steps;
@@ -25,6 +47,14 @@ export function songIterations(song: ResultSong): number | null {
 export function songDuration(song: ResultSong): number | null {
   const meta = song.result_meta;
   return meta?.duration_source === "wav" && positive(meta.duration) ? meta.duration : null;
+}
+
+export function songStreamMetrics(song: ResultSong) {
+  const value = song.result_meta?.stream_metrics;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { first_audio_ms, underrun_blocks, peak_rss_bytes, realtime } = value as Record<string, unknown>;
+  if (!positive(first_audio_ms) || typeof underrun_blocks !== "number" || !Number.isSafeInteger(underrun_blocks) || underrun_blocks < 0 || !positive(peak_rss_bytes) || typeof realtime !== "boolean") return null;
+  return { first_audio_ms, underrun_blocks, peak_rss_bytes, realtime };
 }
 
 export function audioTime(seconds: number): string {

@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryHistory } from "@tanstack/react-router";
 import { DesktopApp, createAppRouter } from "./app";
 import { createAppQueryClient } from "./data";
 import { measuredBackend, setupFixture, standard } from "./setup/fixtures";
 import { setLang, t } from "../i18n.js";
 import source from "../../models/catalog.json";
-import type { PhoneAccess } from "../types";
+import type { JobProgress, PhoneAccess } from "../types";
 const mocks = vi.hoisted(()=>({invoke:vi.fn(),listen:vi.fn(),close:vi.fn(),confirm:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke,convertFileSrc:(path:string)=>path}));
 vi.mock("@tauri-apps/api/event",()=>({listen:mocks.listen}));
@@ -27,8 +27,9 @@ beforeEach(()=>{
     if(name==="get_generation_form_preferences")return {duration:90,bpm:0,inference_steps:30,lm_temperature:1.2,variants:2};
     if(name==="setup_estimate")return {missing_bytes:0,free_bytes:1000000};
     if(name==="setup_models")return {ok:true,mode:"single",backend_status:measuredBackend};
+    if(name==="discover_hugging_face_models")return {candidates:[],unavailable_repositories:[]};
     if(name==="model_catalog")return {...source,selection:standard,expert_mode:false,recommended_profiles:[standard],hardware:setupFixture.hardware,free_bytes:null,models_dir:"/models",busy:false,title_model:{...setupFixture.title_model,verified:true,present:true,partial_bytes:0},models:source.models.map(model=>({...model,verified:true,present:true,partial_bytes:0}))};
-    if(name==="list_songs")return [];
+    if(name==="list_song_page")return {songs:[],total:0};
     if(name==="list_folders")return {folders:[],all:0,none:0};
     if(name==="queue")return {running:[],queued:0,active:false,progress:null,library:{count:0,bytes:0}};
     if(name==="health")return {ok:true};
@@ -48,14 +49,43 @@ async function mount(path="/"){
   });
   return router;
 }
+it("shows overall progress and the estimated remaining time across phase and view changes", async () => {
+  firstRun = false;
+  const handlers = new Map<string, (event: { payload: unknown }) => void>();
+  mocks.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => {}; });
+  await mount();
+  await screen.findByText("Nothing yet");
+  const phase: JobProgress = { job_id: "running-song", sequence: 2, phase: "dit", step: 6, total_steps: 30, elapsed_seconds: 12, overall_percent: 62, estimated_remaining_seconds: 32 };
+  const sendProgress = (progress: JobProgress) => act(() => handlers.get("generation-progress")?.({ payload: progress }));
+  sendProgress({ ...phase, sequence: 1, phase: "loading", step: null, total_steps: null, overall_percent: 0, estimated_remaining_seconds: undefined });
+  const meter = (parent: string) => document.querySelector<HTMLProgressElement>(`${parent} progress`);
+  await waitFor(() => expect(meter(".titlebar")?.getAttribute("value")).toBe("0"));
+  expect(document.querySelector(".titlebar .song-activity-estimate")).toBeNull();
+  expect(document.querySelector("#dropzone .app-wave[data-active]")).toBeTruthy();
+  sendProgress(phase);
+  await waitFor(() => expect(meter(".titlebar")?.value).toBe(62));
+  expect(meter(".titlebar")?.max).toBe(100);
+  expect(meter(".genbar")).toBeNull();
+  expect(meter(".titlebar")?.getAttribute("aria-valuetext")).toBe("DiT · 6/30 · 0:12 · ≈ 62% · Remaining ≈ 0:32");
+  expect(meter(".library-generation-status")?.value).toBe(62);
+  sendProgress({ ...phase, sequence: 3, phase: "vae", step: null, total_steps: null, overall_percent: 89, estimated_remaining_seconds: 10 });
+  await waitFor(() => expect(meter(".titlebar")?.value).toBe(89));
+  fireEvent.click(screen.getByRole("button", { name: t("settings_title") }));
+  await waitFor(() => expect(document.querySelector("#settingsForm")).toBeTruthy());
+  expect(meter("#settingsForm")).toBeNull();
+  expect(meter(".titlebar")?.getAttribute("aria-valuetext")).toContain("Remaining ≈ 0:10");
+  act(() => handlers.get("library-changed")?.({ payload: null }));
+  await waitFor(() => expect(meter(".titlebar")).toBeNull());
+  expect(document.querySelector("#dropzone .app-wave[data-active]")).toBeNull();
+});
 it("keeps startup pending until the first library and saved form values are ready",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
   let finishPreferences!:(value:unknown)=>void,finishSongs!:(value:unknown)=>void;
-  mocks.invoke.mockImplementation((name,args)=>name==="get_generation_form_preferences"?new Promise(resolve=>{finishPreferences=resolve;}):name==="list_songs"?new Promise(resolve=>{finishSongs=resolve;}):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="get_generation_form_preferences"?new Promise(resolve=>{finishPreferences=resolve;}):name==="list_song_page"?new Promise(resolve=>{finishSongs=resolve;}):original(name,args));
   await mount();
   await waitFor(()=>expect(finishSongs).toBeTypeOf("function"));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
-  finishSongs([]);
+  finishSongs({songs:[],total:0});
   await screen.findByText("Nothing yet");
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
   finishPreferences({duration:60,bpm:0,inference_steps:30,lm_temperature:1.2,variants:1});
@@ -64,7 +94,7 @@ it("keeps startup pending until the first library and saved form values are read
 });
 it("reports a failed initial library snapshot without completing startup",async()=>{
   firstRun=false;const original=mocks.invoke.getMockImplementation()!;
-  mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.reject(new Error("database busy")):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="list_song_page"?Promise.reject(new Error("database busy")):original(name,args));
   await mount();await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith("startup_error",{attempt:1,error:"database busy"}));
   expect(mocks.invoke.mock.calls.some(([name])=>name==="startup_complete")).toBe(false);
 });
@@ -112,7 +142,7 @@ it("opens the creator model chooser directly on the settings models page", async
   firstRun=false; await mount();
   fireEvent.click(await screen.findByRole("button",{name:t("picker_choose")}));
   expect(await screen.findByRole("dialog",{name:t("settings_title")})).toBeTruthy();
-  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(await screen.findByRole("table", { name: t("models_music") })).toBeTruthy();
   expect(screen.queryByRole("searchbox",{name:t("browser_search")})).toBeNull();
   expect(screen.getByRole("button",{name:t("settings_page_models")}).getAttribute("aria-current")).toBe("page");
   expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
@@ -129,7 +159,13 @@ it.each([["de", "Modelle und Hardware", "Hardwaretest im Einrichtungsassistenten
   const dialog=await screen.findByRole("dialog",{name:t("settings_title")});
   expect(screen.queryByRole("dialog",{name:t("picker_title")})).toBeNull();
   expect(router.state.location.pathname).toBe("/studio");
-  await screen.findByRole("table");
+  await screen.findByRole("table", { name: t("models_music") });
+  fireEvent.click(screen.getByRole("button", { name: t("models_add") }));
+  const picker = await screen.findByRole("dialog", { name: t("models_add") });
+  expect(within(picker).queryByRole("button", { name: action })).toBeNull();
+  expect(within(picker).queryByText(t("desktop_manage_hint"))).toBeNull();
+  fireEvent.click(within(picker).getByRole("button", { name: t("desktop_close") }));
+  await waitFor(() => expect(picker.isConnected).toBe(false));
   expect(mocks.invoke.mock.calls.some(([name])=>["setup_models","use_models","select_models"].includes(name))).toBe(false);
   const testButton=screen.getByRole("button",{name:action});
   expect(document.getElementById(testButton.getAttribute("aria-describedby")!)?.textContent).toBe(t("desktop_manage_hint"));
@@ -171,7 +207,7 @@ it.each(["pending", "failed"])("keeps setup reachable when the model catalog is 
 it("can reapply the same song twice even when the system clock has not advanced",async()=>{
   firstRun=false;
   const original=mocks.invoke.getMockImplementation()!;
-  mocks.invoke.mockImplementation((name,args)=>name==="list_songs"?Promise.resolve([{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}]):original(name,args));
+  mocks.invoke.mockImplementation((name,args)=>name==="list_song_page"?Promise.resolve({songs:[{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}],total:1}):original(name,args));
   await mount();
   const reuse=await screen.findByRole("button",{name:"Copy settings to the form"});
   vi.spyOn(Date,"now").mockReturnValue(Date.now());

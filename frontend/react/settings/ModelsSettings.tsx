@@ -6,9 +6,12 @@ import type { ModelManagerProps } from "../models/ModelManager";
 import { ModelDialog } from "../models/ModelDialog";
 import { InstalledModels } from "../models/InstalledModels";
 import type { useSettingsDraft } from "./useSettingsDraft";
+import { HuggingFaceTokenField } from "./HuggingFaceTokenField";
 
-export function ModelsSettings({ state, active, manager }: {
-  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: ModelManagerProps;
+export type SettingsModelManager = ModelManagerProps & { onManage?: () => void };
+
+export function ModelsSettings({ state, active, manager: { onManage, ...manager } }: {
+  state: ReturnType<typeof useSettingsDraft>; active: boolean; manager: SettingsModelManager;
 }) {
   const { t } = useI18n();
   const { draft, pending } = state;
@@ -22,6 +25,7 @@ export function ModelsSettings({ state, active, manager }: {
       {adding && <ModelDialog {...manager} title={t("models_add")} disabled={pending} onClose={() => setAdding(false)} />}
     </div>
     <fieldset className="settings-fields" disabled={pending || modelBusy}>
+      {active && <HuggingFaceTokenField />}
       <div className="settings-section">
         <label className="field"><span className="lbl" title={t("lm_dev_tip")}>{t("lm_dev")}</span>
           <select name="lm_device" aria-label={t("lm_dev")} value={draft.lm_device} onChange={event => void state.device(event.target.value as Settings["lm_device"])}>
@@ -35,6 +39,6 @@ export function ModelsSettings({ state, active, manager }: {
         {draft.expert_mode !== state.confirmedExpertMode && <button type="button" className="sek settings-expert-apply" onClick={() => void state.applyExpertMode()}>{t("settings_apply_expert")}</button>}
       </div>
     </fieldset>
-    {manager.onManage && <div className="settings-section"><p id="settingsModelSetupHint" className="small">{t("desktop_manage_hint")}</p><button type="button" className="sek" disabled={pending || modelBusy} aria-describedby="settingsModelSetupHint" onClick={manager.onManage}>{t("desktop_manage")}</button></div>}
+    {onManage && <div className="settings-section"><p id="settingsModelSetupHint" className="small">{t("desktop_manage_hint")}</p><button type="button" className="sek" disabled={pending || modelBusy} aria-describedby="settingsModelSetupHint" onClick={onManage}>{t("desktop_manage")}</button></div>}
   </>;
 }

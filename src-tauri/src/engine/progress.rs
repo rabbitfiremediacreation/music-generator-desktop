@@ -25,12 +25,15 @@ impl Progress {
         let label = match self.phase {
             "starting" => "Starting engine",
             "loading" => "Loading models",
+            "planning" => "Score planning",
             "lm" => "LM",
             "dit" => "DiT",
             "vae" => "VAE",
             "title_download" => "Preparing title model",
             "title" => "Generating song title",
             "saving" => "Saving audio",
+            "saving_midi" => "Saving MIDI",
+            "complete" => "Song ready",
             _ => "Synth",
         };
         let steps = match (self.step, self.total_steps) {

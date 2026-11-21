@@ -28,9 +28,11 @@ pub async fn save_with_progress(
 ) -> Result<Settings> {
     if values.preferences_only() {
         return state.runtime.update_preferences(|| {
-            state
-                .db
-                .set_preferences(values.expert_mode, values.cpu_iteration_behavior)?;
+            state.db.set_preferences(
+                values.expert_mode,
+                values.cpu_iteration_behavior,
+                values.update_stream,
+            )?;
             state.db.settings()
         });
     }

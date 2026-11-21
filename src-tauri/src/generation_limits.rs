@@ -1,6 +1,199 @@
+use crate::{
+    catalog::GenerationCapabilities,
+    error::{message, Result},
+    types::GenerateRequest,
+};
+
 /// The verified desktop runtime supports up to two hundred diffusion iterations.
 pub const MAX_INFERENCE_STEPS: u32 = 200;
 pub(crate) const LEGACY_INFERENCE_STEPS_LIMIT: u32 = 100;
+const MAX_NATIVE_TEXT_BYTES: usize = 8 * 1024;
+pub(crate) const MAX_EXTENDED_DURATION: u32 = 900;
+
+/// Extend variable-length song profiles by rendering within each engine's duration range.
+pub(crate) fn supports_extended_duration(capabilities: &GenerationCapabilities) -> bool {
+    capabilities.output_kind.is_audio()
+        && capabilities.bars.is_none()
+        && !capabilities.reference_audio
+        && capabilities.min_duration < capabilities.max_duration
+        && capabilities.max_duration >= 30
+}
+
+pub(crate) fn max_duration(capabilities: &GenerationCapabilities, extended: bool) -> u32 {
+    if extended && supports_extended_duration(capabilities) {
+        MAX_EXTENDED_DURATION
+    } else {
+        capabilities.max_duration
+    }
+}
+
+/// Validate the profile-specific request shape and return the duration to store with the job.
+pub fn validate_request(
+    request: &GenerateRequest,
+    capabilities: &GenerationCapabilities,
+) -> Result<f64> {
+    if let Some(options) = &request.yue2 {
+        if !capabilities.yue2_options {
+            return Err(message(
+                "This model does not support YuE2 generation options",
+            ));
+        }
+        options.validate(request.instrumental)?;
+    }
+    match (
+        capabilities.reference_audio,
+        request.reference_audio.as_deref(),
+    ) {
+        (true, None) => return Err(message("mulacover_reference_required")),
+        (true, Some(id)) if !crate::reference_audio::valid_id(id) => {
+            return Err(message("mulacover_reference_invalid"));
+        }
+        (false, Some(_)) => return Err(message("This model does not support reference audio")),
+        _ => {}
+    }
+    if request.variants == 0 || request.variants > capabilities.max_variants {
+        return Err(message(format!(
+            "This model supports 1 to {} variants",
+            capabilities.max_variants
+        )));
+    }
+    if let Some(maximum) = capabilities.max_seed {
+        let last_seed = request.seed.checked_add(i64::from(request.variants - 1));
+        if request.seed != -1
+            && (request.seed < 0 || last_seed.is_none_or(|seed| seed > i64::from(maximum)))
+        {
+            return Err(message(format!(
+                "This model supports seeds from 0 to {maximum} or -1 for a random seed"
+            )));
+        }
+    }
+    if !capabilities.output_kind.is_audio() {
+        let prompt = request.prompt.trim();
+        let prompt = if prompt.is_empty() {
+            request.caption.trim()
+        } else {
+            prompt
+        };
+        if prompt.trim_matches(',').trim().is_empty() {
+            return Err(message("Enter a text prompt for MIDI generation"));
+        }
+        if prompt.len() > MAX_NATIVE_TEXT_BYTES || prompt.contains('\0') {
+            return Err(message(
+                "The MIDI prompt must be at most 8 KiB and cannot contain NUL characters",
+            ));
+        }
+        if !request.style.trim().is_empty() {
+            return Err(message("Describe musical styles in the MIDI prompt"));
+        }
+    }
+    let duration = match (&capabilities.bars, request.bars) {
+        (Some(choices), Some(bars)) if choices.contains(&bars) => {
+            if !(1..=300).contains(&request.bpm) {
+                return Err(message("Enter a whole-number BPM from 1 to 300"));
+            }
+            if request.prompt.trim().trim_matches(',').trim().is_empty() {
+                return Err(message("Enter a short-clip description"));
+            }
+            240.0 * f64::from(bars) / f64::from(request.bpm)
+        }
+        (Some(_), _) => return Err(message("Choose a supported number of bars")),
+        (None, Some(_)) => return Err(message("This model does not support bar counts")),
+        (None, None) => request.duration,
+    };
+    let minimum = if capabilities.advanced {
+        0
+    } else {
+        capabilities.min_duration
+    };
+    let maximum = max_duration(capabilities, request.ignore_recommended_duration);
+    if !(f64::from(minimum)..=f64::from(maximum)).contains(&duration) {
+        if capabilities.bars.is_some() {
+            return Err(message(format!(
+                "The selected BPM and bar count exceed this model's {}-second limit",
+                capabilities.max_duration
+            )));
+        }
+        return Err(message(format!(
+            "This model supports durations between {minimum} and {} seconds",
+            maximum
+        )));
+    }
+    if !capabilities.prompt {
+        if !request.prompt.trim().is_empty() || !request.caption.trim().is_empty() {
+            return Err(message(if capabilities.style_description {
+                "This model accepts a style description in the Style field"
+            } else {
+                "This model accepts style tags instead of prompts or captions"
+            }));
+        }
+        if !request.style.split(',').any(|tag| !tag.trim().is_empty()) {
+            return Err(message(if capabilities.style_description {
+                "Enter a style description for this model"
+            } else {
+                "Enter at least one style tag"
+            }));
+        }
+    }
+    if request.instrumental && !capabilities.instrumental {
+        return Err(message(if capabilities.lyrics_required {
+            "This model requires a vocal song"
+        } else {
+            "This model does not support the instrumental control"
+        }));
+    }
+    if capabilities.instrumental && !capabilities.lyrics && !request.instrumental {
+        return Err(message("This model generates instrumental music only"));
+    }
+    if !capabilities.lyrics && !request.lyrics.trim().is_empty() {
+        return Err(message("This model does not support lyrics"));
+    }
+    if capabilities.lyrics_required
+        && !request.instrumental
+        && (request.lyrics.trim().is_empty()
+            || request.lyrics.trim().eq_ignore_ascii_case("[instrumental]"))
+    {
+        return Err(message("Enter lyrics for this model"));
+    }
+    if (!capabilities.bpm && request.bpm != 0)
+        || (!capabilities.advanced
+            && (request.inference_steps != 0
+                || request.lm_temperature.is_some()
+                || !request.keyscale.trim().is_empty()
+                || !request.timesignature.trim().is_empty()
+                || !request.vocal_language.trim().is_empty()
+                || !request.keep_caption))
+    {
+        return Err(message(
+            "This model does not support the supplied generation controls",
+        ));
+    }
+    if !capabilities.advanced {
+        let style = request.style.trim().trim_matches(',');
+        let prompt = request.prompt.trim().trim_matches(',');
+        let separator_bytes = 2 * usize::from(!style.is_empty() && !prompt.is_empty());
+        let caption_bytes = (request.style.len() + separator_bytes + request.prompt.len())
+            .max(request.caption.len());
+        if caption_bytes + request.lyrics.len() > MAX_NATIVE_TEXT_BYTES {
+            return Err(message(
+                "Description and lyrics must total at most 8 KiB of UTF-8 text",
+            ));
+        }
+        if [
+            &request.style,
+            &request.prompt,
+            &request.caption,
+            &request.lyrics,
+        ]
+        .iter()
+        .any(|text| text.contains('\0'))
+        {
+            return Err(message(
+                "Description and lyrics cannot contain NUL characters",
+            ));
+        }
+    }
+    Ok(duration)
+}
 
 /// Resolve legacy engine defaults before applying the same limit to every execution path.
 pub fn effective_steps(requested: Option<u64>, synthesis: &str) -> u32 {
@@ -36,4 +229,27 @@ pub fn enrich_metadata(params: &serde_json::Value, meta: &mut serde_json::Value)
     }
     let steps = effective_steps(Some(requested), synthesis.unwrap_or_default()).min(limit);
     meta["effective_inference_steps"] = steps.into();
+}
+
+#[cfg(test)]
+mod duration_tests {
+    use super::*;
+
+    #[test]
+    fn extended_duration_requires_an_explicit_opt_in_and_a_song_profile() {
+        let mut capabilities = GenerationCapabilities::ace_step();
+        let mut request = GenerateRequest {
+            duration: 900.0,
+            ..Default::default()
+        };
+        assert!(validate_request(&request, &capabilities).is_err());
+        request.ignore_recommended_duration = true;
+        assert_eq!(validate_request(&request, &capabilities).unwrap(), 900.0);
+        request.duration = 900.01;
+        assert!(validate_request(&request, &capabilities).is_err());
+        request.duration = 900.0;
+        capabilities.max_duration = 10;
+        capabilities.min_duration = 5;
+        assert!(validate_request(&request, &capabilities).is_err());
+    }
 }

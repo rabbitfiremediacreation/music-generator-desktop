@@ -5,12 +5,23 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { desktopTarget } from "./targets.mjs";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
 
 export const root = fileURLToPath(new URL("../../", import.meta.url));
 export const manifest = JSON.parse(await readFile(path.join(root, "models/manifest.json"), "utf8"));
 export const platform = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux";
 export const architecture = process.arch;
 export const target = desktopTarget(platform, architecture, process.env.MUSIC_GENERATOR_LINUX_BACKEND || "vulkan");
+export const audioCppDirectory = "providers/audio.cpp";
+export const audioCppRuntime = JSON.parse(await readFile(path.join(root, "models/audio-cpp-runtime.json"), "utf8"));
+
+export function audioCppSupported(buildTarget) {
+  return buildTarget.platform === "macos" && buildTarget.arch === "arm64";
+}
+
+export function shipsYue2(buildTarget = target) {
+  return buildTarget.platform === yue2.platform && buildTarget.arch === yue2.arch;
+}
 
 export function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -55,12 +66,22 @@ export async function engineRecipeHash(buildTarget = target) {
   const digest = createHash("sha256");
   for (const name of ["prepare-engine.mjs", "engine-source.mjs", "engine-contract.mjs", "engine-generation-limits.h", "targets.mjs", "patches/acestep-macos-compat.patch", "patches/acestep-iterations.patch", "patches/acestep-title-registry.patch", "engine-registry-test.cpp", "registry-contract.mjs"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
   digest.update(await readFile(path.join(root, "models/title-model.json")));
+  if (buildTarget.platform === "macos" && buildTarget.arch === "arm64") {
+    for (const name of ["prepare-mimetic.mjs", "mimetic-runtime/launcher.cpp", "mimetic-runtime/generate_clip.py"]) digest.update(await readFile(path.join(root, "scripts/desktop", name)));
+  }
+  if (audioCppSupported(buildTarget)) {
+    for (const name of ["models/audio-cpp-runtime.json", "scripts/desktop/prepare-audio-cpp.mjs", "scripts/desktop/prepare-audio-cpp-soxr.mjs", "scripts/desktop/audio-cpp-launcher.cpp", "scripts/desktop/audio-cpp-wav.h", "src-tauri/Engine.entitlements"]) digest.update(await readFile(path.join(root, name)));
+  }
   if (buildTarget.platform === "windows") {
     for (const name of ["prepare-windows-engine.mjs", "windows-ggml-imports.cmake", "patches/acestep-iterations-windows.patch", "patches/acestep-windows-unicode.patch", "engine-windows-paths.h", "engine-windows-cli.cpp", "engine-windows-paths-test.cpp", "windows-unicode.mjs"]) digest.update(await readFile(path.join(root,"scripts/desktop",name)));
   }
   if (buildTarget.platform === "linux") {
     digest.update(buildTarget.backend);
     for (const name of ["scripts/desktop/linux-runtime.mjs", "scripts/desktop/prepare-cuda.mjs", "models/cuda-linux.json"]) digest.update(await readFile(path.join(root, name)));
+  }
+  if (shipsYue2(buildTarget)) {
+    const yue2Inputs = ["models/yue2-runtime.json", "scripts/desktop/prepare-yue2.mjs", "scripts/desktop/engine-sandbox.mm", "src-tauri/Engine.entitlements"];
+    for (const name of yue2Inputs) digest.update(await readFile(path.join(root, name)));
   }
   return digest.digest("hex");
 }
@@ -75,7 +96,29 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (provenance.recipe_sha256 !== await engineRecipeHash(buildTarget)) throw new Error("Engine build recipe changed");
   const executable = buildPlatform === "windows" ? "ace-server.exe" : "ace-server";
   if (!provenance.files[executable]) throw new Error("Engine executable is missing from checksums");
+  if (shipsYue2(buildTarget)) {
+    const { yue2_revision, yue2_ggml_revision } = provenance;
+    if (yue2_revision !== yue2.revision || yue2_ggml_revision !== yue2.ggml_revision || !provenance.files[yue2.executable]) {
+      throw new Error("YuE2 runner is missing or has a different revision");
+    }
+    if (!provenance.files[yue2.planner]) throw new Error("YuE2 instrumental planner is missing");
+    const yue2Folder = path.posix.dirname(yue2.executable);
+    if (yue2Folder === "." || Object.keys(provenance.files).some(file =>
+      path.posix.dirname(file) === yue2Folder && /^libggml-.*\.so$/.test(path.posix.basename(file))
+    )) {
+      throw new Error("YuE2 must be isolated from dynamic GGML backends");
+    }
+  }
+  if (buildPlatform === "macos" && buildTarget.arch === "arm64" && (!provenance.files["mimetic-synth"] || !provenance.files["mimetic-python/MIMETIC_RUNTIME.json"])) throw new Error("Mimetic A0 runtime is missing from checksums");
   if (Object.keys(provenance.files).some(file => file.startsWith("heartmula/"))) throw new Error("Retired provider resources must be removed");
+  const providerFiles = Object.keys(provenance.files).filter(file => file.startsWith(`${audioCppDirectory}/`)).sort();
+  const expectedProviderFiles = audioCppSupported(buildTarget)
+    ? [
+      "LICENSE", "LICENSE.soxr", "audiocpp_cli", "libaudiocpp.0.dylib", "libsoxr.dylib",
+      "soxr-0.1.3-Source.tar.xz", ...audioCppRuntime.model_specs.map(spec => spec.path),
+    ].map(file => `${audioCppDirectory}/${file}`).sort()
+    : [];
+  if (JSON.stringify(providerFiles) !== JSON.stringify(expectedProviderFiles)) throw new Error("Unexpected audio.cpp runtime inventory");
   const actual = (await files(folder)).filter(file => path.basename(file) !== "VERSION.desktop.json").map(file => path.relative(folder, file).split(path.sep).join("/")).sort();
   if (JSON.stringify(actual) !== JSON.stringify(Object.keys(provenance.files).sort())) throw new Error("Engine resource inventory changed");
   for (const [file, checksum] of Object.entries(provenance.files)) {

@@ -1,3 +1,6 @@
+import type { AudioFormat } from "./audio-formats";
+
+export type UpdateStream = "stable" | "daily" | "develop";
 export type CpuIterationBehavior = "ask" | "limit_30" | "continue";
 export interface McpSettings { enabled: boolean; port: number; scope: "local" | "network" }
 export interface McpHttpConnection { url: string; token: string; client_config: string }
@@ -8,8 +11,11 @@ export interface McpSettingsStatus extends McpSettings {
 export interface Settings {
   models_dir: string; songs_dir: string; lm_model: string; dit: "standard" | "xl";
   model_provider: string; synthesis_model: string;
-  lm_device: "auto" | "cpu"; export_format: "wav" | "mp3"; mp3_available?: boolean;
+  model_profiles?: Record<string, ModelSelection>;
+  lm_device: "auto" | "cpu"; export_format: AudioFormat; mp3_available?: boolean;
+  export_formats?: AudioFormat[];
   expert_mode: boolean;
+  update_stream: UpdateStream;
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_profiles?: ModelSelection[];
   cpu_only?: boolean;
@@ -22,23 +28,40 @@ export interface GenerationFormPreferences {
 }
 export interface Generation {
   model_selection?: ModelSelection;
+  reference_audio?: string;
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;
-  keep_caption?: boolean; title?: string; duration?: number; bpm?: number; keyscale?: string;
+  keep_caption?: boolean; title?: string; duration?: number; bpm?: number; bars?: number; keyscale?: string;
+  ignore_recommended_duration?: boolean;
   timesignature?: string; vocal_language?: string; seed?: number; variants?: number;
   inference_steps?: number; lm_temperature?: number; group_id?: string; folder_id?: string | null;
+  yue2?: Yue2Options;
 }
+export type Yue2Sampling = Partial<Record<"temperature" | "top_p" | "top_k" | "repetition_penalty" | "penalty_window" | "min_tokens" | "max_tokens", number>>;
+export interface Yue2Options {
+  lm_seed?: number;
+  steps?: number;
+  cot?: "full" | "melody" | "off";
+  cfg_scale?: number;
+  peak_clip?: number;
+  abc?: string;
+  abc_sampling?: Yue2Sampling;
+  semantic_sampling?: Yue2Sampling;
+}
+export type OutputKind = "audio" | "midi";
 export interface Song {
   id: string; group_id: string; created_at: string; finished_at: string | null;
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
-  params: Generation; result_meta: Record<string, unknown> | null; file: string | null;
-  audio_missing: boolean;
+  params: Generation & { generation_profile?: { capabilities?: Partial<ModelAbilities> } }; result_meta: Record<string, unknown> | null; file: string | null;
+  engine?: string | null;
+  output_kind?: OutputKind; audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
 }
 export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
-export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number } }
+export interface SongPage { songs: Song[]; total: number }
+export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number }; audio_export?: { default_format: AudioFormat; formats: AudioFormat[] } }
 export type BackendReason = "cpu_requested" | "cpu_only" | "lm_selftest_failed" | "cuda_architecture_unsupported" | "cuda_initialization_failed";
 export interface ComponentBackend {
   state: "not_started" | "unconfirmed" | "confirmed" | "stopped";
@@ -55,7 +78,7 @@ export interface CudaStatus {
   state: "not_applicable" | "unsupported_build" | "unsupported_gpu" | "check_failed" | "driver_error" | "runtime_missing" | "cuda_failed" | "ready";
   download_bytes: number; details: string | null;
 }
-export interface Update { available: boolean; current: string; latest?: string; url?: string; notes?: string }
+export interface Update { native?: boolean; available: boolean; current: string; latest?: string; url?: string | null; notes?: string | null }
 export interface Model { file: string; estimated_bytes: number; sha256: string; kind: string }
 export interface Bootstrap {
   recommended_profiles: ModelSelection[];
@@ -72,15 +95,78 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "lm" | "synth" | "dit" | "vae" | "saving" | "title" | "title_download";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "complete";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
+  overall_percent?: number;
+  estimated_remaining_seconds?: number;
 }
 
 export interface ModelSelection { provider: string; synthesis: string; language: string }
+export interface HuggingFacePin {
+  source: { repository: string; revision: string; path: string };
+  bytes: number;
+  sha256: string;
+}
+export interface HuggingFaceCandidate {
+  pin: HuggingFacePin;
+  provider: string;
+  role: string;
+  family: string;
+  precision: string;
+  estimated_ram_bytes?: number | null;
+  selection: ModelSelection | null;
+}
+export interface HuggingFaceDiscovery {
+  candidates: HuggingFaceCandidate[];
+  unavailable_repositories: string[];
+}
+export type ModelRemoval = { kind: "file"; file: string } | { kind: "profile"; selection: ModelSelection };
+export interface ModelAbilities {
+  min_duration: number; max_duration: number; max_variants: number;
+  prompt: boolean; lyrics: boolean; lyrics_required: boolean; instrumental: boolean;
+  style_description?: boolean;
+  bpm: boolean; advanced: boolean; analysis: boolean;
+  reference_audio?: boolean;
+  yue2_options?: boolean;
+  max_seed?: number;
+  bars?: number[];
+  output_kind?: OutputKind;
+}
+export interface ProfileSource {
+  id: string; role: string; repository: string; revision: string; license: string; license_url: string;
+  source_url?: string;
+  gated?: boolean;
+}
+export interface ProfilePlatform {
+  os: string; arch: string; backend: string; minimum_ram_bytes: number; minimum_vram_bytes?: number | null;
+}
+interface ProfileRuntimeComponent { name: string; revision: string; source: string; license: string; license_url: string }
+export interface CatalogProfile {
+  selection: ModelSelection; name: string; files: string[]; capabilities: ModelAbilities;
+  estimated_ram_bytes: number;
+  acquisition?: "download" | "manual";
+  upstream_sources: ProfileSource[];
+  runtime: ProfileRuntimeComponent & { components?: ProfileRuntimeComponent[] };
+  usage: { model_use: string; redistribution: string; outputs: string; policy_url?: string; noncommercial_evaluation?: boolean };
+  platforms: ProfilePlatform[];
+  evaluation_platforms?: ProfilePlatform[];
+  runtime_note?: string;
+  expert_only?: boolean;
+  available: boolean; unavailable_reason?: string | null;
+  install_command?: string;
+}
+export interface ActiveGenerationProfile {
+  selection: ModelSelection; name: string; capabilities: ModelAbilities;
+  analysis_available?: boolean;
+  available: boolean; unavailable_reason?: string | null;
+}
 export interface CatalogModel {
-  file: string; provider: string; role: "synthesis" | "language" | "dependency"; family: string;
+  file: string; provider: string; role: "synthesis" | "language" | "dependency" | "weights" | "codec" | "tokenizer" | "config" | "license"; family: string;
+  category?: "llm" | "embedding";
   precision: string; estimated_bytes: number; sha256: string; recommended_steps: number | null; suggested_steps?: number | null;
   verified: boolean; present: boolean; partial_bytes: number;
+  source?: { repository: string; revision: string; path: string } | null;
+  hf_discovered?: boolean;
 }
 export interface TitleModel extends Model { verified: boolean; present: boolean; partial_bytes: number }
 export interface ModelCatalog {
@@ -89,12 +175,15 @@ export interface ModelCatalog {
   expert_mode: boolean; expert_families: string[];
   basic_models: { synthesis: string[]; language: string[] };
   recommended_profiles: ModelSelection[];
-  providers: { id: string; name: string; status: "available" | "planned"; adapter: string | null; source: string }[];
+  profiles?: CatalogProfile[];
+  providers: { id: string; name: string; status: "available" | "planned" | "preview"; adapter: string | null; source: string }[];
+  ace_step_available?: boolean;
   selection: ModelSelection; hardware: Bootstrap["hardware"]; free_bytes: number | null;
+  model_profiles?: Record<string, ModelSelection>;
   models_dir: string; busy: boolean;
 }
 
-export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior">>;
+export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior" | "update_stream">>;
 
 export interface ImportRequest { root: string; songs_source: string | null; songs_dir: string; allow_partial: boolean }
 export interface MissingAudio { id: string; title: string; file: string | null }
@@ -116,6 +205,10 @@ export interface GenerationPolicy {
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_steps: number;
   defaults: GenerationFormPreferences;
+  capabilities?: ModelAbilities;
+  analysis_available?: boolean;
+  available?: boolean;
+  unavailable_reason?: string | null;
 }
 
 /** Shared access switch for the native app and the HTTPS web app. */

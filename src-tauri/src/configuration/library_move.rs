@@ -56,7 +56,7 @@ pub(super) fn commit(
         };
         progress(update.clone());
         std::fs::create_dir_all(new)?;
-        for file in db.audio_files()? {
+        for file in db.result_files()? {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }

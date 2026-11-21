@@ -44,8 +44,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost ws://127.0.0.1:1420; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost audio-analysis: http://audio-analysis.localhost asset: http://asset.localhost ws://127.0.0.1:1420; media-src 'self' asset: http://asset.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": []
@@ -59,6 +59,14 @@
     ],
     "resources": {
       "resources/engine/": "engine/",
+      "resources/text2midi/text2midi.py": "text2midi/text2midi.py",
+      "resources/text2midi/decoder.py": "text2midi/decoder.py",
+      "resources/text2midi/vocab_remi.json": "text2midi/vocab_remi.json",
+      "resources/text2midi/LICENSE.upstream": "text2midi/LICENSE.upstream",
+      "resources/text2midi/LICENSE.vocab": "text2midi/LICENSE.vocab",
+      "resources/text2midi/NOTICE": "text2midi/NOTICE",
+      "resources/text2midi/install.sh": "text2midi/install.sh",
+      "resources/text2midi/requirements-macos-arm64-py312.txt": "text2midi/requirements-macos-arm64-py312.txt",
       "../LICENSE": "LICENSE",
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },

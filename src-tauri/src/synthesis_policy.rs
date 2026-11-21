@@ -1,6 +1,9 @@
 //! Model-free device detection, isolated from the GUI because GPU drivers can crash or hang.
 use crate::engine::backend_status::Backend as BackendKind;
-use crate::{catalog::Selection, form_preferences::GenerationFormPreferences};
+use crate::{
+    catalog::{GenerationCapabilities, Selection},
+    form_preferences::GenerationFormPreferences,
+};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command, sync::Mutex, time::Duration};
 
@@ -37,6 +40,10 @@ impl Detection {
 
 #[derive(Debug, Serialize)]
 pub struct Policy {
+    pub capabilities: Option<GenerationCapabilities>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analysis_available: Option<bool>,
+    pub available: bool,
     pub backend: Backend,
     pub probed_backend: Backend,
     /// Independently probed availability, never an unconfirmed inference observation.
@@ -62,6 +69,9 @@ pub fn policy(backend: Backend, selection: &Selection) -> Policy {
         .unwrap_or(80);
     let recommended_steps = recommended_steps(backend, steps);
     Policy {
+        capabilities: None,
+        analysis_available: None,
+        available: false,
         backend,
         probed_backend: backend,
         detected_backend: if backend == Backend::Cpu {
@@ -145,6 +155,10 @@ impl Probe {
         self.cached_detection().backend
     }
 
+    pub(crate) fn metal_available(&self, resources: &Path, refresh: bool) -> bool {
+        self.inspect_detection(resources, refresh).kind == BackendKind::Metal
+    }
+
     fn cached_detection(&self) -> Detection {
         if crate::hardware::cpu_only() {
             Detection::new(BackendKind::Cpu)
@@ -158,20 +172,24 @@ impl Probe {
     }
 
     pub fn inspect(&self, resources: &Path, refresh: bool) -> Backend {
+        self.inspect_detection(resources, refresh).backend
+    }
+
+    fn inspect_detection(&self, resources: &Path, refresh: bool) -> Detection {
         if crate::hardware::cpu_only() {
-            return Backend::Cpu;
+            return Detection::new(BackendKind::Cpu);
         }
         let mut cached = self.0.lock().unwrap();
         if !refresh {
-            if let Some(backend) = *cached {
-                return backend.backend;
+            if let Some(detection) = *cached {
+                return detection;
             }
         }
-        let backend = self
+        let detection = self
             .run(resources)
             .unwrap_or(Detection::new(BackendKind::Unknown));
-        *cached = Some(backend);
-        backend.backend
+        *cached = Some(detection);
+        detection
     }
 
     fn run(&self, resources: &Path) -> Option<Detection> {

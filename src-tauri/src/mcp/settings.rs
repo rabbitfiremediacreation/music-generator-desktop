@@ -3,6 +3,7 @@ use super::transport::{self, ConnectionFile, ConnectionInfo};
 use crate::{
     error::{message, Result},
     lan_tls,
+    paths::write_private,
     state::AppState,
 };
 use base64::Engine;
@@ -10,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     future::IntoFuture,
-    io::Write,
     net::{IpAddr, Ipv4Addr, TcpListener},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -162,18 +162,6 @@ struct Control {
     environment: Environment,
     current: Mutex<Current>,
     change: Arc<tokio::sync::Mutex<()>>,
-}
-
-pub(super) fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
-    // NamedTempFile is private on Unix and atomically replaces existing files on Windows too.
-    let mut temporary = tempfile::NamedTempFile::new_in(
-        path.parent()
-            .ok_or_else(|| message("Missing MCP settings directory"))?,
-    )?;
-    temporary.write_all(bytes)?;
-    temporary.as_file().sync_all()?;
-    temporary.persist(path).map_err(|error| error.error)?;
-    Ok(())
 }
 
 impl Control {

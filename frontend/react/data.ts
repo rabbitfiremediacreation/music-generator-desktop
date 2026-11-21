@@ -31,9 +31,21 @@ export function createAppQueryClient(attempt = 1) {
 
 export const bootstrapQuery = (attempt = 1) => queryOptions({ queryKey: queryKeys.bootstrap, queryFn: () => backend.bootstrap(attempt), gcTime: Infinity });
 export const settingsQuery = () => queryOptions({ queryKey: queryKeys.settings, queryFn: backend.settings });
+export const generationPolicyQuery = (selection: ModelSelection | null) => queryOptions({
+  queryKey: queryKeys.policy(selection),
+  queryFn: () => backend.generationPolicy(selection ?? undefined),
+});
 export const songsQuery = (filter: Filter) => queryOptions({ queryKey: queryKeys.songs(filter), queryFn: () => backend.songs(filter) });
+export function songPageQuery(filter: Filter, offset: number, limit: number) {
+  const scope = ["songs", "page", filter.q, filter.favorites, filter.group, filter.folder, limit] as const;
+  return queryOptions({
+    queryKey: [...scope, offset] as const,
+    queryFn: () => backend.songPage(filter, offset, limit),
+    placeholderData: (previous, query) => scope.every((part, index) => query?.queryKey[index] === part) ? previous : undefined,
+  });
+}
 export const foldersQuery = () => queryOptions({ queryKey: queryKeys.folders, queryFn: backend.folders });
-export const queueQuery = () => queryOptions({ queryKey: queryKeys.queue, queryFn: backend.queue });
+export const queueQuery = () => queryOptions({ queryKey: queryKeys.queue, queryFn: () => backend.queue() });
 
 export async function invalidateLibrary(client: QueryClient) {
   await Promise.all([queryKeys.songs(), ["song"], queryKeys.folders, queryKeys.queue].map(queryKey => client.invalidateQueries({ queryKey })));

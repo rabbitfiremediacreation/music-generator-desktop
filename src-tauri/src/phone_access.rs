@@ -4,7 +4,7 @@ use crate::{
     error::{message, Error, Result},
     lan_tls,
     state::AppState,
-    types::{GenerateRequest, Song, SongFilter},
+    types::{GenerateRequest, OutputKind, Song, SongFilter},
 };
 use axum::{
     body::{Body, Bytes},
@@ -410,10 +410,13 @@ fn router(remote: Remote) -> Router {
         .route("/api/health", get(health))
         .route("/api/songs", get(songs))
         .route("/api/songs/{id}", get(song).patch(patch_song))
+        .route("/api/songs/{id}/cancel", post(cancel_song))
         .route("/api/songs/{id}/audio", get(audio))
+        .route("/api/songs/{id}/midi", get(midi))
         .route("/api/pwa/library", get(pwa_library::get))
         .route("/api/folders", get(folders).post(create_folder))
         .route("/api/queue", get(queue))
+        .route("/api/generation-profile", get(generation_profile))
         .route("/api/generate", post(generate))
         .route(
             "/api/analyze",
@@ -593,6 +596,7 @@ fn failure(error: Error) -> Response {
         "audio_size" => "The audio file is larger than 60 MB.".to_string(),
         "audio_type" => "Only audio files (WAV, MP3, FLAC, M4A, OGG) can be analyzed.".to_string(),
         "mp3_failed" => "MP3 conversion failed.".to_string(),
+        "audio_conversion_failed" => "Audio conversion failed.".to_string(),
         other => other.to_string(),
     };
     detail(status, text)
@@ -654,12 +658,17 @@ fn flag(value: Option<&String>) -> bool {
 
 /// The phone needs a stream URL and plain metadata types, never local file paths.
 pub fn phone_song(song: &Song) -> Value {
-    let url = (song.status == "done" && song.path.is_some())
+    let url = (song.status == "done" && song.audio_path().is_some())
         .then(|| format!("/api/songs/{}/audio", song.id));
     let mut value = serde_json::to_value(song).unwrap_or_else(|_| json!({}));
     if let Some(object) = value.as_object_mut() {
         object.remove("path");
         object.insert("url".into(), json!(url));
+        if song.output_kind == OutputKind::Midi {
+            let midi_url = (song.status == "done" && song.path.is_some())
+                .then(|| format!("/api/songs/{}/midi", song.id));
+            object.insert("midi_url".into(), json!(midi_url));
+        }
     }
     if let Some(meta) = value.get_mut("result_meta").and_then(Value::as_object_mut) {
         for key in ["duration", "bpm"] {
@@ -753,6 +762,19 @@ async fn patch_song(
     }
 }
 
+async fn cancel_song(State(remote): State<Remote>, UrlPath(id): UrlPath<String>) -> Response {
+    let state = remote.state.clone();
+    match blocking(move || state.runtime.cancel_song(&id, || state.db.cancel_song(&id))).await {
+        Ok(cancelled) => {
+            if cancelled {
+                (remote.changed)();
+            }
+            Json(json!({"cancelled": cancelled})).into_response()
+        }
+        Err(error) => failure(error),
+    }
+}
+
 async fn folders(State(remote): State<Remote>) -> Response {
     let db = remote.state.db.clone();
     match blocking(move || db.folders()).await {
@@ -779,7 +801,17 @@ async fn create_folder(State(remote): State<Remote>, body: Bytes) -> Response {
 
 async fn queue(State(remote): State<Remote>) -> Response {
     let db = remote.state.db.clone();
-    match blocking(move || db.queue()).await {
+    let resources = remote.state.resources.clone();
+    match blocking(move || {
+        let mut queue = db.queue()?;
+        queue["audio_export"] = json!({
+            "default_format": db.settings()?.export_format,
+            "formats": crate::audio_export::available(&resources),
+        });
+        Ok(queue)
+    })
+    .await
+    {
         Ok(mut queue) => {
             queue["active"] = json!(remote.state.runtime.is_busy());
             queue["progress"] = json!(remote.state.runtime.progress());
@@ -789,10 +821,18 @@ async fn queue(State(remote): State<Remote>) -> Response {
     }
 }
 
+async fn generation_profile(State(remote): State<Remote>) -> Response {
+    match blocking(move || crate::admission::active_profile(&remote.state)).await {
+        Ok(profile) => ([(header::CACHE_CONTROL, "no-store")], Json(profile)).into_response(),
+        Err(error) => failure(error),
+    }
+}
+
 /// The web app's request shape, with the number types its iPhone client sends.
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct PhoneGeneration {
+    pub model_selection: Option<crate::catalog::Selection>,
     pub prompt: String,
     pub style: String,
     pub caption: String,
@@ -801,7 +841,9 @@ pub struct PhoneGeneration {
     pub keep_caption: bool,
     pub title: String,
     pub duration: f64,
+    pub ignore_recommended_duration: bool,
     pub bpm: f64,
+    pub bars: Option<u32>,
     pub keyscale: String,
     pub timesignature: String,
     pub vocal_language: String,
@@ -809,12 +851,14 @@ pub struct PhoneGeneration {
     pub variants: u32,
     pub inference_steps: f64,
     pub lm_temperature: Option<f64>,
+    pub yue2: Option<crate::types::Yue2Options>,
     pub folder_id: Option<String>,
 }
 
 impl Default for PhoneGeneration {
     fn default() -> Self {
         Self {
+            model_selection: None,
             prompt: String::new(),
             style: String::new(),
             caption: String::new(),
@@ -823,7 +867,9 @@ impl Default for PhoneGeneration {
             keep_caption: true,
             title: String::new(),
             duration: 0.0,
+            ignore_recommended_duration: false,
             bpm: 0.0,
+            bars: None,
             keyscale: String::new(),
             timesignature: String::new(),
             vocal_language: String::new(),
@@ -831,6 +877,7 @@ impl Default for PhoneGeneration {
             variants: 1,
             inference_steps: 0.0,
             lm_temperature: None,
+            yue2: None,
             folder_id: None,
         }
     }
@@ -839,13 +886,17 @@ impl Default for PhoneGeneration {
 impl PhoneGeneration {
     /// Map onto the desktop request; the desktop admission validates all limits afterwards.
     pub fn request(self, group_id: String) -> Result<GenerateRequest> {
+        if self.bars.is_some() && self.bpm.fract() != 0.0 {
+            return Err(message("Enter a whole-number BPM from 1 to 300"));
+        }
         let whole = |n: f64| {
             (n.is_finite() && n >= 0.0 && n <= f64::from(u32::MAX))
                 .then(|| n.round() as u32)
                 .ok_or_else(|| message("Invalid generation parameters"))
         };
         Ok(GenerateRequest {
-            model_selection: None,
+            model_selection: self.model_selection,
+            reference_audio: None,
             prompt: self.prompt,
             style: self.style,
             caption: self.caption,
@@ -854,7 +905,9 @@ impl PhoneGeneration {
             keep_caption: self.keep_caption,
             title: self.title,
             duration: self.duration,
+            ignore_recommended_duration: self.ignore_recommended_duration,
             bpm: whole(self.bpm)?,
+            bars: self.bars,
             keyscale: self.keyscale,
             timesignature: self.timesignature,
             vocal_language: self.vocal_language,
@@ -862,6 +915,7 @@ impl PhoneGeneration {
             variants: self.variants,
             inference_steps: whole(self.inference_steps)?,
             lm_temperature: self.lm_temperature,
+            yue2: self.yue2,
             group_id: Some(group_id),
             folder_id: self.folder_id.filter(|f| !f.is_empty()),
         })
@@ -904,19 +958,17 @@ async fn generate(State(remote): State<Remote>, body: Bytes) -> Response {
         let mut request = request;
         let settings = state.db.settings()?;
         let selection = crate::catalog::Selection::from_settings(&settings);
-        let policy =
-            state
-                .synthesis_probe
-                .session_policy(&state.resources, &selection, false, || {
-                    state.backend_status()
-                });
-        request.inference_steps = cpu_steps(
-            policy.backend,
-            settings.cpu_iteration_behavior,
-            request.inference_steps,
-            policy.legacy_inference_steps,
-        );
-        crate::admission::generate(&state, request)
+        let requested = request.model_selection.get_or_insert(selection);
+        if crate::catalog::capabilities(requested)?.advanced {
+            let policy = crate::admission::generation_policy(&state, &settings, requested, false)?;
+            request.inference_steps = cpu_steps(
+                policy.backend,
+                settings.cpu_iteration_behavior,
+                request.inference_steps,
+                policy.legacy_inference_steps,
+            );
+        }
+        crate::admission::generate_for_current_profile(&state, request)
     })
     .await;
     match result {
@@ -971,7 +1023,9 @@ fn content_type(path: &Path) -> &'static str {
         Some("mp3") => "audio/mpeg",
         Some("flac") => "audio/flac",
         Some("ogg") => "audio/ogg",
+        Some("aac") => "audio/aac",
         Some("m4a") => "audio/mp4",
+        Some("mid") => "audio/midi",
         _ => "application/octet-stream",
     }
 }
@@ -1012,32 +1066,65 @@ async fn audio(
         Ok(song) => song,
         Err(error) => return failure(error),
     };
-    let Some(source) = song.path.clone().filter(|_| song.status == "done") else {
+    let Some(source) = song.audio_path().filter(|_| song.status == "done") else {
         return detail(StatusCode::NOT_FOUND, "Not Found");
     };
     let download = flag(query.get("download"));
     let mut path = std::path::PathBuf::from(&source);
     if download {
-        let mp3 = match remote.state.db.settings() {
-            Ok(settings) => settings.export_format == "mp3",
+        use crate::audio_export::{self, AudioFormat};
+        let explicit = query.get("format");
+        let format = match explicit.map_or_else(
+            || {
+                remote
+                    .state
+                    .db
+                    .settings()
+                    .map(|settings| audio_export::legacy_format(&settings.export_format))
+            },
+            |format| AudioFormat::parse(format),
+        ) {
+            Ok(format) => format,
             Err(error) => return failure(error),
         };
-        if mp3 {
-            match crate::audio_export::mp3(
-                &remote.state.resources,
-                &remote.state.db.root,
-                &song.id,
-                &path,
-                &remote.state.runtime.cancellation(),
-            )
-            .await
-            {
-                Ok(converted) => path = converted,
-                Err(error) => return failure(error),
-            }
+        let resources = &remote.state.resources;
+        let root = &remote.state.db.root;
+        let cancel = remote.state.runtime.cancellation();
+        let converted = if explicit.is_none() && format == AudioFormat::Mp3 {
+            audio_export::mp3(resources, root, &song.id, &path, &cancel).await
+        } else {
+            audio_export::convert(resources, root, &song.id, &path, format, &cancel).await
+        };
+        match converted {
+            Ok(converted) => path = converted,
+            Err(error) => return failure(error),
         }
     }
-    let mut file = match tokio::fs::File::open(&path).await {
+    stream_song(&song, &path, &headers, download).await
+}
+
+async fn midi(
+    State(remote): State<Remote>,
+    UrlPath(id): UrlPath<String>,
+    headers: HeaderMap,
+) -> Response {
+    let db = remote.state.db.clone();
+    let song = match blocking(move || db.song(&id)).await {
+        Ok(song) => song,
+        Err(error) => return failure(error),
+    };
+    let Some(path) = song
+        .path
+        .as_deref()
+        .filter(|_| song.output_kind == OutputKind::Midi && song.status == "done")
+    else {
+        return detail(StatusCode::NOT_FOUND, "Not Found");
+    };
+    stream_song(&song, Path::new(path), &headers, true).await
+}
+
+async fn stream_song(song: &Song, path: &Path, headers: &HeaderMap, download: bool) -> Response {
+    let mut file = match tokio::fs::File::open(path).await {
         Ok(file) => file,
         Err(_) => return detail(StatusCode::NOT_FOUND, "Not Found"),
     };
@@ -1069,7 +1156,7 @@ async fn audio(
     }
     let mut response = Response::builder()
         .status(status)
-        .header(header::CONTENT_TYPE, content_type(&path))
+        .header(header::CONTENT_TYPE, content_type(path))
         .header(header::CONTENT_LENGTH, length)
         .header(header::ACCEPT_RANGES, "bytes");
     if status == StatusCode::PARTIAL_CONTENT {

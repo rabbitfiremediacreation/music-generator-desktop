@@ -1,10 +1,14 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import "../desktop-i18n";
+import "../download-format-i18n";
 import "../setup-i18n";
 import "../cuda-setup-i18n";
 import "../model-i18n";
 import "../model-browser-i18n";
+import "../model-profile-i18n";
+import "../yue2-profile-i18n";
 import "../model-inventory-i18n";
+import "../hugging-face-i18n";
 import "../expert-i18n";
 import "../title-i18n";
 import "../import-i18n";

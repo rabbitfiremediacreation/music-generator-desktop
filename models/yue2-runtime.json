@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/ServeurpersoCom/yue2.cpp.git",
+  "revision": "e646d5228911ae1b81ac2a261115a255848ce85f",
+  "ggml_revision": "ef4555b7aede4467a5de803b103615e0a5f30dd8",
+  "executable": "yue2/yue-synth",
+  "planner": "yue2/yue-plan",
+  "platform": "macos",
+  "arch": "arm64"
+}

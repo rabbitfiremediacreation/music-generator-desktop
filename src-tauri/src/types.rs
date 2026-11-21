@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use crate::engine::yue2::options::{
+    Planning as Yue2Planning, Sampling as Yue2Sampling, Yue2Options,
+};
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CpuIterationBehavior {
@@ -9,6 +13,15 @@ pub enum CpuIterationBehavior {
     #[serde(rename = "limit_30")]
     Limit30,
     Continue,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateStream {
+    #[default]
+    Stable,
+    Daily,
+    Develop,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +36,7 @@ pub struct Settings {
     pub dit: String,
     pub lm_device: String,
     pub export_format: String,
+    pub update_stream: UpdateStream,
     pub expert_mode: bool,
     pub cpu_iteration_behavior: CpuIterationBehavior,
     pub poll_interval: f64,
@@ -45,6 +59,7 @@ impl Default for Settings {
             dit: "standard".into(),
             lm_device: "auto".into(),
             export_format: "wav".into(),
+            update_stream: UpdateStream::Stable,
             expert_mode: false,
             cpu_iteration_behavior: CpuIterationBehavior::Ask,
             poll_interval: 1.5,
@@ -67,6 +82,8 @@ impl Settings {
 #[serde(default)]
 pub struct GenerateRequest {
     pub model_selection: Option<crate::catalog::Selection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_audio: Option<String>,
     pub prompt: String,
     pub style: String,
     pub caption: String,
@@ -75,7 +92,11 @@ pub struct GenerateRequest {
     pub keep_caption: bool,
     pub title: String,
     pub duration: f64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub ignore_recommended_duration: bool,
     pub bpm: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bars: Option<u32>,
     pub keyscale: String,
     pub timesignature: String,
     pub vocal_language: String,
@@ -83,6 +104,8 @@ pub struct GenerateRequest {
     pub variants: u32,
     pub inference_steps: u32,
     pub lm_temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yue2: Option<Yue2Options>,
     pub group_id: Option<String>,
     pub folder_id: Option<String>,
 }
@@ -91,6 +114,7 @@ impl Default for GenerateRequest {
     fn default() -> Self {
         Self {
             model_selection: None,
+            reference_audio: None,
             prompt: String::new(),
             style: String::new(),
             caption: String::new(),
@@ -99,7 +123,9 @@ impl Default for GenerateRequest {
             keep_caption: true,
             title: String::new(),
             duration: 0.0,
+            ignore_recommended_duration: false,
             bpm: 0,
+            bars: None,
             keyscale: String::new(),
             timesignature: String::new(),
             vocal_language: String::new(),
@@ -107,8 +133,40 @@ impl Default for GenerateRequest {
             variants: 1,
             inference_steps: 0,
             lm_temperature: None,
+            yue2: None,
             group_id: None,
             folder_id: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputKind {
+    #[default]
+    Audio,
+    Midi,
+}
+
+impl OutputKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Audio => "audio",
+            Self::Midi => "midi",
+        }
+    }
+
+    pub fn is_audio(&self) -> bool {
+        *self == Self::Audio
+    }
+}
+
+impl rusqlite::types::FromSql for OutputKind {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        match value.as_str()? {
+            "audio" => Ok(Self::Audio),
+            "midi" => Ok(Self::Midi),
+            _ => Err(rusqlite::types::FromSqlError::InvalidType),
         }
     }
 }
@@ -129,12 +187,21 @@ pub struct Song {
     pub params: Value,
     pub result_meta: Option<Value>,
     pub engine: Option<String>,
+    #[serde(default)]
+    pub output_kind: OutputKind,
     pub file: Option<String>,
+    /// The result file was missing when the library was imported.
     pub audio_missing: bool,
     pub favorite: bool,
     pub folder_id: Option<String>,
     pub letter: String,
     pub path: Option<String>,
+}
+
+impl Song {
+    pub fn audio_path(&self) -> Option<&str> {
+        self.path.as_deref().filter(|_| self.output_kind.is_audio())
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -145,6 +212,12 @@ pub struct SongFilter {
     pub favorites: bool,
     pub group: String,
     pub folder: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SongPage {
+    pub songs: Vec<Song>,
+    pub total: u64,
 }
 
 pub fn now() -> String {

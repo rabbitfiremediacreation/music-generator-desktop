@@ -1,20 +1,31 @@
 use crate::{
     engine::progress::Progress,
-    error::{Error, Result},
+    error::{message, Error, Result},
     runtime::{Operation, OperationKind},
     state::AppState,
+    types::OutputKind,
 };
 use std::{future::Future, path::PathBuf, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio_util::sync::CancellationToken;
+
+mod extended;
+mod progress;
+use progress::{render_percent, RENDERED_PERCENT};
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod magenta_qa;
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod yue2_tests;
 
 fn report_progress<R: Runtime>(
     state: &AppState,
     app: &AppHandle<R>,
     operation: &Operation,
     progress: Progress,
+    percent: u8,
 ) {
-    if let Some(update) = operation.report(progress) {
+    if let Some(update) = operation.report(progress, percent) {
         let _ = state
             .db
             .progress(&update.job_id, &update.progress.message());
@@ -77,7 +88,9 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
         if state.db.song(&sid).is_ok_and(|s| s.status != "running") {
             cancel.cancel();
         }
-        report_progress(&state, &app, &operation, Progress::new("starting"));
+        let report =
+            |progress, percent| report_progress(&state, &app, &operation, progress, percent);
+        report(Progress::new("starting"), 0);
         state.changed(&app);
         let _awake = crate::power::KeepAwake::new();
         let outcome = async {
@@ -85,60 +98,96 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             // Admission checks Expert Mode for new jobs and retries. Already accepted rows
             // keep running after it is disabled, including rows restored after restart.
             // New jobs carry an immutable model snapshot. Legacy rows remain untouched.
-            if let Some(selection) = params.get("model_selection").filter(|v| !v.is_null()) {
-                let selection: crate::catalog::Selection =
-                    serde_json::from_value(selection.clone())?;
-                selection.apply(&mut settings)?;
-            }
-            let selection = crate::catalog::Selection::from_settings(&settings);
-            let progress = |progress: Progress| {
-                report_progress(&state, &app, &operation, progress);
+            let selection = crate::admission::profile_for_song(&settings, &params)?;
+            selection.apply(&mut settings)?;
+            crate::admission::validate_saved_profile(&selection, &params)?;
+            let ace_step = selection.provider == "ace-step";
+            let has_token_stages = ace_step || selection.provider == "yue2";
+            let render_progress = |progress: Progress, section, sections| {
+                let percent = render_percent(&progress, section, sections, has_token_stages);
+                report(progress, percent);
             };
             // Existing installations lazily fetch only this shared model for blank titles.
             // Explicit titles require neither a title download nor title inference.
             let title = state.db.song(&sid)?.title;
-            let title_preparation_error = prepare_title(title.as_deref(), &cancel, || async {
-                report_progress(&state, &app, &operation, Progress::new("title_download"));
-                crate::titles::install(
-                    &state.db.root,
-                    std::path::Path::new(&settings.models_dir),
-                    &cancel,
-                    |p| {
-                        let _ = app.emit("model-download-progress", p);
-                    },
-                )
-                .await?;
-                let _ = app.emit("models-changed", ());
-                Ok(())
-            })
-            .await?;
-            let (audio, ext, mut meta) = {
-                let client = state.start_engine(&operation, &settings).await?;
-                client
-                    .generate(
-                        &params,
-                        &selection.language,
-                        &selection.synthesis,
+            let title_preparation_error = if ace_step {
+                prepare_title(title.as_deref(), &cancel, || async {
+                    report(Progress::new("title_download"), 1);
+                    crate::titles::install(
+                        &state.db.root,
+                        std::path::Path::new(&settings.models_dir),
                         &cancel,
-                        progress,
+                        |p| {
+                            let _ = app.emit("model-download-progress", p);
+                        },
+                    )
+                    .await?;
+                    let _ = app.emit("models-changed", ());
+                    Ok(())
+                })
+                .await?
+            } else {
+                None
+            };
+            let capabilities = crate::catalog::capabilities(&selection)?;
+            let output_kind = capabilities.output_kind;
+            let (bytes, ext, mut meta) =
+                if let Some(duration) = extended::duration(&params, &capabilities) {
+                    let (state, operation, settings, selection) =
+                        (&state, &operation, &settings, &selection);
+                    extended::generate(
+                        duration,
+                        &params,
+                        &capabilities,
+                        &cancel,
+                        |part, step, total_steps| async move {
+                            render_progress(
+                                Progress {
+                                    step: Some(step),
+                                    total_steps: Some(total_steps),
+                                    ..Progress::new("starting")
+                                },
+                                step,
+                                total_steps,
+                            );
+                            state
+                                .generate(operation, settings, selection, &part, |progress| {
+                                    render_progress(progress, step, total_steps)
+                                })
+                                .await
+                        },
                     )
                     .await?
+                } else {
+                    state
+                        .generate(&operation, &settings, &selection, &params, |progress| {
+                            render_progress(progress, 1, 1)
+                        })
+                        .await?
+                };
+            let expected_format = match output_kind {
+                OutputKind::Audio => ext != "mid",
+                OutputKind::Midi => ext == "mid",
             };
-            if state
-                .db
-                .song(&sid)?
-                .title
-                .as_deref()
-                .unwrap_or("")
-                .trim()
-                .is_empty()
+            if !expected_format {
+                return Err(message("The model returned an unexpected file type"));
+            }
+            if output_kind.is_audio()
+                && state
+                    .db
+                    .song(&sid)?
+                    .title
+                    .as_deref()
+                    .unwrap_or("")
+                    .trim()
+                    .is_empty()
             {
                 let title_result = match title_preparation_error {
                     Some(error) => Err(error),
                     None => {
                         // Free resident music weights before loading the CPU-only text model.
                         state.stop_engine();
-                        report_progress(&state, &app, &operation, Progress::new("title"));
+                        report(Progress::new("title"), RENDERED_PERCENT);
                         let input = crate::titles::request(&params, &meta);
                         crate::titles::generate(
                             &state.resources,
@@ -146,7 +195,7 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                             std::path::Path::new(&settings.models_dir),
                             &input,
                             &cancel,
-                            progress,
+                            |progress| report(progress, RENDERED_PERCENT),
                         )
                         .await
                     }
@@ -163,20 +212,36 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
                     }
                 }
             }
-            report_progress(&state, &app, &operation, Progress::new("saving"));
+            let saving = if output_kind.is_audio() {
+                "saving"
+            } else {
+                "saving_midi"
+            };
+            report(Progress::new(saving), 98);
             let dir = PathBuf::from(settings.songs_dir);
             tokio::fs::create_dir_all(&dir).await?;
             let filename = format!("{sid}.{ext}");
             let path = dir.join(&filename);
             let temp = dir.join(format!("{sid}.part"));
-            tokio::fs::write(&temp, audio).await?;
+            tokio::fs::write(&temp, bytes).await?;
             if cancel.is_cancelled() {
                 let _ = tokio::fs::remove_file(temp).await;
                 return Err(Error::Cancelled);
             }
             tokio::fs::rename(&temp, &path).await?;
-            if !state.db.finish(&sid, &filename, &meta)? {
-                let _ = tokio::fs::remove_file(path).await;
+            let engine = if ace_step {
+                "acestep_cpp"
+            } else {
+                &selection.provider
+            };
+            let finish = state
+                .db
+                .finish_output(&sid, &filename, &meta, engine, output_kind);
+            if !matches!(finish, Ok(true)) {
+                let _ = tokio::fs::remove_file(&path).await;
+            }
+            if finish? {
+                report(Progress::new("complete"), 100);
             }
             Ok::<_, Error>(())
         }
@@ -239,3 +304,10 @@ mod tests {
         assert!(matches!(result, Err(Error::Cancelled)));
     }
 }
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+mod text2midi_acceptance;
+
+#[cfg(all(test, target_os = "macos", target_arch = "aarch64"))]
+#[path = "jobs/heartmula_hardware.rs"]
+mod heartmula_hardware;

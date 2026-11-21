@@ -23,6 +23,7 @@ export function resetDesktop() {
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "get_settings") return saved();
     if (name === "model_catalog") return structuredClone(catalogFixture);
+    if (name === "discover_hugging_face_models") return { candidates: [], unavailable_repositories: [] };
     if (name === "select_models" || name === "use_models") return args.selection;
     if (name === "generation_policy") return { recommended_steps: 30 };
   });

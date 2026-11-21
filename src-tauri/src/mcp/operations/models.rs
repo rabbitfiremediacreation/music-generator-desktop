@@ -15,6 +15,7 @@ pub(super) fn select<R: tauri::Runtime>(
     selection: Selection,
 ) -> Result<Value> {
     let _operation = state.runtime.try_begin(OperationKind::Models)?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     catalog::activate_cached_profile(&state.db, &selection, crate::hardware::inspect())?;
     state.stop_engine();
     changed(state, app);
@@ -32,6 +33,7 @@ pub(super) fn install<R: tauri::Runtime>(
         &selection,
         crate::hardware::inspect(),
     )?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     let cancel = operation.cancellation();
     let task = tasks::for_app(app).begin("install_models", cancel.clone())?;
     let result = task.accepted();

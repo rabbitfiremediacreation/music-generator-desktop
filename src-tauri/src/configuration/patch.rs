@@ -1,6 +1,6 @@
 use crate::{
     error::{message, Result},
-    types::Settings,
+    types::{Settings, UpdateStream},
 };
 use std::path::Path;
 
@@ -8,6 +8,7 @@ use std::path::Path;
 #[serde(default)]
 pub struct SettingsPatch {
     pub expert_mode: Option<bool>,
+    pub update_stream: Option<UpdateStream>,
     pub cpu_iteration_behavior: Option<crate::types::CpuIterationBehavior>,
     pub lm_device: Option<String>,
     pub export_format: Option<String>,
@@ -18,7 +19,9 @@ pub struct SettingsPatch {
 
 impl SettingsPatch {
     pub(super) fn preferences_only(&self) -> bool {
-        (self.expert_mode.is_some() || self.cpu_iteration_behavior.is_some())
+        (self.expert_mode.is_some()
+            || self.cpu_iteration_behavior.is_some()
+            || self.update_stream.is_some())
             && self.lm_device.is_none()
             && self.export_format.is_none()
             && self.timeout_minutes.is_none()
@@ -39,10 +42,19 @@ impl SettingsPatch {
         if let Some(behavior) = self.cpu_iteration_behavior {
             settings.cpu_iteration_behavior = behavior;
         }
+        if let Some(stream) = self.update_stream {
+            settings.update_stream = stream;
+        }
         if let Some(device) = self.lm_device {
             settings.lm_device = device;
         }
         if let Some(format) = self.export_format {
+            let selected = crate::audio_export::AudioFormat::parse(&format)?;
+            if format != settings.export_format
+                && !crate::audio_export::available(resources).contains(&selected)
+            {
+                return Err(message("audio_export_format_unavailable"));
+            }
             settings.export_format = format;
         }
         if let Some(timeout) = self.timeout_minutes {
@@ -66,10 +78,6 @@ impl SettingsPatch {
                 settings.expert_mode,
             )?;
         }
-        if settings.export_format == "mp3" && !crate::audio_export::codec_path(resources).is_file()
-        {
-            return Err(message("mp3_failed"));
-        }
         if settings.synthesis_model.is_empty()
             && settings.dit == "xl"
             && !Path::new(&settings.models_dir)
@@ -86,9 +94,7 @@ pub fn validate_settings(settings: &Settings) -> Result<()> {
     if !["auto", "cpu"].contains(&settings.lm_device.as_str()) {
         return Err(message("Unknown language model device"));
     }
-    if !["wav", "mp3"].contains(&settings.export_format.as_str()) {
-        return Err(message("Unknown export format"));
-    }
+    crate::audio_export::AudioFormat::parse(&settings.export_format)?;
     if !settings.poll_interval.is_finite()
         || !(0.1..=60.0).contains(&settings.poll_interval)
         || !settings.timeout_minutes.is_finite()

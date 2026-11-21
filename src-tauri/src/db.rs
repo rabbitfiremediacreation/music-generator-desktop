@@ -1,6 +1,6 @@
 use crate::{
     error::{message, Result},
-    types::{id, now, GenerateRequest, Settings, Song, SongFilter},
+    types::{id, now, GenerateRequest, OutputKind, Settings, Song, SongFilter, SongPage},
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
@@ -13,6 +13,11 @@ pub struct Database {
     connection: Mutex<Connection>,
     pub root: PathBuf,
 }
+
+const SONG_FILTER: &str = "FROM songs WHERE (?1='' OR title LIKE ?2 OR caption LIKE ?2 OR lyrics LIKE ?2)
+    AND (?3=0 OR favorite=1) AND (?4='' OR group_id=?4)
+    AND (?5='' OR (?5='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders))) OR folder_id=?5)
+    AND (?6='' OR id=?6)";
 
 impl Database {
     pub fn open(root: &Path) -> Result<Self> {
@@ -38,6 +43,12 @@ impl Database {
             if !columns.iter().any(|c| c == "audio_missing") {
                 con.execute(
                     "ALTER TABLE songs ADD COLUMN audio_missing INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            if !columns.iter().any(|c| c == "output_kind") {
+                con.execute(
+                    "ALTER TABLE songs ADD COLUMN output_kind TEXT NOT NULL DEFAULT 'audio' CHECK (output_kind IN ('audio','midi'))",
                     [],
                 )?;
             }
@@ -78,7 +89,7 @@ impl Database {
 
     /// Update only this preference; callers serialize admission with configuration writers.
     pub fn set_expert_mode(&self, enabled: bool) -> Result<()> {
-        self.set_preferences(Some(enabled), None)
+        self.set_preferences(Some(enabled), None, None)
     }
 
     /// Update only provided preferences atomically, preserving unrelated configuration.
@@ -86,12 +97,14 @@ impl Database {
         &self,
         expert: Option<bool>,
         cpu: Option<crate::types::CpuIterationBehavior>,
+        stream: Option<crate::types::UpdateStream>,
     ) -> Result<()> {
         let mut con = self.lock();
         let tx = con.transaction()?;
         for (key, value) in [
             ("expert_mode", expert.map(serde_json::to_value)),
             ("cpu_iteration_behavior", cpu.map(serde_json::to_value)),
+            ("update_stream", stream.map(serde_json::to_value)),
         ] {
             if let Some(value) = value {
                 tx.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![key, value?.to_string()])?;
@@ -113,17 +126,65 @@ impl Database {
 
     pub fn songs(&self, filter: &SongFilter) -> Result<Vec<Song>> {
         let songs_dir = self.settings()?.songs_dir;
-        let con = self.lock();
-        let mut stmt = con.prepare("SELECT *, (SELECT COUNT(*) FROM songs older WHERE older.group_id=songs.group_id AND older.rowid<songs.rowid) AS variant_index, (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count FROM songs WHERE (?1='' OR title LIKE ?2 OR caption LIKE ?2 OR lyrics LIKE ?2) AND (?3=0 OR favorite=1) AND (?4='' OR group_id=?4) AND (?5='' OR (?5='none' AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders))) OR folder_id=?5) AND (?6='' OR id=?6) ORDER BY created_at DESC,rowid DESC LIMIT 500")?;
+        let mut songs = Self::read_songs(&self.lock(), filter, &songs_dir, 500, 0)?;
+        Self::enrich_songs(&mut songs);
+        Ok(songs)
+    }
+
+    /// Count and read a page from the same snapshot, including when the offset is past the end.
+    pub fn song_page(&self, filter: &SongFilter, offset: u32, limit: u32) -> Result<SongPage> {
+        if !(1..=100).contains(&limit) {
+            return Err(message("Song page size must be between 1 and 100"));
+        }
+        let songs_dir = self.settings()?.songs_dir;
+        let (total, mut songs) = {
+            let mut con = self.lock();
+            let tx = con.transaction()?;
+            let search = format!("%{}%", filter.q);
+            let total = tx.query_row(
+                &format!("SELECT COUNT(*) {SONG_FILTER}"),
+                Self::song_filter_params(filter, &search),
+                |row| row.get(0),
+            )?;
+            let songs = Self::read_songs(&tx, filter, &songs_dir, limit, offset)?;
+            tx.commit()?;
+            (total, songs)
+        };
+        Self::enrich_songs(&mut songs);
+        Ok(SongPage { songs, total })
+    }
+
+    fn song_filter_params<'a>(
+        filter: &'a SongFilter,
+        search: &'a dyn rusqlite::ToSql,
+    ) -> [&'a dyn rusqlite::ToSql; 6] {
+        [
+            &filter.q,
+            search,
+            &filter.favorites,
+            &filter.group,
+            &filter.folder,
+            &filter.id,
+        ]
+    }
+
+    fn read_songs(
+        con: &Connection,
+        filter: &SongFilter,
+        songs_dir: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<Song>> {
+        let mut stmt = con.prepare_cached(&format!(
+            "SELECT *,
+                (SELECT COUNT(*) FROM songs older WHERE older.group_id=songs.group_id AND older.rowid<songs.rowid) AS variant_index,
+                (SELECT COUNT(*) FROM songs siblings WHERE siblings.group_id=songs.group_id) AS variant_count
+             {SONG_FILTER} ORDER BY created_at DESC,rowid DESC LIMIT ?7 OFFSET ?8"
+        ))?;
+        let search = format!("%{}%", filter.q);
+        let [q, pattern, favorites, group, folder, id] = Self::song_filter_params(filter, &search);
         let rows = stmt.query_map(
-            params![
-                filter.q,
-                format!("%{}%", filter.q),
-                filter.favorites,
-                filter.group,
-                filter.folder,
-                filter.id
-            ],
+            params![q, pattern, favorites, group, folder, id, limit, offset],
             |row| {
                 let file: Option<String> = row.get("file")?;
                 let audio_missing: bool = row.get("audio_missing")?;
@@ -145,10 +206,11 @@ impl Database {
                     params: parse_json(row.get("params")?)?,
                     result_meta: meta.map(parse_json).transpose()?,
                     engine: row.get("engine")?,
+                    output_kind: row.get("output_kind")?,
                     path: file
                         .as_ref()
                         .filter(|_| !audio_missing)
-                        .and_then(|f| safe_song_path(Path::new(&songs_dir), f).ok())
+                        .and_then(|f| safe_song_path(Path::new(songs_dir), f).ok())
                         .map(|p| p.to_string_lossy().into()),
                     audio_missing,
                     file,
@@ -162,11 +224,12 @@ impl Database {
                 })
             },
         )?;
-        let mut songs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
-        drop(stmt);
-        drop(con);
-        for song in &mut songs {
-            if song.status != "done" {
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
+    fn enrich_songs(songs: &mut [Song]) {
+        for song in songs {
+            if song.status != "done" || !song.output_kind.is_audio() {
                 continue;
             }
             let mut metadata = song.result_meta.clone().unwrap_or_else(|| json!({}));
@@ -184,7 +247,6 @@ impl Database {
             }
             song.result_meta = Some(metadata);
         }
-        Ok(songs)
     }
 
     pub fn song(&self, sid: &str) -> Result<Song> {
@@ -198,13 +260,28 @@ impl Database {
     }
 
     pub fn enqueue(&self, req: &GenerateRequest) -> Result<Vec<String>> {
+        self.enqueue_with_profile(req, None)
+    }
+
+    pub(crate) fn enqueue_with_profile(
+        &self,
+        req: &GenerateRequest,
+        profile: Option<&crate::catalog::GenerationProfile>,
+    ) -> Result<Vec<String>> {
         if let Some(selection) = &req.model_selection {
             crate::catalog::required(selection)?;
         }
-        if !(1..=50).contains(&req.variants)
-            || !req.duration.is_finite()
-            || !(0.0..=600.0).contains(&req.duration)
-            || req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
+        let selection = if let Some(selection) = &req.model_selection {
+            selection.clone()
+        } else {
+            crate::catalog::Selection::from_settings(&self.settings()?)
+        };
+        let capabilities = crate::catalog::capabilities(&selection)?;
+        let duration = crate::generation_limits::validate_request(req, &capabilities)?;
+        if let Some(reference) = &req.reference_audio {
+            crate::reference_audio::resolve(&self.root, reference)?;
+        }
+        if req.inference_steps > crate::generation_limits::MAX_INFERENCE_STEPS
             || req.bpm > 300
             || req.seed.checked_add(req.variants as i64).is_none()
             || req
@@ -230,20 +307,27 @@ impl Database {
             return Err(message("Please enter a prompt or style"));
         }
         let group = req.group_id.clone().unwrap_or_else(id);
-        let lyrics = if req.instrumental {
-            "[Instrumental]"
+        let lyrics = if !capabilities.output_kind.is_audio() {
+            None
+        } else if req.instrumental && capabilities.lyrics {
+            Some("[Instrumental]")
         } else {
-            req.lyrics.trim()
+            Some(req.lyrics.trim())
         };
-        let selection = if let Some(selection) = &req.model_selection {
-            selection.clone()
-        } else {
-            crate::catalog::Selection::from_settings(&self.settings()?)
-        };
-        let steps = crate::generation_limits::effective_steps(
-            Some(u64::from(req.inference_steps)),
-            &selection.synthesis,
-        );
+        let mut params = serde_json::to_value(req)?;
+        params["duration"] = json!(duration);
+        if let Some(profile) = profile {
+            params["generation_profile"] = serde_json::to_value(profile)?;
+        }
+        if capabilities.advanced {
+            params["inference_steps"] = json!(crate::generation_limits::effective_steps(
+                Some(u64::from(req.inference_steps)),
+                &selection.synthesis,
+            ));
+            params["use_cot_caption"] = json!(!req.keep_caption);
+        }
+        params["caption"] = json!(caption);
+        params["lyrics"] = json!(lyrics.unwrap_or_default());
         let mut con = self.lock();
         let tx = con.transaction()?;
         let folder = req.folder_id.as_ref().filter(|f| {
@@ -254,20 +338,21 @@ impl Database {
                 > 0
         });
         let mut ids = Vec::new();
+        let random_seed_range = capabilities
+            .max_seed
+            .map_or(i32::MAX as u128, |maximum| u128::from(maximum) + 1);
         for i in 0..req.variants {
             let sid = id();
             let seed = if req.seed < 0 {
-                (uuid::Uuid::new_v4().as_u128() % (i32::MAX as u128)) as i64
+                (uuid::Uuid::new_v4().as_u128() % random_seed_range) as i64
             } else {
                 req.seed + i as i64
             };
-            let mut p = serde_json::to_value(req)?;
-            p["inference_steps"] = json!(steps);
-            p["caption"] = json!(caption);
-            p["lyrics"] = json!(lyrics);
-            p["seed"] = json!(seed);
-            p["use_cot_caption"] = json!(!req.keep_caption);
-            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,p.to_string(),folder])?;
+            params["seed"] = json!(seed);
+            if req.yue2.as_ref().and_then(|options| options.lm_seed) == Some(-1) {
+                params["yue2"]["lm_seed"] = json!(uuid::Uuid::new_v4().as_u128() as u32);
+            }
+            tx.execute("INSERT INTO songs(id,group_id,created_at,status,title,caption,lyrics,seed,params,folder_id,output_kind) VALUES(?1,?2,?3,'queued',?4,?5,?6,?7,?8,?9,?10)", params![sid,group,now(),nonempty(&req.title),caption,lyrics,seed,params.to_string(),folder,capabilities.output_kind.as_str()])?;
             ids.push(sid);
         }
         tx.commit()?;
@@ -302,6 +387,14 @@ impl Database {
         )? > 0)
     }
 
+    pub(crate) fn pending_song_params(&self) -> Result<Vec<Value>> {
+        let con = self.lock();
+        let mut stmt =
+            con.prepare("SELECT params FROM songs WHERE status IN ('running','queued')")?;
+        let rows = stmt.query_map([], |row| parse_json(row.get(0)?))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn progress(&self, sid: &str, text: &str) -> Result<()> {
         self.lock().execute(
             "UPDATE songs SET message=?1 WHERE id=?2 AND status='running'",
@@ -311,7 +404,27 @@ impl Database {
     }
 
     pub fn finish(&self, sid: &str, file: &str, meta: &Value) -> Result<bool> {
-        let engine = "acestep_cpp";
+        self.finish_with_engine(sid, file, meta, "acestep_cpp")
+    }
+
+    pub fn finish_with_engine(
+        &self,
+        sid: &str,
+        file: &str,
+        meta: &Value,
+        engine: &str,
+    ) -> Result<bool> {
+        self.finish_output(sid, file, meta, engine, OutputKind::Audio)
+    }
+
+    pub fn finish_output(
+        &self,
+        sid: &str,
+        file: &str,
+        meta: &Value,
+        engine: &str,
+        output_kind: OutputKind,
+    ) -> Result<bool> {
         let mut meta = meta.clone();
         if meta["generated_title"]
             .as_str()
@@ -321,7 +434,7 @@ impl Database {
         {
             meta["generated_title"] = crate::random_titles::random_title().into();
         }
-        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty)])? == 1)
+        Ok(self.lock().execute("UPDATE songs SET status='done',message=NULL,audio_missing=0,file=?1,result_meta=?2,engine=?5,finished_at=?3,output_kind=?7,title=CASE WHEN title IS NULL OR trim(title)='' THEN COALESCE(?6,title) ELSE title END WHERE id=?4 AND status='running'", params![file, meta.to_string(), now(), sid, engine, meta["generated_title"].as_str().and_then(nonempty), output_kind.as_str()])? == 1)
     }
 
     pub fn fail(&self, sid: &str, error: &str) -> Result<()> {

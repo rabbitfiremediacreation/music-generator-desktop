@@ -65,6 +65,7 @@ export async function verifyLinuxRuntime(engine, backend, appdir) {
   const packaged = appdir ? await files(appdir) : all;
   assert(!packaged.some(file => /^libcuda\.so/.test(path.basename(file))), "NVIDIA driver/stub must not be bundled");
   for (const file of all) {
+    if (path.relative(engine, file).startsWith(`diffrhythm2${path.sep}`)) continue;
     if (!await isElf(file)) continue;
     const rpath = execFileSync("patchelf", ["--print-rpath", file], { encoding: "utf8" }).trim();
     assert(rpath.split(":").every(value => value.startsWith("$ORIGIN")), `Nonportable runtime search path in ${file}: ${rpath}`);

@@ -12,6 +12,9 @@ const suffixes = {
   "linux-x64-cuda": ["linux-x64-cuda.AppImage"],
 };
 
+export const releaseTargets = Object.freeze(Object.keys(suffixes));
+export const appcastName = target => `appcast-${target}.xml`;
+
 // Release tags must identify the exact version shared by all application manifests.
 export function validateReleaseVersion(tag, versions) {
   assert(versions.length === 3 && versions.every(version => typeof version === "string" && version.length > 0), "Missing application version");
@@ -42,9 +45,14 @@ export async function sha256(file) {
 }
 
 // Validate the entire platform set before allowing any release mutation.
-export async function validateAssets(tag, target, directory) {
+export async function validateAssets(tag, target, directory, { requireAppcast = false } = {}) {
   const names = expectedAssets(tag, target);
-  assert.deepEqual((await readdir(directory)).sort(), [...names].sort(), "Release files are missing or unexpected");
+  const actual = await readdir(directory);
+  if (target.startsWith("macos-")) {
+    const appcast = appcastName(target);
+    if (requireAppcast || actual.includes(appcast)) names.push(appcast, `${appcast}.sha256`);
+  }
+  assert.deepEqual(actual.sort(), [...names].sort(), "Release files are missing or unexpected");
   const assets = [];
   for (const name of names) {
     const file = path.join(directory, name);

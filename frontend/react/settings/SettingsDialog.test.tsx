@@ -17,8 +17,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 const settings = { ...setupFixture.settings, lm_device: "auto", cpu_iteration_behavior: "ask", timeout_minutes: 60, songs_dir: "/songs", export_format: "wav", expert_mode: false, mp3_available: true, recommended_profiles: [standard] } as Settings;
 const catalog = { ...source, expert_mode: false, recommended_profiles: [standard], selection: standard, hardware: { ...setupFixture.hardware, ram_bytes: 64 * 1024 ** 3 }, free_bytes: null, models_dir: "/models", busy: false,
+  profiles: [],
   title_model: { ...setupFixture.title_model, verified: true, present: true, partial_bytes: 0 },
-  models: source.models.map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
+  models: source.models.filter(model => model.provider === "ace-step").map(model => ({ ...model, verified: true, present: true, partial_bytes: 0 })),
 } as ModelCatalog;
 const callbacks = { onClose: vi.fn(), onBusyChange: vi.fn(), onMoveLibrary: vi.fn(), onLayoutChange: vi.fn() };
 const modelCallbacks = { onUse: vi.fn(), onManage: vi.fn(), onRecommendedSteps: vi.fn() };
@@ -65,7 +66,7 @@ it.each([["de", "Modelle und Hardware"], ["en", "Models and hardware"]])("offers
   expect(screen.getByRole("checkbox", { name: t("expert_mode") })).toBeTruthy();
   expect(screen.queryByRole("spinbutton")).toBeNull();
   expect(callbacks.onClose).not.toHaveBeenCalled();
-  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(await screen.findByRole("table", { name: t("models_music") })).toBeTruthy();
   expect(screen.queryByRole("searchbox")).toBeNull();
   expect(screen.queryByRole("button", { name: t("picker_choose") })).toBeNull();
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -143,14 +144,21 @@ it("retains failed draft edits, blocks duplicate submissions and supports an exp
   expect(mocks.saveSettings).toHaveBeenLastCalledWith({ timeout_minutes: 75 });
 });
 
-it("saves a changed CPU iteration preference and keeps live labels reactive", async () => {
+it("changes language immediately in Appearance and preserves other settings drafts", async () => {
   mocks.settings.mockResolvedValue({ ...settings, cpu_iteration_behavior: "continue" });
   render(view());
   const behavior = await screen.findByRole("combobox", { name: t("cpu_behavior_label") });
   expect((behavior as HTMLSelectElement).value).toBe("continue");
   fireEvent.change(behavior, { target: { value: "limit_30" } });
-  await act(async () => setLang("de"));
+  goTo("appearance");
+  const language = screen.getByRole<HTMLSelectElement>("combobox", { name: "Language" });
+  expect(language.value).toBe("en");
+  fireEvent.change(language, { target: { value: "de" } });
   expect(screen.getByRole("heading", { name: "Einstellungen" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Sprache" })).toBe(language);
+  expect(localStorage.getItem("ui_lang")).toBe("de");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  goTo("generation");
   expect((screen.getByRole("combobox", { name: t("cpu_behavior_label") }) as HTMLSelectElement).value).toBe("limit_30");
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ cpu_iteration_behavior: "limit_30" }));
@@ -169,7 +177,11 @@ it("discards a native folder reply belonging to a previously closed dialog", asy
   await act(async () => chosen("/old-dialog-choice"));
   expect((folder as HTMLInputElement).value).toBe("/songs");
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem("desktop_theme");
+  delete document.documentElement.dataset.theme;
+});
 
 it("saves the device immediately while leaving other edits for explicit save", async () => {
   render(view());
@@ -305,7 +317,7 @@ it("preserves edits across pages and saves the shared draft from any page", asyn
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
   expect(screen.getByText(t("settings_unsaved"))).toBeTruthy();
   goTo("library");
-  fireEvent.change(screen.getByRole("combobox", { name: t("exp") }), { target: { value: "mp3" } });
+  fireEvent.change(screen.getByRole("combobox", { name: t("download_default") }), { target: { value: "mp3" } });
   goTo("models");
   fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
   goTo("about");
@@ -314,7 +326,7 @@ it("preserves edits across pages and saves the shared draft from any page", asyn
   goTo("generation");
   expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("75");
   goTo("library");
-  expect((screen.getByRole("combobox", { name: t("exp") }) as HTMLSelectElement).value).toBe("mp3");
+  expect((screen.getByRole("combobox", { name: t("download_default") }) as HTMLSelectElement).value).toBe("mp3");
   fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
   await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ timeout_minutes: 75, export_format: "mp3", expert_mode: true }));
 });
@@ -353,6 +365,27 @@ it("applies the appearance layout immediately and dismisses with the close contr
   expect(callbacks.onClose).toHaveBeenCalledOnce();
 });
 
+it("offers all eight themes and saves a selection immediately without committing the settings draft", async () => {
+  const dialog = render(view());
+  fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
+  goTo("appearance");
+  const themes = within(screen.getByRole("group", { name: "Theme" }));
+  const names = ["Classic", "Light", "Dark", "Pink", "Green", "Triphop", "Techno Bunker", "Lofi"];
+  expect(themes.getAllByRole("radio")).toEqual(names.map(name => themes.getByRole("radio", { name })));
+  expect(themes.getByRole<HTMLInputElement>("radio", { name: "Classic" }).checked).toBe(true);
+  const light = themes.getByRole<HTMLInputElement>("radio", { name: "Light" });
+  fireEvent.click(light);
+  expect(light.checked).toBe(true);
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(localStorage.getItem("desktop_theme")).toBe("light");
+  goTo("generation");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton").value).toBe("75");
+  fireEvent.click(screen.getByRole("button", { name: t("cancel") }));
+  dialog.rerender(view(false));
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
+
 it("starts a reopened dialog on generation with a fresh settings draft", async () => {
   const mounted = render(view());
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
@@ -361,4 +394,22 @@ it("starts a reopened dialog on generation with a fresh settings draft", async (
   expect((await screen.findByRole("spinbutton") as HTMLInputElement).value).toBe("60");
   expect(screen.queryByText(t("settings_unsaved"))).toBeNull();
   expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
+});
+
+it("checks the selected update stream, clears the previous result and saves the stream", async () => {
+  mocks.checkUpdate.mockResolvedValue({ available: false, current: "0.2.0" });
+  render(view());
+  await screen.findByRole("spinbutton");
+  goTo("about");
+  const select = screen.getByRole<HTMLSelectElement>("combobox", { name: t("upd_stream") });
+  const check = screen.getByRole("button", { name: t("upd_check") });
+  expect(select.value).toBe("stable");
+  fireEvent.change(select, { target: { value: "daily" } });
+  fireEvent.click(check);
+  expect(await screen.findByText(t("upd_no_build"))).toBeTruthy();
+  expect(mocks.checkUpdate).toHaveBeenCalledWith("daily");
+  fireEvent.change(select, { target: { value: "develop" } });
+  expect(screen.queryByText(t("upd_no_build"))).toBeNull();
+  fireEvent.submit(screen.getByRole("button", { name: t("save") }).closest("form")!);
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ update_stream: "develop" }));
 });

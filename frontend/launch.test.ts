@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), start: vi.fn(), loaded: vi.fn(), loadFailure: false }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("./main", () => { mocks.loaded(); if (mocks.loadFailure) throw new Error("module failed"); return { startApp: mocks.start }; });
-beforeEach(() => { vi.resetModules(); vi.resetAllMocks(); mocks.loadFailure = false; mocks.invoke.mockImplementation(async name=>name==="startup_status"?{attempt:2}:true); });
+beforeEach(() => { vi.resetModules(); vi.resetAllMocks(); localStorage.clear(); delete document.documentElement.dataset.theme; mocks.loadFailure = false; mocks.invoke.mockImplementation(async name=>name==="startup_status"?{attempt:2}:true); });
 
 it("does not import or initialize the UI when startup is disallowed", async () => {
   mocks.invoke.mockImplementation(async name=>name==="startup_status"?{attempt:2}:false);
@@ -14,6 +14,15 @@ it("initializes the UI after startup permission", async () => {
   await import("./launch"); await vi.dynamicImportSettled();
   expect(mocks.start).toHaveBeenCalledOnce();
 });
+it.each([["lofi", "lofi"], ["unavailable-theme", "classic"], [null, "classic"]])(
+  "uses theme preference %s as %s before initializing the desktop",
+  async (saved, expected) => {
+    if (saved !== null) localStorage.setItem("desktop_theme", saved);
+    mocks.loaded.mockImplementationOnce(() => expect(document.documentElement.dataset.theme).toBe(expected));
+    await import("./launch"); await vi.dynamicImportSettled();
+    expect(mocks.start).toHaveBeenCalledOnce();
+  },
+);
 it("reports a failed UI initialization without depending on static screen elements", async () => {
   mocks.start.mockImplementationOnce(() => { throw new Error("module failed"); }); document.body.innerHTML = '<div id="root"></div>';
   await import("./launch"); await vi.dynamicImportSettled();

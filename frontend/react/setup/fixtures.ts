@@ -6,7 +6,7 @@ export const standard: ModelSelection = { provider: "ace-step", synthesis: "aces
 export const setupFixture: Bootstrap = {
   needs_setup: true, version: "0.1.2", data_dir: "/data", error: null, manifest, title_model: title.model,
   settings: {
-    cpu_iteration_behavior: "ask", models_dir: "/models", songs_dir: "/songs", lm_model: standard.language,
+    update_stream: "stable", cpu_iteration_behavior: "ask", models_dir: "/models", songs_dir: "/songs", lm_model: standard.language,
     expert_mode: false, dit: "standard", model_provider: standard.provider, synthesis_model: standard.synthesis,
     lm_device: "auto", export_format: "wav", poll_interval: 1.5, timeout_minutes: 30, mode: "single",
     vae_chunk: 256, tested_fingerprint: "", setup_complete: false,

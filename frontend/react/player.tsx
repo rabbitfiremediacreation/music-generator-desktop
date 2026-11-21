@@ -2,14 +2,26 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { Song } from "../types";
 import { audioTime } from "../song-result";
 import { backend } from "../backend";
+import { subscribeTheme } from "../desktop-theme";
 import { useI18n } from "./i18n";
+
+type WaveformColors = { waveColor: string; progressColor: string };
 
 interface Waveform {
   loadBlob(blob: Blob): Promise<void>; play(): Promise<void>; pause(): void; playPause(): Promise<void>;
   destroy(): void; on(event: string, callback: (error?: Error) => void): () => void; setVolume(volume: number): void;
   getCurrentTime(): number; getDuration(): number;
+  setOptions(options: WaveformColors): void;
 }
 declare global { interface Window { WaveSurfer: {create(options: Record<string, unknown>): Waveform} } }
+
+function waveformColors(): WaveformColors {
+  const css = getComputedStyle(document.documentElement);
+  return {
+    waveColor: css.getPropertyValue("--theme-wave").trim() || css.getPropertyValue("--border").trim() || "#2a2e38",
+    progressColor: css.getPropertyValue("--accent2").trim() || "#d1a75c",
+  };
+}
 
 function saved<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback; } catch { return fallback; }
@@ -76,10 +88,10 @@ export function Player() {
     const loadSequence = sequence;
     const version = ++loadSequence.current;
     setTime("0:00 / 0:00");
-    const css = getComputedStyle(document.documentElement);
     const instance = window.WaveSurfer.create({ container: waveform.current, height:44, barWidth:2, barGap:1, barRadius:2,
-      waveColor:css.getPropertyValue("--border").trim() || "#2a2e38", progressColor:css.getPropertyValue("--accent2").trim() || "#d1a75c", cursorWidth:0 });
+      ...waveformColors(), cursorWidth:0 });
     engine.current = instance;
+    const stopTheme = subscribeTheme(() => instance.setOptions(waveformColors()));
     const fail = (cause: unknown) => {
       if (version !== sequence.current) return;
       loadSequence.current++; playback.current = "error";
@@ -98,7 +110,7 @@ export function Player() {
     }).catch(fail);
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
-    return () => { loadSequence.current++; offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
+    return () => { loadSequence.current++; stopTheme(); offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
   }, [song, engine, sequence, playback, setPlaying, setError]);
   useEffect(() => {
     engine.current?.setVolume(muted ? 0 : volume);
@@ -107,7 +119,7 @@ export function Player() {
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,[role="button"],dialog,[contenteditable="true"]')) {
+      if (event.code === "Space" && active && !target?.closest('input,textarea,select,button,summary,[role="button"],dialog,[contenteditable="true"]')) {
         event.preventDefault(); if (song) play(song);
       }
     };
@@ -116,7 +128,7 @@ export function Player() {
   }, [active, song, play]);
   return <footer id="player" ref={footer} hidden={!song}>
     <div className="player-in">
-      <button id="playBtn" className="aktion round" aria-label={t("play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>
+      <button id="playBtn" className="aktion round" aria-label={t(playing ? "pause" : "play")} onClick={() => {if (song) play(song);}}>{playing ? "❚❚" : "▶"}</button>
       <div className="pmeta"><div id="pTitle" title={`Seed ${song?.seed ?? ""}`}>{song?.title || song?.caption}</div><div id="waveform" ref={waveform} /></div>
       <span id="pTime" className="time">{time}</span>
       <div className="vol" id="vol" data-level={muted || volume === 0 ? "off" : volume < .5 ? "low" : "high"} style={{"--v":volume} as CSSProperties}>

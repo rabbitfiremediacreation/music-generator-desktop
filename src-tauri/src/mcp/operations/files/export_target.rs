@@ -13,10 +13,32 @@ pub(super) struct Target {
 }
 
 impl Target {
-    pub fn new(state: &AppState, kind: &str, destination: &Path, overwrite: bool) -> Result<Self> {
+    pub fn new(
+        state: &AppState,
+        kind: &str,
+        id: Option<&str>,
+        destination: &Path,
+        overwrite: bool,
+    ) -> Result<Self> {
         let settings = state.db.settings()?;
+        let original_extension;
         let expected = match kind {
-            "audio" => settings.export_format.as_str(),
+            "audio" => match crate::audio_export::AudioFormat::parse(&settings.export_format)?
+                .extension()
+            {
+                Some(extension) => extension,
+                None => {
+                    let song = state.db.song(id.ok_or_else(|| message("Missing song"))?)?;
+                    original_extension = song
+                        .audio_path()
+                        .and_then(|path| Path::new(path).extension())
+                        .and_then(|extension| extension.to_str())
+                        .unwrap_or("wav")
+                        .to_ascii_lowercase();
+                    &original_extension
+                }
+            },
+            "midi" => "mid",
             "lyrics" => "txt",
             "zip" => "zip",
             _ => return Err(message("Unknown export kind")),
@@ -40,7 +62,7 @@ impl Target {
             .file_name()
             .ok_or_else(|| message("Missing export filename"))?;
         let destination = parent.join(filename);
-        // Export is never a way to overwrite the database, model weights or original library audio.
+        // Protect the database, model weights and original library files.
         for protected in [
             state.db.root.as_path(),
             Path::new(&settings.models_dir),
@@ -147,12 +169,12 @@ mod tests {
             crate::db::Database::open(&data).unwrap(),
             root.path().join("resources"),
         );
-        assert!(Target::new(&state, "lyrics", &data.join("result.txt"), true).is_err());
+        assert!(Target::new(&state, "lyrics", None, &data.join("result.txt"), true).is_err());
         #[cfg(unix)]
         {
             let link = root.path().join("alias");
             std::os::unix::fs::symlink(&data, &link).unwrap();
-            assert!(Target::new(&state, "lyrics", &link.join("result.txt"), true).is_err());
+            assert!(Target::new(&state, "lyrics", None, &link.join("result.txt"), true).is_err());
         }
     }
 }

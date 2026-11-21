@@ -3,6 +3,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Header } from "./Header";
+import { WindowBar } from "./desktop";
 import { GenerationAdmissionProvider } from "./generation/admission";
 import { GenerationForm } from "./generation/GenerationForm";
 import { BackendDetails } from "./setup/BackendDetails";
@@ -39,7 +40,7 @@ beforeEach(() => {
 afterEach(cleanup);
 function mountHeader(withGeneration = false) {
   const client = createAppQueryClient();
-  const rendered = render(<QueryClientProvider client={client}><I18nProvider><Header selection={null} onAnalysis={() => {}} onSettings={() => {}} />{withGeneration && <GenerationAdmissionProvider><GenerationForm selection={null} settingsBlocked={false} /></GenerationAdmissionProvider>}</I18nProvider></QueryClientProvider>);
+  const rendered = render(<QueryClientProvider client={client}><I18nProvider><WindowBar onClose={async () => {}} studioControls={{ selection: null, onSettings: () => {}, inert: false }} /><Header selection={null} onAnalysis={() => {}} />{withGeneration && <GenerationAdmissionProvider><GenerationForm selection={null} settingsBlocked={false} /></GenerationAdmissionProvider>}</I18nProvider></QueryClientProvider>);
   return { ...rendered, client };
 }
 function chip(): HTMLElement { return document.querySelector<HTMLElement>("#backendStatus")!; }
@@ -73,15 +74,15 @@ it("updates synthesis and removes observed devices after the engine stops or its
   view.update(undefined);
   expect(screen.getByRole("region").textContent).toContain("Klangerzeugung: Unbekannt");
 });
-it("keeps studio backend information compact, read-only and beside the language selector", async () => {
+it("shows compact, read-only backend information beside Settings in the title bar", async () => {
   currentStatus = { ...status, synthesis: { state: "confirmed", backend: "metal", device: "MTL0", reason: null } };
   mountHeader();
   await waitFor(() => expect(chip().dataset.backend).toBe("metal"));
   expect(chip().querySelector("details, summary, select, button")).toBeNull();
   expect(chip().textContent).toBe("RechenbackendMetal");
   expect(chip().getAttribute("aria-label")).toContain("Klangerzeugung: Metal · MTL0");
-  expect(document.querySelector("#uiLang")!.parentElement!.contains(chip())).toBe(true);
-  expect(document.querySelector("#uiLang")!.parentElement!.classList.contains("header-context")).toBe(true);
+  expect(chip().closest(".titlebar")).toBe(screen.getByRole("button", { name: t("settings_title") }).closest(".titlebar"));
+  expect(document.querySelector(".titlebar")?.contains(chip())).toBe(true);
 });
 it.each([["metal", "Metal"], ["vulkan", "Vulkan"], ["cuda", "CUDA"], ["cpu", "CPU"]] as const)("shows detected %s availability before execution without claiming a model has run", async (device, name) => {
   detected = device; currentStatus = { state: "not_started", synthesis: idle, language_model: idle };

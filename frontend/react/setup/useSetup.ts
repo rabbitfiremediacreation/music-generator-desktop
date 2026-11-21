@@ -9,13 +9,14 @@ import type { Bootstrap, DownloadProgress, SetupRequest } from "../../types";
 /** Setup keeps editable paths separate from debounced estimates and durable settings. */
 export function useSetup(bootstrap: Bootstrap, onReady?: () => void) {
   const client = useQueryClient();
-  const canUseXl = bootstrap.settings.expert_mode || bootstrap.recommended_profiles.some(profile => profile.synthesis.includes("-xl-"));
+  const aceRecommendations = bootstrap.recommended_profiles.filter(profile => profile.provider === "ace-step");
+  const canUseXl = bootstrap.settings.expert_mode || aceRecommendations.some(profile => profile.synthesis.includes("-xl-"));
   const [draft, setDraft] = useState<SetupRequest>(() => ({
     models_dir: bootstrap.settings.models_dir, songs_dir: bootstrap.settings.songs_dir,
     xl: canUseXl && selectionFromSettings(bootstrap.settings).synthesis.includes("-xl-"),
     lm: bootstrap.settings.lm_model.match(/-(0\.6B|1\.7B|4B)-/)?.[1] || bootstrap.hardware.recommended_lm,
   }));
-  const recommended = bootstrap.recommended_profiles.find(profile => profile.synthesis.includes("-xl-") === draft.xl);
+  const recommended = aceRecommendations.find(profile => profile.synthesis.includes("-xl-") === draft.xl);
   const lm = bootstrap.settings.expert_mode ? draft.lm : recommended ? modelLabel(recommended.language, false) : bootstrap.hardware.recommended_lm;
   const request = { ...draft, lm, models_dir: draft.models_dir.trim(), songs_dir: draft.songs_dir.trim() };
   const [paths, setPaths] = useState(() => ({ models_dir: request.models_dir, songs_dir: request.songs_dir }));
@@ -24,7 +25,7 @@ export function useSetup(bootstrap: Bootstrap, onReady?: () => void) {
     return () => clearTimeout(timer);
   }, [draft.models_dir, draft.songs_dir]);
   const debouncing = paths.models_dir !== request.models_dir || paths.songs_dir !== request.songs_dir;
-  const unsupported = !bootstrap.settings.expert_mode && !bootstrap.recommended_profiles.length;
+  const unsupported = !bootstrap.settings.expert_mode && !aceRecommendations.length;
   const estimate = useQuery({ queryKey: ["setup-estimate", { ...request, ...paths }], queryFn: () => backend.estimate({ ...request, ...paths }), networkMode: "always", enabled: !unsupported, retry: false });
   const policy = useQuery({ queryKey: ["generation-policy", null], queryFn: () => backend.generationPolicy(), networkMode: "always", retry: false });
   const progress = useQuery<DownloadProgress | null>({ queryKey: ["setup", "progress"], queryFn: async () => null, enabled: false, networkMode: "always" }).data;

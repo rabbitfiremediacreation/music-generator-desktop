@@ -44,7 +44,8 @@ export function useFormValues(selection: ModelSelection | null) {
   }, [write]);
   useEffect(() => {
     if (loaded.current || !preferences.isFetched || !policy.isFetched) return;
-    const numbers = preferences.data ?? policy.data?.defaults ?? DEFAULT_PREFERENCES;
+    const defaults = policy.data?.capabilities?.output_kind === "midi" ? DEFAULT_PREFERENCES : policy.data?.defaults;
+    const numbers = preferences.data ?? defaults ?? DEFAULT_PREFERENCES;
     latest.current = { ...latest.current, ...numbers }; render(latest.current);
     previous.current = JSON.stringify(numericValues(latest.current)); loaded.current = true;
     readFailed.current = preferences.isError; setFailed(preferences.isError); readyResolve.current();

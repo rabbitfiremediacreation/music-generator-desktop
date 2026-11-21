@@ -4,6 +4,7 @@ use crate::{
     types::Settings,
 };
 use std::path::Path;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 /// Exercise the real startup detector inside a signed bundle without opening user data or windows.
@@ -57,6 +58,11 @@ pub fn run(forbidden: &Path) -> Result<()> {
         let title = crate::titles::probe(&resources,&CancellationToken::new()).await?;
         if !title.contains("[Desktop Sandbox] Unselected file access denied") || !title.contains("music-title=ready") { return Err(message("Title runtime sandbox enforcement was not confirmed")); }
         println!("App Sandbox: native title runtime starts; unselected file access denied.");
+        verify_audiocraft(&resources).await?;
+        #[cfg(target_arch = "aarch64")]
+        verify_audio_cpp(&resources, &root).await?;
+        #[cfg(target_arch = "aarch64")]
+        verify_mimetic(&resources).await?;
         // Optional real-model acceptance; fixture must already be inside this app's container.
         if let Some(model)=std::env::var_os("MUSIC_TITLE_SMOKE_MODEL") {
             let pin=crate::titles::manifest();
@@ -76,6 +82,103 @@ pub fn run(forbidden: &Path) -> Result<()> {
     });
     let _ = std::fs::remove_dir_all(root);
     result
+}
+
+async fn verify_audiocraft(resources: &Path) -> Result<()> {
+    let executable = resources.join("engine/audiocraft/audiocraft-synth");
+    if !executable.is_file() {
+        return Ok(());
+    }
+    let mut launcher = tokio::process::Command::new(executable);
+    launcher
+        .arg("--self-test")
+        .env("PATH", "")
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(Duration::from_secs(60), launcher.output())
+        .await
+        .map_err(|_| message("AudioCraft runtime self-test timed out"))??;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success()
+        || String::from_utf8_lossy(&output.stdout).trim() != "audiocraft-synth/1"
+        || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
+    {
+        return Err(message(format!(
+            "AudioCraft runtime self-test failed: {stderr}"
+        )));
+    }
+    println!("App Sandbox: packaged AudioCraft starts with an empty PATH; unselected file access denied.");
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn verify_audio_cpp(resources: &Path, root: &Path) -> Result<()> {
+    let launcher = resources.join("engine/providers/audio.cpp/audiocpp_cli");
+    let pin: serde_json::Value =
+        serde_json::from_str(include_str!("../../../models/audio-cpp-runtime.json"))?;
+    let expected_version = format!("audio.cpp {}", pin["version"].as_str().unwrap_or_default());
+    probe_audio_cpp(&launcher, root, "--version", &expected_version).await?;
+    probe_audio_cpp(&launcher, root, "--check-soxr", "libsoxr-0.1.3").await?;
+    println!(
+        "App Sandbox: native audio.cpp launcher and SoXR work; unselected file access denied."
+    );
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn probe_audio_cpp(launcher: &Path, root: &Path, option: &str, expected: &str) -> Result<()> {
+    use crate::engine::process::OwnedProcess;
+
+    let log = root.join("logs").join(format!("audio-cpp{option}.log"));
+    let mut process = OwnedProcess::spawn_with_model_folder(
+        launcher,
+        &[option.into()],
+        false,
+        &log,
+        Some(&root.join("models")),
+    )?;
+    let status = tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            if let Some(status) = process.status()? {
+                return Ok::<_, crate::error::Error>(status);
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .map_err(|_| message("audio.cpp sandbox probe timed out"))??;
+    let log = std::fs::read_to_string(log)?;
+    if !status.success()
+        || !log.contains("[Desktop Sandbox] Unselected file access denied")
+        || !log.lines().any(|line| line == expected)
+    {
+        return Err(message(format!("audio.cpp sandbox probe failed: {log}")));
+    }
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
+async fn verify_mimetic(resources: &Path) -> Result<()> {
+    let mut command = tokio::process::Command::new(resources.join("engine/mimetic-synth"));
+    command.arg("--self-test").kill_on_drop(true);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(600), command.output())
+        .await
+        .map_err(|_| message("Mimetic A0 runtime test timed out"))??;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success()
+        || !stderr.contains("[Desktop Sandbox] Unselected file access denied")
+    {
+        return Err(message(format!(
+            "Mimetic A0 sandbox probe failed: {stderr}"
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let result: serde_json::Value =
+        serde_json::from_str(stdout.lines().last().unwrap_or_default())?;
+    if result["runtime"] != "mimetic-a0" {
+        return Err(message("Mimetic A0 runtime did not complete its self-test"));
+    }
+    println!("App Sandbox: Mimetic A0 starts with bundled Python; unselected file access denied.");
+    Ok(())
 }
 
 async fn verify_exports(resources: &Path, root: &Path) -> Result<()> {

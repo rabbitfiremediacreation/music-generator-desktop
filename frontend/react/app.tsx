@@ -12,6 +12,7 @@ import { bootstrapQuery, startupAttempt, queryKeys, settingsQuery } from "./data
 import { EventBridge } from "./events";
 import { useDesktop, WindowBar } from "./desktop";
 import { Header } from "./Header";
+import { useReferenceAudio } from "./audio/useReferenceAudio";
 import { Library } from "./library/Library";
 import { Player, PlayerProvider } from "./player";
 import { GenerationAdmissionProvider } from "./generation/admission";
@@ -56,6 +57,7 @@ function DesktopShell(){
   const bootstrap=useQuery(bootstrapQuery(startupAttempt(client))).data!;
   const settings=useQuery(settingsQuery());
   const [selection,setSelection]=useState<ModelSelection|null>(null),[layout,setLayout]=useState<Layout>(()=>{const value=stored("desktop_layout","auto");return value==="stack"||value==="side"?value:"auto";});
+  const reference=useReferenceAudio(selection);
   const [folder,setFolder]=useState(()=>stored("folder","")),[settingsOpen,setSettingsOpen]=useState(false),[settingsBusy,setSettingsBusy]=useState(false);
   const [settingsPage,setSettingsPage]=useState<SettingsPage>("generation"),[requestedModel,setRequestedModel]=useState<ModelSelection|null>(null);
   const [reuse,setReuse]=useState<{song:Song;revision:number}>(),[analysis,setAnalysis]=useState<{values:Record<string,unknown>;microphone:boolean;revision:number}>(),[recommendedSteps,setRecommendedSteps]=useState<{steps:number;revision:number}>();
@@ -97,20 +99,20 @@ function DesktopShell(){
   },[studio,libraryReady,formReady,modelsReady]);
   useEffect(()=>{
     if(!studio)return;
-    const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const selector=event.code==="KeyB"?"#libHeading":event.code==="KeyN"?'#genForm [name="prompt"]':null;if(selector){event.preventDefault();document.querySelector<HTMLElement>(selector)?.focus();}};
+    const keyboard=(event:KeyboardEvent)=>{if(!event.altKey||event.ctrlKey||event.metaKey)return;const target=event.code==="KeyB"?document.querySelector<HTMLElement>("#libHeading"):event.code==="KeyN"?document.querySelector<HTMLElement>('#genForm [name="prompt"]')??document.querySelector<HTMLElement>('#genForm [name="style"]'):null;if(target){event.preventDefault();target.focus();}};
     document.addEventListener("keydown",keyboard);return()=>document.removeEventListener("keydown",keyboard);
   },[studio]);
   const allowed=modelAllowed(selection??undefined,settings.data?.expert_mode??false,settings.data?.recommended_profiles??bootstrap.recommended_profiles);
   return <PlayerProvider><GenerationAdmissionProvider settingsBlocked={blocked}>
-    <WindowBar onClose={close}/><div className="glow" aria-hidden="true"/>
+    <WindowBar onClose={close} studioControls={studio?{selection,onSettings:()=>openSettings(),inert:closingAccepted}:undefined}/><div className="glow" aria-hidden="true"/>
     <SceneContext.Provider value={{bootstrap:{...bootstrap,settings:settings.data??bootstrap.settings},complete,back,ready:setupInitialized,importLibrary}}><Outlet/></SceneContext.Provider>
     {!bootstrap.needs_setup&&<main id="studio" hidden={!studio} inert={closingAccepted}>
       <div className={`wrap ${layout!=="stack"?"side":""}`}>
-        {studio&&<Header selection={selection} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})} onSettings={()=>openSettings()}/>}
+        {studio&&<Header selection={selection} reference={reference} blocked={blocked||closingAccepted} onAnalysis={(values,microphone)=>setAnalysis({values,microphone,revision:++intentRevision.current})}/>}
         <section className="card min-h-0" aria-labelledby="genHeading">
           <h2 id="genHeading" className="sr-only">{t("gen_heading")}</h2>
           <ModelControls selection={selection} selectionRevision={reuse?.revision} onSelectionChange={selectModel} onManage={manage} onOpenSettings={openModelSettings} onOpenManager={openModelSettings} onReady={modelsInitialized}/>
-          <GenerationForm selection={selection} onSelectionChange={selectModel} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
+          <GenerationForm selection={selection} reference={reference} onSelectionChange={selectModel} settingsBlocked={blocked||closingAccepted} modelAllowed={allowed} folderId={folder} reuse={reuse} analysis={analysis} recommendedSteps={recommendedSteps} onReady={formInitialized} onPreferencesFlush={registerFlush}/>
         </section>
         <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>setReuse({song,revision:++intentRevision.current})} onReady={libraryInitialized} onError={libraryFailed}/>
       </div><Player/>

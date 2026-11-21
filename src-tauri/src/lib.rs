@@ -2,6 +2,7 @@ pub mod admission;
 pub mod audio_export;
 pub mod audio_facts;
 pub mod audio_import;
+mod audio_upload;
 pub mod catalog;
 mod commands;
 pub mod configuration;
@@ -14,6 +15,7 @@ pub mod exports;
 pub mod form_preferences;
 pub mod generation_limits;
 pub mod hardware;
+mod hugging_face_token;
 pub mod import;
 mod jobs;
 mod lan_tls;
@@ -28,6 +30,7 @@ pub mod phone_access;
 pub mod power;
 mod process_output;
 mod random_titles;
+mod reference_audio;
 pub mod runtime;
 pub mod sandbox;
 pub mod setup;
@@ -49,6 +52,7 @@ pub fn run() {
     #[cfg(windows)]
     windows::configure_runtime();
     let app = tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("audio-analysis", audio_upload::handle)
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app
                 .get_webview_window("splash")
@@ -86,7 +90,14 @@ pub fn run() {
         )
         .setup(move |app| {
             #[cfg(target_os = "macos")]
-            menu::install(app)?;
+            {
+                use tauri::Listener;
+                menu::install(app)?;
+                let handle = app.handle().clone();
+                app.listen("settings-changed", move |_| {
+                    updates::macos::configure(&handle)
+                });
+            }
             #[cfg(target_os = "macos")]
             let root = sandbox::data_root();
             #[cfg(not(target_os = "macos"))]
@@ -96,7 +107,11 @@ pub fn run() {
                 .map(std::path::PathBuf::from)
                 .unwrap_or(root);
             let resources = if cfg!(debug_assertions) {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+                std::env::var_os("MUSIC_GENERATOR_DEV_RESOURCES_DIR")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| {
+                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+                    })
             } else {
                 app.path().resource_dir()?
             };
@@ -122,6 +137,7 @@ pub fn run() {
             commands::preview_import,
             commands::preview_library_move,
             commands::list_songs,
+            commands::list_song_page,
             commands::get_song,
             commands::read_song_audio,
             commands::generate,
@@ -144,7 +160,6 @@ pub fn run() {
             commands::get_generation_form_preferences,
             commands::generation_policy,
             commands::save_generation_form_preferences,
-            commands::analyze,
             commands::health,
             commands::export_file,
             commands::check_update,
@@ -153,10 +168,17 @@ pub fn run() {
             paths::dialog_directory,
             phone_access::phone_access_status,
             phone_access::set_phone_access,
-            audio_import::pick_audio_file,
+            audio_import::pick_and_analyze_audio,
+            reference_audio::pick_reference_audio,
             model_commands::model_catalog,
+            model_commands::hugging_face_token_status,
+            model_commands::set_hugging_face_token,
+            model_commands::discover_hugging_face_models,
+            model_commands::adopt_hugging_face_model,
             model_commands::use_models,
+            model_commands::verify_imported_models,
             model_commands::select_models,
+            model_commands::remove_model,
             model_commands::download_title_model,
             model_commands::cancel_model_download
         ])

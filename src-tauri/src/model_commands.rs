@@ -14,6 +14,53 @@ pub fn model_catalog(state: State<'_, Arc<AppState>>) -> Result<Value> {
     catalog_data(&state)
 }
 
+#[tauri::command]
+pub fn hugging_face_token_status(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+) -> Result<bool> {
+    if window.label() != "main" {
+        return Err(message("hf_token_read_failed"));
+    }
+    crate::hugging_face_token::configured(&state.db.root)
+}
+
+#[tauri::command]
+pub fn set_hugging_face_token(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    token: Option<String>,
+) -> Result<bool> {
+    if window.label() != "main" {
+        return Err(message("hf_token_write_failed"));
+    }
+    crate::hugging_face_token::set(&state.db.root, token.as_deref())
+}
+
+#[tauri::command]
+pub async fn discover_hugging_face_models(
+    state: State<'_, Arc<AppState>>,
+) -> Result<catalog::hugging_face::Discovery> {
+    let current = Selection::from_settings(&state.db.settings()?);
+    catalog::hugging_face::discover(&state.db.root, &current).await
+}
+
+#[tauri::command]
+pub async fn adopt_hugging_face_model(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    pin: catalog::hugging_face::Pin,
+    draft: Selection,
+) -> Result<Selection> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let settings = state.db.settings()?;
+    let selection =
+        catalog::hugging_face::adopt(&state.db.root, pin, &draft, settings.expert_mode).await?;
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    Ok(selection)
+}
+
 /// Share catalog discovery between the desktop interface and MCP without starting engines.
 pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     let settings = state.db.settings()?;
@@ -27,6 +74,7 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     )
     .backend;
     let mut result = serde_json::to_value(&catalog)?;
+    result["ace_step_available"] = json!(crate::engine::engine_path(&state.resources).is_file());
     result["models"] = Value::Array(
         catalog
             .models
@@ -51,9 +99,34 @@ pub(crate) fn catalog_data(state: &AppState) -> Result<Value> {
     );
     result["title_model"] = crate::titles::status(root, &verifier);
     result["selection"] = json!(Selection::from_settings(&settings));
+    result["model_profiles"] = json!(settings.model_profiles);
     result["expert_mode"] = json!(settings.expert_mode);
     let hardware = crate::hardware::inspect();
-    result["recommended_profiles"] = json!(catalog.recommended_profiles(hardware));
+    result["recommended_profiles"] =
+        json!(catalog.recommendations_for_build(hardware, &state.resources, &state.db.root));
+    result["profiles"] = Value::Array(
+        catalog
+            .profiles
+            .iter()
+            .map(|profile| {
+                let mut value = serde_json::to_value(profile).expect("profile serialization");
+                let availability =
+                    profile.ensure_runtime(&state.resources, &state.db.root, hardware);
+                value["available"] = json!(availability.is_ok());
+                value["unavailable_reason"] =
+                    json!(availability.err().map(|error| error.to_string()));
+                if profile.platform(hardware).is_ok() {
+                    if let Some(command) = profile
+                        .runtime
+                        .install_command(&state.resources, &state.db.root)
+                    {
+                        value["install_command"] = json!(command);
+                    }
+                }
+                value
+            })
+            .collect(),
+    );
     result["hardware"] = json!(hardware);
     result["free_bytes"] = json!(fs2::available_space(root).ok());
     result["models_dir"] = json!(settings.models_dir);
@@ -72,6 +145,7 @@ pub async fn use_models(
     let operation = state.runtime.try_begin(OperationKind::Models)?;
     let settings = state.db.settings()?;
     catalog::validate_activation(&settings, &selection, crate::hardware::inspect())?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     let cancel = operation.cancellation();
     // Stopping first releases resident model memory and refreshes the engine's file
     // registry on the next generation, including newly downloaded models.
@@ -88,6 +162,28 @@ pub async fn use_models(
     outcome
 }
 
+#[tauri::command]
+pub async fn verify_imported_models(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    selection: Selection,
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let outcome = catalog::verify_manual_profile(
+        &catalog::catalog(),
+        &state.db,
+        &selection,
+        &operation.cancellation(),
+        |p| {
+            let _ = app.emit("model-download-progress", p);
+        },
+    )
+    .await;
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    outcome
+}
+
 /// Creator drop-down: only activate an already verified local profile, without downloads.
 #[tauri::command]
 pub fn select_models(
@@ -96,12 +192,26 @@ pub fn select_models(
     selection: Selection,
 ) -> Result<Selection> {
     let operation = state.runtime.try_begin(OperationKind::Models)?;
+    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     catalog::activate_cached_profile(&state.db, &selection, crate::hardware::inspect())?;
     state.stop_engine();
     drop(operation);
     let _ = app.emit("models-changed", ());
     state.changed(&app);
     Ok(selection)
+}
+
+#[tauri::command]
+pub fn remove_model(
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+    target: catalog::ModelRemoval,
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let outcome = catalog::remove_installed(&state.db, &target, || state.stop_engine());
+    drop(operation);
+    let _ = app.emit("models-changed", ());
+    outcome
 }
 
 #[tauri::command]

@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use music_generator::{
-    download::{download_model, ensure_space, range_total},
+    download::{download_model, download_pinned_model, ensure_space, range_total},
     manifest::Model,
     verification::{ModelVerifier, Verification},
 };
@@ -283,4 +283,139 @@ fn disk_space_query_failures_include_the_destination() {
     let error = ensure_space(&missing, 0).unwrap_err().to_string();
     assert!(error.starts_with("Could not check free disk space"));
     assert!(error.contains(&missing.display().to_string()));
+}
+
+#[tokio::test]
+async fn pinned_files_reject_wrong_remote_size_and_resume_in_nested_folders() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut asset = model();
+    asset.file = "provider/checkpoint/model.gguf".into();
+    let partial = dir.path().join(format!("{}.part", asset.file));
+    std::fs::create_dir_all(partial.parent().unwrap()).unwrap();
+    std::fs::write(&partial, b"abc").unwrap();
+    let cancel = CancellationToken::new();
+    let client = client();
+    let mut verifier = ModelVerifier::open(dir.path());
+
+    let (wrong, wrong_task, _) =
+        server(StatusCode::PARTIAL_CONTENT, Some("bytes 3-5/7"), b"def").await;
+    assert!(download_pinned_model(
+        &client,
+        &wrong,
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {}
+    )
+    .await
+    .unwrap_err()
+    .to_string()
+    .contains("Unexpected download size"));
+    assert_eq!(std::fs::read(&partial).unwrap(), b"abc");
+    wrong_task.abort();
+
+    let (right, right_task, _) =
+        server(StatusCode::PARTIAL_CONTENT, Some("bytes 3-5/6"), b"def").await;
+    let target = download_pinned_model(
+        &client,
+        &right,
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert_eq!(target, dir.path().join(&asset.file));
+    assert!(verifier.is_verified(&target, &asset.sha256));
+    assert!(!partial.exists());
+    right_task.abort();
+
+    // A complete partial from an interruption during hashing can be verified offline.
+    std::fs::rename(&target, &partial).unwrap();
+    download_pinned_model(
+        &client,
+        "http://127.0.0.1:1",
+        dir.path(),
+        &asset,
+        &mut verifier,
+        &cancel,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert!(verifier.is_verified(&target, &asset.sha256));
+    assert!(!partial.exists());
+}
+
+#[tokio::test]
+#[ignore = "requires the MusicGen codec in AUDIOCRAFT_TEST_MODELS and access to Hugging Face"]
+async fn resumes_musicgen_codec_from_its_pinned_hugging_face_revision() {
+    use music_generator::catalog;
+    use std::{fs::File, io::Read, path::PathBuf, time::Duration};
+
+    let models = PathBuf::from(std::env::var_os("AUDIOCRAFT_TEST_MODELS").expect("model folder"));
+    let file = "audiocraft/musicgen-small/compression_state_dict.bin";
+    let asset = catalog::catalog()
+        .models
+        .into_iter()
+        .find(|asset| asset.file == file)
+        .unwrap();
+    let model = asset.download();
+    let url = asset.source.unwrap().url();
+    let offset = model.estimated_bytes - 1024 * 1024;
+    let dir = tempfile::tempdir().unwrap();
+    let part = dir.path().join(format!("{file}.part"));
+    std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+    let source = File::open(models.join(file)).unwrap();
+    assert_eq!(source.metadata().unwrap().len(), model.estimated_bytes);
+    assert_eq!(
+        std::io::copy(&mut source.take(offset), &mut File::create(&part).unwrap()).unwrap(),
+        offset
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap();
+    let response = client
+        .get(&url)
+        .header(reqwest::header::RANGE, format!("bytes={offset}-"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    let range = response.headers()[CONTENT_RANGE].to_str().unwrap();
+    assert_eq!(
+        range,
+        format!(
+            "bytes {offset}-{}/{}",
+            model.estimated_bytes - 1,
+            model.estimated_bytes
+        )
+    );
+    drop(response);
+
+    let mut verifier = ModelVerifier::open(dir.path());
+    let target = download_pinned_model(
+        &client,
+        &url,
+        dir.path(),
+        &model,
+        &mut verifier,
+        &CancellationToken::new(),
+        |progress| {
+            if progress.phase == "downloading" {
+                assert!(progress.downloaded >= offset);
+            }
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(target, dir.path().join(file));
+    assert_eq!(target.metadata().unwrap().len(), model.estimated_bytes);
+    assert!(verifier.is_verified(&target, &model.sha256));
+    assert!(!part.exists());
 }

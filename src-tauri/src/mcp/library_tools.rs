@@ -12,24 +12,53 @@ fn cpu_choice() -> Value {
     json!({"type": "string", "enum": ["limit_30", "continue"], "description": "One-call choice for more than 30 CPU/unknown-backend iterations when the saved behavior is Ask. Saved limit_30/continue preferences take precedence."})
 }
 
+fn yue2_options() -> Value {
+    let sampling = json!({"type": "object", "additionalProperties": false, "properties": {
+        "temperature": {"type": "number", "minimum": 0, "maximum": 5},
+        "top_p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "top_k": {"type": "integer", "minimum": 1, "maximum": i32::MAX},
+        "repetition_penalty": {"type": "number", "exclusiveMinimum": 0},
+        "penalty_window": {"type": "integer", "minimum": 1, "maximum": 100},
+        "min_tokens": {"type": "integer", "minimum": 0, "maximum": 32768},
+        "max_tokens": {"type": "integer", "minimum": 1, "maximum": 32768}
+    }});
+    json!({"type": ["object", "null"], "additionalProperties": false,
+        "description": "YuE2 score planning, token sampling and audio synthesis settings. Omit a field to use the model default. Use null to clear inherited options.",
+        "properties": {
+            "lm_seed": {"type": "integer", "minimum": -1, "maximum": u32::MAX, "description": "Omit to use the audio seed, -1 for an independent random seed, or fix a planning seed across versions."},
+            "steps": {"type": "integer", "minimum": 1, "maximum": crate::generation_limits::MAX_INFERENCE_STEPS},
+            "cot": {"enum": ["full", "melody", "off"], "description": "Instrumental mode and custom ABC require full or melody."},
+            "cfg_scale": {"anyOf": [{"const": -1}, {"type": "number", "minimum": 0, "maximum": 10}]},
+            "peak_clip": {"type": "integer", "minimum": 0, "maximum": 999},
+            "abc": text(16384),
+            "abc_sampling": sampling,
+            "semantic_sampling": sampling,
+        }
+    })
+}
+
 fn generation() -> Value {
     json!({
         "prompt": text(20000), "style": text(4000), "caption": text(24000),
         "lyrics": text(100000), "title": text(500),
-        "instrumental": {"type": "boolean", "default": true},
+        "reference_audio": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Reference ID from a MuLaCover job. Choose the recording in the desktop app. Set null to clear an inherited reference."},
+        "instrumental": {"type": "boolean", "description": "Applies to profiles that expose the instrumental control."},
         "keep_caption": {"type": "boolean", "default": true},
-        "duration": {"type": "number", "minimum": 10, "maximum": 600, "description": "Requested seconds; omitted values use the saved studio preference, initially 90."},
-        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "0 selects automatic tempo."},
+        "duration": {"type": "number", "minimum": 0.8, "maximum": crate::generation_limits::MAX_EXTENDED_DURATION, "description": "Requested audio seconds. Metered profiles derive duration from BPM and bars."},
+        "ignore_recommended_duration": {"type": "boolean", "description": "Allow a supported song profile to render up to 900 seconds in sections above its recommended duration."},
+        "bpm": {"type": "integer", "minimum": 0, "maximum": 300, "description": "Metered profiles require a positive tempo. For ACE-Step, 0 selects automatic tempo."},
+        "bars": {"type": "integer", "enum": [1, 2, 4], "description": "Required by metered short-clip profiles. BPM and 4/4 bars determine the duration."},
         "keyscale": text(100), "timesignature": text(100), "vocal_language": text(100),
         "seed": {"type": "integer", "minimum": -1, "maximum": 9007199254740991_i64, "default": -1},
-        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Omitted values use the saved studio preference, initially 2."},
+        "variants": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Use the selected profile's limits from get_generation_policy. ACE-Step uses the saved studio preference when omitted."},
         "inference_steps": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Omitted values use the saved studio preference or device/model recommendation."},
         "lm_temperature": {"type": "number", "minimum": 0, "maximum": 3, "description": "Omitted values use the saved studio preference, initially 0.85."},
+        "yue2": yue2_options(),
         "group_id": id(), "folder_id": {"type": ["string", "null"], "maxLength": 200},
         "model_selection": {
             "type": "object", "additionalProperties": false,
-            "properties": {"provider": id(), "language": id(), "synthesis": id()},
-            "required": ["provider", "language", "synthesis"]
+            "properties": {"provider": id(), "language": {"type": "string", "maxLength": 200, "description": "Required for ACE-Step. Omit for profiles without a language model."}, "synthesis": id()},
+            "required": ["provider", "synthesis"]
         }
     })
 }
@@ -38,7 +67,7 @@ pub(super) fn tools() -> Vec<Value> {
     let mut generate = generation();
     generate["cpu_iteration_decision"] = cpu_choice();
     vec![
-        super::super::tool("generate_music", "Queue music generation in the running desktop app and return song IDs immediately. Supply prompt, style or caption. Setup and verified models are required. Omitted sampling values follow saved studio preferences. Blank titles use the local title model and may download it. Poll get_song/get_queue or wait_song for results.", generate, &[], false, false),
+        super::super::tool("generate_music", "Queue music generation and return song IDs. Check get_generation_policy for the selected model's supported inputs and limits. ACE-Step and AudioCraft take a prompt, style or caption. HeartMuLa takes comma-separated style tags and lyrics. Stable Audio 3 takes a prompt and instrumental duration. Magenta RealTime 2 takes a text prompt or style and uses duration as the recording time. Mimetic A0 takes a prompt, BPM and 1, 2 or 4 bars. Setup and verified models are required. Poll get_song, get_queue or wait_song for results.", generate, &[], false, false),
         super::super::tool("create_variants", "Queue new variants from a song's stored generation settings with random seeds, preserving its group, current title and folder. Overrides replace individual parameters. Existing audio remains unchanged.", json!({"id": id(), "variants": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1}, "overrides": {"type": "object", "properties": generation(), "additionalProperties": false}, "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("retry_song", "Retry a failed or cancelled song, honoring current model admission and saved CPU behavior. Reducing high CPU iterations creates a new song and preserves the original request.", json!({"id": id(), "cpu_iteration_decision": cpu_choice()}), &["id"], false, false),
         super::super::tool("cancel_song", "Cancel queued or running generation. Safe to repeat; a completed song and its audio are never deleted.", json!({"id": id()}), &["id"], false, false),

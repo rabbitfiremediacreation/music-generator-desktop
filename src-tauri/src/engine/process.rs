@@ -12,6 +12,21 @@ pub struct OwnedProcess {
 
 impl OwnedProcess {
     pub fn spawn(engine: &Path, args: &[String], cpu: bool, log: &Path) -> Result<Self> {
+        let models = args
+            .iter()
+            .position(|arg| arg == "--models" || arg == "--model")
+            .and_then(|index| args.get(index + 1))
+            .map(Path::new);
+        Self::spawn_with_model_folder(engine, args, cpu, log, models)
+    }
+
+    pub fn spawn_with_model_folder(
+        engine: &Path,
+        args: &[String],
+        cpu: bool,
+        log: &Path,
+        #[cfg_attr(not(target_os = "macos"), allow(unused_variables))] model_folder: Option<&Path>,
+    ) -> Result<Self> {
         let stdout = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -32,13 +47,8 @@ impl OwnedProcess {
             crate::cuda_runtime::configure_command(&mut command, root);
         }
         #[cfg(target_os = "macos")]
-        if let Some(index) = args.iter().position(|a| a == "--models" || a == "--model") {
-            if let Some(models) = args.get(index + 1) {
-                command.env(
-                    "MUSIC_MODEL_BOOKMARK",
-                    crate::sandbox::transfer(Path::new(models))?,
-                );
-            }
+        if let Some(folder) = model_folder {
+            command.env("MUSIC_MODEL_BOOKMARK", crate::sandbox::transfer(folder)?);
         }
         command
             .arg("--engine-supervisor")
@@ -116,6 +126,9 @@ pub fn supervise() -> Option<i32> {
     });
     loop {
         if let Ok(Some(status)) = child.try_wait() {
+            if status.code().is_none() {
+                eprintln!("Engine exited: {status}");
+            }
             return Some(status.code().unwrap_or(1));
         }
         if receive.recv_timeout(Duration::from_millis(100)).is_ok() {

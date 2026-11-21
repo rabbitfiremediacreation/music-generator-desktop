@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { chmod, cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { download, files, root, run, target, verifyEngine } from "./common.mjs";
+import { download, files, recordHashes, root, run, target, verifyEngine } from "./common.mjs";
 import { verifyLinuxRuntime } from "./linux-runtime.mjs";
+import { verifyDiffRhythm2 } from "./prepare-diffrhythm2.mjs";
 
 // linuxdeploy rewrites/strips ELF resources; restore the verified engine before final packing.
-export async function finalizeLinux(image, destination, engine) {
+export async function finalizeLinux(image, destination, engine, diffrhythm2Runtime) {
   const work = await mkdtemp(path.join(tmpdir(), "music-appimage-"));
   try {
     await run(image, ["--appimage-extract"], { cwd: work });
@@ -16,7 +17,17 @@ export async function finalizeLinux(image, destination, engine) {
     const bundledEngine = path.dirname(record);
     await rm(bundledEngine, { recursive: true, force: true });
     await cp(engine, bundledEngine, { recursive: true });
-    await verifyEngine(bundledEngine);
+    if (diffrhythm2Runtime) {
+      // Preserve wheel loader paths and leave the standard build and runtime cache intact.
+      await cp(diffrhythm2Runtime, path.join(bundledEngine, "diffrhythm2"), {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+      const provenance = JSON.parse(await readFile(path.join(bundledEngine, "VERSION.desktop.json"), "utf8"));
+      await recordHashes(bundledEngine, provenance);
+    }
+    const provenance = await verifyEngine(bundledEngine);
+    await verifyDiffRhythm2(bundledEngine, provenance, Boolean(diffrhythm2Runtime));
     await verifyLinuxRuntime(bundledEngine, target.backend, appdir);
     const pinned = JSON.parse(await readFile(path.join(root, "models/appimage.json"), "utf8"));
     const tool = path.join(root, `.cache/desktop/appimagetool-${pinned.version}.AppImage`);

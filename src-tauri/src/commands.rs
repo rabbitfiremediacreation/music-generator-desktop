@@ -3,7 +3,7 @@ use crate::{
     error::{message, Result},
     runtime::OperationKind,
     state::AppState,
-    types::{GenerateRequest, Settings, Song, SongFilter},
+    types::{GenerateRequest, Settings, Song, SongFilter, SongPage},
 };
 use serde_json::{json, Value};
 use std::{path::PathBuf, sync::Arc};
@@ -42,15 +42,7 @@ pub async fn generation_policy(
     tauri::async_runtime::spawn_blocking(move || {
         let settings = state.db.settings()?;
         let selection = selection.unwrap_or(crate::catalog::Selection::from_settings(&settings));
-        let mut policy =
-            state
-                .synthesis_probe
-                .session_policy(&state.resources, &selection, refresh, || {
-                    state.backend_status()
-                });
-        policy.cpu_iteration_behavior = settings.cpu_iteration_behavior;
-        policy.lm_device = settings.lm_device;
-        Ok(policy)
+        crate::admission::generation_policy(&state, &settings, &selection, refresh)
     })
     .await
     .map_err(|e| message(e.to_string()))?
@@ -112,7 +104,7 @@ pub async fn bootstrap<R: tauri::Runtime>(
     startup.ensure_current(attempt)?;
     startup.report(&app, attempt, "interface", None);
     Ok(
-        json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommended_profiles(hardware),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
+        json!({"needs_setup":needs_setup,"recommended_profiles":crate::catalog::catalog().recommendations_for_build(hardware, &state.resources, &state.db.root),"settings":settings,"hardware":hardware,"manifest":crate::manifest::manifest(),"title_model":crate::titles::manifest().model,"error":null,"version":env!("CARGO_PKG_VERSION"),"data_dir":state.db.root}),
     )
 }
 
@@ -280,6 +272,19 @@ pub fn list_songs(state: Desktop<'_>, filter: SongFilter) -> Result<Vec<Song>> {
 }
 
 #[tauri::command]
+pub async fn list_song_page(
+    state: Desktop<'_>,
+    filter: SongFilter,
+    offset: u32,
+    limit: u32,
+) -> Result<SongPage> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || db.song_page(&filter, offset, limit))
+        .await
+        .map_err(|error| message(error.to_string()))?
+}
+
+#[tauri::command]
 pub fn get_song(state: Desktop<'_>, id: String) -> Result<Song> {
     state.db.song(&id)
 }
@@ -383,11 +388,16 @@ pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     let settings = state.db.settings()?;
     let mut result = serde_json::to_value(&settings)?;
     result["songs_dir_default"] = json!(state.db.root.join("songs"));
-    result["mp3_available"] = json!(crate::audio_export::codec_path(&state.resources).is_file());
+    let formats = crate::audio_export::available(&state.resources);
+    result["mp3_available"] = json!(formats.contains(&crate::audio_export::AudioFormat::Mp3));
+    result["export_formats"] = json!(formats);
     let hardware = crate::hardware::inspect();
     result["cpu_only"] = json!(hardware.cpu_only);
-    result["recommended_profiles"] =
-        json!(crate::catalog::catalog().recommended_profiles(hardware));
+    result["recommended_profiles"] = json!(crate::catalog::catalog().recommendations_for_build(
+        hardware,
+        &state.resources,
+        &state.db.root
+    ));
     result["dit_xl_available"] = json!(PathBuf::from(settings.models_dir)
         .join("acestep-v15-xl-sft-Q8_0.gguf")
         .is_file());
@@ -422,16 +432,6 @@ fn authorize_songs(app: &AppHandle, songs: &std::path::Path) -> Result<()> {
         .map_err(|e| message(e.to_string()))
 }
 
-#[tauri::command]
-pub async fn analyze(
-    state: Desktop<'_>,
-    data: Vec<u8>,
-    filename: String,
-    selection: Option<crate::catalog::Selection>,
-) -> Result<Value> {
-    analyze_audio(&state, data, filename, selection).await
-}
-
 /// Shared by the studio and phone access.
 pub(crate) async fn analyze_audio(
     state: &AppState,
@@ -439,7 +439,7 @@ pub(crate) async fn analyze_audio(
     filename: String,
     selection: Option<crate::catalog::Selection>,
 ) -> Result<Value> {
-    if data.len() > 60 * 1024 * 1024 {
+    if data.len() > crate::audio_import::MAX_AUDIO_BYTES {
         return Err(message("audio_size"));
     }
     let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
@@ -488,15 +488,16 @@ pub async fn export_file(
     id: Option<String>,
     folder: Option<String>,
     destination: String,
+    format: Option<crate::audio_export::AudioFormat>,
 ) -> Result<()> {
     let destination = PathBuf::from(destination);
     if !destination.is_absolute() {
         return Err(message("Select an absolute destination"));
     }
-    crate::exports::export(
+    crate::exports::export_selected(
         state.db.clone(),
         state.resources.clone(),
-        kind,
+        crate::exports::ExportSelection::parse(&kind, format)?,
         id,
         folder,
         destination,
@@ -506,8 +507,22 @@ pub async fn export_file(
 }
 
 #[tauri::command]
-pub async fn check_update() -> Result<Value> {
-    crate::updates::check().await
+pub async fn check_update(
+    _app: AppHandle,
+    state: Desktop<'_>,
+    stream: Option<crate::types::UpdateStream>,
+) -> Result<Value> {
+    let stream = match stream {
+        Some(stream) => stream,
+        None => state.db.settings()?.update_stream,
+    };
+    #[cfg(target_os = "macos")]
+    if stream == crate::types::UpdateStream::Stable && crate::updates::macos::check(&_app).await? {
+        return Ok(
+            json!({"native": true, "available": false, "current": env!("CARGO_PKG_VERSION")}),
+        );
+    }
+    crate::updates::check(stream).await
 }
 
 #[tauri::command]

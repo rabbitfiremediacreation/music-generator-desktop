@@ -4,18 +4,40 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { prepareTitle, recordTitle, verifyTitle } from "./prepare-title.mjs";
+import { prepareAudioCpp } from "./prepare-audio-cpp.mjs";
+import { prepareYue2 } from "./prepare-yue2.mjs";
+import yue2 from "../../models/yue2-runtime.json" with { type: "json" };
+import { prepareMimetic } from "./prepare-mimetic.mjs";
+import { magentaFolder, prepareMagenta, verifyMagenta } from "./prepare-magenta.mjs";
 import { cudaBuildOptions, prepareCuda } from "./prepare-cuda.mjs";
 import { copyCudaRuntime, relocateLinuxRuntime } from "./linux-runtime.mjs";
 import { checkoutEngineSource } from "./engine-source.mjs";
 import { prepareWindowsEngine } from "./prepare-windows-engine.mjs";
 import { verifyIterationContract } from "./engine-contract.mjs";
 import { verifyRegistryContract } from "./registry-contract.mjs";
-import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, target, verifyEngine } from "./common.mjs";
+import { architecture, engineRecipeHash, exists, files, hash, manifest, platform, recordHashes, root, run, shipsYue2, target, verifyEngine } from "./common.mjs";
 
 export const engineFolder = path.join(root, "src-tauri/resources/engine");
 
 export async function prepareEngine() {
-  try { await verifyEngine(engineFolder); await verifyTitle(); console.log("Engine resources verified."); return; } catch { /* Rebuild incomplete or changed resources. */ }
+  const magenta = process.env.MUSIC_GENERATOR_MAGENTA === "1";
+  if (magenta && (platform !== "macos" || architecture !== "arm64")) {
+    throw new Error("Magenta RealTime 2 requires an Apple Silicon build host");
+  }
+  let existing;
+  try { existing = await verifyEngine(engineFolder); await verifyTitle(); } catch { existing = undefined; }
+  if (existing) {
+    const installed = Boolean(existing.files["magenta/mrt2-record"]);
+    const valid = installed && await verifyMagenta().then(() => true, () => false);
+    if (magenta !== installed || (magenta && !valid)) {
+      await updateMagenta(magenta);
+      const { files: _oldFiles, ...provenance } = existing;
+      await recordHashes(engineFolder, provenance);
+      await verifyEngine(engineFolder);
+    }
+    console.log("Engine resources verified.");
+    return;
+  }
   const source = manifest.engines[platform];
   const cache = path.join(root, ".cache/desktop"); await mkdir(cache, { recursive: true });
   const work = await mkdtemp(path.join(tmpdir(), "music-engine-"));
@@ -41,7 +63,8 @@ export async function prepareEngine() {
     } else {
       built = await prepareWindowsEngine(cache, work, source);
     }
-    const iterationLimit = await verifyIterationContract(path.join(built, platform === "windows" ? "ace-server.exe" : "ace-server"));
+    const engineExecutable = platform === "windows" ? "ace-server.exe" : "ace-server";
+    const iterationLimit = await verifyIterationContract(path.join(built, engineExecutable));
     await rm(engineFolder, { recursive: true, force: true }); await mkdir(engineFolder, { recursive: true }); await writeFile(path.join(engineFolder,".gitkeep"), "");
     // Preserve the complete runtime directory, including dynamically loaded GPU backends.
     for (const file of await files(built)) {
@@ -50,19 +73,36 @@ export async function prepareEngine() {
       const dest = path.join(engineFolder, relative); await mkdir(path.dirname(dest), { recursive: true }); await cp(file, dest, { dereference: true });
       if (platform === "linux" && /\.so(?:\.\d+)*$/.test(file) && path.dirname(dest) !== engineFolder) await cp(file, path.join(engineFolder,path.basename(file)), { dereference: true });
     }
-    if (platform === "macos") await relocateMac();
+    if (platform === "macos") {
+      await relocateMac();
+      await verifyIterationContract(path.join(engineFolder, engineExecutable));
+    }
     if (platform === "windows") await copyWindowsCrt();
+    if (shipsYue2()) await prepareYue2(engineFolder, work);
     await prepareTitle();
+    await prepareAudioCpp(engineFolder, cache, work);
+    await prepareMimetic(engineFolder);
+    if (magenta) await updateMagenta(true);
     if (platform === "linux") {
       if (target.backend === "cuda") await copyCudaRuntime(engineFolder, await prepareCuda());
       await relocateLinuxRuntime(engineFolder);
       // Relocation changes helper bytes after their initial provenance was written.
       await recordTitle();
     }
-    await recordHashes(engineFolder, { platform, arch: architecture, backend: target.backend, revision: source.revision, source: source.url || source.repository, source_revision: source.source_revision || source.revision, archive_sha256: source.sha256 || null, max_inference_steps:iterationLimit, sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root,"scripts/desktop/engine-sandbox.mm")) : null, recipe_sha256: await engineRecipeHash() });
+    const yue2Provenance = shipsYue2() ? { yue2_revision: yue2.revision, yue2_ggml_revision: yue2.ggml_revision } : {};
+    await recordHashes(engineFolder, { platform, arch: architecture, backend: target.backend, revision: source.revision, source: source.url || source.repository, source_revision: source.source_revision || source.revision, archive_sha256: source.sha256 || null, max_inference_steps:iterationLimit, sandbox_patch_sha256: platform === "macos" ? await hash(path.join(root,"scripts/desktop/engine-sandbox.mm")) : null, recipe_sha256: await engineRecipeHash(), ...yue2Provenance });
     await verifyEngine(engineFolder);
     console.log(`Prepared ${platform} engine ${source.revision}.`);
   } finally { await rm(work, { recursive: true, force: true }); }
+}
+
+async function updateMagenta(enabled) {
+  if (enabled) {
+    await prepareMagenta();
+    await verifyMagenta();
+  } else {
+    await rm(magentaFolder, { recursive: true, force: true });
+  }
 }
 
 async function copyWindowsCrt() {
@@ -89,8 +129,8 @@ async function relocateMac() {
       const dependency = line.trim().split(" (compatibility")[0];
       if (dependency.startsWith("/") && !dependency.startsWith("/usr/lib/") && !dependency.startsWith("/System/") && await exists(path.join(engineFolder, path.basename(dependency)))) await run("install_name_tool", ["-change", dependency, `@loader_path/${path.basename(dependency)}`, file]);
     }
-    const inheritance = ["ace-server", "mp3-codec"].includes(path.basename(file)) ? ["--entitlements",path.join(root,"src-tauri/Engine.entitlements")] : [];
-    await run("codesign", ["--force", "--sign", "-", ...inheritance, file]);
+    // Development launches these binaries directly. build.mjs signs the packaged copies for sandbox inheritance.
+    await run("codesign", ["--force", "--sign", "-", file]);
   }
 }
 

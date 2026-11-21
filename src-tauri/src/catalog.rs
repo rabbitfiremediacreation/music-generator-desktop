@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio_util::sync::CancellationToken;
 
+pub(crate) mod hugging_face;
+mod provider;
+mod removal;
+pub use provider::*;
+pub use removal::{remove_installed, ModelRemoval};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provider {
     pub id: String,
@@ -24,11 +30,17 @@ pub struct Asset {
     pub file: String,
     pub provider: String,
     pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     pub family: String,
     pub precision: String,
     pub estimated_bytes: u64,
     pub sha256: String,
     pub recommended_steps: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<AssetSource>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hf_discovered: bool,
 }
 
 impl Asset {
@@ -57,16 +69,25 @@ pub struct Catalog {
     pub basic_models: BasicModels,
     pub providers: Vec<Provider>,
     pub models: Vec<Asset>,
+    #[serde(default)]
+    pub profiles: Vec<ProviderProfile>,
+}
+
+fn embedded_catalog() -> Catalog {
+    serde_json::from_str(include_str!("../../models/catalog.json")).expect("embedded model catalog")
 }
 
 pub fn catalog() -> Catalog {
-    serde_json::from_str(include_str!("../../models/catalog.json")).expect("embedded model catalog")
+    let mut catalog = embedded_catalog();
+    hugging_face::extend(&mut catalog);
+    catalog
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Selection {
     pub provider: String,
     pub synthesis: String,
+    #[serde(default)]
     pub language: String,
 }
 
@@ -90,6 +111,12 @@ impl Selection {
 
     pub fn apply(&self, settings: &mut Settings) -> Result<()> {
         required(self)?;
+        let previous = Self::from_settings(settings);
+        if previous.provider != self.provider && required(&previous).is_ok() {
+            settings
+                .model_profiles
+                .insert(previous.provider.clone(), previous);
+        }
         settings.model_provider = self.provider.clone();
         settings.synthesis_model = self.synthesis.clone();
         settings.lm_model = self.language.clone();
@@ -123,6 +150,16 @@ impl Catalog {
         hardware: Option<&Hardware>,
     ) -> Result<()> {
         self.required(selection)?;
+        if let Some(profile) = self.profile(selection) {
+            profile.ensure_released()?;
+            if profile.expert_only && !expert_mode {
+                return Err(message("expert_mode_required"));
+            }
+            if let Some(hardware) = hardware {
+                profile.platform(hardware)?;
+            }
+            return Ok(());
+        }
         if !expert_mode
             && !hardware.is_some_and(|hw| self.recommended_profiles(hw).contains(selection))
         {
@@ -131,7 +168,7 @@ impl Catalog {
         Ok(())
     }
 
-    /// Pick one supported language model per synthesis profile within the existing RAM estimate.
+    /// Recommend compatible profiles and select a supported language model for each ACE-Step starter.
     pub fn recommended_profiles(&self, hardware: &Hardware) -> Vec<Selection> {
         let recommended = crate::manifest::lm_file(&hardware.recommended_lm);
         let Some(limit) = self
@@ -142,32 +179,80 @@ impl Catalog {
         else {
             return Vec::new();
         };
-        self.basic_models
-            .synthesis
+        let ace_step = self.basic_models.synthesis.iter().filter_map(|synthesis| {
+            self.basic_models.language[..=limit]
+                .iter()
+                .rev()
+                .find_map(|language| {
+                    let selection = Selection {
+                        provider: "ace-step".into(),
+                        synthesis: synthesis.clone(),
+                        language: language.clone(),
+                    };
+                    let models = self.required(&selection).ok()?;
+                    (!models
+                        .iter()
+                        .any(|m| self.expert_families.contains(&m.family))
+                        && memory_bytes(&models) <= hardware.ram_bytes)
+                        .then_some(selection)
+                })
+        });
+        let native = self
+            .profiles
             .iter()
-            .filter_map(|synthesis| {
-                self.basic_models.language[..=limit]
-                    .iter()
-                    .rev()
-                    .find_map(|language| {
-                        let selection = Selection {
-                            provider: "ace-step".into(),
-                            synthesis: synthesis.clone(),
-                            language: language.clone(),
-                        };
-                        let models = self.required(&selection).ok()?;
-                        (!models
-                            .iter()
-                            .any(|m| self.expert_families.contains(&m.family))
-                            && memory_bytes(&models) <= hardware.ram_bytes)
-                            .then_some(selection)
-                    })
+            .filter(|profile| {
+                !profile.expert_only
+                    && profile.ensure_released().is_ok()
+                    && profile.platform(hardware).is_ok()
+            })
+            .map(|profile| profile.selection.clone());
+        ace_step.chain(native).collect()
+    }
+
+    /// Keep hardware-compatible profiles discoverable while limiting recommendations to this build's runtimes.
+    pub fn recommendations_for_build(
+        &self,
+        hardware: &Hardware,
+        resources: &Path,
+        data_root: &Path,
+    ) -> Vec<Selection> {
+        self.recommended_profiles(hardware)
+            .into_iter()
+            .filter(|selection| {
+                self.profile(selection).is_none_or(|profile| {
+                    profile
+                        .ensure_runtime(resources, data_root, hardware)
+                        .is_ok()
+                })
             })
             .collect()
     }
 
     pub fn required(&self, selection: &Selection) -> Result<Vec<Asset>> {
-        // Adding provider metadata does not enable a runtime. Future adapters dispatch here.
+        if let Some(profile) = self.profile(selection) {
+            if profile.files.is_empty()
+                || !self.providers.iter().any(|provider| {
+                    provider.id == selection.provider
+                        && matches!(provider.status.as_str(), "available" | "preview")
+                        && provider.adapter.is_some()
+                })
+            {
+                return Err(message(
+                    "This model profile has no supported engine adapter",
+                ));
+            }
+            return profile
+                .files
+                .iter()
+                .map(|file| {
+                    self.models
+                        .iter()
+                        .find(|model| model.provider == selection.provider && &model.file == file)
+                        .cloned()
+                        .ok_or_else(|| message("Unknown model profile file"))
+                })
+                .collect();
+        }
         if selection.provider != "ace-step"
             || !self.providers.iter().any(|p| {
                 p.id == selection.provider
@@ -255,6 +340,14 @@ pub async fn install_profile(
     )?;
     let models = catalog.required(selection)?;
     let root = Path::new(&settings.models_dir);
+    let manual = catalog
+        .profile(selection)
+        .is_some_and(|profile| profile.acquisition == Acquisition::Manual);
+    if manual {
+        verify_imported_files(db, root, &models, cancel, &progress).await?;
+        return activate_installed(db, &mut settings, selection, cancel);
+    }
+    tokio::fs::create_dir_all(root).await?;
     let missing: u64 = models
         .iter()
         .filter(|m| !root.join(&m.file).is_file())
@@ -270,28 +363,93 @@ pub async fn install_profile(
     if missing > 0 {
         crate::download::ensure_space(root, missing.saturating_add(512 * 1024 * 1024))?;
     }
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(30))
-        .read_timeout(std::time::Duration::from_secs(60))
-        .build()?;
+    let client = crate::download::client()?;
     let mut verifier = ModelVerifier::open(&db.root);
     for model in models {
-        crate::download::download_model(
-            &client,
-            &format!("{}/{}", catalog.base_url, model.file),
+        let pinned = model.download();
+        let (url, bytes) = model.source.as_ref().map_or_else(
+            || (format!("{}/{}", catalog.base_url, model.file), None),
+            |source| (source.url(), Some(pinned.estimated_bytes)),
+        );
+        crate::download::fetch(
+            || crate::hugging_face_token::get(&client, &url, &db.root),
+            bytes,
             root,
-            &model.download(),
+            &pinned,
             &mut verifier,
             cancel,
             &progress,
         )
         .await?;
     }
+    activate_installed(db, &mut settings, selection, cancel)
+}
+
+/// Verify a manual import independently of whether its runtime can run on this device.
+pub async fn verify_manual_profile(
+    catalog: &Catalog,
+    db: &crate::db::Database,
+    selection: &Selection,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
+    if !catalog
+        .profile(selection)
+        .is_some_and(|profile| profile.acquisition == Acquisition::Manual)
+    {
+        return Err(message("This profile does not use local import"));
+    }
+    let settings = db.settings()?;
+    verify_imported_files(
+        db,
+        Path::new(&settings.models_dir),
+        &catalog.required(selection)?,
+        cancel,
+        &progress,
+    )
+    .await
+}
+
+async fn verify_imported_files(
+    db: &crate::db::Database,
+    root: &Path,
+    models: &[Asset],
+    cancel: &CancellationToken,
+    progress: &impl Fn(crate::download::DownloadProgress),
+) -> Result<()> {
     if cancel.is_cancelled() {
         return Err(crate::error::Error::Cancelled);
     }
-    selection.apply(&mut settings)?;
-    db.save_settings(&settings)
+    if models.iter().any(|model| !root.join(&model.file).is_file()) {
+        return Err(message(
+            "Place all imported model files in the model folder before verifying",
+        ));
+    }
+    let mut verifier = ModelVerifier::open(&db.root);
+    for model in models {
+        crate::download::verify_model(
+            &root.join(&model.file),
+            &model.download(),
+            &mut verifier,
+            cancel,
+            progress,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+fn activate_installed(
+    db: &crate::db::Database,
+    settings: &mut Settings,
+    selection: &Selection,
+    cancel: &CancellationToken,
+) -> Result<()> {
+    if cancel.is_cancelled() {
+        return Err(crate::error::Error::Cancelled);
+    }
+    selection.apply(settings)?;
+    db.save_settings(settings)
 }
 
 /// Conservative weight footprint plus runtime/OS headroom; duration can require more.
@@ -309,12 +467,12 @@ pub fn memory_bytes(models: &[Asset]) -> u64 {
     weights.saturating_add(reserve * 1024 * 1024 * 1024)
 }
 
-/// Restore a supported profile in memory; keep old songs, files and stored settings intact.
-pub fn restore_supported_profile(settings: &mut Settings) -> Result<()> {
+/// Jobs created before model snapshots always use an ACE-Step selection.
+pub fn legacy_selection(settings: &Settings) -> Selection {
     if settings.model_provider == "ace-step" {
-        return Ok(());
+        return Selection::from_settings(settings);
     }
-    let selection = settings
+    settings
         .model_profiles
         .get("ace-step")
         .filter(|profile| required(profile).is_ok())
@@ -324,14 +482,27 @@ pub fn restore_supported_profile(settings: &mut Settings) -> Result<()> {
                 lm_model: crate::manifest::lm_file("0.6B"),
                 ..Default::default()
             })
-        });
-    selection.apply(settings)?;
+        })
+}
+
+/// Restore a supported profile in memory; keep old songs, files and stored settings intact.
+pub fn restore_supported_profile(settings: &mut Settings) -> Result<()> {
+    if settings.model_provider == "ace-step"
+        || required(&Selection::from_settings(settings)).is_ok()
+    {
+        return Ok(());
+    }
+    legacy_selection(settings).apply(settings)?;
     settings.setup_complete = false;
     Ok(())
 }
 
 pub fn compatible(selection: &Selection, hardware: &Hardware) -> Result<bool> {
-    Ok(memory_bytes(&required(selection)?) <= hardware.ram_bytes)
+    let catalog = catalog();
+    if let Some(profile) = catalog.profile(selection) {
+        return Ok(profile.platform(hardware).is_ok());
+    }
+    Ok(memory_bytes(&catalog.required(selection)?) <= hardware.ram_bytes)
 }
 
 pub fn cached(selection: &Selection, folder: &Path, verifier: &ModelVerifier) -> Result<bool> {

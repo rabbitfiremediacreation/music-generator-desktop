@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { catalogFixture, saved, xl } from "../models/model-fixtures";
+import { catalogFixture, catalogWithNativeProfiles, saved, xl } from "../models/model-fixtures";
 import { StrictMode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -14,20 +14,26 @@ import { standard } from "../setup/fixtures";
 import { SettingsDialog } from "./SettingsDialog";
 import type { SettingsPage } from "./SettingsNavigation";
 
-const ipc = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn() }));
+const ipc = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), confirm: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, convertFileSrc: (path: string) => path }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: ipc.listen }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: ipc.confirm }));
 const handlers = new Map<string, (event: { payload: unknown }) => void>();
 const onClose = vi.fn(), onUse = vi.fn();
 let current: Settings, catalog: ModelCatalog;
+let huggingFaceConfigured: boolean;
 beforeEach(() => {
   vi.resetAllMocks(); handlers.clear(); setLang("en");
   ipc.listen.mockImplementation(async (name, handler) => { handlers.set(name, handler); return () => handlers.delete(name); });
   current = saved(); catalog = structuredClone(catalogFixture);
+  huggingFaceConfigured = false;
   catalog.hardware.ram_bytes = 64 * 1024 ** 3;
   ipc.invoke.mockImplementation(async (name, args) => {
     if (name === "get_settings") return { ...current };
     if (name === "model_catalog") return structuredClone(catalog);
+    if (name === "discover_hugging_face_models") return { candidates: [], unavailable_repositories: [] };
+    if (name === "hugging_face_token_status") return huggingFaceConfigured;
+    if (name === "set_hugging_face_token") return huggingFaceConfigured = args.token !== null;
     if (name === "save_settings") { current = { ...current, ...args.values }; return { ...current }; }
     if (name === "download_title_model") { catalog.title_model = { ...catalog.title_model, present: true, verified: true }; return; }
     if (name === "use_models" || name === "select_models") {
@@ -61,15 +67,43 @@ async function addModel() {
 }
 function closeCatalog(dialog: HTMLElement) { fireEvent.keyDown(dialog, { key: "Escape" }); }
 
+it("sets and removes a masked Hugging Face token without submitting the settings draft", async () => {
+  mount();
+  const timeout = await screen.findByRole("spinbutton");
+  fireEvent.change(timeout, { target: { value: "75" } });
+  goTo("models");
+  const input = await screen.findByLabelText<HTMLInputElement>(t("hf_token"));
+  expect(input.type).toBe("password");
+  fireEvent.change(input, { target: { value: "  hf_example-only  " } });
+  fireEvent.click(screen.getByRole("button", { name: t("hf_token_save") }));
+  await screen.findByText(t("hf_token_saved"));
+  expect(ipc.invoke).toHaveBeenCalledWith("set_hugging_face_token", { token: "hf_example-only" });
+  expect(input.value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: t("hf_token_remove") }));
+  await waitFor(() => expect(screen.queryByText(t("hf_token_saved"))).toBeNull());
+  expect(ipc.invoke).toHaveBeenCalledWith("set_hugging_face_token", { token: null });
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "save_settings")).toBe(false);
+  goTo("generation");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton").value).toBe("75");
+});
+
 it("lists local models first and opens the catalog only from Add model", async () => {
-  catalog.models = catalog.models.map(model => ({ ...model, verified: model.file === standard.synthesis, present: model.file === standard.synthesis || model.file === standard.language, partial_bytes: 100 }));
-  catalog.title_model = { ...catalog.title_model, verified: false, present: false };
+  catalog.models = catalog.models.map(model => ({
+    ...model, verified: model.file === standard.synthesis,
+    present: model.file === standard.synthesis || model.file === standard.language || model.category === "embedding",
+    partial_bytes: 100,
+  }));
   mount(); await screen.findByRole("spinbutton"); goTo("models");
-  const table = await screen.findByRole("table");
+  const table = await screen.findByRole("table", { name: t("models_music") });
+  const generalModels = screen.getByRole("table", { name: t("models_llm_embeddings") });
   expect(within(table).getAllByRole("row")).toHaveLength(3);
   expect(within(table).getByText(modelName(standard.synthesis))).toBeTruthy();
+  expect(within(table).getByText(modelName(standard.language))).toBeTruthy();
   expect(within(table).getByText(t("picker_verify"), { exact: false })).toBeTruthy();
   expect(within(table).queryByText(modelName(xl.synthesis))).toBeNull();
+  expect(within(generalModels).getAllByRole("row")).toHaveLength(3);
+  expect(within(generalModels).getByText(modelName(catalog.title_model.file))).toBeTruthy();
+  expect(within(generalModels).getByText(modelName(catalog.models.find(model => model.category === "embedding")!.file))).toBeTruthy();
   expect(screen.queryByRole("searchbox")).toBeNull();
   const add = screen.getByRole("button", { name: t("models_add") }); add.focus();
   const dialog = await addModel();
@@ -95,7 +129,7 @@ it("switches a model in the extra dialog without saving unrelated settings draft
   mount();
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
   goTo("models"); const dialog = await addModel();
-  await within(dialog).findByRole("combobox", { name: t("dit") });
+  await within(dialog).findByRole("group", { name: t("browser_precision") });
   fireEvent.click(within(dialog).getByRole("button", { name: "XL SFT" }));
   expect(onUse).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole("button", { name: t("picker_use") }));
@@ -121,6 +155,62 @@ it("activates a verified installed model without starting a download", async () 
   expect(screen.queryByRole("dialog", { name: t("models_add") })).toBeNull();
 });
 
+it("lists each multi-file profile once and only activates complete, verified profiles", async () => {
+  catalog = catalogWithNativeProfiles();
+  catalog.hardware.ram_bytes = 64 * 1024 ** 3;
+  const heartmula = catalog.profiles!.find(profile => profile.selection.synthesis === "heartmula-oss-3b-hny")!;
+  const yue = catalog.profiles!.find(profile => profile.selection.provider === "yue2")!;
+  heartmula.available = true;
+  yue.available = true;
+  catalog.models = catalog.models.map(model => ({
+    ...model, present: heartmula.files.includes(model.file) || model.file === yue.files[0],
+    verified: heartmula.files.includes(model.file) || model.file === yue.files[0],
+  }));
+  catalog.title_model = { ...catalog.title_model, present: false, verified: false };
+  const bundleBytes = catalog.models.filter(model => heartmula.files.includes(model.file)).reduce((sum, model) => sum + model.estimated_bytes, 0);
+
+  mount(); await screen.findByRole("spinbutton"); goTo("models");
+  const table = await screen.findByRole("table", { name: t("models_music") });
+  expect(within(table).getAllByRole("row")).toHaveLength(3);
+  const completeRow = within(table).getByText(heartmula.name).closest("tr")!;
+  expect(within(completeRow).getByText(t("picker_installed"), { exact: false })).toBeTruthy();
+  expect(within(completeRow).getByText(`${new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(bundleBytes / 1024 ** 3)} GiB`)).toBeTruthy();
+  const incompleteRow = within(table).getByText(yue.name).closest("tr")!;
+  expect(within(incompleteRow).getByText(t("picker_missing"), { exact: false })).toBeTruthy();
+  expect(within(incompleteRow).queryByRole("button", { name: t("picker_use") })).toBeNull();
+  fireEvent.click(within(completeRow).getByRole("button", { name: t("picker_use") }));
+  await waitFor(() => expect(onUse).toHaveBeenCalledWith(heartmula.selection, 1));
+});
+
+it("protects active model files and removes a multi-file model only after confirmation", async () => {
+  catalog = catalogWithNativeProfiles();
+  const heartmula = catalog.profiles![0];
+  catalog.models = catalog.models.map(model => heartmula.files.includes(model.file) ? { ...model, present: true } : model);
+  const original = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => {
+    if (name === "remove_model") {
+      catalog.models = catalog.models.map(model => heartmula.files.includes(model.file) ? { ...model, present: false } : model);
+      return Promise.resolve();
+    }
+    return original(name, args);
+  });
+  ipc.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+  mount(); await screen.findByRole("spinbutton"); goTo("models");
+  const removeName = (name: string) => `${t("model_remove")} · ${name}`;
+  const active = await screen.findByRole<HTMLButtonElement>("button", { name: removeName(modelName(standard.synthesis)) });
+  expect(active.disabled).toBe(true);
+  const heartmulaRemoval = removeName(`${heartmula.name} · F32`);
+  const remove = screen.getByRole<HTMLButtonElement>("button", { name: heartmulaRemoval });
+  fireEvent.click(remove);
+  await waitFor(() => expect(ipc.confirm).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(remove.disabled).toBe(false));
+  expect(ipc.invoke.mock.calls.some(([name]) => name === "remove_model")).toBe(false);
+  fireEvent.click(remove);
+  await waitFor(() => expect(screen.queryByRole("button", { name: heartmulaRemoval })).toBeNull());
+  expect(ipc.invoke).toHaveBeenCalledWith("remove_model", { target: { kind: "profile", selection: heartmula.selection } });
+});
+
 it("keeps downloads visible and cancellable after closing the extra dialog", async () => {
   catalog.models = catalog.models.map(model => ({ ...model, verified: false, present: false }));
   let fail!: (error: Error) => void;
@@ -132,7 +222,7 @@ it("keeps downloads visible and cancellable after closing the extra dialog", asy
   });
   mount(); await screen.findByRole("spinbutton"); goTo("models");
   const dialog = await addModel();
-  await within(dialog).findByRole("combobox", { name: t("dit") });
+  await within(dialog).findByRole("group", { name: t("browser_precision") });
   fireEvent.click(within(dialog).getByRole("button", { name: "XL SFT" }));
   fireEvent.click(within(dialog).getByRole("button", { name: t("picker_download_use") }));
   await waitFor(() => expect(ipc.invoke).toHaveBeenCalledWith("use_models", { selection: xl }));
@@ -153,7 +243,7 @@ it("applies Expert Mode separately before opening the catalog and retains other 
   current.expert_mode = false; catalog.expert_mode = false;
   mount();
   fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "75" } });
-  goTo("models"); await screen.findByRole("table");
+  goTo("models"); await screen.findByRole("table", { name: t("models_music") });
   fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
   fireEvent.click(screen.getByRole("button", { name: t("settings_apply_expert") }));
   await waitFor(() => expect(screen.queryByRole("button", { name: t("settings_apply_expert") })).toBeNull());
@@ -168,7 +258,7 @@ it("retains failed Expert Mode edits for retry", async () => {
   current.expert_mode = false; catalog.expert_mode = false;
   const original = ipc.invoke.getMockImplementation()!; let failing = true;
   ipc.invoke.mockImplementation((name, args) => name === "save_settings" && failing ? Promise.reject(new Error("Disk full")) : original(name, args));
-  mount(); await screen.findByRole("spinbutton"); goTo("models"); await screen.findByRole("table");
+  mount(); await screen.findByRole("spinbutton"); goTo("models"); await screen.findByRole("table", { name: t("models_music") });
   fireEvent.click(screen.getByRole("checkbox", { name: t("expert_mode") }));
   fireEvent.click(screen.getByRole("button", { name: t("settings_apply_expert") }));
   expect((await screen.findByRole("alert")).textContent).toContain("Disk full");

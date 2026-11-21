@@ -25,6 +25,7 @@ export const settingsPageKeys = [
   "settings_description_generation", "settings_description_library", "settings_description_appearance", "settings_description_phone", "settings_description_mcp", "settings_description_about",
   "settings_appearance_hint", "settings_unsaved",
   "settings_page_models", "settings_description_models",
+  "upd_stream", "upd_stream_stable", "upd_stream_daily", "upd_stream_develop", "upd_no_build",
 ] as const;
 
 export const settingsPageTranslations: Record<Language, readonly string[]> = {
@@ -34,6 +35,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Passe Zeitlimit und CPU-Verhalten der Musikgenerierung an.", "Verwalte deine Songs, Speicherorte und das Exportformat.", "Richte dein Studio so ein, wie du am liebsten arbeitest.", "Verbinde dein Handy und steuere dein Studio im lokalen Netzwerk.", "Verbinde KI-Assistenten und andere Tools mit Music Generator.", "Suche nach Updates und erfahre mehr über das Projekt.",
     "Das Layout wird sofort angewendet. Automatisch passt die Anordnung an die Fensterbreite an.", "Du hast ungespeicherte Änderungen.",
     "Modelle und Hardware", "Wähle die Recheneinheit, aktiviere den Expert Mode und verwalte deine Modelle.",
+    "Update-Stream", "Veröffentlichte stabile Versionen.", "Ein automatischer Build pro Tag von main.", "Verifizierte Builds nach Änderungen auf main.", "Für diesen Stream ist derzeit kein passendes Paket verfügbar.",
   ],
   en: [
     "App settings", "Connections", "Information",
@@ -41,6 +43,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Adjust the time limit and CPU behavior for music generation.", "Manage your songs, storage locations and export format.", "Arrange your studio to suit the way you work.", "Connect your phone and control your studio on the local network.", "Connect AI assistants and other tools to Music Generator.", "Check for updates and learn more about the project.",
     "Layout changes apply immediately. Automatic adapts the arrangement to the window width.", "You have unsaved changes.",
     "Models and hardware", "Choose the processing device, enable Expert Mode and manage your models.",
+    "Update stream", "Published stable releases.", "One automated build per day from main.", "Verified builds after changes to main.", "No compatible package is available for this stream yet.",
   ],
   es: [
     "Ajustes de la app", "Conexiones", "Información",
@@ -48,6 +51,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Ajusta el tiempo límite y el comportamiento de la CPU para generar música.", "Gestiona tus canciones, ubicaciones y formato de exportación.", "Organiza el estudio según tu forma de trabajar.", "Conecta tu móvil y controla el estudio en la red local.", "Conecta asistentes de IA y otras herramientas a Music Generator.", "Busca actualizaciones y conoce más sobre el proyecto.",
     "El diseño se aplica de inmediato. Automático adapta la distribución al ancho de la ventana.", "Tienes cambios sin guardar.",
     "Modelos y hardware", "Elige el dispositivo de procesamiento, activa el modo experto y gestiona tus modelos.",
+    "Canal de actualización", "Versiones estables publicadas.", "Una compilación automática diaria de main.", "Compilaciones verificadas tras cambios en main.", "Aún no hay un paquete compatible para este canal.",
   ],
   fr: [
     "Paramètres de l’app", "Connexions", "Informations",
@@ -55,6 +59,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Réglez le délai et le comportement du CPU pour la génération musicale.", "Gérez vos morceaux, emplacements et format d’export.", "Organisez votre studio selon votre façon de travailler.", "Connectez votre téléphone et contrôlez le studio sur le réseau local.", "Connectez des assistants IA et d’autres outils à Music Generator.", "Recherchez des mises à jour et découvrez le projet.",
     "La disposition s’applique immédiatement. Automatique l’adapte à la largeur de la fenêtre.", "Vous avez des modifications non enregistrées.",
     "Modèles et matériel", "Choisissez le périphérique de calcul, activez le mode expert et gérez vos modèles.",
+    "Canal de mise à jour", "Versions stables publiées.", "Une compilation automatique de main par jour.", "Compilations vérifiées après chaque modification de main.", "Aucun paquet compatible n’est encore disponible sur ce canal.",
   ],
   it: [
     "Impostazioni app", "Connessioni", "Informazioni",
@@ -62,6 +67,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Regola il limite di tempo e il comportamento della CPU per generare musica.", "Gestisci brani, percorsi di salvataggio e formato di esportazione.", "Organizza lo studio secondo il tuo modo di lavorare.", "Collega il telefono e controlla lo studio sulla rete locale.", "Collega assistenti IA e altri strumenti a Music Generator.", "Cerca aggiornamenti e scopri di più sul progetto.",
     "Il layout viene applicato subito. Automatico adatta la disposizione alla larghezza della finestra.", "Hai modifiche non salvate.",
     "Modelli e hardware", "Scegli il dispositivo di elaborazione, attiva la modalità esperto e gestisci i modelli.",
+    "Canale di aggiornamento", "Versioni stabili pubblicate.", "Una build automatica di main al giorno.", "Build verificate dopo le modifiche a main.", "Nessun pacchetto compatibile è ancora disponibile per questo canale.",
   ],
   pt: [
     "Definições da app", "Ligações", "Informações",
@@ -69,6 +75,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Ajusta o limite de tempo e o comportamento da CPU para gerar música.", "Gere músicas, locais de armazenamento e formato de exportação.", "Organiza o estúdio à tua maneira.", "Liga o telemóvel e controla o estúdio na rede local.", "Liga assistentes de IA e outras ferramentas ao Music Generator.", "Procura atualizações e descobre mais sobre o projeto.",
     "O layout é aplicado de imediato. Automático adapta a disposição à largura da janela.", "Tens alterações por guardar.",
     "Modelos e hardware", "Escolhe o dispositivo de processamento, ativa o modo especialista e gere os modelos.",
+    "Canal de atualização", "Versões estáveis publicadas.", "Uma compilação automática diária de main.", "Compilações verificadas após alterações em main.", "Ainda não há um pacote compatível para este canal.",
   ],
   tr: [
     "Uygulama ayarları", "Bağlantılar", "Bilgi",
@@ -76,6 +83,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Müzik üretimi için zaman sınırını ve CPU davranışını ayarlayın.", "Şarkıları, kayıt konumlarını ve dışa aktarma biçimini yönetin.", "Stüdyoyu çalışma şeklinize göre düzenleyin.", "Telefonunuzu bağlayıp stüdyoyu yerel ağdan kontrol edin.", "Yapay zekâ asistanlarını ve diğer araçları Music Generator’a bağlayın.", "Güncellemeleri denetleyin ve proje hakkında bilgi edinin.",
     "Düzen değişiklikleri hemen uygulanır. Otomatik, düzeni pencere genişliğine uyarlar.", "Kaydedilmemiş değişiklikleriniz var.",
     "Modeller ve donanım", "İşlem aygıtını seçin, uzman modunu etkinleştirin ve modellerinizi yönetin.",
+    "Güncelleme kanalı", "Yayımlanmış kararlı sürümler.", "Her gün main dalından otomatik derleme.", "main dalındaki değişikliklerden sonra doğrulanmış derlemeler.", "Bu kanal için henüz uyumlu paket yok.",
   ],
   pl: [
     "Ustawienia aplikacji", "Połączenia", "Informacje",
@@ -83,6 +91,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Dostosuj limit czasu i zachowanie CPU podczas generowania muzyki.", "Zarządzaj utworami, miejscem zapisu i formatem eksportu.", "Dostosuj układ studia do swojego sposobu pracy.", "Połącz telefon i steruj studiem w sieci lokalnej.", "Połącz asystentów AI i inne narzędzia z Music Generator.", "Sprawdź aktualizacje i dowiedz się więcej o projekcie.",
     "Zmiany układu są stosowane od razu. Automatyczny dostosowuje układ do szerokości okna.", "Masz niezapisane zmiany.",
     "Modele i sprzęt", "Wybierz urządzenie obliczeniowe, włącz tryb eksperta i zarządzaj modelami.",
+    "Kanał aktualizacji", "Opublikowane stabilne wersje.", "Jedna automatyczna kompilacja dziennie z main.", "Zweryfikowane kompilacje po zmianach w main.", "Dla tego kanału nie ma jeszcze zgodnego pakietu.",
   ],
   ru: [
     "Настройки приложения", "Подключения", "Информация",
@@ -90,6 +99,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Настройте ограничение времени и поведение CPU при генерации музыки.", "Управляйте песнями, папками хранения и форматом экспорта.", "Настройте студию под свой стиль работы.", "Подключите телефон и управляйте студией в локальной сети.", "Подключите ИИ-ассистентов и другие инструменты к Music Generator.", "Проверьте обновления и узнайте больше о проекте.",
     "Изменения макета применяются сразу. Автоматический режим учитывает ширину окна.", "У вас есть несохранённые изменения.",
     "Модели и оборудование", "Выберите вычислительное устройство, включите экспертный режим и управляйте моделями.",
+    "Канал обновлений", "Опубликованные стабильные версии.", "Ежедневная автоматическая сборка из main.", "Проверенные сборки после изменений в main.", "Для этого канала пока нет совместимого пакета.",
   ],
   uk: [
     "Налаштування застосунку", "Підключення", "Інформація",
@@ -97,6 +107,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "Налаштуйте обмеження часу та поведінку CPU під час генерації музики.", "Керуйте піснями, папками зберігання та форматом експорту.", "Налаштуйте студію під свій стиль роботи.", "Підключіть телефон і керуйте студією в локальній мережі.", "Підключіть ШІ-асистентів та інші інструменти до Music Generator.", "Перевірте оновлення та дізнайтеся більше про проєкт.",
     "Зміни макета застосовуються одразу. Автоматичний режим враховує ширину вікна.", "У вас є незбережені зміни.",
     "Моделі та обладнання", "Виберіть обчислювальний пристрій, увімкніть експертний режим і керуйте моделями.",
+    "Канал оновлень", "Опубліковані стабільні версії.", "Щоденна автоматична збірка з main.", "Перевірені збірки після змін у main.", "Для цього каналу ще немає сумісного пакета.",
   ],
   ja: [
     "アプリ設定", "接続", "情報",
@@ -104,6 +115,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "音楽生成の制限時間とCPUの動作を設定します。", "曲、保存先、書き出し形式を管理します。", "作業スタイルに合わせてスタジオを配置します。", "スマートフォンを接続し、ローカルネットワークでスタジオを操作します。", "AIアシスタントや他のツールをMusic Generatorに接続します。", "更新を確認し、プロジェクトの詳細を確認します。",
     "レイアウトはすぐに適用されます。自動ではウィンドウ幅に合わせて配置します。", "未保存の変更があります。",
     "モデルとハードウェア", "処理デバイスを選択し、エキスパートモードを有効にしてモデルを管理します。",
+    "更新チャンネル", "公開済みの安定版リリース。", "main から毎日自動ビルドします。", "main が更新されるたびに検証済みビルドを公開します。", "このチャンネルには対応パッケージがまだありません。",
   ],
   zh: [
     "应用设置", "连接", "信息",
@@ -111,6 +123,7 @@ export const settingsPageTranslations: Record<Language, readonly string[]> = {
     "调整音乐生成的时间限制和 CPU 行为。", "管理歌曲、存储位置和导出格式。", "按照你的工作方式布置工作室。", "连接手机，通过局域网控制工作室。", "将 AI 助手和其他工具连接到 Music Generator。", "检查更新并了解项目信息。",
     "布局更改立即生效。自动模式会根据窗口宽度调整排列。", "你有尚未保存的更改。",
     "模型与硬件", "选择计算设备、启用专家模式并管理模型。",
+    "更新渠道", "已发布的稳定版本。", "每天从 main 自动构建一次。", "main 更新后的已验证构建。", "此渠道暂时没有兼容的软件包。",
   ],
 };
 for (const [language, values] of Object.entries(settingsPageTranslations)) {
@@ -133,3 +146,19 @@ export const modelSettingsTranslations: Record<Language, { settings_apply_expert
   zh: { settings_apply_expert: "应用专家模式", settings_models_immediate: "模型更改和下载立即生效。其他未保存的设置会保留。", picker_cancel_download: "取消下载" },
 };
 for (const [language, messages] of Object.entries(modelSettingsTranslations)) Object.assign(I18N[language as Language], messages);
+
+const themeTranslations: Record<Language, { settings_theme: string; settings_theme_hint: string }> = {
+  de: { settings_theme: "Theme", settings_theme_hint: "Das Theme wird sofort angewendet und automatisch gespeichert." },
+  en: { settings_theme: "Theme", settings_theme_hint: "Theme changes apply immediately and are saved automatically." },
+  es: { settings_theme: "Tema", settings_theme_hint: "El tema se aplica de inmediato y se guarda automáticamente." },
+  fr: { settings_theme: "Thème", settings_theme_hint: "Le thème s’applique immédiatement et est enregistré automatiquement." },
+  it: { settings_theme: "Tema", settings_theme_hint: "Il tema viene applicato subito e salvato automaticamente." },
+  pt: { settings_theme: "Tema", settings_theme_hint: "O tema é aplicado de imediato e guardado automaticamente." },
+  tr: { settings_theme: "Tema", settings_theme_hint: "Tema hemen uygulanır ve otomatik olarak kaydedilir." },
+  pl: { settings_theme: "Motyw", settings_theme_hint: "Motyw jest stosowany natychmiast i zapisywany automatycznie." },
+  ru: { settings_theme: "Тема", settings_theme_hint: "Тема применяется сразу и сохраняется автоматически." },
+  uk: { settings_theme: "Тема", settings_theme_hint: "Тема застосовується одразу та зберігається автоматично." },
+  ja: { settings_theme: "テーマ", settings_theme_hint: "テーマはすぐに適用され、自動的に保存されます。" },
+  zh: { settings_theme: "主题", settings_theme_hint: "主题立即生效并自动保存。" },
+};
+for (const [language, messages] of Object.entries(themeTranslations)) Object.assign(I18N[language as Language], messages);

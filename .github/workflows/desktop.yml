@@ -4,11 +4,15 @@ on:
   pull_request:
   push:
     branches: ['main', 'codex/desktop-bundles']
+  schedule:
+    - cron: '23 3 * * *'
   release:
     types: [published]
 permissions:
   contents: read
   actions: read
+env:
+  UPDATE_STREAM: ${{ github.event_name == 'schedule' && github.ref == 'refs/heads/main' && 'daily' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'develop' || '' }}
 jobs:
   build:
     permissions:
@@ -18,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         include: >-
-          ${{ fromJSON(github.event_name == 'release' && '[
+          ${{ fromJSON((github.event_name == 'release' || github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && '[
             {"os":"macos-15","name":"macos-arm64","arch":"arm64","macos_min":"14.0"},
             {"os":"macos-15-intel","name":"macos-x64","arch":"x64","macos_min":"13.3"},
             {"os":"windows-2022","name":"windows-x64","arch":"x64"},
@@ -37,12 +41,7 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_min }}
       MUSIC_GENERATOR_LINUX_BACKEND: ${{ matrix.linux_backend || 'vulkan' }}
-      APPLE_SIGNING_IDENTITY: ${{ github.event_name != 'pull_request' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-      APPLE_CERTIFICATE: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE || '' }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-      APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
-      APPLE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_PASSWORD || '' }}
-      APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
+      MUSIC_GENERATOR_REQUIRE_NOTARIZATION: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,7 +75,8 @@ jobs:
         run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Wrong native runner architecture')"
       - run: npm run build
       - run: npm run lint
-      - run: npm test
+      # Keep DOM-heavy suites from contending for the Intel runner's CPUs.
+      - run: npm test ${{ matrix.name == 'macos-x64' && '-- --maxWorkers=2' || '' }}
       - run: npm run test:desktop
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
@@ -108,6 +108,16 @@ jobs:
           path: .cache/desktop/cuda
           key: cuda-linux-x64-${{ hashFiles('models/cuda-linux.json', 'scripts/desktop/prepare-cuda.mjs') }}
       - run: npm run bundle
+        env:
+          MUSIC_GENERATOR_UPDATE_BUILD: ${{ env.UPDATE_STREAM != '' && format('{0}-{1}', env.UPDATE_STREAM, github.run_number) || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && (github.event_name == 'release' || env.UPDATE_STREAM != '') && secrets.APPLE_TEAM_ID || '' }}
+          SPARKLE_PUBLIC_KEY: ${{ runner.os == 'macOS' && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION == 'true' && vars.SPARKLE_PUBLIC_KEY || '' }}
+          SPARKLE_PRIVATE_KEY: ${{ runner.os == 'macOS' && env.MUSIC_GENERATOR_REQUIRE_NOTARIZATION == 'true' && secrets.SPARKLE_PRIVATE_KEY || '' }}
       - name: Verify relocated portable bundle
         run: node scripts/desktop/verify-bundle.mjs
       - name: Verify Windows MSI installation and removal
@@ -151,3 +161,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: node scripts/desktop/publish-release.mjs --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --target "${{ matrix.name }}" --directory release
+  publish-stream:
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule')
+    concurrency:
+      group: ${{ github.event_name == 'schedule' && 'desktop-publish-daily' || format('desktop-publish-{0}', github.run_id) }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Music-Generator-*
+          path: packages
+      - name: Publish verified stream packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/desktop/publish-stream.mjs
+      - name: Retain the two newest daily releases
+        if: env.UPDATE_STREAM == 'daily'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stale_tags=$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.prerelease and (.draft | not)) | .tag_name | select(test("^daily-[1-9][0-9]*$"))' \
+              | sort -t- -k2,2nr | tail -n +3
+          )
+          while IFS= read -r tag && [[ -n "$tag" ]]; do
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+          done <<< "$stale_tags"

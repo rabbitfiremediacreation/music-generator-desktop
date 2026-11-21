@@ -38,7 +38,7 @@ pub(super) struct ConnectionFile {
 impl ConnectionFile {
     pub(super) fn create(root: &Path, info: ConnectionInfo) -> Result<Self> {
         let path = root.join("mcp.json");
-        super::settings::write_private(&path, &serde_json::to_vec_pretty(&info)?)?;
+        crate::paths::write_private(&path, &serde_json::to_vec_pretty(&info)?)?;
         Ok(Self { path, info })
     }
 }

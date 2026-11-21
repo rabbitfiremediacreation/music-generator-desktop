@@ -1,8 +1,22 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rerun-if-changed=src/macos_updater.m");
+        cc::Build::new()
+            .file("src/macos_updater.m")
+            .flag("-fobjc-arc")
+            .compile("music_macos_updater");
+        println!("cargo:rustc-link-lib=framework=Foundation");
+    }
     embed_mobile_assets();
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     let revision = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "local".into());
     println!("cargo:rustc-env=MUSIC_GENERATOR_BUILD_REVISION={revision}");
+    println!("cargo:rerun-if-env-changed=MUSIC_GENERATOR_UPDATE_BUILD");
+    if let Ok(build) = std::env::var("MUSIC_GENERATOR_UPDATE_BUILD") {
+        if !build.is_empty() {
+            println!("cargo:rustc-env=MUSIC_GENERATOR_UPDATE_BUILD={build}");
+        }
+    }
     println!("cargo:rerun-if-env-changed=MUSIC_GENERATOR_LINUX_BACKEND");
     let linux_backend =
         std::env::var("MUSIC_GENERATOR_LINUX_BACKEND").unwrap_or_else(|_| "vulkan".to_owned());
@@ -59,6 +73,56 @@ fn main() {
         assert!(
             files.keys().all(|file| !file.starts_with("heartmula/")),
             "Retired provider resources must not be bundled"
+        );
+        let mut provider_files: Vec<_> = files
+            .keys()
+            .filter(|file| file.starts_with("providers/audio.cpp/"))
+            .map(String::as_str)
+            .collect();
+        provider_files.sort_unstable();
+        let mut expected_provider_files = Vec::new();
+        if platform == "macos" && arch == "aarch64" {
+            let yue2: serde_json::Value =
+                serde_json::from_str(include_str!("../models/yue2-runtime.json"))
+                    .expect("Invalid YuE2 runtime pin");
+            for key in ["executable", "planner"] {
+                assert!(
+                    files.contains_key(yue2[key].as_str().expect("Missing YuE2 runtime path")),
+                    "YuE2 runtime is missing: run npm run engine:prepare"
+                );
+            }
+            assert!(
+                files.contains_key("mimetic-synth")
+                    && files.contains_key("mimetic-python/MIMETIC_RUNTIME.json"),
+                "Mimetic A0 runtime is missing: run npm run engine:prepare"
+            );
+            let pin: serde_json::Value =
+                serde_json::from_str(include_str!("../models/audio-cpp-runtime.json"))
+                    .expect("Invalid audio.cpp runtime pin");
+            expected_provider_files.extend(
+                [
+                    "LICENSE",
+                    "LICENSE.soxr",
+                    "audiocpp_cli",
+                    "libaudiocpp.0.dylib",
+                    "libsoxr.dylib",
+                    "soxr-0.1.3-Source.tar.xz",
+                ]
+                .into_iter()
+                .chain(
+                    pin["model_specs"]
+                        .as_array()
+                        .expect("Missing audio.cpp model specs")
+                        .iter()
+                        .map(|spec| spec["path"].as_str().expect("Missing audio.cpp spec path")),
+                )
+                .map(|path| format!("providers/audio.cpp/{path}")),
+            );
+            expected_provider_files.sort_unstable();
+        }
+        assert_eq!(
+            provider_files, expected_provider_files,
+            "Unexpected audio.cpp runtime inventory: run npm run engine:prepare"
         );
         assert!(
             files.contains_key(executable),

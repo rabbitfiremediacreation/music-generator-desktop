@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
+import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Library } from "./library/Library";
 import { I18nProvider } from "./i18n";
@@ -11,6 +12,7 @@ import { setLang } from "../i18n.js";
 import type { Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: async ({ defaultPath }: { defaultPath: string }) => defaultPath }));
 const waveform={loadBlob:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
 let songs: Song[];
 beforeEach(() => {
@@ -22,8 +24,17 @@ beforeEach(() => {
   songs = [{id:"one",title:"A song",caption:"night",letter:"A",group_id:"g",status:"done",favorite:false,params:{inference_steps:200},result_meta:{duration: 8,duration_source:"wav",inference_steps_limit:200,effective_inference_steps:200},created_at:"2026-01-01",lyrics:"[Instrumental]",finished_at:null,message:null,seed:1,file:null,audio_missing:false,folder_id:null,path:null}];
   mocks.invoke.mockReset().mockImplementation(async (name,args) => {
     if(name === "read_song_audio") return new Uint8Array([82,73,70,70]).buffer;
-    if(name === "list_songs") return songs.filter(song => !args.filter.favorites || song.favorite);
-    if(name === "list_folders") return {folders:[],all:songs.length,none:songs.length};
+    if(name === "list_song_page") {
+      const { filter, offset, limit } = args;
+      const matching = songs.filter(song => (!filter.favorites || song.favorite)
+        && (!filter.folder || song.folder_id === filter.folder)
+        && (!filter.q || song.title?.includes(filter.q)));
+      return { songs: matching.slice(offset, offset + limit), total: matching.length };
+    }
+    if(name === "list_folders") {
+      const count=songs.filter(song=>song.folder_id==="ideas").length;
+      return {folders:count?[{id:"ideas",name:"Ideas",count}]:[],all:songs.length,none:songs.length-count};
+    }
     if(name === "queue") return {running:[],queued:0,active:false,progress:null,library:{count:songs.length,bytes:1000}};
     if(name === "get_settings") return {export_format:"wav"};
     if(name === "cancel_song") {
@@ -39,9 +50,105 @@ beforeEach(() => {
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 function mount(withPlayer=false) {
   const client = createAppQueryClient();
-  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><Library folder="" onFolderChange={() => {}} onReuse={() => {}} selection={null}/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
+  function TestLibrary() {
+    const [folder,setFolder]=useState("");
+    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={null}/>;
+  }
+  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><TestLibrary/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
   return client;
 }
+
+function seedPages(count: number) {
+  const song = songs[0];
+  songs = Array.from({length:count}, (_,index) => ({
+    ...song,
+    id:`song-${index}`,
+    title:`${index%2===0?"Piano":"Drums"} ${index}`,
+    letter:"",
+    favorite:index%2===0,
+    folder_id:index%2===0?"ideas":null,
+  }));
+}
+
+it("opens the song and ZIP format dropdowns and exports the chosen format", async () => {
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "get_settings") return { export_format: "mp3_320", export_formats: ["wav", "mp3_320", "ogg", "original"] };
+    if (name === "export_default_path") return `/Downloads/${args.filename}`;
+    return original(name, args);
+  });
+  mount();
+  const download = await screen.findByRole("button", { name: "Download" });
+  fireEvent.keyDown(download, { key: "ArrowDown" });
+  const songMenu = screen.getByRole("menu", { name: "Download format" });
+  const [first, second] = within(songMenu).getAllByRole("menuitem");
+  expect(first.textContent).toBe("MP3 · 320 kbit/s");
+  expect(document.activeElement).toBe(first);
+  fireEvent.keyDown(first, { key: "ArrowDown" });
+  expect(document.activeElement).toBe(second);
+  fireEvent.keyDown(second, { key: "Escape" });
+  expect(screen.queryByRole("menu", { name: "Download format" })).toBeNull();
+  expect(document.activeElement).toBe(download);
+  fireEvent.click(download);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Ogg/Opus · 160 kbit/s" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
+    kind: "audio", destination: "/Downloads/A song.ogg", id: "one", folder: null, format: "ogg",
+  }));
+  fireEvent.click(screen.getByRole("button", { name: "Download all" }));
+  const zipMenu = screen.getByRole("menu", { name: "Audio format in ZIP" });
+  expect(within(zipMenu).getAllByRole("menuitem")[0].textContent).toBe("MP3 · 320 kbit/s");
+  fireEvent.click(within(zipMenu).getByRole("menuitem", { name: "WAV" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
+    kind: "zip", destination: "/Downloads/Music Generator.zip", id: null, folder: "", format: "wav",
+  }));
+});
+
+it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
+  seedPages(106);
+  mount();
+  const next=await screen.findByRole("button",{name:"Next"});
+  const previous=screen.getByRole("button",{name:"Previous"});
+  expect(previous).toHaveProperty("disabled",true);
+  expect(screen.getByText("Page 1 of 3")).toBeTruthy();
+  fireEvent.click(next);
+  await screen.findByText("Piano 50");
+  expect(screen.queryByText("Drums 49")).toBeNull();
+  fireEvent.click(next);
+  await screen.findByText("Drums 105");
+  expect(screen.getByText("Page 3 of 3")).toBeTruthy();
+  expect(next).toHaveProperty("disabled",true);
+  fireEvent.click(previous);
+  await screen.findByText("Piano 50");
+
+  fireEvent.change(screen.getByRole("searchbox"),{target:{value:"Piano"}});
+  await waitFor(()=>expect(document.querySelector("#library article:last-child")?.textContent).toContain("Piano 98"));
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 104");
+  fireEvent.click(screen.getByRole("button",{name:"Ideas 53"}));
+  await screen.findByText("Piano 0");
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 104");
+  fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));
+  await screen.findByText("Piano 0");
+  expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("list_song_page",{
+    filter:{q:"Piano",folder:"ideas",favorites:true},offset:0,limit:50,
+  });
+});
+
+it("returns to the remaining page when deletion removes the last page", async () => {
+  seedPages(51);
+  mount();
+  fireEvent.click(await screen.findByRole("button",{name:"Next"}));
+  await screen.findByText("Piano 50");
+  fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+  fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await screen.findByText("Piano 0");
+  expect(screen.queryByRole("navigation",{name:"Library pages"})).toBeNull();
+  expect(screen.queryByText("Piano 50")).toBeNull();
+});
 it("updates the favorite view after mutation and preserves inline edits during a refresh", async () => {
   const client = mount();
   await screen.findByText("A song A");
@@ -59,6 +166,19 @@ it("updates the favorite view after mutation and preserves inline edits during a
   expect((input as HTMLInputElement).value).toBe("still editing");
   fireEvent.keyDown(input,{key:"Enter"});
   await screen.findByText("still editing A");
+});
+it("shows MIDI results and missing files separately from playable audio", async () => {
+  songs = [
+    ...songs,
+    { ...songs[0], id: "midi", title: "MIDI composition", output_kind: "midi", file: "midi.mid", result_meta: null },
+    { ...songs[0], id: "missing", title: "Missing composition", output_kind: "midi", audio_missing: true, file: "missing.mid", result_meta: null },
+  ];
+  mount(true);
+  expect(await screen.findByRole("button", { name: "Export MIDI" })).toBeTruthy();
+  expect(screen.getAllByText("MIDI (.mid)")).toHaveLength(2);
+  expect(screen.getByText("MIDI file missing")).toBeTruthy();
+  expect(screen.getAllByRole("button", { name: "Play" })).toHaveLength(1);
+  expect(mocks.invoke).not.toHaveBeenCalledWith("read_song_audio", expect.anything());
 });
 
 it.each([
@@ -87,6 +207,65 @@ it("hides unverified duration and unknown automatic iterations",async()=>{
   await view.invalidateQueries({queryKey:["songs"]});
   await screen.findByText("0:29");
   expect(screen.queryByRole("note")).toBeNull();
+});
+
+it("shows each Magenta recording observation separately from the WAV duration", async () => {
+  songs[0].result_meta = {
+    duration: 12, duration_source: "wav",
+    stream_metrics: { first_audio_ms: 750, underrun_blocks: 0, peak_rss_bytes: 2 ** 30, realtime: true },
+  };
+  mount();
+  expect(await screen.findByText("First audio after 0.75 s")).toBeTruthy();
+  expect(screen.getByText("0 underrun blocks")).toBeTruthy();
+  expect(screen.getByText("Peak resident RAM 1 GiB")).toBeTruthy();
+  expect(screen.getByText("Real-time capture verified")).toBeTruthy();
+  expect(screen.getByText(/0:12/)).toBeTruthy();
+});
+
+it("shows measured MiniMax audio, runtime provenance and the publication reminder", async () => {
+  songs[0].params = { model_selection: { provider: "minimax-music3", synthesis: "fixed-profile", language: "" } };
+  songs[0].result_meta = {
+    duration: 27.53, duration_source: "wav", runtime: "audio.cpp", runtime_revision: "1234567890abcdef",
+    audio_format: { container: "wav", encoding: "pcm", sample_rate_hz: 44100, channels: 2, bits_per_sample: 16 },
+    machine_generated: true, generated_by: "MiniMax-Music3",
+  };
+  mount();
+  expect(await screen.findByText("0:27")).toBeTruthy();
+  expect(screen.getByText("WAV PCM 16-bit · 44.1 kHz · 2 ch", { exact: false })).toBeTruthy();
+  expect(screen.getByText("audio.cpp 12345678")).toHaveProperty("title", "1234567890abcdef");
+  expect(screen.getByText("AI-generated with MiniMax-Music3")).toBeTruthy();
+  const note = screen.getByRole("note");
+  expect(note.textContent).toContain("Clearly label the audio as AI-generated if you publish it.");
+  expect(screen.getByRole("button", { name: "Download" }).getAttribute("aria-describedby")).toBe(note.id);
+});
+
+it.each([
+  ["minimax-music3", { prompt: true, lyrics: true, instrumental: false }],
+  ["heartmula", { prompt: false, lyrics: true, instrumental: false }],
+  ["stable-audio-3", { prompt: true, lyrics: false, instrumental: true }],
+  ["magenta-realtime-2", { prompt: true, lyrics: false, instrumental: true }],
+] as const)("uses the saved %s capabilities when requesting another variant", async (provider, capabilities) => {
+  const caption = "Global Metadata: pop\nVocal Details: warm\nArrangement: keys";
+  const { prompt, lyrics, instrumental } = capabilities;
+  const params = {
+    caption, duration: 27, lyrics: lyrics ? "[Verse]\nAt dawn" : "", style: prompt ? "" : "synth pop",
+    model_selection: { provider, synthesis: "fixed-profile", language: "" },
+    generation_profile: { capabilities },
+  };
+  songs[0].params = params;
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", capabilities: { advanced: false } });
+    if (name === "generate") return Promise.resolve({ ids: ["variant"] });
+    return original(name, args);
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", expect.anything()));
+  const request = mocks.invoke.mock.calls.find(([name]) => name === "generate")?.[1].request;
+  if (prompt) expect(request).toHaveProperty("caption", caption);
+  else expect(request).not.toHaveProperty("caption");
+  expect(request).toHaveProperty("instrumental", instrumental);
 });
 
 it("shows the variance with up to two decimals",async()=>{
@@ -118,6 +297,26 @@ it("localizes a rejected library variant instead of exposing a backend message k
   const alert=await screen.findByRole("alert");
   expect(alert.textContent).toContain("Expert Mode");
   expect(alert.textContent).not.toContain("expert_mode_required");
+});
+
+it("shows measured clip seconds and keeps the meter for a new library variant", async () => {
+  const selection = { provider: "mimetic-a0", synthesis: "mimetic-a0-model.fp16.safetensors", language: "" };
+  const params = { model_selection: selection, prompt: "jazzy swung drums", caption: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300, duration: 0.8, seed: 42 };
+  songs[0].params = params;
+  songs[0].result_meta = { duration: 0.8, duration_source: "wav", bpm: 300 };
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "generation_policy") return Promise.resolve({ backend: "gpu", cpu_iteration_behavior: "ask" });
+    if (name === "generate") return Promise.resolve({ ids: ["new-clip"] });
+    return original(name, args);
+  });
+  mount();
+  expect(await screen.findByText("300BPM · 0.8 s")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Another variant (new seed)" }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: {
+    model_selection: selection, prompt: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300,
+    duration: 0.8, seed: -1, variants: 1, keep_caption: true, title: "A song", folder_id: null, group_id: "g",
+  } }));
 });
 
 it("resets delete confirmation after a keyboard or screenreader click on another action",async()=>{
@@ -185,4 +384,19 @@ it("keeps the loaded song after a rejected deletion or a filtered library refres
   expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);expect(waveform.destroy).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));await screen.findByText("Nothing yet");
   expect(document.querySelector("#pTitle")!.textContent).toBe("A song");expect(waveform.destroy).not.toHaveBeenCalled();
+});
+
+it("rounds a duration-limited WAV at the displayed second", async () => {
+  songs[0].params = { duration: 60 };
+  songs[0].result_meta = { duration: 59.998667, duration_source: "wav", duration_limit: 60 };
+  mount();
+  expect(await screen.findByText("1:00")).toBeTruthy();
+});
+
+it("shows the supplied lyrics for a YuE2 song", async () => {
+  songs[0].engine = "yue2";
+  songs[0].lyrics = "[Verse]\nI hear the ocean roar";
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Lyrics" }));
+  expect(screen.getByText(/I hear the ocean roar/)).toBeTruthy();
 });

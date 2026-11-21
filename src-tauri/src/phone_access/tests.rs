@@ -633,6 +633,34 @@ async fn audio_streams_with_ranges_and_downloads_as_attachment() {
     );
     assert_eq!(download.bytes().await.unwrap().len(), len);
 
+    let queue: Value = f
+        .get("/api/queue")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(queue["audio_export"]["default_format"], "wav");
+    assert!(queue["audio_export"]["formats"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("wav")));
+    let explicit = f
+        .get(&format!("{path}?download=true&format=wav"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(explicit.status(), 200);
+    assert_eq!(explicit.headers()["content-type"], "audio/wav");
+    assert_eq!(explicit.bytes().await.unwrap().as_ref(), f.audio.as_slice());
+    let invalid = f
+        .get(&format!("{path}?download=true&format=unknown"))
+        .send()
+        .await
+        .unwrap();
+    assert!(invalid.status().is_client_error());
+
     let songs = f.state.db.songs(&SongFilter::default()).unwrap();
     let running = songs.iter().find(|s| s.id != f.song).unwrap();
     let pending = f
@@ -641,6 +669,153 @@ async fn audio_streams_with_ranges_and_downloads_as_attachment() {
         .await
         .unwrap();
     assert_eq!(pending.status(), 404);
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
+async fn midi_is_downloadable_through_its_own_authenticated_route() {
+    let f = Fixture::new().await;
+    let db = &f.state.db;
+    let id = db
+        .enqueue(&GenerateRequest {
+            model_selection: Some(crate::catalog::Selection {
+                provider: "text2midi".into(),
+                synthesis: "text2midi".into(),
+                language: "flan-t5-base".into(),
+            }),
+            prompt: "A piano melody".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    let endpoint = format!("/api/songs/{id}/midi");
+    let card = async || {
+        let value: Value = f
+            .get("/api/pwa/library")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        value["songs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|song| song["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    let queued = card().await;
+    assert_eq!(queued["output_kind"], "midi");
+    assert_eq!(queued["has_midi"], false);
+    assert_eq!(f.get(&endpoint).send().await.unwrap().status(), 404);
+
+    assert_eq!(db.claim_next().unwrap().unwrap().0, id);
+    let path = Path::new(&db.settings().unwrap().songs_dir).join("composition.mid");
+    std::fs::write(&path, b"MThd fixture").unwrap();
+    assert!(db
+        .finish_output(
+            &id,
+            "composition.mid",
+            &json!({}),
+            "text2midi",
+            OutputKind::Midi
+        )
+        .unwrap());
+    let done = card().await;
+    assert_eq!(done["has_midi"], true);
+    assert_eq!(done["has_audio"], false);
+    assert!(done["duration"].is_null());
+    assert_eq!(
+        f.http
+            .get(format!("{}{endpoint}", f.base))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    let details: Value = f
+        .get(&format!("/api/songs/{id}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(details["midi_url"], endpoint);
+    assert!(details["url"].is_null());
+    assert_eq!(
+        f.get(&format!("/api/songs/{id}/audio?download=true"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let midi = f.get(&endpoint).send().await.unwrap();
+    assert_eq!(midi.status(), 200);
+    assert_eq!(midi.headers()["content-type"], "audio/midi");
+    assert!(midi.headers()[CONTENT_DISPOSITION]
+        .to_str()
+        .unwrap()
+        .ends_with(".mid"));
+    assert_eq!(midi.bytes().await.unwrap().as_ref(), b"MThd fixture");
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(card().await["has_midi"], false);
+    assert_eq!(f.get(&endpoint).send().await.unwrap().status(), 404);
+    f.state.phone_access.stop().await;
+}
+
+#[tokio::test]
+async fn profile_and_generation_cancellation_are_authenticated() {
+    let f = Fixture::new().await;
+    let profile_path = "/api/generation-profile";
+    let unauthorized = f
+        .http
+        .get(format!("{}{profile_path}", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), 401);
+    let profile = f.get(profile_path).send().await.unwrap();
+    assert_eq!(profile.status(), 200);
+    let profile: Value = profile.json().await.unwrap();
+    assert_eq!(profile["selection"]["provider"], "ace-step");
+    assert_eq!(profile["capabilities"]["analysis"], true);
+    assert_eq!(profile["available"], false);
+    let pending = f
+        .state
+        .db
+        .songs(&SongFilter::default())
+        .unwrap()
+        .into_iter()
+        .find(|song| song.id != f.song)
+        .unwrap();
+    let cancel_path = format!("/api/songs/{}/cancel", pending.id);
+    let unauthorized = f
+        .http
+        .post(format!("{}{cancel_path}", f.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), 401);
+    for expected in [true, false] {
+        let response = f
+            .send(reqwest::Method::POST, &cancel_path)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            response.json::<Value>().await.unwrap()["cancelled"],
+            expected
+        );
+    }
+    assert_eq!(f.state.db.song(&pending.id).unwrap().status, "cancelled");
+    assert_eq!(f.state.db.song(&f.song).unwrap().status, "done");
+    assert_eq!(f.changes.load(Ordering::SeqCst), 1);
     f.state.phone_access.stop().await;
 }
 
@@ -703,11 +878,13 @@ async fn generation_and_analysis_report_desktop_errors_as_json() {
 fn phone_requests_map_onto_desktop_generation() {
     let phone: PhoneGeneration = serde_json::from_value(json!({
         "prompt":"piano","style":"jazz","lyrics":"","instrumental":false,"title":"",
-        "duration":90.0,"bpm":121.6,"keyscale":"","timesignature":"","inference_steps":80,
+        "duration":900.0,"ignore_recommended_duration":true,"bpm":121.6,"keyscale":"","timesignature":"","inference_steps":80,
         "lm_temperature":0.85,"vocal_language":"en","variants":2,"folder_id":""
     }))
     .unwrap();
     let request = phone.request("group".into()).unwrap();
+    assert_eq!(request.duration, 900.0);
+    assert!(request.ignore_recommended_duration);
     assert_eq!(request.bpm, 122);
     assert_eq!(request.inference_steps, 80);
     assert_eq!(request.variants, 2);
@@ -720,8 +897,21 @@ fn phone_requests_map_onto_desktop_generation() {
     assert!(request.model_selection.is_none());
     let defaults: PhoneGeneration = serde_json::from_value(json!({"prompt":"x"})).unwrap();
     assert!(defaults.instrumental);
+    assert!(!defaults.ignore_recommended_duration);
     assert!(PhoneGeneration {
         bpm: f64::NAN,
+        ..Default::default()
+    }
+    .request("g".into())
+    .is_err());
+
+    let clip: PhoneGeneration =
+        serde_json::from_value(json!({"prompt":"drums","bars":2,"bpm":124})).unwrap();
+    let clip = clip.request("g".into()).unwrap();
+    assert_eq!((clip.bars, clip.bpm), (Some(2), 124));
+    assert!(PhoneGeneration {
+        bars: Some(2),
+        bpm: 124.2,
         ..Default::default()
     }
     .request("g".into())

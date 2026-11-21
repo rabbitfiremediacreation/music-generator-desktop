@@ -69,11 +69,11 @@ pub(super) fn export<R: tauri::Runtime>(
     let id = args["id"].as_str().map(str::to_string);
     let folder = args["folder"].as_str().map(str::to_string);
     if kind != "zip" && id.is_none() {
-        return Err(message("Audio and lyrics exports require a song id"));
+        return Err(message("Individual exports require a song id"));
     }
     let destination = absolute(string(&args, "destination")?)?;
     let overwrite = args["overwrite"].as_bool().unwrap_or(false);
-    let target = export_target::Target::new(&state, &kind, &destination, overwrite)?;
+    let target = export_target::Target::new(&state, &kind, id.as_deref(), &destination, overwrite)?;
     let cancel = operation.cancellation();
     let task = tasks::for_app(app).begin("export_file", cancel.clone())?;
     let result = task.accepted();
@@ -84,7 +84,7 @@ pub(super) fn export<R: tauri::Runtime>(
         crate::exports::export_contents(
             state.db.clone(),
             state.resources.clone(),
-            kind,
+            crate::exports::ExportSelection::parse(&kind, None)?,
             id,
             folder,
             target.path().into(),

@@ -1,6 +1,6 @@
 //! Shared offline title model for all music providers. Never changes generation parameters.
 use crate::{
-    download::{download_model, ensure_space, DownloadProgress},
+    download::{self, ensure_space, DownloadProgress},
     engine::process::OwnedProcess,
     error::{message, Error, Result},
     manifest::Model,
@@ -72,13 +72,10 @@ pub async fn install(
             pin.model.estimated_bytes.saturating_sub(partial) + 64 * 1024 * 1024,
         )?;
     }
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .read_timeout(Duration::from_secs(60))
-        .build()?;
-    download_model(
-        &client,
-        &pin.url,
+    let client = download::client()?;
+    download::fetch(
+        || crate::hugging_face_token::get(&client, &pin.url, data),
+        None,
         root,
         &pin.model,
         &mut verifier,
