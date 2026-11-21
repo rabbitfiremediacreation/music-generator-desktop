@@ -91,6 +91,8 @@ export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
     const version = ++loadSequence.current;
     setTime("0:00 / 0:00");
     const instance = window.WaveSurfer.create({ container: waveform.current, height:44, barWidth:2, barGap:1, barRadius:2,
+      // WebKitGTK media-element seeks can jump to the wrong position in blob-backed songs.
+      backend: /Linux/i.test(navigator.userAgent) ? "WebAudio" : "MediaElement",
       ...waveformColors(), cursorWidth:0 });
     engine.current = instance;
     const stopTheme = subscribeTheme(() => instance.setOptions(waveformColors()));

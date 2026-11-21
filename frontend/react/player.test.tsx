@@ -22,6 +22,21 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
 });
 
+it.each([["X11; Linux x86_64", "WebAudio"], ["Macintosh", "MediaElement"], ["Windows NT", "MediaElement"]])(
+  "selects the playback backend for %s", async (platform, backend) => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(`Mozilla/5.0 (${platform})`);
+    const create = vi.spyOn(window.WaveSurfer, "create");
+    try {
+      render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
+      fireEvent.click(screen.getByText("first"));
+      await waitFor(() => expect(engine.play).toHaveBeenCalledOnce());
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ backend }));
+    } finally {
+      vi.restoreAllMocks();
+    }
+  },
+);
+
 it.each([[5.6,"0:05"],[29.8,"0:29"]])("uses the whole-second audio clock for %s seconds through playback completion",async(seconds,clock)=>{
   engine.getDuration.mockReturnValue(seconds);
   render(<I18nProvider><PlayerProvider><Choices/><Player/></PlayerProvider></I18nProvider>);
