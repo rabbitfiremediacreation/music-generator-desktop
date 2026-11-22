@@ -1,0 +1,15 @@
+.model-license-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border, #ffffff1a);
+  border-radius: 8px;
+  background: var(--theme-panel);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.model-license-summary dt { font-weight: 650; }
+.model-license-summary dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.model-license-summary dd > span { display: block; }
+.model-license-summary a { color: var(--theme-link, var(--theme-accent, #c0b7ff)); text-decoration: underline; }

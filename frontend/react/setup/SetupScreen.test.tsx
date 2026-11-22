@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "../i18n";
 import { setLang } from "../../i18n.js";
@@ -45,6 +46,15 @@ async function next() {
 }
 
 async function reviewSetup() { await next(); await next(); }
+
+it("shows ACE-Step weight licenses and output guidance before the first-run download", async () => {
+  mount();
+  await reviewSetup();
+  const download = screen.getByRole("button", { name: "Modelle laden und testen" });
+  expect(download).toHaveAccessibleDescription(/Lizenz der Modellgewichte.*ACE-Step.*MIT.*Apache-2.0.*Erzeugte Musik.*Rechte für eine Veröffentlichung separat/);
+  expect(screen.getByRole("link", { name: "Lizenztext MIT" })).toBeVisible();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "setup_models")).toBe(false);
+});
 
 it("sets up library paths without downloading the ACE-Step starter when setup is skipped", async () => {
   mount({ ...setupFixture, optional_engines: true });
