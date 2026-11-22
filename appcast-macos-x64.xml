@@ -5,18 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>280</sparkle:version>
+      <sparkle:version>281</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.3</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-278</h2>
+      <description><![CDATA[<h2>Changes since develop-280</h2>
 <ul>
-<li>Show the saved music model in the library (#165) (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/170">#170</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/165">#165 Verwendetes Musikmodell für jeden Song in der Bibliothek sichtbar machen</a>, <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/164">#164 Nutzungsbedingungen für den einzelnen Song in Bibliothek und Export anzeigen</a></li>
+<li>Confirm permission before using external audio for analysis or remix (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/174">#174</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/168">#168 Berechtigung zur Verwendung eigener oder fremder Audiodateien beim Import abfragen</a></li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/a03e4d512cb28a457a6a1807708b929e6dfabdad...7cf50b78496bb93dcb46212f4948807cc40b21b4">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-280/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="4AYmeKM7cuyRtDr6rUkLGQdf+1PQopiav2nQCQvR3Hvg+4LGwZHxTF3Cv+g+QMbhO0QsgniI800nDmzvuIl/Dw==" length="15865843" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/7cf50b78496bb93dcb46212f4948807cc40b21b4...831684ca09baf582dbb0ead1837fe6750535cb84">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-281/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="K7IaOHB5ajw8PYYRu6UBRvclYuQyuJ2EOyrlLOckCxZhQWIWiM45phrQ7a/kd+nB57oc4IhEf5YgrIxu9yCkCQ==" length="15870199" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: kNY7vPze9kW7wRLgX6d7adPJosFifQTFUfmaI1mTNIx6YzJbvenjJZJq/OzxmzJlJ8utB2ZAHjxnBMcwO5wUCg==
-length: 1823
+edSignature: hehSKTAYi5giBFRtH37ufSgCPOJ0ctZWGmDC4phD7QK0yA9jLgxObB8kic+byQXbRfUDDgVcF9ofq3bdxEQbAQ==
+length: 1676
 -->
