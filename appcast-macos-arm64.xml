@@ -5,18 +5,19 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>251</sparkle:version>
+      <sparkle:version>263</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-247</h2>
+      <description><![CDATA[<h2>Changes since develop-251</h2>
 <ul>
-<li>Add MCP multimodel stem mixing workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/161">#161</a>)</li>
+<li>Allow more time for the full-library reference request (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/163">#163</a>)</li>
+<li>Add remix, queue, and expanded stem mixing workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/162">#162</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/673418d0514a497b47d1d6c668027d7542947401...f264562d901dcd82f73128b5b40a05f378a58e4c">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-251/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="/tOk5m5QhDLvN+9wQOl0KnyuFi58pGSZyH3EZ7sJLKsgfkg/TvCiN/LzXzJgyiVTdzf+NqEaRMNJLqC/xmGJBw==" length="13753485" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/f264562d901dcd82f73128b5b40a05f378a58e4c...3dbe4e6ec0a758fa41fa639fc8aab916870b257d">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-263/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="YAXMkYUgkXlfVFYfrc1p7LmLOIOxanZrJ2WQpu15RdDMj6aHg4JY3OCZgTiuwfgGLP30+ejnQmEy88qNI2oSDQ==" length="14132884" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: Fy0HxS24GM5U1sTJIHWyjvm0BAxK30/Wfa+caVvqrtzijKTlWjhzlyEfex/4BlDt08XTzQYNNedPML9rMW0UCA==
-length: 1467
+edSignature: 5BY9CCwnq4At7drbMuOWko5pm8yqFg6rriVQDkDtwsWsdasGv14nCptP1xwffSI44ieTIE5Nctc2ClgPAPFhBw==
+length: 1640
 -->
