@@ -109,7 +109,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
       {song.status==="done"&&<button type="button" className={`sek icon ${song.favorite?"on":""}`} aria-label={t("fav")} title={t("fav")} aria-pressed={song.favorite} disabled={change.isPending} onClick={()=>change.mutate(()=>backend.patch(song.id,{favorite:!song.favorite}))}>{song.favorite?"★":"☆"}</button>}
       {canExport&&(midi
         ? action(t("midi_export"), "MIDI", ()=>change.mutate(()=>exportSong(song)), "download fmt", change.isPending, generatedBy?publicDisclosureId:undefined)
-        : <DownloadFormatMenu formats={exportFormats} label={t("download")} menuLabel={t("download_format")} originalLabel={t("download_original")}
+        : <DownloadFormatMenu formats={exportFormats} label={t("download")} menuLabel={t("download_format")} originalLabel={t("download_original")} language={language}
             className="sek icon download fmt" descriptionId={generatedBy?publicDisclosureId:undefined} disabled={change.isPending}
             onChoose={format=>change.mutate(()=>exportSong(song,false,format))}>{audioFormat}</DownloadFormatMenu>)}
       {onStems && !projectCount && !midi && song.status === "done" && song.path && <button className="sek mini" type="button" onClick={() => onStems({ song })}>{t("stem_split")}</button>}

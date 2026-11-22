@@ -2,6 +2,7 @@ pub mod admission;
 pub mod audio_export;
 pub mod audio_facts;
 pub mod audio_import;
+mod audio_provenance;
 mod audio_upload;
 pub mod catalog;
 mod commands;

@@ -1,0 +1,21 @@
+{
+  "en": {
+    "audiocraft_outputs": "The weights license applies to the weights. Rights to the generated music must be assessed separately.",
+    "mimetic_outputs": "The MIT license contains no separate output clause. The publisher's NOTICE describes the training material and the uncertain origin of some GeneralUser GS SoundFont samples.",
+    "minimax_music3_outputs": "Clearly label publicly shared music as machine-generated. The Acceptable Use Policy prohibits unauthorized impersonation and violations of third-party rights.",
+    "mulacover_outputs": "Generated music is limited to noncommercial use, including when shared or exported. Commercial use requires written permission from MuLa Labs.",
+    "provider_magenta_outputs": "Google claims no rights in generated music. Do not infringe third-party rights. You are responsible for inputs, outputs and their use.",
+    "stable_audio_outputs": "You own the output as between you and Stability AI, to the extent the law permits. Publishing and monetizing music are subject to the applicable terms, acceptable use policy and third-party rights. The model and its output cannot be used to develop or improve other generative foundation models, subject to the exception in §IV.",
+    "text2midi_outputs": "The model card lists no separate terms for generated MIDI. Check rights to the composition and to any samples or virtual instruments you use."
+  },
+  "de": {
+    "audiocraft_outputs": "Die Lizenz gilt für die Gewichte. Die Rechte an der erzeugten Musik sind gesondert zu prüfen.",
+    "mimetic_outputs": "Die MIT-Lizenz enthält keine gesonderte Klausel zu erzeugter Musik. Die NOTICE des Herausgebers beschreibt das Trainingsmaterial und die unklare Herkunft einzelner Samples aus dem GeneralUser-GS-SoundFont.",
+    "minimax_music3_outputs": "Kennzeichne öffentlich verbreitete Musik deutlich als maschinell erzeugt. Die Acceptable Use Policy untersagt unbefugte Identitätsnachahmung und die Verletzung von Rechten Dritter.",
+    "mulacover_outputs": "Erzeugte Musik darf nur nichtkommerziell verwendet werden. Das gilt auch für geteilte und exportierte Musik. Kommerzielle Nutzung erfordert eine schriftliche Genehmigung von MuLa Labs.",
+    "provider_magenta_outputs": "Google beansprucht keine Rechte an erzeugter Musik. Rechte Dritter sind zu wahren. Du bist für Eingaben, Ergebnisse und deren Verwendung verantwortlich.",
+    "stable_audio_outputs": "Im Verhältnis zu Stability AI gehören dir die Ausgaben, soweit das Recht es zulässt. Für Veröffentlichung und Monetarisierung gelten die einschlägigen Bedingungen, die Richtlinie zur zulässigen Nutzung und Rechte Dritter. Modell und Ausgaben dürfen vorbehaltlich der Ausnahme in §IV nicht zur Entwicklung oder Verbesserung anderer generativer Foundation Models verwendet werden.",
+    "text2midi_outputs": "Die Modellkarte nennt keine gesonderten Bedingungen für erzeugte MIDI-Dateien. Prüfe die Rechte an der Komposition sowie an verwendeten Samples und virtuellen Instrumenten.",
+    "yue2_usage_outputs": "Einzelkreative dürfen erzeugte Songs ohne Lizenzgebühren oder verpflichtende Namensnennung veröffentlichen, verkaufen und an Kunden lizenzieren. Dabei gelten die Vorgaben von MAP zur verantwortungsvollen Nutzung. Rechte und Einwilligungen für Eingaben und Ergebnisse selbst klären."
+  }
+}
