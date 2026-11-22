@@ -58,7 +58,8 @@ export interface Song {
   started_at?: string | null;
   status: "queued" | "running" | "done" | "error" | "cancelled"; message: string | null;
   title: string | null; caption: string; lyrics: string | null; seed: number;
-  params: Generation & { generation_profile?: { capabilities?: Partial<ModelAbilities> } }; result_meta: Record<string, unknown> | null; file: string | null;
+  params: Generation & { generation_profile?: { provider?: string; model_revision?: string; capabilities?: Partial<ModelAbilities> } };
+  result_meta: Record<string, unknown> | null; file: string | null;
   engine?: string | null;
   output_kind?: OutputKind; audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;

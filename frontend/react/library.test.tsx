@@ -9,7 +9,7 @@ import { createAppQueryClient } from "./data";
 import { Player, PlayerProvider } from "./player";
 import { GenerationAdmissionProvider } from "./generation/admission";
 import { setLang } from "../i18n.js";
-import type { Song } from "../types";
+import type { ModelSelection, Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: async ({ defaultPath }: { defaultPath: string }) => defaultPath }));
@@ -48,15 +48,57 @@ beforeEach(() => {
   });
 });
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
-function mount(withPlayer=false) {
+function mount(withPlayer=false, selection: ModelSelection | null = null) {
   const client = createAppQueryClient();
   function TestLibrary() {
     const [folder,setFolder]=useState("");
-    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={null}/>;
+    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={selection}/>;
   }
   render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><TestLibrary/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
   return client;
 }
+
+it("shows each song's saved model and variant after reopening with another active profile", async () => {
+  const ace = { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "acestep-5Hz-lm-4B-Q8_0.gguf" };
+  const yue = { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" };
+  songs[0].params = { model_selection: ace };
+  songs.push({ ...songs[0], id: "yue", title: "Another song", params: { model_selection: yue } });
+
+  for (const active of [ace, yue]) {
+    const client = mount(false, active);
+    const first = within(await screen.findByRole("article", { name: "A song A" }));
+    const second = within(screen.getByRole("article", { name: "Another song A" }));
+    expect(first.getByText("Music model: ACE-Step 1.5 SFT · Q8_0 · LM 4B-Q8_0")).toBeTruthy();
+    expect(second.getByText("Music model: YuE2 3B · Q5_K_M")).toBeTruthy();
+    cleanup();
+    client.clear();
+  }
+
+  expect(mocks.invoke.mock.calls.filter(([name]) => name === "list_song_page")).toHaveLength(2);
+  expect(mocks.invoke.mock.calls.some(([name]) => name === "generate")).toBe(false);
+});
+
+it("uses only recorded origins when old songs lack a saved model selection", async () => {
+  setLang("de");
+  const legacy = songs[0];
+  legacy.engine = "acestep_cpp";
+  songs.push(
+    { ...legacy, id: "profile", title: "Profil", engine: null, params: { generation_profile: { provider: "heartmula", model_revision: "saved-pin" } } },
+    { ...legacy, id: "unknown", title: "Ohne Herkunft", engine: null },
+  );
+  mount(false, { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" });
+
+  expect(await screen.findByText("Musikmodell: ACE-Step · Variante unbekannt")).toBeTruthy();
+  expect(screen.getByText("Musikmodell: HeartMuLa · Variante unbekannt")).toHaveProperty("title", "Modellrevision: saved-pin");
+  expect(within(screen.getByRole("article", { name: "Ohne Herkunft A" })).getByText("Musikmodell unbekannt")).toBeTruthy();
+  expect(screen.queryByText(/YuE2/)).toBeNull();
+});
+
+it("keeps the saved variant visible when it no longer exists in the model catalog", async () => {
+  songs[0].params = { model_selection: { provider: "heartmula", synthesis: "heartmula-retired-q5_0", language: "" } };
+  mount();
+  expect(await screen.findByText("Music model: HeartMuLa · heartmula-retired-q5_0")).toBeTruthy();
+});
 
 function seedPages(count: number) {
   const song = songs[0];

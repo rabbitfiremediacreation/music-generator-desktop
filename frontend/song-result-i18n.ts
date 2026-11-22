@@ -22,6 +22,10 @@ for (const [language, values] of Object.entries(messages)) {
 }
 
 Object.assign(I18N.en, {
+  result_music_model: (name: string) => `Music model: ${name}`,
+  result_music_model_partial: (name: string) => `Music model: ${name} · Variant unknown`,
+  result_music_model_unknown: "Music model unknown",
+  result_music_model_revision: (revision: string) => `Model revision: ${revision}`,
   stream_first_audio: (seconds: string) => `First audio after ${seconds} s`,
   stream_underruns: (blocks: string) => `${blocks} underrun blocks`,
   stream_peak_ram: (gib: string) => `Peak resident RAM ${gib} GiB`,
@@ -34,6 +38,10 @@ Object.assign(I18N.en, {
 });
 
 Object.assign(I18N.de, {
+  result_music_model: (name: string) => `Musikmodell: ${name}`,
+  result_music_model_partial: (name: string) => `Musikmodell: ${name} · Variante unbekannt`,
+  result_music_model_unknown: "Musikmodell unbekannt",
+  result_music_model_revision: (revision: string) => `Modellrevision: ${revision}`,
   stream_first_audio: (seconds: string) => `Erstes Audio nach ${seconds} s`,
   stream_underruns: (blocks: string) => `${blocks} Aussetzerblöcke`,
   stream_peak_ram: (gib: string) => `Maximaler residenter RAM ${gib} GiB`,
