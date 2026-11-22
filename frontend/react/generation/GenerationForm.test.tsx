@@ -273,9 +273,12 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
   currentPolicy = { ...policy, available: true, capabilities: profile.capabilities };
   const original = ipc.invoke.getMockImplementation()!;
   const id = "a".repeat(64);
-  ipc.invoke.mockImplementation((name, args) => name === "pick_reference_audio"
-    ? Promise.resolve({ id, name: "Meine Aufnahme.wav" })
-    : original(name, args));
+  let picked = 0;
+  ipc.invoke.mockImplementation((name, args) => {
+    if (name !== "pick_reference_audio") return original(name, args);
+    if (picked++ === 0) return Promise.resolve({ id, name: "Meine Aufnahme.wav" });
+    return Promise.resolve({ id: "b".repeat(64), name: "Ersatz.wav" });
+  });
   mount({ selection: profile.selection }, true);
   const pick = await screen.findByRole("button", {
     name: "WAV als Vorlage wählen",
@@ -297,7 +300,8 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
   expect(await screen.findByText("Meine Aufnahme.wav")).toBeTruthy();
   fireEvent.submit(form);
   expect(requests).toHaveLength(0);
-  fireEvent.click(screen.getByRole("switch", { name: /Die Referenz gehört mir/ }));
+  const rights = /Die Referenz gehört mir.*für diesen nichtkommerziellen Remix/;
+  fireEvent.click(screen.getByRole("switch", { name: rights }));
   fireEvent.submit(form);
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(requests[0]).toMatchObject({
@@ -308,6 +312,11 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
     instrumental: false,
   });
   expect(requests[0]).not.toHaveProperty("prompt");
+  fireEvent.click(pick);
+  await screen.findByText("Ersatz.wav");
+  expect(screen.getByRole<HTMLInputElement>("switch", { name: rights }).checked).toBe(false);
+  fireEvent.submit(form);
+  expect(requests).toHaveLength(1);
 });
 
 it("keeps the CPU confirmation cancellable after a failed hardware probe and admits only one reduced request", async () => {

@@ -1,6 +1,8 @@
 use crate::{
     audio_facts::is_reference_wav,
-    audio_import::{read_selection, read_selection_with_limit, AudioSelection},
+    audio_import::{
+        read_selection, read_selection_with_limit, AudioPermissionPrompt, AudioSelection,
+    },
     db::Database,
     error::{message, Error, Result},
     state::AppState,
@@ -16,7 +18,7 @@ use std::{
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-const MAX_REMIX_BYTES: usize = 120 * 1024 * 1024;
+pub(crate) const MAX_REMIX_BYTES: usize = 120 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 pub struct ReferenceAudio {
@@ -97,11 +99,19 @@ fn read_remix_source(path: &Path) -> Result<(AudioSelection, f64)> {
         Error::Message(code) if code == "audio_size" => message("remix_source_size"),
         error => error,
     })?;
-    let duration = remix_duration(
-        crate::audio_facts::duration(&audio.data)
-            .map_err(|_| message("mulacover_reference_format"))?,
-    )?;
+    let duration = validate_remix_duration(&audio.data)?;
     Ok((audio, duration))
+}
+
+fn validate_remix_duration(data: &[u8]) -> Result<f64> {
+    remix_duration(
+        crate::audio_facts::duration(data).map_err(|_| message("mulacover_reference_format"))?,
+    )
+}
+
+pub(crate) fn stage_remix_upload(root: &Path, name: String, data: &[u8]) -> Result<ReferenceAudio> {
+    validate_remix_duration(data)?;
+    stage(root, name, data)
 }
 
 fn remix_duration(seconds: f64) -> Result<f64> {
@@ -118,6 +128,7 @@ pub async fn pick_reference_audio(
     state: State<'_, Arc<AppState>>,
     title: String,
     remix: Option<bool>,
+    permission: Option<AudioPermissionPrompt>,
 ) -> Result<Option<ReferenceAudio>> {
     let root = state.db.root.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -134,6 +145,10 @@ pub async fn pick_reference_audio(
         };
         let path = chosen.into_path().map_err(|_| message("audio_read"))?;
         let audio = if remix.unwrap_or(false) {
+            let permission = permission.ok_or_else(|| message("dialog_failed"))?;
+            if !permission.allows(&app, &path)? {
+                return Ok(None);
+            }
             read_remix_source(&path)?.0
         } else {
             read_selection(&path)?
@@ -183,6 +198,29 @@ mod tests {
         let mut wrong = wav();
         wrong[20] = 3;
         assert!(stage(root.path(), "float.wav".into(), &wrong).is_err());
+    }
+
+    #[test]
+    fn dropped_remix_uses_the_same_duration_and_wav_checks_as_native_selection() {
+        let root = tempfile::tempdir().unwrap();
+        let mut long = wav();
+        let bytes = 600 * 16_000 * 2 + 2u32;
+        long[4..8].copy_from_slice(&(bytes + 36).to_le_bytes());
+        long[40..44].copy_from_slice(&bytes.to_le_bytes());
+        long.resize(bytes as usize + 44, 0);
+        assert_eq!(
+            stage_remix_upload(root.path(), "long.wav".into(), &long)
+                .unwrap_err()
+                .to_string(),
+            "remix_source_duration"
+        );
+        assert!(!root.path().join("reference-audio").exists());
+        let audio = stage_remix_upload(root.path(), "雨.wav".into(), &wav()).unwrap();
+        assert_eq!(audio.name, "雨.wav");
+        assert_eq!(
+            std::fs::read(resolve(root.path(), &audio.id).unwrap()).unwrap(),
+            wav()
+        );
     }
 
     #[test]

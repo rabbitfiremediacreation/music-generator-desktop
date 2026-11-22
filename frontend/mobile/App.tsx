@@ -323,7 +323,9 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
   const incomplete = (midi && !draft.prompt.trim()) || (barOptions && (!draft.prompt.trim().replace(/^,+|,+$/g, "").trim() || clipDuration === undefined || clipTooLong)) ||
     (!abilities?.prompt && !draft.style.split(",").some(tag => tag.trim())) ||
     (abilities?.lyrics_required && !instrumental && (!draft.lyrics.trim() || /^\[instrumental\]$/i.test(draft.lyrics.trim())));
-  const file = useRef<HTMLInputElement>(null);
+  const [audioIdea, setAudioIdea] = useState<{ api: RemoteApi; file: File }>();
+  const selectedAudio = audioIdea?.api === api ? audioIdea.file : undefined;
+  const audioPicker = useRef<HTMLInputElement>(null);
   const durationBounds = useRef("");
   useEffect(() => {
     if (!active) return;
@@ -377,8 +379,13 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
     catch (reason) { if (!isAborted(reason) && !(reason instanceof AuthenticationError)) setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setPending(false); }
   }
+  function clearAudioIdea() {
+    setAudioIdea(undefined);
+    if (audioPicker.current) audioPicker.current.value = "";
+  }
   async function analyze(value?: File) {
     if (!value || !canAnalyze || analyzing || pending) return;
+    clearAudioIdea();
     setError(null); setNotice(false);
     if (value.size > 60 * 1024 * 1024) { setError(t("fileTooLarge")); return; }
     if (!/\.(wav|mp3|flac|m4a|ogg)$/i.test(value.name)) { setError(t("fileType")); return; }
@@ -391,7 +398,7 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
         : { ...current, prompt: result.caption || current.prompt, lyrics: result.lyrics || current.lyrics, instrumental: result.lyrics ? false : current.instrumental, bpm: Number(result.bpm) || current.bpm });
       setNotice(true);
     } catch (reason) { if (!isAborted(reason) && !(reason instanceof AuthenticationError)) setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setAnalyzing(false); if (file.current) file.current.value = ""; }
+    finally { setAnalyzing(false); }
   }
   return <section aria-labelledby="create-heading"><div className="section-heading"><div><p className="eyebrow">MAKE SOMETHING YOURS</p><h1 id="create-heading">{t("create")}</h1></div><span className="count"><Icon name="create" /></span></div><form className="panel create-form" onSubmit={event => void generate(event)}>
     {profileError ? <Failure t={t} retry={() => setRefresh(value => value + 1)}>{profileError}</Failure> : !profile && <p role="status">{t("loading")}</p>}
@@ -446,7 +453,20 @@ function CreateForm({ active, api, folders, language, t, onQueued }: { active: b
         {clipDuration !== undefined && `${clipDuration.toLocaleString(language, { maximumFractionDigits: 3 })} ${t("seconds")}`}
         {clipTooLong && <span>{t("clipTooLong").replace("{limit}", String(abilities.max_duration))}</span>}
       </output>}
-      {canAnalyze && <details className="analyze-details"><summary>{t("analyze")}</summary><p className="fine">{t(yue2 ? "analyzeYue2Hint" : "analyzeHint")}</p><input ref={file} type="file" accept=".wav,.mp3,.flac,.m4a,.ogg,audio/*" aria-label={t("analyze")} onChange={event => void analyze(event.target.files?.[0])} /></details>}
+      {canAnalyze && <details className="analyze-details">
+        <summary>{t("analyze")}</summary>
+        <p className="fine">{t(yue2 ? "analyzeYue2Hint" : "analyzeHint")}</p>
+        <input ref={audioPicker} type="file" accept=".wav,.mp3,.flac,.m4a,.ogg,audio/*" aria-label={t("analyze")}
+          onChange={event => { const file = event.currentTarget.files?.[0]; setAudioIdea(file ? { api, file } : undefined); }} />
+        {selectedAudio && <div className="notice audio-permission" role="group" aria-labelledby="audio-permission-question">
+          <p><strong>{selectedAudio.name}</strong></p>
+          <p id="audio-permission-question">{t("audioPermission")}</p>
+          <div className="audio-permission-actions">
+            <button type="button" className="secondary" onClick={clearAudioIdea}>{t("cancel")}</button>
+            <button type="button" className="primary" onClick={() => void analyze(selectedAudio)}>{t("analyzeRecording")}</button>
+          </div>
+        </div>}
+      </details>}
       {yue2 && <Yue2Fields language={language} options={yue2Options} onChange={setYue2Options} />}
       {yue2Problem && <Failure t={t}>{yue2ErrorText(yue2Problem, language)}</Failure>}
       <button className="primary wide generate" type="submit" disabled={pending || analyzing || incomplete || Boolean(yue2Problem)}>{pending ? t("loading") : analyzing ? t("analyzeBusy") : t(midi ? "midiGenerate" : "generate")}<Icon name="create" /></button>

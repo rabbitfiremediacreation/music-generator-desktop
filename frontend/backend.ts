@@ -1,5 +1,6 @@
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { AudioFormat } from "./audio-formats";
+import type { AudioPermissionPrompt } from "./audio-permission";
 import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -8,6 +9,15 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 }
 const audioUrl = (song: Song): Song => ({ ...song, url: song.output_kind !== "midi" && song.path ? convertFileSrc(song.path) : null });
 
+async function uploadAudio<T>(route: "analyze" | "remix", file: File, query: URLSearchParams): Promise<T> {
+  const url = `${convertFileSrc(route, "audio-analysis")}?${query}`;
+  const body = await file.arrayBuffer();
+  const response = await fetch(url, { method: "POST", body }).catch(() => { throw new Error("audio_read"); });
+  const result = await response.json();
+  if (!response.ok) throw new Error(typeof result === "string" ? result : "audio_read");
+  return result as T;
+}
+
 export const backend = {
   mcpHttpConnection: (url: string) => command<import("./types").McpHttpConnection>("get_mcp_http_connection", { url }),
   mcpSettings: () => command<import("./types").McpSettingsStatus>("get_mcp_settings"),
@@ -15,9 +25,15 @@ export const backend = {
   cudaStatus: () => command<import("./types").CudaStatus>("cuda_status"),
   installCuda: () => command<import("./types").CudaStatus>("install_cuda_runtime"),
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
-  pickAndAnalyzeAudio: (directory: string, title: string, filterName: string, selection: ModelSelection | null, onSelected: (file: { name: string; directory: string }) => void) =>
-    command<Record<string, unknown> | null>("pick_and_analyze_audio", { directory, title, filterName, selection, onSelected: new Channel(onSelected) }),
-  pickReferenceAudio: (title: string, remix?: boolean) => command<{ id: string; name: string } | null>("pick_reference_audio", { title, remix }),
+  pickAndAnalyzeAudio: (directory: string, title: string, filterName: string, selection: ModelSelection | null, permission: AudioPermissionPrompt, onSelected: (file: { name: string; directory: string }) => void) =>
+    command<Record<string, unknown> | null>("pick_and_analyze_audio", { dialog: { directory, title, filterName, permission }, selection, onSelected: new Channel(onSelected) }),
+  pickReferenceAudio: (title: string, permission?: AudioPermissionPrompt) =>
+    command<{ id: string; name: string } | null>("pick_reference_audio", { title, remix: permission ? true : undefined, permission }),
+  uploadRemixReference: async (file: File) => {
+    if (!/\.wav$/i.test(file.name)) throw new Error("mulacover_reference_format");
+    if (file.size > 120 * 1024 * 1024) throw new Error("remix_source_size");
+    return uploadAudio<{ id: string; name: string }>("remix", file, new URLSearchParams({ filename: file.name }));
+  },
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),
   bootstrap: (attempt: number) => command<Bootstrap>("bootstrap", { attempt }),
   setup: (request: SetupRequest) => command<SetupResult>("setup_models", { request }),
@@ -83,12 +99,7 @@ export const backend = {
     const filename = /\.(wav|mp3|flac|m4a|ogg)$/i.test(file.name) ? file.name : `${file.name}.wav`;
     const query = new URLSearchParams({ filename });
     if (selection) query.set("selection", JSON.stringify(selection));
-    const url = `${convertFileSrc("analyze", "audio-analysis")}?${query}`;
-    const body = await file.arrayBuffer();
-    const response = await fetch(url, { method: "POST", body }).catch(() => { throw new Error("audio_read"); });
-    const result = await response.json();
-    if (!response.ok) throw new Error(typeof result === "string" ? result : "audio_read");
-    return result as Record<string, unknown>;
+    return uploadAudio<Record<string, unknown>>("analyze", file, query);
   },
   export: (kind: "audio" | "midi" | "lyrics" | "zip", destination: string, id: string | null = null, folder: string | null = null, format?: AudioFormat) => command<void>("export_file", { kind, destination, id, folder, ...(format ? { format } : {}) }),
   exportDefaultPath: (filename: string) => command<string>("export_default_path", { filename }),

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { audioPermissionPrompt, confirmAudioPermission } from "../../audio-permission";
 import { backend } from "../../backend";
 import { modelErrorText } from "../../expert-mode";
 import { randomPrompt, randomStyle } from "../../prompts";
@@ -34,6 +35,8 @@ export function RemixForm({ song, selection, folder, blocked }: {
   const [steps, setSteps] = useState(DEFAULT_PREFERENCES.inference_steps);
   const [seed, setSeed] = useState("");
   const [picking, setPicking] = useState(false);
+  const pickingFile = useRef(false);
+  const [dragging, setDragging] = useState(false);
   const [queued, setQueued] = useState(false);
   const [error, setError] = useState("");
   const policy = useQuery({ ...generationPolicyQuery(selection ?? null), enabled: !blocked && !!selection, retry: false, networkMode: "always" });
@@ -43,11 +46,17 @@ export function RemixForm({ song, selection, folder, blocked }: {
   const complete = Boolean(source && selection && modelReady && (prompt.trim() || style.trim()));
   const cpuRisk = Boolean(policy.data && policy.data.backend !== "gpu" && steps >= 30);
 
-  async function pick() {
+  async function pick(dropped?: File) {
+    if (busy || pickingFile.current) return;
+    pickingFile.current = true;
     setPicking(true);
     setError("");
     try {
-      const file = await backend.pickReferenceAudio(t("remix_source"), true);
+      const permission = audioPermissionPrompt("remix");
+      if (dropped && !await confirmAudioPermission(dropped.name, permission)) return;
+      const file = dropped
+        ? await backend.uploadRemixReference(dropped)
+        : await backend.pickReferenceAudio(t("remix_source"), permission);
       if (!file) return;
       const next = { name: file.name, reference: file.id };
       setTitle(current => !current || current === sourceTitle(source) ? sourceTitle(next) : current);
@@ -58,6 +67,7 @@ export function RemixForm({ song, selection, folder, blocked }: {
     } catch (cause) {
       setError(modelErrorText(cause, t));
     } finally {
+      pickingFile.current = false;
       setPicking(false);
     }
   }
@@ -88,10 +98,19 @@ export function RemixForm({ song, selection, folder, blocked }: {
     aria-busy={picking || admission.busy}>
     <fieldset disabled={busy} className="generation-fields">
       <div className="field">
-        <span className="lbl">{t("remix_source_label")}</span>
-        <div className="remix-source">
+        <span className="lbl" id="remix-source-label">{t("remix_source_label")}</span>
+        <div className="remix-source" role="group" aria-labelledby="remix-source-label" data-dragging={dragging || undefined}
+          onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={event => {
+            event.preventDefault();
+            setDragging(false);
+            const dropped = event.dataTransfer.files[0];
+            if (dropped) void pick(dropped);
+          }}>
           <button type="button" className="sek" onClick={() => void pick()}>{t("remix_source")}</button>
-          {source ? <strong>{source.name}</strong> : <span className="small">{t("remix_pick_hint")}</span>}
+          {source && <strong>{source.name}</strong>}
+          <span className="small">{t("remix_pick_hint")}</span>
         </div>
       </div>
       <GenerationTitleField id="remix-title" diceId="remix-title-dice" value={title} onChange={setTitle} />

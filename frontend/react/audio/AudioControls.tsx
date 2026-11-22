@@ -7,6 +7,7 @@ import { describeIdea, type Melody } from "../../melody";
 import type { ModelSelection } from "../../types";
 import { WaveLogo } from "../../GenerationActivity";
 import { useI18n } from "../i18n";
+import { audioPermissionPrompt, confirmAudioPermission } from "../../audio-permission";
 import { useRecorder } from "./useRecorder";
 
 export interface AudioControlsProps {
@@ -53,15 +54,18 @@ export function AudioControls({ selection, onAnalysis, enabled = true, blocked =
     };
     try {
       const values = await analysis.mutateAsync(async () => {
+        const prompt = audioPermissionPrompt("analysis");
         if (source === "dialog") {
           const directory = await dialogDirectory("audio_import");
           if (!mounted.current) return null;
-          return backend.pickAndAnalyzeAudio(directory, t("dialog_audio_import"), t("dialog_audio_filter"), selection, file => {
+          return backend.pickAndAnalyzeAudio(directory, t("dialog_audio_import"), t("dialog_audio_filter"), selection, prompt, file => {
             if (!mounted.current) return;
             rememberDialogFolder("audio_import", file.directory);
             started(file.name);
           });
         }
+        if (!idea && !await confirmAudioPermission(source.name, prompt)) return null;
+        if (!mounted.current) return null;
         started(source.name);
         return backend.analyze(source, selection || undefined);
       });

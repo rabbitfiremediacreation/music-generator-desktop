@@ -3,6 +3,7 @@ use crate::{
     catalog::Selection,
     commands::analyze_audio,
     error::{message, Result},
+    reference_audio::{stage_remix_upload, MAX_REMIX_BYTES},
     state::AppState,
 };
 use axum::extract::Query;
@@ -32,8 +33,12 @@ fn allowed_origin(origin: &str, dev_url: Option<&tauri::Url>) -> bool {
 }
 
 fn decode(request: Request<Vec<u8>>) -> Result<(UploadMetadata, Vec<u8>, Option<Selection>)> {
-    if request.body().len() > MAX_AUDIO_BYTES {
-        return Err(message("audio_size"));
+    let (limit, error) = match request.uri().path() {
+        "/remix" => (MAX_REMIX_BYTES, "remix_source_size"),
+        _ => (MAX_AUDIO_BYTES, "audio_size"),
+    };
+    if request.body().len() > limit {
+        return Err(message(error));
     }
     let Query(metadata): Query<UploadMetadata> =
         Query::try_from_uri(request.uri()).map_err(|_| message("audio_read"))?;
@@ -70,7 +75,9 @@ pub(crate) fn handle(
         );
         return;
     };
-    if request.method() != Method::POST || !matches!(request.uri().path(), "/analyze" | "/stems") {
+    if request.method() != Method::POST
+        || !matches!(request.uri().path(), "/analyze" | "/remix" | "/stems")
+    {
         respond(responder, origin, Err(message("audio_read")));
         return;
     }
@@ -79,15 +86,22 @@ pub(crate) fn handle(
         .map(|state| Arc::clone(&state));
     tauri::async_runtime::spawn(async move {
         let result = async {
-            let stems = request.uri().path() == "/stems";
+            let route = request.uri().path().to_owned();
             let (metadata, data, selection) = decode(request)?;
             let state = state.ok_or_else(|| message("audio_read"))?;
-            if stems {
-                Ok(serde_json::to_value(
+            match route.as_str() {
+                "/stems" => Ok(serde_json::to_value(
                     crate::stems::source::upload(&state, &metadata.filename, data).await?,
-                )?)
-            } else {
-                analyze_audio(&state, data, metadata.filename, selection).await
+                )?),
+                "/remix" => {
+                    let reference = tauri::async_runtime::spawn_blocking(move || {
+                        stage_remix_upload(&state.db.root, metadata.filename, &data)
+                    })
+                    .await
+                    .map_err(|_| message("audio_read"))??;
+                    Ok(serde_json::to_value(reference)?)
+                }
+                _ => analyze_audio(&state, data, metadata.filename, selection).await,
             }
         }
         .await;

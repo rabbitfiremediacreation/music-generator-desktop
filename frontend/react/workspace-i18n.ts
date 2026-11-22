@@ -2,7 +2,7 @@ import { I18N } from "../i18n.js";
 
 Object.assign(I18N.en, {
   workspace_navigation: "Workspace", workspace_create: "Create", workspace_remix: "Remix", workspace_mix: "Mix",
-  remix_source: "Choose WAV file", remix_pick_hint: "Choose a song from the library or open a WAV file.",
+  remix_source: "Choose WAV file", remix_pick_hint: "Choose a song from the library or drop a WAV file here.",
   remix_source_label: "Source audio",
   remix_prompt: "Style for the new version", remix_mode: "Remix mode",
   remix_cover: "Reinterpret", remix_close: "Stay close to the original",
@@ -26,7 +26,7 @@ Object.assign(I18N.en, {
 });
 Object.assign(I18N.de, {
   workspace_navigation: "Arbeitsbereich", workspace_create: "Erstellen", workspace_remix: "Remix", workspace_mix: "Mix",
-  remix_source: "WAV-Datei auswählen", remix_pick_hint: "Wähle einen Song aus der Bibliothek oder öffne eine WAV-Datei.",
+  remix_source: "WAV-Datei auswählen", remix_pick_hint: "Wähle einen Song aus der Bibliothek oder ziehe eine WAV-Datei hierher.",
   remix_source_label: "Quellaudio",
   remix_prompt: "Stil für die neue Version", remix_mode: "Remix-Modus",
   remix_cover: "Neu interpretieren", remix_close: "Nah am Original",

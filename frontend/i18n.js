@@ -4,6 +4,11 @@ import { LANGS, preferredLanguage } from "./locales";
 const I18N = {
   de: {
     drop_title: "Song zur Analyse hierher ziehen",
+    audio_permission_title: "Berechtigung zur Audionutzung",
+    audio_permission_analysis: "Gehört dir diese Aufnahme oder hast du die Erlaubnis, sie für die Audioanalyse zu verwenden?",
+    audio_permission_remix: "Gehört dir diese Aufnahme oder hast du die Erlaubnis, sie als Vorlage für diesen Remix zu verwenden?\n\nEine Veröffentlichung des Remixes kann eine gesonderte Erlaubnis erfordern.",
+    audio_permission_analyze: "Aufnahme analysieren",
+    audio_permission_use_reference: "Als Remix-Vorlage verwenden",
     brand_title: "Zur Alphatester-Webseite",
     gen_heading: "Neuer Song", vt_auto: "Auto", vt_dur: (m, s) => `${m} ${m === 1 ? "Minute" : "Minuten"}${s ? ` ${s} Sekunden` : ""}`,
     an_queued: (n) => `${n} Song(s) in der Warteschlange`, an_done: (t) => `Fertig: ${t}`, an_error: (t) => `Fehler bei ${t}`,
@@ -80,6 +85,11 @@ const I18N = {
   },
   en: {
     drop_title: "Drop a song here to analyze it",
+    audio_permission_title: "Permission to use this audio",
+    audio_permission_analysis: "Do you own this recording or have permission to use it for audio analysis?",
+    audio_permission_remix: "Do you own this recording or have permission to use it as a reference for this remix?\n\nPublishing the remix may require separate permission.",
+    audio_permission_analyze: "Analyze recording",
+    audio_permission_use_reference: "Use as remix reference",
     brand_title: "Go to the Alphatester website",
     gen_heading: "New song", vt_auto: "Auto", vt_dur: (m, s) => `${m} ${m === 1 ? "minute" : "minutes"}${s ? ` ${s} seconds` : ""}`,
     an_queued: (n) => `${n} song(s) queued`, an_done: (t) => `Done: ${t}`, an_error: (t) => `Error with ${t}`,
