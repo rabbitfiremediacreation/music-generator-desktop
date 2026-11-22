@@ -57,6 +57,10 @@ fn main() {
             "conversion_failure_preserves_existing_audio_and_zip_exports",
             export_destinations::conversion_failure_preserves_existing_audio_and_zip_exports,
         ),
+        (
+            "audio_and_zip_conversion_embed_the_songs_recorded_usage",
+            export_destinations::audio_and_zip_conversion_embed_the_songs_recorded_usage,
+        ),
         #[cfg(windows)]
         (
             "transient_file_lock_does_not_leave_temporary_files_after_cancellation",

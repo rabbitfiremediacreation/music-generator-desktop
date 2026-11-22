@@ -243,8 +243,9 @@ it("offers the default audio format first and downloads the format chosen on the
   const download = await screen.findByRole("button", { name: "Download: Rain song" });
   fireEvent.click(download);
   const menu = screen.getByRole("menu", { name: "Download format" });
-  expect(within(menu).getAllByRole("menuitem").map(item => item.textContent))
-    .toEqual(["MP3 · 320 kbit/s", "WAV", "AAC · 192 kbit/s", "Original file"]);
+  expect(within(menu).getAllByRole("menuitem")).toEqual(
+    ["MP3 · 320 kbit/s", "WAV", "AAC · 192 kbit/s", "Original file"].map(name => within(menu).getByRole("menuitem", { name })),
+  );
   fireEvent.pointerDown(screen.getByRole("heading", { name: "Rain song" }));
   expect(screen.queryByRole("menu", { name: "Download format" })).toBeNull();
   fireEvent.click(download);

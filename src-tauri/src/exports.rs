@@ -284,11 +284,16 @@ pub(crate) async fn export_contents(
                     "Choose a destination outside the source audio file",
                 ));
             }
-            let source = if !explicit && format == AudioFormat::Mp3 {
-                audio_export::mp3(&resources, &db.root, &id, path, &cancel).await?
-            } else {
-                audio_export::convert(&resources, &db.root, &id, path, format, &cancel).await?
-            };
+            let source = audio_export::convert_song(
+                &resources,
+                &db.root,
+                &song,
+                path,
+                format,
+                !explicit && format == AudioFormat::Mp3,
+                &cancel,
+            )
+            .await?;
             if explicit && matches!(selection, ExportSelection::Audio(_)) {
                 let extension = source.extension().and_then(|value| value.to_str());
                 if !extension

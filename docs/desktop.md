@@ -90,6 +90,18 @@ Settings → Library & export → Export selects lossless WAV or MP3 at 192 kbit
 
 On macOS, ZIP exports use Foundation's temporary item replacement directory so the save dialog's grant to the chosen file is sufficient. An existing ZIP is replaced only after the new archive is complete; no permission to create sibling files in the destination folder is required.
 
+Newly generated audio carries the song's recorded music model, variant, known output terms and source links in its comment tag. The app records unresolved terms explicitly and flags reference recordings whose rights need to be checked. The same recorded terms are available to the song's usage display and survive later model changes.
+
+| Download format | Model and usage metadata |
+| --- | --- |
+| WAV | RIFF INFO comment (`ICMT`) |
+| MP3 | ID3v2 comment (`COMM`) at all three MP3 presets |
+| Ogg/Opus | Vorbis `COMMENT` |
+| AAC (ADTS) | The app's AAC export omits these tags |
+| Original | Copies the file with its existing tags. Older or imported files may lack them. |
+
+The desktop and phone download menus show the format's metadata support. ZIP exports use the same behavior for each included audio file. To inspect a copied or extracted file independently, run `ffprobe -v error -show_entries format_tags=comment:stream_tags=comment -of json song.wav`. The format may report the comment as a file tag or a stream tag.
+
 ACE-Step shows **IT** for synthesis iterations and **VAR** for language-model variance/temperature. New forms start at 80 and 0.85; saved songs retain their previous values. More iterations take longer; higher variance gives freer output, lower variance follows the style and prompt more closely. Use the explicit ModelPicker recommendation for other families, such as Turbo.
 
 ## Settings and export destinations

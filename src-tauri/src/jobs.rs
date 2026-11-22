@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tokio_util::sync::CancellationToken;
 
 mod extended;
+mod output;
 mod progress;
 use progress::{render_percent, RENDERED_PERCENT};
 
@@ -237,16 +238,15 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             };
             report(Progress::new(saving), 98);
             let dir = PathBuf::from(settings.songs_dir);
-            tokio::fs::create_dir_all(&dir).await?;
-            let filename = format!("{sid}.{ext}");
+            let provenance = if output_kind.is_audio() {
+                crate::audio_provenance::capture(&mut meta, &selection, &params);
+                crate::audio_provenance::comment(&meta)
+            } else {
+                None
+            };
+            let filename =
+                output::save(&dir, &sid, &ext, bytes, &cancel, provenance.as_deref()).await?;
             let path = dir.join(&filename);
-            let temp = dir.join(format!("{sid}.part"));
-            tokio::fs::write(&temp, bytes).await?;
-            if cancel.is_cancelled() {
-                let _ = tokio::fs::remove_file(temp).await;
-                return Err(Error::Cancelled);
-            }
-            tokio::fs::rename(&temp, &path).await?;
             let engine = if ace_step {
                 "acestep_cpp"
             } else {

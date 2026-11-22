@@ -73,7 +73,7 @@ function seedPages(count: number) {
 it("opens the song and ZIP format dropdowns and exports the chosen format", async () => {
   const original = mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation(async (name, args) => {
-    if (name === "get_settings") return { export_format: "mp3_320", export_formats: ["wav", "mp3_320", "ogg", "original"] };
+    if (name === "get_settings") return { export_format: "mp3_320", export_formats: ["wav", "mp3_320", "aac", "ogg", "original"] };
     if (name === "export_default_path") return `/Downloads/${args.filename}`;
     return original(name, args);
   });
@@ -82,7 +82,15 @@ it("opens the song and ZIP format dropdowns and exports the chosen format", asyn
   fireEvent.keyDown(download, { key: "ArrowDown" });
   const songMenu = screen.getByRole("menu", { name: "Download format" });
   const [first, second] = within(songMenu).getAllByRole("menuitem");
-  expect(first.textContent).toBe("MP3 · 320 kbit/s");
+  expect(first).toBe(within(songMenu).getByRole("menuitem", {
+    name: "MP3 · 320 kbit/s", description: "Includes recorded model and usage metadata",
+  }));
+  expect(within(songMenu).getByRole("menuitem", {
+    name: "AAC · 192 kbit/s", description: "Model and usage metadata unavailable in AAC",
+  })).toBeTruthy();
+  expect(within(songMenu).getByRole("menuitem", {
+    name: "Original file", description: "Keeps existing file tags. Some originals lack model metadata.",
+  })).toBeTruthy();
   expect(document.activeElement).toBe(first);
   fireEvent.keyDown(first, { key: "ArrowDown" });
   expect(document.activeElement).toBe(second);
@@ -96,7 +104,7 @@ it("opens the song and ZIP format dropdowns and exports the chosen format", asyn
   }));
   fireEvent.click(screen.getByRole("button", { name: "Download all" }));
   const zipMenu = screen.getByRole("menu", { name: "Audio format in ZIP" });
-  expect(within(zipMenu).getAllByRole("menuitem")[0].textContent).toBe("MP3 · 320 kbit/s");
+  expect(within(zipMenu).getAllByRole("menuitem")[0]).toBe(within(zipMenu).getByRole("menuitem", { name: "MP3 · 320 kbit/s" }));
   fireEvent.click(within(zipMenu).getByRole("menuitem", { name: "WAV" }));
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
     kind: "zip", destination: "/Downloads/Music Generator.zip", id: null, folder: "", format: "wav",

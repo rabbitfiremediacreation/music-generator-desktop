@@ -262,7 +262,7 @@ export function App() {
             ? song.has_midi && <button className="secondary small-button" type="button" disabled={Boolean(action)}
                 onClick={() => void download(song)} aria-label={`${t("midiDownload")}: ${song.title}`}><Icon name="download" /></button>
             : song.has_audio && <DownloadFormatMenu formats={downloadFormats} label={`${t("download")}: ${song.title}`} menuLabel={t("downloadFormat")}
-                originalLabel={t("downloadOriginal")} className="secondary small-button" disabled={Boolean(action)}
+                originalLabel={t("downloadOriginal")} language={language} className="secondary small-button" disabled={Boolean(action)}
                 onChoose={format => void download(song, format)}><Icon name="download" /></DownloadFormatMenu>}
           {song.has_audio && song.output_kind !== "midi" && <button className="primary small-button" type="button" disabled={Boolean(action)} onClick={() => void play(song)} aria-label={`${t("play")}: ${song.title}`}><Icon name="play" /></button>}
           {song.has_audio && song.output_kind !== "midi" && <button type="button" className="secondary" onClick={() => openStems(song)}>{stemTitle}</button>}

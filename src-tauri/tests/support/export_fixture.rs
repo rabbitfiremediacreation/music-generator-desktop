@@ -76,6 +76,10 @@ fn run_codec() -> io::Result<i32> {
     let request: CodecRequest = serde_json::from_reader(&input)?;
     let mut output = File::create(argument("-o")?)?;
     match request.mode.as_str() {
+        "provenance" => {
+            output.write_all(include_bytes!("../fixtures/silent.mp3"))?;
+            Ok(0)
+        }
         "success" => {
             output.write_all(&[b'M'; 2048])?;
             Ok(0)
