@@ -166,7 +166,7 @@ MusicGen Small and MAGNeT Small 30s are optional text-to-music profiles in the A
 
 ## Text2midi
 
-Install the **Text2midi** engine from **Settings → Models → Engines** on Apple Silicon. Its package supplies the Python runtime. Then choose **Text2midi** in the add-model catalog, where you can review the model sources, file sizes, checksums and usage terms. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
+Install the shared **PyTorch** engine from **Settings → Models → Engines** on Apple Silicon. Then choose **Text2midi** in the add-model catalog, where you can review the model sources, file sizes, checksums and usage terms. Download the models or verify a local copy using the listed file paths. The studio uses a text prompt and the library provides a separate MIDI result with `.mid` export. [Text2midi setup and verification](../scripts/desktop/text2midi-runtime/README.md)
 
 ## Downloads and persistence
 

@@ -3,11 +3,25 @@ import { createPortal } from "react-dom";
 import { audioFormats, type AudioFormat } from "./audio-formats";
 import "./download-format.css";
 
-export function DownloadFormatMenu({ formats, label, menuLabel, originalLabel, title, descriptionId, className, disabled, onChoose, children }: {
+const metadataDescriptions = {
+  en: {
+    tagged: "Includes recorded model and usage metadata",
+    aac: "Model and usage metadata unavailable in AAC",
+    original: "Keeps existing file tags. Some originals lack model metadata.",
+  },
+  de: {
+    tagged: "Enthält gespeicherte Angaben zu Modell und Nutzung",
+    aac: "Keine Modell- und Nutzungshinweise in AAC",
+    original: "Behält vorhandene Tags. Manche Originaldateien enthalten keine Modellangaben.",
+  },
+};
+
+export function DownloadFormatMenu({ formats, label, menuLabel, originalLabel, language, title, descriptionId, className, disabled, onChoose, children }: {
   formats: AudioFormat[];
   label: string;
   menuLabel: string;
   originalLabel: string;
+  language: string;
   title?: string;
   descriptionId?: string;
   className: string;
@@ -20,6 +34,7 @@ export function DownloadFormatMenu({ formats, label, menuLabel, originalLabel, t
   const menu = useRef<HTMLDivElement>(null);
   const startAtEnd = useRef(false);
   const menuId = useId();
+  const metadata = metadataDescriptions[language === "de" ? "de" : "en"];
 
   useLayoutEffect(() => {
     if (!open || !trigger.current || !menu.current) return;
@@ -92,8 +107,15 @@ export function DownloadFormatMenu({ formats, label, menuLabel, originalLabel, t
           const target = event.relatedTarget;
           if (target && target !== trigger.current && !event.currentTarget.contains(target)) setOpen(false);
         }}>
-        {formats.map(format => <button key={format} type="button" role="menuitem" tabIndex={-1} className="download-format-option"
-          onClick={() => { closeWithFocus(); onChoose(format); }}>{audioFormats[format].label ?? originalLabel}</button>)}
+        {formats.map(format => {
+          const optionLabel = audioFormats[format].label ?? originalLabel;
+          const hintId = `${menuId}-${format}`;
+          const hint = format === "aac" || format === "original" ? metadata[format] : metadata.tagged;
+          return <button key={format} type="button" role="menuitem" tabIndex={-1} className="download-format-option"
+            aria-label={optionLabel} aria-describedby={hintId} onClick={() => { closeWithFocus(); onChoose(format); }}>
+            {optionLabel}<span id={hintId} className="download-format-metadata">{hint}</span>
+          </button>;
+        })}
       </div>,
       document.body,
     )}

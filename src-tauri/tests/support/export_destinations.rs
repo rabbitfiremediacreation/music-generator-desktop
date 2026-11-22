@@ -3,10 +3,11 @@ use crate::{
     export_fixture::{temporary_directories, Fixture},
 };
 use music_generator::{db::Database, exports::export, types::GenerateRequest};
+use serde_json::{json, Value};
 use std::{io::Read, path::PathBuf, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
-fn library(fixture: &Fixture) -> (Arc<Database>, String, PathBuf) {
+fn library(fixture: &Fixture, metadata: &Value) -> (Arc<Database>, String, PathBuf) {
     let db = Arc::new(Database::open(fixture.root.path()).unwrap());
     let id = db
         .enqueue(&GenerateRequest {
@@ -23,8 +24,7 @@ fn library(fixture: &Fixture) -> (Arc<Database>, String, PathBuf) {
     std::fs::create_dir_all(&songs).unwrap();
     let source = songs.join("original.wav");
     std::fs::copy(&fixture.source, &source).unwrap();
-    db.finish(&id, "original.wav", &serde_json::json!({}))
-        .unwrap();
+    db.finish(&id, "original.wav", metadata).unwrap();
     settings.export_format = "mp3".into();
     db.save_settings(&settings).unwrap();
     (db, id, source)
@@ -33,7 +33,7 @@ fn library(fixture: &Fixture) -> (Arc<Database>, String, PathBuf) {
 pub fn audio_and_zip_exports_preserve_destinations_originals_and_cache() {
     run(async {
         let fixture = Fixture::new("success");
-        let (db, id, source) = library(&fixture);
+        let (db, id, source) = library(&fixture, &json!({}));
         let original = std::fs::read(&source).unwrap();
         let audio = fixture.root.path().join("selected.mp3");
         std::fs::write(&audio, b"previous audio export").unwrap();
@@ -85,7 +85,7 @@ pub fn audio_and_zip_exports_preserve_destinations_originals_and_cache() {
 pub fn conversion_failure_preserves_existing_audio_and_zip_exports() {
     run(async {
         let fixture = Fixture::new("fail");
-        let (db, id, source) = library(&fixture);
+        let (db, id, source) = library(&fixture, &json!({}));
         let original = std::fs::read(&source).unwrap();
         for kind in ["audio", "zip"] {
             let destination = fixture.root.path().join(format!("selected-{kind}"));
@@ -106,5 +106,59 @@ pub fn conversion_failure_preserves_existing_audio_and_zip_exports() {
             assert_eq!(std::fs::read(&source).unwrap(), original);
             assert!(temporary_directories(fixture.root.path()).is_empty());
         }
+    });
+}
+
+pub fn audio_and_zip_conversion_embed_the_songs_recorded_usage() {
+    run(async {
+        let fixture = Fixture::new("provenance");
+        let snapshot = json!({
+            "audio_provenance": { "model": "Example model", "variant": "saved-v1" },
+            "output_usage": {
+                "text": "Commercial use requires written permission.",
+                "source_urls": ["https://example.com/model-license"],
+            },
+        });
+        let (db, id, _) = library(&fixture, &snapshot);
+        let audio = fixture.root.path().join("converted.mp3");
+        let zip = fixture.root.path().join("converted.zip");
+        for (kind, path) in [("audio", &audio), ("zip", &zip)] {
+            export(
+                db.clone(),
+                fixture.resources.clone(),
+                kind.into(),
+                Some(id.clone()),
+                None,
+                path.clone(),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        }
+
+        let bytes = std::fs::read(audio).unwrap();
+        assert_eq!(&bytes[..3], b"ID3");
+        for text in [
+            "Music model: Example model",
+            "Variant: saved-v1",
+            "Commercial use requires written permission.",
+            "Source: https://example.com/model-license",
+        ] {
+            assert!(
+                bytes
+                    .windows(text.len())
+                    .any(|region| region == text.as_bytes()),
+                "{text}"
+            );
+        }
+        assert!(bytes.ends_with(include_bytes!("../fixtures/silent.mp3")));
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(zip).unwrap()).unwrap();
+        let mut archived = Vec::new();
+        archive
+            .by_index(0)
+            .unwrap()
+            .read_to_end(&mut archived)
+            .unwrap();
+        assert_eq!(bytes, archived);
     });
 }

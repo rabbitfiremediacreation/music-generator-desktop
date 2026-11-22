@@ -1,6 +1,7 @@
 use crate::{
     engine::process::OwnedProcess,
     error::{message, Error, Result},
+    types::Song,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -14,6 +15,7 @@ pub use formats::{available, AudioFormat};
 mod staging;
 pub(crate) use staging::cleanup_stale;
 use staging::Staging;
+pub(crate) mod tags;
 
 pub fn codec_path(resources: &Path) -> PathBuf {
     resources.join("engine").join(if cfg!(windows) {
@@ -73,6 +75,47 @@ pub async fn convert(
     format: AudioFormat,
     cancel: &CancellationToken,
 ) -> Result<PathBuf> {
+    convert_audio(resources, root, sid, source, format, cancel, None).await
+}
+
+/// Keep conversion and cache behavior consistent for desktop, ZIP and phone exports.
+pub(crate) async fn convert_song(
+    resources: &Path,
+    root: &Path,
+    song: &Song,
+    source: &Path,
+    format: AudioFormat,
+    legacy_mp3: bool,
+    cancel: &CancellationToken,
+) -> Result<PathBuf> {
+    let format = if legacy_mp3
+        && source
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("mp3"))
+    {
+        AudioFormat::Original
+    } else {
+        format
+    };
+    let provenance = song
+        .result_meta
+        .as_ref()
+        .and_then(crate::audio_provenance::comment);
+    convert_audio(
+        resources, root, &song.id, source, format, cancel, provenance,
+    )
+    .await
+}
+
+async fn convert_audio(
+    resources: &Path,
+    root: &Path,
+    sid: &str,
+    source: &Path,
+    format: AudioFormat,
+    cancel: &CancellationToken,
+    provenance: Option<String>,
+) -> Result<PathBuf> {
     if cancel.is_cancelled() {
         return Err(Error::Cancelled);
     }
@@ -85,6 +128,7 @@ pub async fn convert(
         return Ok(source.into());
     }
     let extension = format.extension().expect("original handled above");
+    let provenance = provenance.filter(|_| tags::supports(extension));
     let error_key = if format.bitrate().is_some() {
         "mp3_failed"
     } else {
@@ -102,8 +146,11 @@ pub async fn convert(
     let label = format
         .bitrate()
         .map_or_else(|| extension.to_owned(), |bitrate| bitrate.to_string());
+    let tag_key = provenance.as_ref().map_or_else(String::new, |text| {
+        format!("-tags-{:x}", Sha256::digest(text))
+    });
     let target = cache.join(format!(
-        "{}{}-{modified}-{label}.{extension}",
+        "{}{}-{modified}-{label}{tag_key}.{extension}",
         prefix(sid),
         metadata.len()
     ));
@@ -146,6 +193,19 @@ pub async fn convert(
     };
     if !success || !nonempty_file(&output) {
         return Err(message(error_key));
+    }
+    if let Some(provenance) = provenance {
+        let staged_output = output.clone();
+        let staging = staging.clone();
+        tokio::task::spawn_blocking(move || {
+            let _staging = staging;
+            tags::write(&staged_output, extension, &provenance)
+        })
+        .await
+        .map_err(|error| message(error.to_string()))??;
+    }
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
     }
     let current = source.metadata()?;
     if current.len() != metadata.len() || current.modified()? != metadata.modified()? {

@@ -9,6 +9,7 @@ import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
 import { songModel } from "../../song-model";
 import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songStreamMetrics, songWavFormat } from "../../song-result";
+import { songUsage } from "../../song-usage";
 import type { Folder, JobProgress, ModelSelection, Song } from "../../types";
 import { useI18n } from "../i18n";
 import { invalidateLibrary, queryKeys } from "../data";
@@ -16,6 +17,7 @@ import { usePlayer } from "../player";
 import { useGenerationAdmission } from "../generation/admission";
 import type { StemStudioRequest } from "../stems/StemStudio";
 import { progressText } from "../../progress";
+import { SongExportDialog, SongUsageDetails } from "./SongUsage";
 
 export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems}: {
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
@@ -26,6 +28,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
   const publicDisclosureId = useId();
   const [editing,setEditing] = useState(false), [title,setTitle] = useState(""), [lyricsOpen,setLyricsOpen] = useState(false), [moving,setMoving] = useState(false);
   const [dragAllowed,setDragAllowed] = useState(true);
+  const [pendingExport, setPendingExport] = useState<AudioFormat | null>(null);
   const edit = useRef<HTMLInputElement>(null), moveMenu = useRef<HTMLDivElement>(null);
   const liveProgress = useQuery<Record<string,JobProgress>>({queryKey:queryKeys.progress,queryFn:async()=>({}),enabled:false}).data?.[song.id];
   const progress = liveProgress ?? (queueProgress?.job_id === song.id ? queueProgress : undefined);
@@ -77,6 +80,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
     ? t(model.hasVariant ? "result_music_model" : "result_music_model_partial", model.name)
     : t("result_music_model_unknown");
   const canExport = song.status === "done" && !song.audio_missing;
+  const usage = !midi && song.status === "done" ? songUsage(song, language, t) : null;
   const stream = song.status === "done" ? songStreamMetrics(song) : null;
   const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   const label = `${song.title||song.caption.split(",").slice(0,3).join(",")}${song.letter?` ${song.letter}`:""}`;
@@ -85,7 +89,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
   const lyrics = !midi && song.status==="done" && song.lyrics!=="[Instrumental]" && typeof text==="string" && /[^\s\[\]]/.test(text.replace(/\[[^\]]*\]/g,"")) ? text.trim():"";
   const info = midi ? t("midi_format") : [meta.bpm?`${meta.bpm}BPM`:null,iterations?`${iterations}IT`:null,song.params.lm_temperature!=null?`${+song.params.lm_temperature.toFixed(2)}VAR`:null,meta.keyscale,durationText].filter(Boolean).join(" · ");
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
-    aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr"))}
+    aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr,.song-usage-details,dialog"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>
     {canExport&&!midi ? action(t("play"),player.song?.id===song.id&&player.playing?"❚❚":"▶",()=>player.play(song),"round") : <div className={`slot ${song.status==="running"?"run":song.status==="error"||song.audio_missing?"err":""}`} title={song.message??undefined}>{song.audio_missing||song.status==="error"?"!":song.status==="running"?<WaveLogo active />:canExport?"♪":song.status==="cancelled"?"✕":"…"}</div>}
     <div className="min-w-0">
@@ -96,6 +100,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
       <div className="m result-audio" title={model.revision ? t("result_music_model_revision", model.revision) : undefined}>{modelText}</div>
       {(runtime || wavLabel) && <div className="m result-audio">{runtime && <span title={revision || undefined}>{runtime}{revision && ` ${revision.slice(0, 8)}`}</span>}{runtime && wavLabel && " · "}{wavLabel}</div>}
       {generatedBy && <div className="generated-disclosure" id={publicDisclosureId} role="note"><strong>{t("result_machine_generated", generatedBy)}</strong>{canExport && ` · ${t("result_public_disclosure")}`}</div>}
+      {usage && <SongUsageDetails usage={usage} />}
       {song.status==="queued"&&<div className="s">{t("waiting")}</div>}
       {song.status==="cancelled"&&<div className="s">{t("cancelled")}</div>}
       {song.status==="error"&&<div className="s err" title={song.message??undefined}>{t("error")} · {t(songErrorKey(song.message||""))}</div>}
@@ -115,9 +120,9 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
       {song.status==="done"&&<button type="button" className={`sek icon ${song.favorite?"on":""}`} aria-label={t("fav")} title={t("fav")} aria-pressed={song.favorite} disabled={change.isPending} onClick={()=>change.mutate(()=>backend.patch(song.id,{favorite:!song.favorite}))}>{song.favorite?"★":"☆"}</button>}
       {canExport&&(midi
         ? action(t("midi_export"), "MIDI", ()=>change.mutate(()=>exportSong(song)), "download fmt", change.isPending, generatedBy?publicDisclosureId:undefined)
-        : <DownloadFormatMenu formats={exportFormats} label={t("download")} menuLabel={t("download_format")} originalLabel={t("download_original")}
+        : <DownloadFormatMenu formats={exportFormats} label={t("download")} menuLabel={t("download_format")} originalLabel={t("download_original")} language={language}
             className="sek icon download fmt" descriptionId={generatedBy?publicDisclosureId:undefined} disabled={change.isPending}
-            onChoose={format=>change.mutate(()=>exportSong(song,false,format))}>{audioFormat}</DownloadFormatMenu>)}
+            onChoose={setPendingExport}>{audioFormat}</DownloadFormatMenu>)}
       {onStems && !projectCount && !midi && song.status === "done" && song.path && <button className="sek mini" type="button" onClick={() => onStems({ song })}>{t("stem_split")}</button>}
       {onStems && (projectCount > 0
         ? <button className="sek mini" type="button" onClick={() => onStems({ song, projects: true, openLatest: true })}>{t("stem_mixer")}</button>
@@ -146,6 +151,8 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
     {song.status==="running"&&<GenerationProgress wave={false} className="song-generation-status" progress={progress}
       label={t("desktop_progress_generation")} remainingLabel={t("desktop_progress_remaining")}
       details={progress ? progressText(progress,t) : song.message || t("desktop_progress_generation")} />}
+    {canExport && usage && <SongExportDialog usage={usage} format={pendingExport} label={label} onClose={() => setPendingExport(null)}
+      onExport={format => { setPendingExport(null); change.mutate(() => exportSong(song, false, format)); }} />}
     {lyrics&&lyricsOpen&&<div className="lyr-wrap"><pre className="lyr">{lyrics}</pre><button type="button" className="download mini lyr-dl" title={t("lyrics_dl")} aria-label={t("lyrics_dl")} onClick={()=>change.mutate(()=>exportSong(song,true))}>TXT ↓</button></div>}
   </article>;
 }

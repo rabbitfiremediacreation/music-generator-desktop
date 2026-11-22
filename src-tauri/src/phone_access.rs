@@ -1094,11 +1094,16 @@ async fn audio(
         let resources = &remote.state.resources;
         let root = &remote.state.db.root;
         let cancel = remote.state.runtime.cancellation();
-        let converted = if explicit.is_none() && format == AudioFormat::Mp3 {
-            audio_export::mp3(resources, root, &song.id, &path, &cancel).await
-        } else {
-            audio_export::convert(resources, root, &song.id, &path, format, &cancel).await
-        };
+        let converted = audio_export::convert_song(
+            resources,
+            root,
+            &song,
+            &path,
+            format,
+            explicit.is_none() && format == AudioFormat::Mp3,
+            &cancel,
+        )
+        .await;
         match converted {
             Ok(converted) => path = converted,
             Err(error) => return failure(error),

@@ -80,7 +80,7 @@ export function Library({folder,onFolderChange,onReuse,onRemix,selection,onReady
       <span className="fold-actions">{current&&<><button type="button" className="sek mini" onClick={()=>setNameDialog({id:current.id,name:current.name})}>{t("f_rename")}</button>
         <button type="button" className={`sek mini ${armed===`folder:${folder}`?"armed":""}`} data-arm={`folder:${folder}`} title={t("f_delete_q",current.name)} onClick={()=>{if(arm(`folder:${folder}`))mutate.mutate(async()=>{await backend.deleteFolder(folder);onFolderChange("");});}}>{t(armed===`folder:${folder}`?"f_delete_sure":"f_delete")}</button></>}
         {onStems&&<button type="button" className="sek mini" onClick={()=>onStems({projects:true,folder})}>{t("stem_projects")}</button>}
-        <DownloadFormatMenu formats={formats} label={zipLabel} menuLabel={t("download_zip_format")} originalLabel={t("download_original")}
+        <DownloadFormatMenu formats={formats} label={zipLabel} menuLabel={t("download_zip_format")} originalLabel={t("download_original")} language={language}
           className="download mini" title={t("f_zip_tip")} disabled={mutate.isPending}
           onChoose={format=>mutate.mutate(()=>exportFolder(folder,format))}>{zipLabel}</DownloadFormatMenu></span>
     </div>

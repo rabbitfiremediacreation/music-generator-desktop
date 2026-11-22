@@ -58,7 +58,7 @@ On Apple Silicon, the **PyTorch** engine package supplies one CPython 3.11 and P
 
 Apple Silicon Develop and Daily releases offer **Magenta RealTime 2** and **AudioCraft** as separate engine packages under **Engines**. You can install their model weights separately through the ModelPicker.
 
-**Models → Music generation → Add model** and the Creator show models for installed engines. When a newer app build includes updated engine packages, install those updates individually in **Engines**. Updating or removing an engine keeps its downloaded model files for reuse. Reinstall the engine to make those models selectable again.
+**Models → Music generation → Add model** and the Creator show models for installed engines. When a newer app build includes updated engine packages, install those updates individually in **Engines**. The installed engine remains available until its replacement has been verified and activated. Updating or removing an engine keeps its downloaded model files for reuse. Reinstall the engine to make those models selectable again.
 
 On **Models → Music generation**, installed music models show their status and disk usage. Apply Expert Mode under **General → App settings** to update the available choices. Save other pending settings with **Save**. Layout, language-model device selection and connection switches apply immediately.
 
@@ -89,6 +89,18 @@ Settings → General → App settings → Expert Mode is off by default, includi
 Settings → Library & export → Export selects lossless WAV or MP3 at 192 kbit/s for both individual songs and ZIPs. Playback and the library keep their original audio. MP3 uses the bundled `mp3-codec` through the same owned-process supervisor. The parent copies source audio into temporary container storage before conversion; no external folder grants are needed by the converter. Converted copies are cached by source size/modification time and deleted with their song. Incomplete conversions never replace originals or existing export destinations. If conversion fails, choose WAV and inspect `logs/export.log`. The native save dialog uses the selected extension. All twelve languages include the upstream labels and conversion errors, with desktop-specific device-change instructions. [Temporary-file lifetime and startup recovery](export-cleanup.md) are documented separately.
 
 On macOS, ZIP exports use Foundation's temporary item replacement directory so the save dialog's grant to the chosen file is sufficient. An existing ZIP is replaced only after the new archive is complete; no permission to create sibling files in the destination folder is required.
+
+Newly generated audio carries the song's recorded music model, variant, known output terms and source links in its comment tag. The app records unresolved terms explicitly and flags reference recordings whose rights need to be checked. The same recorded terms are available to the song's usage display and survive later model changes.
+
+| Download format | Model and usage metadata |
+| --- | --- |
+| WAV | RIFF INFO comment (`ICMT`) |
+| MP3 | ID3v2 comment (`COMM`) at all three MP3 presets |
+| Ogg/Opus | Vorbis `COMMENT` |
+| AAC (ADTS) | The app's AAC export omits these tags |
+| Original | Copies the file with its existing tags. Older or imported files may lack them. |
+
+The desktop and phone download menus show the format's metadata support. ZIP exports use the same behavior for each included audio file. To inspect a copied or extracted file independently, run `ffprobe -v error -show_entries format_tags=comment:stream_tags=comment -of json song.wav`. The format may report the comment as a file tag or a stream tag.
 
 ACE-Step shows **IT** for synthesis iterations and **VAR** for language-model variance/temperature. New forms start at 80 and 0.85; saved songs retain their previous values. More iterations take longer; higher variance gives freer output, lower variance follows the style and prompt more closely. Use the explicit ModelPicker recommendation for other families, such as Turbo.
 

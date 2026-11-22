@@ -45,6 +45,12 @@ button.download-format-trigger {
   cursor: pointer;
 }
 .download-format-option:first-child { color: var(--accent, var(--gold)); }
+.download-format-metadata {
+  display: block;
+  max-width: 35ch;
+  color: var(--text, #f0eee8);
+  font-size: 12px;
+}
 .download-format-option:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--muted) 15%, transparent); }
 .download-format-option:focus-visible { outline: 1px solid var(--accent, var(--gold)); outline-offset: -1px; }
 @media (pointer: coarse) {

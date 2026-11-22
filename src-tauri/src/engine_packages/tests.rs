@@ -1,5 +1,5 @@
 use super::{
-    install::{install_archive, install_from_url, remove},
+    install::{activate, install_archive, install_from_url, remove},
     *,
 };
 use crate::error::Error;
@@ -40,12 +40,22 @@ async fn shared_pytorch_requires_both_runners_before_retiring_old_packages() {
     let data = root.path();
     let (mut package, zip) = archive(data, "shared", b"mimetic runner");
     package.id = "pytorch".into();
-    let midi = "engine/text2midi/text2midi-runner";
+    let midi = TEXT2MIDI_ENTRY;
     package.additional_executables.push(midi.into());
     assert!(package.has_executable(Path::new(midi)));
-    for id in LEGACY_PYTORCH_PACKAGES {
-        fs::create_dir_all(package_root(data, id)).unwrap();
-        fs::write(package_root(data, id).join("current.json"), "{}").unwrap();
+    for (id, executable) in [("mimetic", ACE_ENTRY), ("text2midi", midi)] {
+        let legacy = Package {
+            id: id.into(),
+            executable: executable.into(),
+            additional_executables: Vec::new(),
+            ..package.clone()
+        };
+        fs::create_dir_all(legacy.root(data)).unwrap();
+        let staging = tempfile::tempdir_in(legacy.root(data)).unwrap();
+        let runner = staging.path().join(executable);
+        fs::create_dir_all(runner.parent().unwrap()).unwrap();
+        fs::write(runner, id).unwrap();
+        activate(&legacy, data, staging).unwrap();
     }
     fs::create_dir_all(package.root(data)).unwrap();
     let token = CancellationToken::new();
@@ -54,6 +64,12 @@ async fn shared_pytorch_requires_both_runners_before_retiring_old_packages() {
         .is_err());
     assert!(package.has_legacy_pytorch(data));
     assert!(package.installed(data).is_none());
+    for (id, executable) in [("mimetic", ACE_ENTRY), ("text2midi", midi)] {
+        let current = package
+            .installed_resources(data, Path::new(executable))
+            .unwrap();
+        assert_eq!(fs::read_to_string(current.join(executable)).unwrap(), id);
+    }
 
     let file = fs::OpenOptions::new()
         .read(true)
@@ -74,6 +90,29 @@ async fn shared_pytorch_requires_both_runners_before_retiring_old_packages() {
     let (_, installed) = package.installed(data).unwrap();
     assert!(installed.join(midi).is_file());
     assert!(!package.has_legacy_pytorch(data));
+    assert_eq!(
+        package.installed_resources(data, Path::new(midi)),
+        Some(installed.clone()),
+    );
+    package
+        .additional_executables
+        .push("engine/pytorch/stem-runner".into());
+    assert_eq!(
+        package.installed_resources(data, Path::new(midi)),
+        Some(installed),
+    );
+    assert!(package
+        .installed_resources(data, Path::new("engine/pytorch/stem-runner"))
+        .is_none());
+    let status = serde_json::to_value(status::package_status(
+        &package,
+        &data.join("app"),
+        data,
+        &[],
+    ))
+    .unwrap();
+    assert_eq!(status["installed"], true);
+    assert_eq!(status["update_available"], true);
     remove(&package, data).unwrap();
     assert!(package.installed(data).is_none());
 }
@@ -106,9 +145,14 @@ async fn an_invalid_or_cancelled_update_keeps_the_previous_installation() {
     ));
     assert_eq!(fs::read(current.join(ACE_ENTRY)).unwrap(), b"previous");
     assert_eq!(before.installed(data).unwrap().1, current);
+    assert_eq!(
+        next.installed_resources(data, Path::new(ACE_ENTRY)),
+        Some(current.clone()),
+    );
     let resources = data.join("app");
     let status =
         serde_json::to_value(status::package_status(&next, &resources, data, &[])).unwrap();
+    assert_eq!(status["installed"], true);
     assert_eq!(status["update_available"], true);
     assert_eq!(status["installed_version"]["revision"], "before");
     assert_eq!(status["available_version"]["revision"], "next");
@@ -117,6 +161,10 @@ async fn an_invalid_or_cancelled_update_keeps_the_previous_installation() {
     let (installed, active) = next.installed(data).unwrap();
     assert_eq!(installed.revision, "next");
     assert_eq!(fs::read(active.join(ACE_ENTRY)).unwrap(), b"replacement");
+    assert_eq!(
+        next.installed_resources(data, Path::new(ACE_ENTRY)),
+        Some(active)
+    );
     assert!(!current.exists());
 }
 

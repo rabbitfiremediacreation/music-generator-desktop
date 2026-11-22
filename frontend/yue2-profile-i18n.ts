@@ -1,3 +1,4 @@
+import outputUsage from "../models/output-usage.json";
 import { I18N } from "./i18n.js";
 
 Object.assign(I18N.en, {
@@ -14,5 +15,5 @@ Object.assign(I18N.de, {
   provider_duration_limit_hint: "Das Modell kann den Song früher beenden. Die Bibliothek zeigt die gemessene Audiodauer an.",
   yue2_usage_model_use: "CC BY-NC 4.0 erlaubt die nichtkommerzielle Modellnutzung, auch für Forschung und Bildung. Die Creator-Ausnahme gilt für Einzelpersonen, die in eigener kreativer Verantwortung handeln. Unternehmen brauchen für die kommerzielle Modellnutzung eine separate Lizenz.",
   yue2_usage_redistribution: "Bei nichtkommerzieller Weitergabe der Gewichte YuE2 und MAP, die Originalquelle und die Lizenz angeben. Änderungen wie GGUF-Konvertierung und Quantisierung kennzeichnen. Kommerzielle Weitergabe oder Verkauf der Gewichte erfordern eine separate Genehmigung.",
-  yue2_usage_outputs: "Einzelkreative dürfen erzeugte Songs ohne Lizenzgebühren oder verpflichtende Namensnennung veröffentlichen, verkaufen und an Kunden lizenzieren. Dabei gelten die Vorgaben von MAP zur verantwortungsvollen Nutzung. Rechte und Einwilligungen für Eingaben und Ergebnisse selbst klären.",
+  yue2_usage_outputs: outputUsage.de.yue2_usage_outputs,
 });

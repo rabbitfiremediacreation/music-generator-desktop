@@ -1,6 +1,7 @@
 #include <Python.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 
@@ -26,6 +27,9 @@ extern "C" int music_generator_engine_main_v1(int argc, char **argv) {
         const auto folder = executable.parent_path();
         const auto home = (folder / MUSIC_PYTHON_HOME).lexically_normal();
         const auto script = folder / MUSIC_PYTHON_SCRIPT;
+
+        // A packaged runner accesses models through the native sandbox grant.
+        unsetenv("MUSIC_MODEL_BOOKMARK");
 
         PyPreConfig preconfig;
         PyPreConfig_InitIsolatedConfig(&preconfig);
