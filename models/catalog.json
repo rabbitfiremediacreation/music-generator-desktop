@@ -2,6 +2,15 @@
   "version": 1,
   "revision": "666ac70204440867d8c01ba4b119cc79c95b370a",
   "base_url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/666ac70204440867d8c01ba4b119cc79c95b370a",
+  "ace_step_terms": {
+    "licenses": [
+      { "license": "MIT", "license_url": "https://github.com/ace-step/ACE-Step-1.5/blob/ca1e85fe9430179831e6bc6be790c332190a3866/LICENSE" },
+      { "license": "Apache-2.0", "license_url": "https://www.apache.org/licenses/LICENSE-2.0" }
+    ],
+    "model_use": "ace_step_weights_use",
+    "outputs": "ace_step_output_guidance",
+    "policy_url": "https://github.com/ace-step/ACE-Step-1.5/blob/ca1e85fe9430179831e6bc6be790c332190a3866/README.md#-license--disclaimer"
+  },
   "expert_families": [
     "acestep-v15-turbo",
     "acestep-v15-turbo-continuous",
