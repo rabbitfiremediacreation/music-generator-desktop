@@ -204,6 +204,7 @@ it("queues a library remix with its own model selection and Create-style input f
   fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Create" }));
   expect(screen.getByRole<HTMLSelectElement>("combobox", { name: t("picker_title") }).value).toBe(standardKey);
 });
+
 it("asks again before staging a replacement WAV for an external remix", async () => {
   firstRun = false;
   const invoke = mocks.invoke.getMockImplementation()!;
@@ -244,6 +245,24 @@ it("asks again before staging a replacement WAV for an external remix", async ()
   await remix.findByText(t("remix_queued"));
   expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: expect.objectContaining({ reference_audio: "replacement-ref" }) });
 });
+
+it("still lets the Remix workspace choose a local WAV independently of Create", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => name === "pick_reference_audio"
+    ? { id: "a".repeat(64), name: "local.wav" }
+    : invoke(name, args));
+  await mount();
+
+  fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Remix" }));
+  const remix = within(screen.getByRole("region", { name: "Remix" }));
+  expect(screen.queryByRole("button", { name: t("dialog_audio_import") })).toBeNull();
+  fireEvent.click(remix.getByRole("button", { name: t("remix_source") }));
+
+  expect(await remix.findByText("local.wav")).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenCalledWith("pick_reference_audio", expect.objectContaining({ title: t("remix_source"), remix: true }));
+});
+
 it("opens the current song as a single track and offers separation from Mix", async () => {
   firstRun = false;
   const song: Song = { id: "current-song", title: "Current song", caption: "Piano", status: "done", path: "/songs/song.wav",

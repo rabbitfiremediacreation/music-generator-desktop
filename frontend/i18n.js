@@ -3,8 +3,7 @@ import { LANGS, preferredLanguage } from "./locales";
 // Shared message catalogs. React and native adapters use the same language and fallback chain.
 const I18N = {
   de: {
-    drop_aria: "Song hochladen und analysieren",
-    drop_title: "Song hierher ziehen oder klicken — Stil und Tempo werden übernommen",
+    drop_title: "Song zur Analyse hierher ziehen",
     audio_permission_title: "Berechtigung zur Audionutzung",
     audio_permission_analysis: "Gehört dir diese Aufnahme oder hast du die Erlaubnis, sie für die Audioanalyse zu verwenden?",
     audio_permission_remix: "Gehört dir diese Aufnahme oder hast du die Erlaubnis, sie als Vorlage für diesen Remix zu verwenden?\n\nEine Veröffentlichung des Remixes kann eine gesonderte Erlaubnis erfordern.",
@@ -85,8 +84,7 @@ const I18N = {
     upd_slow: "Neustart dauert ungewöhnlich lang. Bitte Music Generator ON starten.",
   },
   en: {
-    drop_aria: "Upload and analyze a song",
-    drop_title: "Drop a song here or click — style and tempo are picked up",
+    drop_title: "Drop a song here to analyze it",
     audio_permission_title: "Permission to use this audio",
     audio_permission_analysis: "Do you own this recording or have permission to use it for audio analysis?",
     audio_permission_remix: "Do you own this recording or have permission to use it as a reference for this remix?\n\nPublishing the remix may require separate permission.",
@@ -162,8 +160,7 @@ const I18N = {
     upd_slow: "Restart is taking unusually long. Please start Music Generator ON.",
   },
   es: {
-    drop_aria: "Subir y analizar una canción",
-    drop_title: "Arrastra una canción aquí o haz clic: se toman el estilo y el tempo",
+    drop_title: "Arrastra una canción aquí para analizarla",
     brand_title: "Ir a la web de Alphatester",
     gen_heading: "Nueva canción", vt_auto: "Auto", vt_dur: (m, s) => `${m} minutos ${s} segundos`,
     an_queued: (n) => `${n} canción(es) en cola`, an_done: (t) => `Lista: ${t}`, an_error: (t) => `Error en ${t}`,
@@ -232,8 +229,7 @@ const I18N = {
     upd_slow: "El reinicio tarda más de lo normal. Inicia Music Generator ON.",
   },
   fr: {
-    drop_aria: "Importer et analyser un morceau",
-    drop_title: "Dépose un morceau ici ou clique : le style et le tempo sont repris",
+    drop_title: "Dépose un morceau ici pour l’analyser",
     brand_title: "Aller sur le site Alphatester",
     gen_heading: "Nouveau morceau", vt_auto: "Auto", vt_dur: (m, s) => `${m} minutes ${s} secondes`,
     an_queued: (n) => `${n} morceau(x) en file d'attente`, an_done: (t) => `Terminé : ${t}`, an_error: (t) => `Erreur pour ${t}`,
@@ -302,8 +298,7 @@ const I18N = {
     upd_slow: "Le redémarrage prend anormalement longtemps. Lance Music Generator ON.",
   },
   it: {
-    drop_aria: "Carica e analizza un brano",
-    drop_title: "Trascina qui un brano o fai clic: stile e tempo vengono ripresi",
+    drop_title: "Trascina qui un brano per analizzarlo",
     brand_title: "Vai al sito Alphatester",
     gen_heading: "Nuovo brano", vt_auto: "Auto", vt_dur: (m, s) => `${m} minuti ${s} secondi`,
     an_queued: (n) => `${n} brano/i in coda`, an_done: (t) => `Pronto: ${t}`, an_error: (t) => `Errore con ${t}`,
@@ -372,8 +367,7 @@ const I18N = {
     upd_slow: "Il riavvio sta durando più del solito. Avvia Music Generator ON.",
   },
   pt: {
-    drop_aria: "Enviar e analisar uma música",
-    drop_title: "Arraste uma música aqui ou clique: o estilo e o andamento são aproveitados",
+    drop_title: "Arraste uma música aqui para analisá-la",
     brand_title: "Ir ao site da Alphatester",
     gen_heading: "Nova música", vt_auto: "Auto", vt_dur: (m, s) => `${m} minutos ${s} segundos`,
     an_queued: (n) => `${n} música(s) na fila`, an_done: (t) => `Pronta: ${t}`, an_error: (t) => `Erro em ${t}`,
@@ -442,8 +436,7 @@ const I18N = {
     upd_slow: "A reinicialização está demorando mais que o normal. Inicie o Music Generator ON.",
   },
   tr: {
-    drop_aria: "Şarkı yükle ve analiz et",
-    drop_title: "Bir şarkıyı buraya sürükle veya tıkla: tarz ve tempo alınır",
+    drop_title: "Analiz etmek için bir şarkıyı buraya sürükle",
     brand_title: "Alphatester web sitesine git",
     gen_heading: "Yeni şarkı", vt_auto: "Otomatik", vt_dur: (m, s) => `${m} dakika ${s} saniye`,
     an_queued: (n) => `${n} şarkı kuyrukta`, an_done: (t) => `Hazır: ${t}`, an_error: (t) => `Hata: ${t}`,
@@ -512,8 +505,7 @@ const I18N = {
     upd_slow: "Yeniden başlatma alışılmadık derecede uzun sürüyor. Lütfen Music Generator ON'u başlat.",
   },
   pl: {
-    drop_aria: "Prześlij i przeanalizuj utwór",
-    drop_title: "Przeciągnij tu utwór lub kliknij: styl i tempo zostaną przejęte",
+    drop_title: "Przeciągnij tutaj utwór, aby go przeanalizować",
     brand_title: "Przejdź na stronę Alphatester",
     gen_heading: "Nowy utwór", vt_auto: "Auto", vt_dur: (m, s) => `${m} min ${s} s`,
     an_queued: (n) => `${n} utwór(ów) w kolejce`, an_done: (t) => `Gotowe: ${t}`, an_error: (t) => `Błąd: ${t}`,
@@ -582,8 +574,7 @@ const I18N = {
     upd_slow: "Ponowne uruchomienie trwa nietypowo długo. Uruchom Music Generator ON.",
   },
   ru: {
-    drop_aria: "Загрузить и проанализировать песню",
-    drop_title: "Перетащи песню сюда или нажми: стиль и темп будут взяты из неё",
+    drop_title: "Перетащи сюда песню для анализа",
     brand_title: "На сайт Alphatester",
     gen_heading: "Новая песня", vt_auto: "Авто", vt_dur: (m, s) => `${m} мин ${s} с`,
     an_queued: (n) => `В очереди: ${n}`, an_done: (t) => `Готово: ${t}`, an_error: (t) => `Ошибка: ${t}`,
@@ -652,8 +643,7 @@ const I18N = {
     upd_slow: "Перезапуск длится необычно долго. Запусти Music Generator ON.",
   },
   uk: {
-    drop_aria: "Завантажити й проаналізувати пісню",
-    drop_title: "Перетягни пісню сюди або натисни: стиль і темп буде взято з неї",
+    drop_title: "Перетягни сюди пісню для аналізу",
     brand_title: "На сайт Alphatester",
     gen_heading: "Нова пісня", vt_auto: "Авто", vt_dur: (m, s) => `${m} хв ${s} с`,
     an_queued: (n) => `У черзі: ${n}`, an_done: (t) => `Готово: ${t}`, an_error: (t) => `Помилка: ${t}`,
@@ -722,8 +712,7 @@ const I18N = {
     upd_slow: "Перезапуск триває незвично довго. Запусти Music Generator ON.",
   },
   ja: {
-    drop_aria: "曲をアップロードして解析",
-    drop_title: "ここに曲をドロップまたはクリック: スタイルとテンポを取り込みます",
+    drop_title: "解析する曲をここにドロップ",
     brand_title: "Alphatester のサイトへ",
     gen_heading: "新しい曲", vt_auto: "自動", vt_dur: (m, s) => `${m} 分 ${s} 秒`,
     an_queued: (n) => `${n} 曲が待機中`, an_done: (t) => `完了: ${t}`, an_error: (t) => `エラー: ${t}`,
@@ -792,8 +781,7 @@ const I18N = {
     upd_slow: "再起動に通常より時間がかかっています。Music Generator ON を起動してください。",
   },
   zh: {
-    drop_aria: "上传并分析歌曲",
-    drop_title: "把歌曲拖到这里或点击: 自动提取风格和速度",
+    drop_title: "将歌曲拖到这里进行分析",
     brand_title: "前往 Alphatester 网站",
     gen_heading: "新歌曲", vt_auto: "自动", vt_dur: (m, s) => `${m} 分 ${s} 秒`,
     an_queued: (n) => `${n} 首歌曲排队中`, an_done: (t) => `完成: ${t}`, an_error: (t) => `出错: ${t}`,
