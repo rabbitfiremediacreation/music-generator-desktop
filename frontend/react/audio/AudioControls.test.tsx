@@ -15,7 +15,7 @@ function mount(onAnalysis = vi.fn()) {
 beforeEach(() => { vi.clearAllMocks(); mocks.dialogDirectory.mockResolvedValue("/audio"); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it("analyzes audio through the file button beside the microphone and shares the logo's dialog lock", async () => {
-  mocks.pickAndAnalyzeAudio.mockImplementation(async (_dir, _title, _filter, _selection, onSelected) => {
+  mocks.pickAndAnalyzeAudio.mockImplementation(async (_dir, _title, _filter, _selection, _permission, onSelected) => {
     onSelected({ name: "idea.wav", directory: "/chosen" });
     return { caption: "A calm song", bpm: 90 };
   });

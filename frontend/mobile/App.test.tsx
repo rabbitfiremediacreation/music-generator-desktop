@@ -74,6 +74,29 @@ it("pairs from the QR fragment, shows the library and submits a generation to th
   expect(JSON.parse(call[1].body)).toMatchObject({ prompt: "warm piano", instrumental: true, duration: 90, variants: 1, folder_id: null });
 });
 
+it("uploads only the audio idea the phone user confirms", async () => {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path, options) => path === "/api/analyze" ? Response.json({ caption: "Quiet piano" }) : original(path, options));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+  const picker = await screen.findByLabelText("Use an audio idea");
+
+  fireEvent.change(picker, { target: { files: [new File(["music"], "first.wav")] } });
+  await screen.findByText("first.wav");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(request.mock.calls.some(([path]) => path === "/api/analyze")).toBe(false);
+
+  fireEvent.change(picker, { target: { files: [new File(["music"], "second.wav")] } });
+  await screen.findByText("second.wav");
+  fireEvent.change(picker, { target: { files: [new File(["music"], "replacement.wav")] } });
+  expect(screen.queryByText("second.wav")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Analyze recording" }));
+  await screen.findByText("Audio idea analyzed. Review the fields before generating.");
+  const analyses = request.mock.calls.filter(([path]) => path === "/api/analyze");
+  expect(analyses).toHaveLength(1);
+  expect(analyses[0][1].body.get("audio").name).toBe("replacement.wav");
+});
+
 it("keeps the engine progress and animated logo visible when switching to Create", async () => {
   const original = request.getMockImplementation()!;
   request.mockImplementation((path, options) => {

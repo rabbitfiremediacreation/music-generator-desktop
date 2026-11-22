@@ -204,6 +204,46 @@ it("queues a library remix with its own model selection and Create-style input f
   fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Create" }));
   expect(screen.getByRole<HTMLSelectElement>("combobox", { name: t("picker_title") }).value).toBe(standardKey);
 });
+it("asks again before staging a replacement WAV for an external remix", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "pick_reference_audio") return { id: "approved-ref", name: "approved.wav" };
+    if (name === "generate") return { ids: ["remix-song"] };
+    return invoke(name, args);
+  });
+  mocks.confirm.mockResolvedValue(false);
+  const upload = vi.fn();
+  vi.stubGlobal("fetch", upload);
+  await mount();
+  fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Remix" }));
+  const remix = within(screen.getByRole("region", { name: "Remix" }));
+  fireEvent.click(remix.getByRole("button", { name: t("remix_source") }));
+  await remix.findByText("approved.wav");
+  expect(mocks.invoke).toHaveBeenCalledWith("pick_reference_audio", expect.objectContaining({
+    remix: true, permission: expect.objectContaining({ question: expect.stringContaining("Publishing the remix may require separate permission.") }),
+  }));
+
+  const zone = remix.getByRole("group", { name: t("remix_source_label") });
+  const replacement = new File(["music"], "replacement.wav");
+  const read = vi.spyOn(replacement, "arrayBuffer");
+  await act(async () => fireEvent.drop(zone, { dataTransfer: { files: [replacement] } }));
+  expect(mocks.confirm).toHaveBeenCalledWith(expect.stringContaining("replacement.wav"), expect.objectContaining({ okLabel: "Use as remix reference" }));
+  expect(read).not.toHaveBeenCalled();
+  expect(upload).not.toHaveBeenCalled();
+  expect(remix.getByText("approved.wav")).toBeTruthy();
+
+  mocks.confirm.mockResolvedValue(true);
+  upload.mockResolvedValue(Response.json({ id: "replacement-ref", name: replacement.name }));
+  await act(async () => fireEvent.drop(zone, { dataTransfer: { files: [replacement] } }));
+  await remix.findByText(replacement.name);
+  fireEvent.change(remix.getByRole("textbox", { name: t("remix_prompt") }), { target: { value: "Warm jazz" } });
+  const submit = remix.getByRole<HTMLButtonElement>("button", { name: t("remix_submit") });
+  await waitFor(() => expect(submit.disabled).toBe(false));
+  fireEvent.click(submit);
+  await remix.findByText(t("remix_queued"));
+  expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: expect.objectContaining({ reference_audio: "replacement-ref" }) });
+});
 it("opens the current song as a single track and offers separation from Mix", async () => {
   firstRun = false;
   const song: Song = { id: "current-song", title: "Current song", caption: "Piano", status: "done", path: "/songs/song.wav",

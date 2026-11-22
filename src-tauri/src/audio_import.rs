@@ -3,7 +3,7 @@ use crate::{catalog::Selection, commands::analyze_audio, state::AppState};
 use serde_json::Value;
 use std::{io::Read, path::Path, sync::Arc};
 use tauri::{ipc::Channel, Manager, State};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
 pub(crate) const MAX_AUDIO_BYTES: usize = 60 * 1024 * 1024;
 pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "mp3", "flac", "m4a", "ogg"];
@@ -71,16 +71,56 @@ pub struct AudioSelectionInfo {
     directory: String,
 }
 
+#[derive(serde::Deserialize)]
+pub struct AudioPermissionPrompt {
+    title: String,
+    question: String,
+    accept: String,
+    cancel: String,
+}
+
+impl AudioPermissionPrompt {
+    /// Ask about the selected recording before opening it for processing.
+    pub(crate) fn allows(&self, app: &tauri::AppHandle, path: &Path) -> Result<bool> {
+        let name = path.file_name().ok_or_else(|| message("audio_type"))?;
+        let mut dialog = app
+            .dialog()
+            .message(format!("{}\n\n{}", name.to_string_lossy(), self.question))
+            .title(&self.title)
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                self.accept.clone(),
+                self.cancel.clone(),
+            ));
+        if let Some(window) = app.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        Ok(dialog.blocking_show())
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioAnalysisDialog {
+    directory: String,
+    title: String,
+    filter_name: String,
+    permission: AudioPermissionPrompt,
+}
+
 #[tauri::command]
 pub async fn pick_and_analyze_audio(
     app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
-    directory: String,
-    title: String,
-    filter_name: String,
+    dialog: AudioAnalysisDialog,
     selection: Option<Selection>,
     on_selected: Channel<AudioSelectionInfo>,
 ) -> Result<Option<Value>> {
+    let AudioAnalysisDialog {
+        directory,
+        title,
+        filter_name,
+        permission,
+    } = dialog;
     let chosen = tauri::async_runtime::spawn_blocking(move || {
         let mut dialog = app
             .dialog()
@@ -95,6 +135,9 @@ pub async fn pick_and_analyze_audio(
             return Ok(None);
         };
         let path = selected.into_path().map_err(|_| message("audio_read"))?;
+        if !permission.allows(&app, &path)? {
+            return Ok(None);
+        }
         read_selection(&path).map(Some)
     })
     .await

@@ -9,6 +9,8 @@ import { setLang, t } from "./i18n.js";
 import { backend } from "./backend";
 import type { ModelSelection } from "./types";
 const invoke = vi.hoisted(() => vi.fn());
+const confirm = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke,
   convertFileSrc: (path: string, protocol: string) => `http://${protocol}.localhost/${path}`,
@@ -16,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 beforeEach(() => {
   vi.resetAllMocks(); localStorage.clear(); setLang("en");
+  confirm.mockResolvedValue(true);
   invoke.mockImplementation(async (command, args) => {
     if (command === "dialog_directory") return "/home/test";
     if (command === "pick_and_analyze_audio") {
@@ -39,7 +42,11 @@ it.each(["click", "Enter", " "])("native audio selection via %s applies the anal
   else { upload.focus(); await user.keyboard(activation === "Enter" ? "{Enter}" : " "); }
   await waitFor(() => expect(analyzed).toHaveBeenCalledWith({ caption: "Piano", bpm: 100 }, false));
   expect(invoke.mock.calls.map(([command]) => command)).toEqual(["dialog_directory", "pick_and_analyze_audio"]);
-  expect(invoke).toHaveBeenCalledWith("pick_and_analyze_audio", { directory: "/home/test", title: t("dialog_audio_import"), filterName: t("dialog_audio_filter"), selection: null, onSelected: expect.any(Object) });
+  expect(invoke).toHaveBeenCalledWith("pick_and_analyze_audio", {
+    dialog: { directory: "/home/test", title: t("dialog_audio_import"), filterName: t("dialog_audio_filter"),
+      permission: expect.objectContaining({ question: expect.stringContaining("for audio analysis") }) },
+    selection: null, onSelected: expect.any(Object),
+  });
   expect(fetch).not.toHaveBeenCalled();
   expect(JSON.parse(localStorage.getItem("dialog-folders:v1")!).audio_import).toBe("/music");
 });
@@ -77,12 +84,32 @@ it("serializes the 8 MiB drop as raw fetch bytes and applies the analysis", asyn
   });
   vi.stubGlobal("fetch", fetch);
   const analyzed = mount(selection);
-  fireEvent.drop(screen.getByRole("button", { name: t("drop_aria") }), {
+  fireEvent.drop(document.querySelector("#dropzone")!, {
     dataTransfer: { files: [new File([bytes], "雨 & Piano.wav")] },
   });
   await waitFor(() => expect(analyzed).toHaveBeenCalledWith({ caption: "Piano", bpm: 100 }, false));
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(invoke).not.toHaveBeenCalled();
+});
+
+it("requires a new decision before reading each dropped recording", async () => {
+  confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  const fetch = vi.fn(async () => Response.json({ caption: "Piano" }));
+  vi.stubGlobal("fetch", fetch);
+  const analyzed = mount();
+  const zone = document.querySelector("#dropzone")!;
+
+  for (const name of ["cancelled.wav", "approved.wav", "replacement.wav"]) {
+    const file = new File(["music"], name);
+    const read = vi.spyOn(file, "arrayBuffer");
+    await act(async () => fireEvent.drop(zone, { dataTransfer: { files: [file] } }));
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining(name), expect.any(Object));
+    expect(read).toHaveBeenCalledTimes(name === "approved.wav" ? 1 : 0);
+  }
+
+  expect(confirm).toHaveBeenCalledTimes(3);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(analyzed).toHaveBeenCalledTimes(1);
 });
 
 it("rejects an oversized upload before reading the file or sending a request", async () => {
