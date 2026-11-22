@@ -12,6 +12,7 @@ use std::{
 use tauri::{AppHandle, Emitter};
 
 mod export_target;
+pub(super) use export_target::preview_directory;
 
 pub(super) fn analyze<R: tauri::Runtime>(
     state: Arc<AppState>,

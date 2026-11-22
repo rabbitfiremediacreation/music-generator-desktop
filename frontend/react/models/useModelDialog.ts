@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import type { HuggingFacePin, ModelSelection } from "../../types";
 import { invalidateModels, useTitleModelDownload } from "./model-state";
@@ -20,7 +20,6 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
     snapshot.recommended_profiles.find(item => hasModelEngine(snapshot, item)) ??
     snapshot.profiles?.find(item => item.engine_installed !== false)?.selection ??
     (snapshot.ace_step_available ? snapshot.model_profiles?.["ace-step"] : undefined);
-  const busy = useIsMutating({ mutationKey: ["models"] }) > 0;
   const invalidate = () => invalidateModels(client);
   const install = useMutation({
     mutationKey: ["models", "install"], networkMode: "always",
@@ -40,7 +39,14 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
     onError: invalidate,
   });
   const title = useTitleModelDownload(setMessage);
-  const cancel = useMutation({ mutationFn: backend.cancelModelDownload, networkMode: "always" });
+  const cancel = useMutation({
+    mutationFn: () => {
+      if (title.isPending) return backend.cancelTransfer("models", "title");
+      if (install.variables && !install.variables.verifyOnly) return backend.cancelProfileTransfer("models", install.variables.next);
+      return backend.cancelModelDownload();
+    },
+    networkMode: "always",
+  });
   const adopt = useMutation({
     mutationKey: ["models", "hugging-face-adopt"], networkMode: "always",
     mutationFn: ({ pin, draft }: { pin: HuggingFacePin; draft: ModelSelection }) => backend.adoptHuggingFaceModel(pin, draft),
@@ -50,6 +56,7 @@ export function useModelDialog(selection: ModelSelection | null, selectionRevisi
       setDraft(selected);
     },
   });
+  const busy = install.isPending || title.isPending || adopt.isPending;
   function apply(verifyOnly: boolean) {
     const next = visible;
     if (next && !busy) install.mutate({ next, before: selectionRevision, verifyOnly });

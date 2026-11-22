@@ -1,36 +1,9 @@
+use super::mix_schema::mix;
 use crate::{audio_export::AudioFormat, mcp::tool};
 use serde_json::{json, Value};
 
-fn id() -> Value {
+pub(super) fn id() -> Value {
     json!({"type":"string","minLength":1,"maxLength":200})
-}
-
-fn number(min: i32, max: i32) -> Value {
-    json!({"type":"number","minimum":min,"maximum":max})
-}
-
-fn mix() -> Value {
-    let boolean = json!({"type":"boolean"});
-    let frame = json!({"type":"integer","minimum":0});
-    let seconds =
-        json!({"type":"number","minimum":0,"description":"Seconds within the mix range."});
-    let fx = json!({"type":"object","additionalProperties":false,"properties":{
-        "low_db":number(-12,12),"mid_db":number(-12,12),"high_db":number(-12,12),
-        "comp":number(0,100),"limit":number(0,100),"width":number(0,200),"filter":number(-100,100)
-    }});
-    let track = json!({"type":"object","additionalProperties":false,"properties":{
-        "role":id(),"name":{"type":"string","minLength":1,"maxLength":80},
-        "replacement":{"type":["string","null"],"description":"Imported layer role from this project."},
-        "gain_db":number(-60,18),"gain_off":boolean,"pan":number(-1,1),
-        "mute":boolean,"solo":boolean,"fade_in":seconds,"fade_out":seconds,
-        "export":boolean,"fx":fx
-    },"required":["role","name","gain_db","pan","mute","solo","fade_in","fade_out"]});
-    json!({"type":"object","additionalProperties":false,"properties":{
-        "version":{"type":"integer","enum":[1,2]},
-        "tracks":{"type":"array","maxItems":32,"items":track,"description":"Keep project roles in order, followed by optional imported layer roles."},
-        "master_db":number(-60,18),"master_off":boolean,"master_comp":number(0,100),
-        "master_limit":number(0,100),"first":frame,"end":frame,"looping":boolean
-    },"required":["tracks","master_db","first","end","looping"]})
 }
 
 fn export_request() -> Value {

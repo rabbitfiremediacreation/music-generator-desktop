@@ -76,7 +76,9 @@ public:
     enum class Read { Audio, Underrun, Failed };
 
     explicit LocalStream(MLXEngine& engine)
-        : inference_([this, &engine](std::stop_token stop) { generate(engine, stop); }) {}
+        : inference_([this, &engine] { generate(engine); }) {}
+
+    ~LocalStream() { stop(); }
 
     bool prime() {
         std::unique_lock lock(mutex_);
@@ -98,7 +100,12 @@ public:
     }
 
     void stop() {
-        inference_.request_stop();
+        if (!inference_.joinable()) return;
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+        }
+        changed_.notify_one();
         inference_.join();
     }
 
@@ -109,15 +116,15 @@ private:
         changed_.notify_one();
     }
 
-    void generate(MLXEngine& engine, std::stop_token stop) try {
+    void generate(MLXEngine& engine) try {
         std::array<float, kFrameSamples> left{}, right{};
         Block audio{};
-        while (!stop.stop_requested()) {
+        for (;;) {
             {
                 std::unique_lock lock(mutex_);
-                changed_.wait(lock, stop, [this] { return buffered_.size() < kBufferedBlocks; });
+                changed_.wait(lock, [this] { return stopping_ || buffered_.size() < kBufferedBlocks; });
+                if (stopping_) return;
             }
-            if (stop.stop_requested()) return;
             magentart::detail::AutoreleasePool pool;
             if (!engine.generate_frame(left.data(), right.data())) {
                 fail();
@@ -138,10 +145,11 @@ private:
 
     using Block = std::array<float, kInterleavedBlock>;
     std::mutex mutex_;
-    std::condition_variable_any changed_;
+    std::condition_variable changed_;
     std::deque<Block> buffered_;
     bool failed_ = false;
-    std::jthread inference_;
+    bool stopping_ = false;
+    std::thread inference_;
 };
 
 bool record(LocalStream& stream, int frames, const char* output_path,
@@ -221,6 +229,15 @@ void prepare_prompt(MLXEngine& engine, const char* prompt) {
 } // namespace
 
 extern "C" int music_generator_engine_main_v1(int argc, char** argv) try {
+    if (argc == 2 && std::string_view(argv[1]) == "--runtime-probe") {
+        const auto kernels = std::filesystem::path(argv[0]).parent_path() / "mlx.metallib";
+        if (!std::filesystem::is_regular_file(kernels)) {
+            std::cerr << "Magenta Metal library is missing\n";
+            return EXIT_FAILURE;
+        }
+        std::cout << "mrt2-record/1\n";
+        return EXIT_SUCCESS;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
         namespace mx = mlx::core;
         auto check = mx::add(mx::ones({1}), mx::ones({1}), mx::Device::gpu);

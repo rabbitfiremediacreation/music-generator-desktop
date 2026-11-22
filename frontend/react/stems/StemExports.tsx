@@ -1,14 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { audioFormats, type AudioFormat } from "../../audio-formats";
 import { audibleTracks, stemApi, stemError, stemRole, type ExportKind, type StemJob, type StemMix, type WaveFormat } from "../../stems";
+import { returnSoloActive } from "../../stem-returns";
 import { settingsQuery } from "../data";
 import { useI18n } from "../i18n";
 
 type ExportAction = "tracks" | "mix" | "package";
 
-export function StemExports({ job, mix, selected, controls, missing }: {
-  job: StemJob; mix: StemMix; selected: string[]; controls: ReactNode; missing: Record<string, unknown>;
+export function StemExports({ job, mix, selected, missing }: {
+  job: StemJob; mix: StemMix; selected: string[]; missing: Record<string, unknown>;
 }) {
   const { t } = useI18n();
   const client = useQueryClient();
@@ -63,14 +64,11 @@ export function StemExports({ job, mix, selected, controls, missing }: {
   const needsTracks = (action === "tracks" || (action === "package" && !includeMix && !original)) && !selected.length;
   const names = (tracks: typeof audible) => tracks.map(track => track.name === track.role ? stemRole(track.role, t) : track.name).join(" · ");
   return <section className="stem-exports">
-    <footer className="mixer-footer">
-      {controls}
-      <div className="mixer-export-actions">
-        <button className="sek" type="button" aria-expanded={action === "tracks"} onClick={() => setAction(action === "tracks" ? undefined : "tracks")}>{t("stem_export_tracks")}</button>
-        <button className="sek" type="button" aria-expanded={action === "package"} onClick={() => setAction(action === "package" ? undefined : "package")}>{t("stem_export_package")}</button>
-        <button className="aktion" type="button" aria-expanded={action === "mix"} onClick={() => setAction(action === "mix" ? undefined : "mix")}>{t("stem_export_mix")}</button>
-      </div>
-    </footer>
+    <div className="mixer-export-actions">
+      <button className="sek" type="button" aria-expanded={action === "tracks"} onClick={() => setAction(action === "tracks" ? undefined : "tracks")}>{t("stem_export_tracks")}</button>
+      <button className="sek" type="button" aria-expanded={action === "package"} onClick={() => setAction(action === "package" ? undefined : "package")}>{t("stem_export_package")}</button>
+      <button className="aktion" type="button" aria-expanded={action === "mix"} onClick={() => setAction(action === "mix" ? undefined : "mix")}>{t("stem_export_mix")}</button>
+    </div>
     {action && <div className="stem-block">
       {action === "tracks" && <label className="field">{t("stem_selected")}<select value={kind} onChange={event => setKind(event.target.value as "raw" | "processed")}>
         <option value="raw">{t("stem_raw")}</option><option value="processed">{t("stem_processed")}</option>
@@ -79,7 +77,8 @@ export function StemExports({ job, mix, selected, controls, missing }: {
       {action === "tracks" && kind === "raw" && <label className="stem-check"><input type="checkbox" checked={useRegion}
         onChange={event => setUseRegion(event.target.checked)} />{t("stem_export_region")}</label>}
       <p className="small">{names(action === "mix" ? audible : exported)}</p>
-      {(action === "mix" || (action === "package" && includeMix)) && mix.tracks.some(track => track.solo) &&
+      {(action === "mix" || (action === "package" && includeMix))
+        && (mix.tracks.some(track => track.solo) || (mix.fx_returns && returnSoloActive(mix.fx_returns))) &&
         <p className="small">{t("stem_export_solo")}</p>}
       {incomplete && <p className="err" role="alert">{t("stem_mix_incomplete")}</p>}
       <div className="stem-row">

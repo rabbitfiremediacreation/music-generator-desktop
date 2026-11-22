@@ -15,9 +15,9 @@ const tabs = ["new", "projects"] as const;
 type Tab = typeof tabs[number];
 export interface StemStudioRequest { song?: Song; source?: StemSource; projects?: boolean; folder?: string; openLatest?: boolean }
 
-export function StemStudio({ request, open, close, onMixer, onOpenEngines, onOpenModels, openQueuedResult = true }: {
+export function StemStudio({ request, open, close, onMixer, onOpenEngines, onOpenModels, openQueuedResult = true, inline = false }: {
   request: StemStudioRequest; open: boolean; close: () => void; onMixer: (job: StemJob) => void;
-  onOpenEngines: () => void; onOpenModels: () => void; openQueuedResult?: boolean;
+  onOpenEngines: () => void; onOpenModels: () => void; openQueuedResult?: boolean; inline?: boolean;
 }) {
   const { t } = useI18n();
   const client = useQueryClient();
@@ -34,9 +34,11 @@ export function StemStudio({ request, open, close, onMixer, onOpenEngines, onOpe
   const { engine, setPlaying } = player;
 
   useEffect(() => {
-    engine.current?.pause();
-    setPlaying(false);
-  }, [engine, setPlaying]);
+    if (open) {
+      engine.current?.pause();
+      setPlaying(false);
+    }
+  }, [engine, setPlaying, open]);
 
   useEffect(() => {
     if (open && job.data?.project && job.data.status === "done") {
@@ -57,15 +59,19 @@ export function StemStudio({ request, open, close, onMixer, onOpenEngines, onOpe
     setTab(next);
   }
 
-  return <Dialog open={open && !openingLatest} title={t("stem_title")} onClose={close} className="stem-studio">
-    <div className="stem-head">
+  const content = <>
+    <header className="stem-head">
       <div>
         <h2>{t("stem_title")}</h2>
         {request.song && <p className="small">{request.song.title || request.song.caption}</p>}
       </div>
-      <button type="button" className="sek" onClick={close}>{t("close")}</button>
-    </div>
-    <nav className="stem-row stem-nav" aria-label={t("stem_title")}>
+      {!inline && <button type="button" className="stem-dismiss" aria-label={t("desktop_close")} title={t("desktop_close")} onClick={close}>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="m6 6 12 12M6 18 18 6" />
+        </svg>
+      </button>}
+    </header>
+    <nav className="stem-nav" aria-label={t("stem_title")}>
       {tabs.map(value => <button type="button" className="sek"
         key={value} aria-pressed={value === tab} onClick={() => switchTab(value)}>{t(`stem_${value}`)}</button>)}
     </nav>
@@ -81,7 +87,9 @@ export function StemStudio({ request, open, close, onMixer, onOpenEngines, onOpe
       choose={project => { setPending(undefined); onMixer(project); }} />}
     {latest.error && <p role="alert" className="err">{stemError(latest.error, t)}</p>}
     {job.error && <p role="alert" className="err">{stemError(job.error, t)}</p>}
-  </Dialog>;
+  </>;
+  if (inline) return <section className="stem-studio stem-studio-inline" aria-label={t("stem_title")}>{content}</section>;
+  return <Dialog open={open && !openingLatest} title={t("stem_title")} onClose={close} className="stem-studio">{content}</Dialog>;
 }
 
 function ProjectList({ song, folder, choose }: { song?: Song; folder?: string; choose: (job: StemJob) => void }) {

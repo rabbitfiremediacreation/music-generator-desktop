@@ -79,9 +79,12 @@ it("queues independent imported sources with the confirmed revision and actual r
   await screen.findByText("Second.wav");
   fireEvent.change(screen.getAllByLabelText(t("stem_range_start"))[0], { target: { value: "0.25" } });
   fireEvent.click(screen.getByRole("button", { name: t("stem_continue") }));
+  expect(screen.getByText(t("stem_goal"), { selector: "li" }).getAttribute("aria-current")).toBe("step");
+  const model = screen.getByRole("combobox", { name: t("stem_model") });
+  expect(document.getElementById(model.getAttribute("aria-describedby")!)?.textContent).toBe(t("stem_recommended"));
   fireEvent.change(screen.getByLabelText(t("stem_goal")), { target: { value: "vocal_pair" } });
   expect(screen.getByText(t("stem_derived"))).toBeTruthy();
-  expect(screen.getByRole("checkbox", { name: t("stem_role_vocals") })).toBeTruthy();
+  expect(within(screen.getByRole("group", { name: t("stem_roles") })).getByRole("checkbox", { name: t("stem_role_vocals") })).toBeTruthy();
   expect(screen.queryByRole("checkbox", { name: t("stem_role_piano") })).toBeNull();
   const preview = screen.getByText(t("stem_preview"), { selector: "summary" }).closest("details")!;
   preview.open = true;

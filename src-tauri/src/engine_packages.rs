@@ -1,6 +1,6 @@
 use crate::{
     download,
-    error::{message, Result},
+    error::{message, Error, Result},
     runtime::OperationKind,
     state::AppState,
 };
@@ -12,6 +12,7 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
+use tokio_util::sync::CancellationToken;
 
 mod install;
 mod probe;
@@ -247,34 +248,77 @@ pub(crate) async fn install_engine_package(
                 "engine_package_unavailable"
             })
         })?;
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
     let state = state.inner().clone();
     tokio::spawn(async move {
-        let cancel = operation.cancellation();
         let progress = download::ProgressEvents::new(&app, "engine-download-progress");
-        if package.id == "ace-step" {
-            state.stop_engine();
-        }
         let result = if let Some(archive) = archive {
-            let root = package.root(&state.db.root);
-            fs::create_dir_all(&root)?;
-            download::ensure_space(&root, package.unpacked_bytes)?;
-            progress.report(installing(&package.file));
-            install_archive(package, &state.db.root, archive, &cancel).await
+            import_archive(&state, package, archive, |update| progress.report(update)).await
         } else {
-            install(&state.db.root, &package.id, &cancel, |update| {
+            let transfer = state.runtime.transfer("engines", &package.id)?;
+            install_background(&state, &package.id, &transfer.cancellation(), |update| {
                 progress.report(update)
             })
             .await
         };
-        if package.id == "ace-step" && result.is_ok() {
-            state.synthesis_probe.clear();
-        }
         drop(progress);
-        drop(operation);
         let _ = app.emit("models-changed", ());
         result
     })
     .await
     .map_err(|error| message(error.to_string()))?
+}
+
+async fn import_archive(
+    state: &AppState,
+    package: &Package,
+    archive: PathBuf,
+    progress: impl Fn(download::DownloadProgress),
+) -> Result<()> {
+    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let root = package.root(&state.db.root);
+    fs::create_dir_all(&root)?;
+    download::ensure_space(&root, package.unpacked_bytes)?;
+    progress(installing(&package.file));
+    if package.id == "ace-step" {
+        state.stop_engine();
+    }
+    install_archive(package, &state.db.root, archive, &operation.cancellation()).await?;
+    if package.id == "ace-step" {
+        state.synthesis_probe.clear();
+    }
+    Ok(())
+}
+
+pub(crate) async fn install_background(
+    state: &AppState,
+    id: &str,
+    cancel: &CancellationToken,
+    progress: impl Fn(download::DownloadProgress),
+) -> Result<()> {
+    let package = release()
+        .packages
+        .iter()
+        .find(|package| package.id == id)
+        .ok_or_else(|| message("engine_package_unavailable"))?;
+    let file = install::fetch_archive(
+        package,
+        &state.db.root,
+        &install::release_url(package),
+        cancel,
+        &progress,
+    )
+    .await?;
+    let _operation = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(Error::Cancelled),
+        operation = state.runtime.begin(OperationKind::ModelActivation) => operation?,
+    };
+    if id == "ace-step" && file.is_some() {
+        state.stop_engine();
+    }
+    install::publish_archive(package, &state.db.root, file, cancel, &progress).await?;
+    if id == "ace-step" {
+        state.synthesis_probe.clear();
+    }
+    Ok(())
 }

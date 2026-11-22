@@ -124,7 +124,8 @@ Es ist keine Node-/Python-Installation nötig. stdout enthält ausschließlich M
 | Übernahme | `preview_import`, `import_library` | Bestehende Installation prüfen und in eine leere Bibliothek importieren |
 | Stem-Modelle | `list_stem_models`, `set_stem_model` | Trennprofile und Engine prüfen, installierte Revision aktivieren oder die Katalogrevision samt Engine einrichten |
 | Trennung | `separate_song`, `list_stem_jobs`, `get_stem_job`, `cancel_stem_job`, `retry_stem_job` | Audioquelle und Zeitbereich trennen, Vorschau erzeugen, Projekt verfolgen und erneut starten |
-| Mixer | `list_stem_mixes`, `save_stem_mix`, `add_stem_track` | Mischfassungen lesen und speichern, externe Spur ausrichten und als Kanal oder Ersatz verwenden |
+| Mixer | `list_stem_mixes`, `save_stem_mix`, `add_stem_track`, `generate_stem_track` | Mischfassungen lesen und speichern, externe oder mit ACE-Step erzeugte Spuren als Kanal hinzufügen |
+| Stem-Reparatur | `scan_stem_artifacts`, `preview_stem_repair`, `repair_stem_track` | Spur durchsuchen, Vorher-Nachher-WAVs erzeugen und eine ausgerichtete Ersatzspur rendern |
 | Stem-Export | `export_stems`, `list_stem_exports`, `get_stem_export`, `cancel_stem_export` | Einzelspuren, Mix oder ZIP rendern und lokale Ergebnisdateien ermitteln |
 | Hintergrundaufträge | `get_operations` | Alle aktiven/letzten Aufträge oder einen Auftrag per `operation_id` lesen; Abbruch über `cancel_job` |
 
@@ -179,6 +180,15 @@ Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern
    ```
 
 6. Mit der Export-ID `get_stem_export` abfragen. Bei `export.status: "done"` enthält `local_files` die fertigen Dateien auf dem Desktop-Rechner.
+
+### KI-Spuren und Reparatur
+
+- `generate_stem_track` erzeugt mit einem installierten ACE-Step 1.5 Base- oder XL Base-Profil eine Instrumentenspur zum Mix. Dafür ein verfügbares Profil aus `list_models(view=installed)` als `selection` übergeben. `project_id`, `track` (zum Beispiel `"bass"`) und `name` sind erforderlich. Optional sind `prompt` und entweder ein gespeicherter `version_id` oder ein direkt übergebener `mix`. Ohne beides dient der Standardmix als Grundlage. Die Modellauswahl gilt pro Auftrag und unterliegt den Expert-Mode- und Hardware-Regeln.
+- `scan_stem_artifacts` erhält `project_id` und die Spur-`role`, zum Beispiel `"vocals"`. Der Scan markiert mögliche tonale Artefakte über die ganze Spur. Jeder Fund in `result.regions` kann direkt als `selection` für Vorschau oder Reparatur dienen.
+- `preview_stem_repair` erhält Projekt, Rolle, `selection` und einen vorhandenen absoluten Ordner als `destination`. Es schreibt zwei zeitgleiche Stereo-WAVs in einen neuen Unterordner und liefert die lokalen Pfade in `result.before` und `result.after` sowie `first_frame`, `frames` und `rate`. Die Auswahl darf bis zu 20 Sekunden umfassen. Die WAVs enthalten an beiden Enden bis zu 250 ms Kontext.
+- `repair_stem_track` erzeugt eine Ersatzspur in voller Projektlänge und erhält die ursprüngliche Audiodatei. Eine Spektralauswahl enthält `first`, `end`, `low_hz`, `high_hz` und `reduction_db`. Für De-Click oder De-Crackle die Frequenzangaben durch `"effect":{"kind":"de_click","sensitivity":60}` beziehungsweise `"de_crackle"` ersetzen. `whole_track: true` wendet das gewählte Verfahren auf die gesamte Spur an. In der Vorschau geben `first` und `end` bei dieser Einstellung den Hörbereich an.
+
+Alle vier Aufrufe liefern eine `operation_id`. Status und Ergebnis stehen in `get_operations`, bei der KI-Spur zusätzlich der Generierungsfortschritt. Zum Abbrechen `cancel_job` mit `target: "operation"` und der ID aufrufen. Für eine neue KI-Spur zum Beispiel `{"role":"LAYER_ID","name":"Bass","gain_db":0,"pan":0,"mute":false,"solo":false,"fade_in":0,"fade_out":0}` an `mix.tracks` anhängen. Für eine reparierte Spur die zurückgegebene Rolle als `replacement` am vorhandenen Kanal setzen. Beide Änderungen werden mit `save_stem_mix` gespeichert. Dynamischer EQ und De-Esser stehen im Mix-Snapshot und werden beim Abspielen und Rendern berechnet.
 
 ## Ressourcen und Prompt
 

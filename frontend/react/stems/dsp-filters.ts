@@ -2,6 +2,14 @@ type Mode = "lowpass" | "highpass" | "low" | "mid" | "high";
 type Coefficients = [number, number, number, number, number];
 const identity: Coefficients = [1, 0, 0, 0, 0];
 
+/** A stereo band detector uses a band-pass with unity gain at its center. */
+export function bandPass(frequency: number, q: number, rate: number): Coefficients {
+  const angle = 2 * Math.PI * frequency / rate;
+  const alpha = Math.sin(angle) / (2 * q);
+  const a0 = 1 + alpha;
+  return [alpha / a0, 0, -alpha / a0, -2 * Math.cos(angle) / a0, (1 - alpha) / a0];
+}
+
 export function filterFrequency(value: number, rate: number): number | undefined {
   const amount = (Math.abs(value) - 3) / 97;
   if (amount <= 0) return undefined;

@@ -212,7 +212,7 @@ unsafe fn check(engine: &Path) -> Status {
 }
 
 pub async fn install(
-    root: PathBuf,
+    state: &crate::state::AppState,
     cancel: CancellationToken,
     progress: impl Fn(DownloadProgress) + Send + Sync,
     stage: impl Fn(&str),
@@ -221,7 +221,7 @@ pub async fn install(
         return Err(message("CUDA download is unavailable for this app build"));
     }
     let p = pin();
-    let base = root.join("cuda");
+    let base = state.db.root.join("cuda");
     let cache = base.join("downloads");
     fs::create_dir_all(&cache)?;
     crate::download::ensure_space(&cache, required_space(&cache, &p))?;
@@ -251,6 +251,12 @@ pub async fn install(
         .await?;
         archives.push(archive);
     }
+    let _operation = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(Error::Cancelled),
+        operation = state.runtime.begin(crate::runtime::OperationKind::ModelActivation) => operation?,
+    };
+    state.stop_engine();
     stage("installing");
     tokio::task::spawn_blocking(move || publish(&base, &p, &archives, &cancel))
         .await

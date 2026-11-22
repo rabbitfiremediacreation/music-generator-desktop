@@ -21,12 +21,13 @@ export function focusStudioArea(area: "creator" | "library") {
   return Boolean(target);
 }
 
-export function useAppMenu({ macos, ready, studio, settingsOpen, onSettings }: {
+export function useAppMenu({ macos, ready, studio, settingsOpen, onSettings, onFocusArea = focusStudioArea }: {
   macos: boolean;
   ready: boolean;
   studio: boolean;
   settingsOpen: boolean;
   onSettings: (page?: "models" | "phone") => void;
+  onFocusArea?: (area: "creator" | "library") => void;
 }) {
   const { t, language } = useI18n();
   const client = useQueryClient();
@@ -76,7 +77,7 @@ export function useAppMenu({ macos, ready, studio, settingsOpen, onSettings }: {
         if (!document.querySelector('#settingsForm[aria-busy="true"]')) onSettings(action);
         break;
       case "creator":
-      case "library": focusStudioArea(action); break;
+      case "library": onFocusArea(action); break;
       case "updates":
         if (!client.isMutating({ mutationKey: updateCheckKey })) update.mutate();
         break;

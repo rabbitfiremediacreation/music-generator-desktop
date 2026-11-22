@@ -39,6 +39,10 @@ export async function verifyEngine(folder, buildTarget = target) {
   if (buildPlatform === "macos" && !provenance.files[aceMacPlugin]) {
     throw new Error("ACE-Step plug-in is missing from checksums");
   }
+  if (components.magenta && !["mrt2-record", "mlx.metallib", "MAGENTA_RUNTIME.json"]
+    .every(file => provenance.files[`magenta/${file}`])) {
+    throw new Error("Magenta runtime is missing from checksums");
+  }
   if (shipsYue2(buildTarget)) {
     const { yue2_revision, yue2_ggml_revision } = provenance;
     if (yue2_revision !== yue2.revision || yue2_ggml_revision !== yue2.ggml_revision || !provenance.files[yue2.executable]) {

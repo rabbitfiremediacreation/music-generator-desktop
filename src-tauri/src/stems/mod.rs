@@ -7,10 +7,11 @@ pub mod jobs;
 pub mod layer;
 pub mod mix;
 pub mod model;
+pub(crate) mod model_layer;
 mod removal;
 mod resample;
 pub mod source;
-pub(crate) mod transfer;
+pub(crate) mod spectral;
 mod wave;
 
 #[cfg(test)]

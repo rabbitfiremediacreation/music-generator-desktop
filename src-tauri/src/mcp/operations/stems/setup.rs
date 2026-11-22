@@ -1,9 +1,8 @@
 use super::super::{tasks, value};
 use crate::{
     error::Result,
-    runtime::OperationKind,
     state::AppState,
-    stems::{engine, model, transfer::Transfer},
+    stems::{engine, model},
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -23,9 +22,8 @@ pub(crate) fn select<R: tauri::Runtime>(
         let _ = app.emit("stem-models-changed", ());
         return value(pin);
     }
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
-    let cancel = operation.cancellation();
-    let transfer = Transfer::claim(state.clone(), &pin.model, cancel.clone())?;
+    let transfer = state.runtime.transfer("stems", &pin.model)?;
+    let cancel = transfer.cancellation();
     let task = tasks::for_app(app).begin("set_stem_model", cancel.clone())?;
     let result = task.accepted();
     let progress = task.clone();
@@ -51,7 +49,6 @@ pub(crate) fn select<R: tauri::Runtime>(
         }
         .await;
         drop(transfer);
-        drop(operation);
         let _ = app.emit("stem-models-changed", ());
         let _ = app.emit("models-changed", ());
         state.changed(&app);

@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Mutex,
     time::{Instant, UNIX_EPOCH},
 };
 use tokio::io::AsyncReadExt;
@@ -19,6 +20,15 @@ pub enum Verification {
 #[derive(Serialize, Deserialize, Default)]
 struct Entries {
     entries: HashMap<String, (String, u64, u128)>,
+}
+
+static CACHE_WRITES: Mutex<()> = Mutex::new(());
+
+fn read_entries(file: &Path) -> Entries {
+    std::fs::read(file)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
 }
 
 pub struct ModelVerifier {
@@ -56,22 +66,18 @@ impl ModelVerifier {
 
     pub fn open(root: &Path) -> Self {
         let file = root.join("verified-models.json");
-        let cache = std::fs::read(&file)
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default();
+        let cache = read_entries(&file);
         Self { file, cache }
     }
 
     pub(crate) fn forget(&mut self, paths: &[PathBuf]) -> Result<()> {
-        let before = self.cache.entries.len();
-        for path in paths {
-            self.cache.entries.remove(path.to_string_lossy().as_ref());
-        }
-        if self.cache.entries.len() != before {
-            self.save()?;
-        }
-        Ok(())
+        self.update(|entries| {
+            let before = entries.len();
+            for path in paths {
+                entries.remove(path.to_string_lossy().as_ref());
+            }
+            Ok(entries.len() != before)
+        })
     }
 
     // Persist each successful check, so retries and subsequent launches reuse completed work.
@@ -92,6 +98,10 @@ impl ModelVerifier {
         if self.cache.entries.get(&key) == Some(&entry) {
             return Ok(Verification::Cached);
         }
+        self.cache = read_entries(&self.file);
+        if self.cache.entries.get(&key) == Some(&entry) {
+            return Ok(Verification::Cached);
+        }
         let valid = hash_file_with_progress(&path, cancel, progress).await? == expected;
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
@@ -100,13 +110,13 @@ impl ModelVerifier {
             return Err(message("Model changed during verification; retry"));
         }
         if !valid {
-            if self.cache.entries.remove(&key).is_some() {
-                self.save()?;
-            }
+            self.update(|entries| Ok(entries.remove(&key).is_some()))?;
             return Ok(Verification::Invalid);
         }
-        self.cache.entries.insert(key, entry);
-        self.save()?;
+        self.update(|entries| {
+            entries.insert(key, entry);
+            Ok(true)
+        })?;
         Ok(Verification::Hashed)
     }
 
@@ -122,18 +132,27 @@ impl ModelVerifier {
         if stamp(partial)? != (entry.1, entry.2) {
             return Err(message("Download changed after verification"));
         }
-        std::fs::rename(partial, target)?;
-        self.cache.entries.remove(&key);
-        self.cache
-            .entries
-            .insert(target.canonicalize()?.to_string_lossy().into_owned(), entry);
-        self.save()
+        self.update(|entries| {
+            std::fs::rename(partial, target)?;
+            entries.remove(&key);
+            entries.insert(target.canonicalize()?.to_string_lossy().into_owned(), entry);
+            Ok(true)
+        })
     }
 
-    fn save(&self) -> Result<()> {
-        let temporary = self.file.with_extension("json.tmp");
-        std::fs::write(&temporary, serde_json::to_vec(&self.cache)?)?;
-        std::fs::rename(temporary, &self.file)?;
+    /// Merge the latest proofs so independent verifiers cannot overwrite each other's entries.
+    fn update(
+        &mut self,
+        update: impl FnOnce(&mut HashMap<String, (String, u64, u128)>) -> Result<bool>,
+    ) -> Result<()> {
+        let _lock = CACHE_WRITES.lock().unwrap();
+        let mut cache = read_entries(&self.file);
+        if update(&mut cache.entries)? {
+            let temporary = self.file.with_extension("json.tmp");
+            std::fs::write(&temporary, serde_json::to_vec(&cache)?)?;
+            std::fs::rename(temporary, &self.file)?;
+        }
+        self.cache = cache;
         Ok(())
     }
 }
@@ -167,4 +186,32 @@ pub(crate) async fn hash_file_with_progress(
     }
     progress(read, total);
     Ok(format!("{:x}", hash.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn independent_verifiers_preserve_each_others_new_proofs() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first.gguf");
+        let second = root.path().join("second.gguf");
+        std::fs::write(&first, b"first model").unwrap();
+        std::fs::write(&second, b"second model").unwrap();
+        let first_hash = format!("{:x}", Sha256::digest(b"first model"));
+        let second_hash = format!("{:x}", Sha256::digest(b"second model"));
+        let cancel = CancellationToken::new();
+        let mut first_verifier = ModelVerifier::open(root.path());
+        let mut second_verifier = ModelVerifier::open(root.path());
+        let (left, right) = tokio::join!(
+            first_verifier.verify(&first, &first_hash, &cancel, |_, _| {}),
+            second_verifier.verify(&second, &second_hash, &cancel, |_, _| {}),
+        );
+        assert_eq!(left.unwrap(), Verification::Hashed);
+        assert_eq!(right.unwrap(), Verification::Hashed);
+        let verifier = ModelVerifier::open(root.path());
+        assert!(verifier.is_verified(&first, &first_hash));
+        assert!(verifier.is_verified(&second, &second_hash));
+    }
 }

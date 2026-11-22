@@ -15,7 +15,7 @@ pub(super) fn render_percent(
         "loading" | "generation" => (2.0, 93.0),
         "planning" => (4.0, 24.0),
         "lm" => (24.0, 60.0),
-        "synth" if !has_token_stages => (2.0, 93.0),
+        "synth" | "dit" if !has_token_stages => (2.0, 93.0),
         "synth" | "dit" => (60.0, 93.0),
         "vae" => (93.0, 100.0),
         _ => (0.0, 0.0),

@@ -17,6 +17,10 @@ pub struct AudioSelection {
 
 /// Read only the native dialog result; never expose an arbitrary-path reader over IPC.
 pub fn read_selection(path: &Path) -> Result<AudioSelection> {
+    read_selection_with_limit(path, MAX_AUDIO_BYTES)
+}
+
+pub(crate) fn read_selection_with_limit(path: &Path, max_bytes: usize) -> Result<AudioSelection> {
     let extension = path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -36,14 +40,14 @@ pub fn read_selection(path: &Path) -> Result<AudioSelection> {
     if !metadata.is_file() {
         return Err(message("audio_type"));
     }
-    if metadata.len() > MAX_AUDIO_BYTES as u64 {
+    if metadata.len() > max_bytes as u64 {
         return Err(message("audio_size"));
     }
     let mut data = Vec::new();
-    file.take(MAX_AUDIO_BYTES as u64 + 1)
+    file.take(max_bytes as u64 + 1)
         .read_to_end(&mut data)
         .map_err(|_| message("audio_read"))?;
-    if data.len() > MAX_AUDIO_BYTES {
+    if data.len() > max_bytes {
         return Err(message("audio_size"));
     }
     Ok(AudioSelection {

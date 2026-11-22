@@ -19,6 +19,7 @@ use tokio_util::sync::CancellationToken;
 pub(crate) struct EngineManager {
     engine: Mutex<Option<Engine>>,
     has_started: AtomicBool,
+    refresh: AtomicBool,
 }
 
 impl EngineManager {
@@ -35,7 +36,9 @@ impl EngineManager {
         }
         {
             let mut engine = self.engine.lock().unwrap();
-            if engine.as_mut().is_some_and(Engine::alive) {
+            if !self.refresh.swap(false, Ordering::AcqRel)
+                && engine.as_mut().is_some_and(Engine::alive)
+            {
                 return Ok(engine.as_ref().unwrap().client.clone());
             }
             engine.take();
@@ -53,6 +56,10 @@ impl EngineManager {
 
     pub fn stop(&self) {
         self.engine.lock().unwrap().take();
+    }
+
+    pub(crate) fn refresh_models(&self) {
+        self.refresh.store(true, Ordering::Release);
     }
 
     pub fn backend_status(&self) -> BackendStatus {
@@ -144,6 +151,7 @@ mod tests {
                 ),
             })),
             has_started: AtomicBool::new(true),
+            ..EngineManager::default()
         }
     }
     #[test]

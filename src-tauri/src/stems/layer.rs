@@ -10,6 +10,7 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+use tokio_util::sync::CancellationToken;
 
 const ROLE_PREFIX: &str = "layer_";
 
@@ -21,6 +22,69 @@ pub fn is_role(role: &str) -> bool {
 pub struct Layer {
     pub role: String,
     pub name: String,
+}
+
+pub(super) struct LayerStaging {
+    id: String,
+    directory: tempfile::TempDir,
+    target: PathBuf,
+    generated: bool,
+}
+
+impl LayerStaging {
+    pub(super) fn new(state: &AppState, frames: u64) -> Result<Self> {
+        let id = id();
+        let target = managed_dir(&state.db.root, "layers", &id)?;
+        let root = target.parent().expect("layer folder");
+        std::fs::create_dir_all(root)?;
+        crate::download::ensure_space(root, frames * 8 + 1024)?;
+        let directory = tempfile::Builder::new()
+            .prefix(".layer-")
+            .tempdir_in(root)?;
+        Ok(Self {
+            id,
+            directory,
+            target,
+            generated: false,
+        })
+    }
+
+    pub(super) fn mark_generated(mut self) -> Self {
+        self.generated = true;
+        self
+    }
+
+    pub(super) fn audio(&self) -> PathBuf {
+        self.directory.path().join("aligned.wav")
+    }
+
+    pub(super) fn publish(
+        self,
+        state: &AppState,
+        project_id: &str,
+        source_id: &str,
+        name: String,
+        frames: u64,
+        cancel: &CancellationToken,
+    ) -> Result<Layer> {
+        mix::verify_wave(&self.audio(), frames, cancel)?;
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        std::fs::rename(self.directory.path(), &self.target)?;
+        let result = state.db.lock().execute(
+            "INSERT INTO stem_layers(id,project_id,source_id,created_at,generated_name) VALUES(?1,?2,?3,?4,?5)",
+            params![self.id, project_id, source_id, now(), self.generated.then_some(&name)],
+        );
+        if result.is_err() {
+            let _ = std::fs::remove_dir_all(&self.target);
+        }
+        result?;
+        Ok(Layer {
+            role: format!("{ROLE_PREFIX}{}", self.id),
+            name,
+        })
+    }
 }
 
 pub(super) fn registered<'a>(state: &AppState, project_id: &str, role: &'a str) -> Result<&'a str> {
@@ -64,16 +128,9 @@ pub async fn import(state: &AppState, project_id: &str, input: &Path, name: &str
     if frames > project.frames {
         return Err(message("stem_layer_length"));
     }
-    let layer_id = id();
-    let target = managed_dir(&state.db.root, "layers", &layer_id)?;
-    let root = target.parent().expect("layer folder");
-    std::fs::create_dir_all(root)?;
-    crate::download::ensure_space(root, project.frames * 8 + 1024)?;
-    let staging = tempfile::Builder::new()
-        .prefix(".layer-")
-        .tempdir_in(root)?;
-    let config = staging.path().join("alignment.json");
-    let output = staging.path().join("aligned.wav");
+    let staging = LayerStaging::new(state, project.frames)?;
+    let config = staging.directory.path().join("alignment.json");
+    let output = staging.audio();
     std::fs::write(
         &config,
         serde_json::to_vec(&serde_json::json!({
@@ -92,27 +149,18 @@ pub async fn import(state: &AppState, project_id: &str, input: &Path, name: &str
     )
     .await?;
     if frames < project.frames {
-        let padded = staging.path().join("padded.wav");
+        let padded = staging.directory.path().join("padded.wav");
         super::wave::pad_stereo(&output, &padded, frames, project.frames, &cancel)?;
         std::fs::remove_file(&output)?;
         std::fs::rename(padded, &output)?;
     }
-    mix::verify_wave(&output, project.frames, &cancel)?;
     std::fs::remove_file(config)?;
-    if cancel.is_cancelled() {
-        return Err(Error::Cancelled);
-    }
-    std::fs::rename(staging.path(), &target)?;
-    let result = state.db.lock().execute(
-        "INSERT INTO stem_layers(id,project_id,source_id,created_at) VALUES(?1,?2,?3,?4)",
-        params![layer_id, project_id, source.id, now()],
-    );
-    if result.is_err() {
-        let _ = std::fs::remove_dir_all(target);
-    }
-    result?;
-    Ok(Layer {
-        role: format!("{ROLE_PREFIX}{layer_id}"),
-        name: source.name,
-    })
+    staging.publish(
+        state,
+        project_id,
+        &source.id,
+        source.name,
+        project.frames,
+        &cancel,
+    )
 }

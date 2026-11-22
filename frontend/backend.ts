@@ -17,7 +17,7 @@ export const backend = {
   dialogDirectory: (current: string | null, remembered: string | null, exporting: boolean) => command<string>("dialog_directory", { current, remembered, exporting }),
   pickAndAnalyzeAudio: (directory: string, title: string, filterName: string, selection: ModelSelection | null, onSelected: (file: { name: string; directory: string }) => void) =>
     command<Record<string, unknown> | null>("pick_and_analyze_audio", { directory, title, filterName, selection, onSelected: new Channel(onSelected) }),
-  pickReferenceAudio: (title: string) => command<{ id: string; name: string } | null>("pick_reference_audio", { title }),
+  pickReferenceAudio: (title: string, remix?: boolean) => command<{ id: string; name: string } | null>("pick_reference_audio", { title, remix }),
   rememberFolder: (path: string) => command<void>("remember_folder", { path }),
   bootstrap: (attempt: number) => command<Bootstrap>("bootstrap", { attempt }),
   setup: (request: SetupRequest) => command<SetupResult>("setup_models", { request }),
@@ -39,6 +39,9 @@ export const backend = {
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),
   verifyImportedModels: (selection: ModelSelection) => command<void>("verify_imported_models", { selection }),
   cancelModelDownload: () => command<void>("cancel_model_download"),
+  cancelTransfer: (scope: string, key?: string) => command<void>("cancel_model_download", { scope, key }),
+  cancelProfileTransfer: (scope: string, selection: ModelSelection) =>
+    command<void>("cancel_model_download", { scope, selection }),
   previewImport: (request: ImportRequest) => command<ImportPreview>("preview_import", { request }),
   previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),
   importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
@@ -62,6 +65,9 @@ export const backend = {
   saveFolder: (name: string, id: string | null = null) => command<Folder>("save_folder", { id, name }),
   deleteFolder: (id: string) => command<void>("delete_folder", { id }),
   queue: () => command<Queue>("queue"),
+  workQueue: () => command<import("./types").WorkQueue>("work_queue"),
+  completedWork: (offset: number) => command<import("./types").CompletedWorkPage>("completed_work", { offset }),
+  cancelDownload: (id: string) => command<void>("cancel_download", { id }),
   settings: () => command<Settings>("get_settings"),
   configureAppMenu: (labels: Record<string, string>, enabled: string[]) => command<void>("configure_app_menu", { labels, enabled }),
   saveSettings: (values: SettingsPatch) => command<Settings>("save_settings", { values }),

@@ -188,7 +188,7 @@ pub async fn install_cuda_runtime(
     state: Desktop<'_>,
     app: AppHandle,
 ) -> Result<crate::cuda_runtime::Status> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let transfer = state.runtime.transfer("engines", "cuda")?;
     let state = state.inner().clone();
     // This task retains admission even if the frontend drops its invocation.
     tokio::spawn(async move {
@@ -201,10 +201,9 @@ pub async fn install_cuda_runtime(
         if status.state != "runtime_missing" {
             return Ok(status);
         }
-        state.stop_engine();
         crate::cuda_runtime::install(
-            state.db.root.clone(),
-            operation.cancellation(),
+            &state,
+            transfer.cancellation(),
             |progress| {
                 let _ = app.emit("cuda-progress", progress);
             },
@@ -222,7 +221,7 @@ pub async fn install_cuda_runtime(
         })
         .await
         .map_err(|e| message(e.to_string()))?;
-        drop(operation);
+        drop(transfer);
         Ok(result)
     })
     .await
@@ -381,9 +380,34 @@ pub fn delete_folder(state: Desktop<'_>, app: AppHandle, id: String) -> Result<(
 #[tauri::command]
 pub fn queue(state: Desktop<'_>) -> Result<Value> {
     let mut queue = state.db.queue()?;
-    queue["active"] = json!(state.runtime.is_busy());
+    queue["active"] = json!(state.runtime.has_active_work());
     queue["progress"] = json!(state.runtime.progress());
     Ok(queue)
+}
+
+#[tauri::command]
+pub fn work_queue(state: Desktop<'_>) -> Result<Value> {
+    let mut jobs = state.db.active_work()?;
+    let (progress, stem) = state.runtime.work_progress();
+    if let Some((id, title)) = stem {
+        jobs.insert(0, json!({"id": id, "title": title, "caption": title, "status": "running", "kind": "stem_generation"}));
+    }
+    Ok(json!({
+        "jobs": jobs,
+        "progress": progress,
+        "downloads": crate::download::queue::list(),
+        "download_limit": crate::download::queue::LIMIT,
+    }))
+}
+
+#[tauri::command]
+pub fn completed_work(state: Desktop<'_>, offset: u32) -> Result<Value> {
+    state.db.completed_work(offset)
+}
+
+#[tauri::command]
+pub fn cancel_download(id: String) {
+    crate::download::queue::cancel(&id);
 }
 
 /// Opens the configured song folder in the system file manager.

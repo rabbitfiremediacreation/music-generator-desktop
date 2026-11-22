@@ -20,10 +20,23 @@ pub(super) fn facts(input: &mut (impl Read + Seek)) -> Result<WavFacts> {
 
 /// Locate a single IEEE float32 data chunk for the separator and streaming mixer.
 pub(crate) fn float_data(input: &mut (impl Read + Seek)) -> Result<(WavFacts, u64)> {
+    single_chunk(input, 3, 32)
+}
+
+/// Locate a single PCM16 data chunk for aligning generated mixer audio.
+pub(crate) fn pcm16_data(input: &mut (impl Read + Seek)) -> Result<(WavFacts, u64)> {
+    single_chunk(input, 1, 16)
+}
+
+fn single_chunk(
+    input: &mut (impl Read + Seek),
+    encoding: u16,
+    bits: u32,
+) -> Result<(WavFacts, u64)> {
     let mut chunks = Vec::new();
-    let facts = parse(input, 3, |start, _| chunks.push(start))?;
+    let facts = parse(input, encoding, |start, _| chunks.push(start))?;
     match chunks.as_slice() {
-        [start] => Ok((facts, *start)),
+        [start] if facts.bits_per_sample == bits => Ok((facts, *start)),
         _ => Err(invalid()),
     }
 }

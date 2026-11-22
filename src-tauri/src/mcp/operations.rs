@@ -51,6 +51,10 @@ pub async fn call<R: tauri::Runtime>(
             selection(args).and_then(|selection| models::install(state, app, selection))
         }
         "set_stem_model" => stems::select(state, app, args),
+        stems::production::GENERATE => stems::production::generate(state, app, args),
+        stems::production::SCAN | stems::production::PREVIEW | stems::production::REPAIR => {
+            stems::production::restore(name, state, app, args)
+        }
         "download_title_model" => models::title(state, app),
         "get_operation" => string(&args, "operation_id").and_then(|id| tasks::for_app(app).get(id)),
         "list_operations" => Ok(json!({"operations":tasks::for_app(app).list()})),

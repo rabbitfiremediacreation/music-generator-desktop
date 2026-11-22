@@ -1,6 +1,6 @@
 use crate::{
     catalog::{self, Selection},
-    error::{message, Result},
+    error::{message, Error, Result},
     runtime::OperationKind,
     state::AppState,
     verification::ModelVerifier,
@@ -145,31 +145,53 @@ pub async fn use_models(
     app: AppHandle,
     selection: Selection,
 ) -> Result<Selection> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
-    let settings = state.db.settings()?;
-    catalog::validate_activation(&settings, &selection, crate::hardware::inspect())?;
-    catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
-    let cancel = operation.cancellation();
-    // Stopping first releases resident model memory and refreshes the engine's file
-    // registry on the next generation, including newly downloaded models.
-    state.stop_engine();
+    let transfer = state
+        .runtime
+        .transfer("models", &serde_json::to_string(&selection)?)?;
     let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
-    let outcome = catalog::install_profile(
-        &catalog::catalog(),
-        &state.db,
-        &selection,
-        &cancel,
-        |update| {
-            progress.report(update);
-        },
-    )
+    let outcome = download_and_activate(&state, &selection, &transfer.cancellation(), |update| {
+        progress.report(update);
+    })
     .await
     .map(|()| selection);
     drop(progress);
-    drop(operation);
+    drop(transfer);
     let _ = app.emit("models-changed", ());
     state.changed(&app);
     outcome
+}
+
+/// Cache the selected files in the background and switch profiles when the engine is idle.
+pub(crate) async fn download_and_activate(
+    state: &AppState,
+    selection: &Selection,
+    cancel: &tokio_util::sync::CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress) + Sync,
+) -> Result<()> {
+    let hardware = crate::hardware::inspect();
+    let settings = state.db.settings()?;
+    catalog::validate_activation(&settings, selection, hardware)?;
+    catalog::ensure_runtime(selection, &state.resources, &state.db.root)?;
+    catalog::prepare_profile(
+        &catalog::catalog(),
+        &state.db,
+        &settings,
+        selection,
+        cancel,
+        progress,
+    )
+    .await?;
+    let _operation = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(Error::Cancelled),
+        operation = state.runtime.begin(OperationKind::ModelActivation) => operation?,
+    };
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    catalog::activate_cached_profile(&state.db, selection, hardware)?;
+    state.stop_engine();
+    Ok(())
 }
 
 #[tauri::command]
@@ -201,7 +223,7 @@ pub fn select_models(
     app: AppHandle,
     selection: Selection,
 ) -> Result<Selection> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let operation = state.runtime.try_begin(OperationKind::ModelActivation)?;
     catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     catalog::activate_cached_profile(&state.db, &selection, crate::hardware::inspect())?;
     state.stop_engine();
@@ -225,20 +247,32 @@ pub fn remove_model(
 }
 
 #[tauri::command]
-pub fn cancel_model_download(state: State<'_, Arc<AppState>>) {
-    state.runtime.cancel_configuration();
+pub fn cancel_model_download(
+    state: State<'_, Arc<AppState>>,
+    scope: Option<String>,
+    key: Option<String>,
+    selection: Option<Selection>,
+) {
+    let key =
+        key.or_else(|| selection.and_then(|selection| serde_json::to_string(&selection).ok()));
+    if !state
+        .runtime
+        .cancel_transfer(Some(scope.as_deref().unwrap_or("models")), key.as_deref())
+        && scope.is_none()
+    {
+        state.runtime.cancel_configuration();
+    }
 }
 
 /// Shared auxiliary model; installing it never switches the active music profile.
 #[tauri::command]
 pub async fn download_title_model(state: State<'_, Arc<AppState>>, app: AppHandle) -> Result<()> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let transfer = state.runtime.transfer("models", "title")?;
     let settings = state.db.settings()?;
     if !settings.setup_complete {
         return Err(message("Complete the first-run assistant first"));
     }
-    let cancel = operation.cancellation();
-    state.stop_engine();
+    let cancel = transfer.cancellation();
     let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
     let outcome = crate::titles::install(
         &state.db.root,
@@ -248,7 +282,7 @@ pub async fn download_title_model(state: State<'_, Arc<AppState>>, app: AppHandl
     )
     .await;
     drop(progress);
-    drop(operation);
+    drop(transfer);
     let _ = app.emit("models-changed", ());
     outcome
 }

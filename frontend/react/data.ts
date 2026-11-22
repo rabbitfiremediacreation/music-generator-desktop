@@ -9,6 +9,7 @@ export const queryKeys = {
   song: (id: string) => ["song", id] as const,
   folders: ["folders"] as const,
   queue: ["queue"] as const,
+  workQueue: ["queue", "workspace"] as const,
   models: ["models", "catalog"] as const,
   policy: (selection?: ModelSelection | null) => ["generation-policy", selection ?? null] as const,
   preferences: ["generation-form-preferences"] as const,
@@ -46,6 +47,7 @@ export function songPageQuery(filter: Filter, offset: number, limit: number) {
 }
 export const foldersQuery = () => queryOptions({ queryKey: queryKeys.folders, queryFn: backend.folders });
 export const queueQuery = () => queryOptions({ queryKey: queryKeys.queue, queryFn: () => backend.queue() });
+export const workQueueQuery = () => queryOptions({ queryKey: queryKeys.workQueue, queryFn: backend.workQueue });
 
 export async function invalidateLibrary(client: QueryClient) {
   await Promise.all([queryKeys.songs(), ["song"], queryKeys.folders, queryKeys.queue].map(queryKey => client.invalidateQueries({ queryKey })));

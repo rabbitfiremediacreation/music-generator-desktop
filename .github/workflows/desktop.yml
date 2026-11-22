@@ -100,6 +100,11 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Enable Magenta and AudioCraft for Apple Silicon preview builds
+        if: matrix.name == 'macos-arm64' && github.event_name != 'release'
+        run: |
+          echo "MUSIC_GENERATOR_MAGENTA=1" >> "$GITHUB_ENV"
+          echo "MUSIC_GENERATOR_AUDIOCRAFT=1" >> "$GITHUB_ENV"
       - name: Space for the CUDA compiler and runtime libraries
         if: matrix.linux_backend == 'cuda'
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc

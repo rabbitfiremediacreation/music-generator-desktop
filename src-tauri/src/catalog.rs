@@ -6,6 +6,7 @@ use crate::{
     types::Settings,
     verification::{ModelVerifier, Verification},
 };
+use futures_util::{stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio_util::sync::CancellationToken;
@@ -330,7 +331,7 @@ pub fn validate_activation(
 }
 
 /// Activate verified local files only. Creator selection never downloads or repairs assets.
-/// The caller holds a Models permit until the old engine has been released.
+/// The caller holds an exclusive activation permit until the old engine has been released.
 pub fn activate_cached_profile(
     db: &crate::db::Database,
     selection: &Selection,
@@ -349,16 +350,28 @@ pub fn activate_cached_profile(
     db.save_settings(&settings)
 }
 
-/// Called while holding a runtime operation permit so downloads, verification and profile writes
-/// cannot race setup, analysis, another activation or an engine job.
+/// Prepare a complete profile before activating it.
 pub async fn install_profile(
     catalog: &Catalog,
     db: &crate::db::Database,
     selection: &Selection,
     cancel: &CancellationToken,
-    progress: impl Fn(crate::download::DownloadProgress),
+    progress: impl Fn(crate::download::DownloadProgress) + Sync,
 ) -> Result<()> {
     let mut settings = db.settings()?;
+    prepare_profile(catalog, db, &settings, selection, cancel, progress).await?;
+    activate_installed(db, &mut settings, selection, cancel)
+}
+
+/// Verify and cache a profile's assets without activating it.
+pub(crate) async fn prepare_profile(
+    catalog: &Catalog,
+    db: &crate::db::Database,
+    settings: &Settings,
+    selection: &Selection,
+    cancel: &CancellationToken,
+    progress: impl Fn(crate::download::DownloadProgress) + Sync,
+) -> Result<()> {
     catalog.ensure_allowed(
         selection,
         settings.expert_mode,
@@ -370,8 +383,7 @@ pub async fn install_profile(
         .profile(selection)
         .is_some_and(|profile| profile.acquisition == Acquisition::Manual);
     if manual {
-        verify_imported_files(db, root, &models, cancel, &progress).await?;
-        return activate_installed(db, &mut settings, selection, cancel);
+        return verify_imported_files(db, root, &models, cancel, &progress).await;
     }
     tokio::fs::create_dir_all(root).await?;
     let missing: u64 = models
@@ -389,26 +401,32 @@ pub async fn install_profile(
     if missing > 0 {
         crate::download::ensure_space(root, missing.saturating_add(512 * 1024 * 1024))?;
     }
-    let client = crate::download::client()?;
-    let mut verifier = ModelVerifier::open(&db.root);
-    for model in models {
-        let pinned = model.download();
-        let (url, bytes) = model.source.as_ref().map_or_else(
-            || (format!("{}/{}", catalog.base_url, model.file), None),
-            |source| (source.url(), Some(pinned.estimated_bytes)),
-        );
-        crate::download::fetch(
-            || crate::hugging_face_token::get(&client, &url, &db.root),
-            bytes,
-            root,
-            &pinned,
-            &mut verifier,
-            cancel,
-            &progress,
-        )
-        .await?;
-    }
-    activate_installed(db, &mut settings, selection, cancel)
+    let client = &crate::download::client()?;
+    let progress = &progress;
+    let results = stream::iter(models)
+        .map(|model| async move {
+            let mut verifier = ModelVerifier::open(&db.root);
+            let pinned = model.download();
+            let (url, bytes) = model.source.as_ref().map_or_else(
+                || (format!("{}/{}", catalog.base_url, model.file), None),
+                |source| (source.url(), Some(pinned.estimated_bytes)),
+            );
+            crate::download::fetch(
+                || crate::hugging_face_token::get(client, &url, &db.root),
+                bytes,
+                root,
+                &pinned,
+                &mut verifier,
+                cancel,
+                progress,
+            )
+            .await
+            .map(|_| ())
+        })
+        .buffer_unordered(crate::download::queue::LIMIT)
+        .collect::<Vec<_>>()
+        .await;
+    results.into_iter().collect()
 }
 
 /// Verify a manual import independently of whether its runtime can run on this device.

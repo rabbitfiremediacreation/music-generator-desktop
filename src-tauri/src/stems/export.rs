@@ -341,9 +341,12 @@ async fn execute(
                         &intermediate,
                         &wave,
                         samples,
-                        sample_rate,
-                        channels,
-                        sample_format,
+                        super::resample::WaveOutput {
+                            rate: sample_rate,
+                            channels,
+                            format: sample_format,
+                            clip_ceiling: render.clip_ceiling(),
+                        },
                         &cancel,
                     )?;
                     std::fs::remove_file(intermediate)?;

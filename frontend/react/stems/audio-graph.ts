@@ -1,4 +1,5 @@
 import type { StemProject } from "../../stems";
+import { mapFxSlots } from "../../stem-returns";
 import { StemTransport, type PlaybackSnapshot, type Position, type TransportMessage, type WorkletReport } from "./transport-core";
 import processor from "./transport-worklet?worker&url";
 
@@ -37,7 +38,7 @@ function workletGraph(node: AudioWorkletNode, onPosition: (position: Position) =
 }
 
 export async function createTransport(
-  context: AudioContext, project: StemProject, tracks: number, onPosition: (value: Position) => void,
+  context: AudioContext, project: Pick<StemProject, "frames" | "rate">, tracks: number, onPosition: (value: Position) => void,
 ): Promise<AudioGraph> {
   if (context.audioWorklet) {
     try {
@@ -58,7 +59,9 @@ export async function createTransport(
   node.onaudioprocess = event => {
     const output = event.outputBuffer;
     const position = transport.render(output.getChannelData(0), output.getChannelData(1));
-    onPosition({ ...position, stereo: position.stereo.map(pair => [...pair]), masterStereo: [...position.masterStereo] });
+    onPosition({ ...position, stereo: position.stereo.map(pair => [...pair]), masterStereo: [...position.masterStereo],
+      reduction: [...position.reduction], returnStereo: mapFxSlots(slot => [...position.returnStereo[slot]]),
+      returnReduction: mapFxSlots(slot => position.returnReduction[slot]) });
   };
   node.connect(context.destination);
   return {

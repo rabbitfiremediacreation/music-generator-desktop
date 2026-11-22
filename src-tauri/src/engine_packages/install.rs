@@ -24,13 +24,16 @@ pub(crate) async fn install(
         .iter()
         .find(|package| package.id == id)
         .ok_or_else(|| message("engine_package_unavailable"))?;
-    let url = format!(
+    install_from_url(package, data, &release_url(package), cancel, progress).await
+}
+
+pub(super) fn release_url(package: &Package) -> String {
+    format!(
         "https://github.com/{}/releases/download/{}/{}",
         crate::updates::RELEASE_REPOSITORY,
         release().tag,
         package.file,
-    );
-    install_from_url(package, data, &url, cancel, progress).await
+    )
 }
 
 pub(super) async fn install_from_url(
@@ -40,11 +43,37 @@ pub(super) async fn install_from_url(
     cancel: &CancellationToken,
     progress: impl Fn(DownloadProgress) + Send + Sync,
 ) -> Result<()> {
+    let file = fetch_archive(package, data, url, cancel, &progress).await?;
+    publish_archive(package, data, file, cancel, &progress).await
+}
+
+pub(super) async fn publish_archive(
+    package: &Package,
+    data: &Path,
+    file: Option<PathBuf>,
+    cancel: &CancellationToken,
+    progress: impl Fn(DownloadProgress),
+) -> Result<()> {
+    if let Some(file) = file {
+        progress(installing(&package.file));
+        install_archive(package, data, file, cancel).await
+    } else {
+        remove_legacy_pytorch(package, data);
+        Ok(())
+    }
+}
+
+pub(super) async fn fetch_archive(
+    package: &Package,
+    data: &Path,
+    url: &str,
+    cancel: &CancellationToken,
+    progress: impl Fn(DownloadProgress),
+) -> Result<Option<PathBuf>> {
     if package.installed(data).is_some_and(|(current, _)| {
         current.sha256 == package.sha256 && current.revision == package.revision
     }) {
-        remove_legacy_pytorch(package, data);
-        return Ok(());
+        return Ok(None);
     }
     let downloads = package.root(data).join("downloads").join(&package.sha256);
     tokio::fs::create_dir_all(&downloads).await?;
@@ -77,9 +106,7 @@ pub(super) async fn install_from_url(
         }
         error => error,
     })?;
-    progress(installing(&archive.file));
-    install_archive(package, data, file, cancel).await?;
-    Ok(())
+    Ok(Some(file))
 }
 
 /// Detach the whole package before deleting it so readers never see a partial installation.

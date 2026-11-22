@@ -36,6 +36,8 @@ beforeEach(()=>{
     if(name==="list_song_page")return {songs:[],total:0};
     if(name==="list_folders")return {folders:[],all:0,none:0};
     if(name==="queue")return {running:[],queued:0,active:false,progress:null,library:{count:0,bytes:0}};
+    if(name==="work_queue")return {jobs:[],progress:null,downloads:[],download_limit:4};
+    if(name==="completed_work")return {jobs:[],next_offset:null};
     if(name==="health")return {ok:true};
     if(name==="phone_access_status")return {...phoneAccess};
     if(name==="set_phone_access"){
@@ -44,7 +46,7 @@ beforeEach(()=>{
     }
   });
 });
-afterEach(()=>{cleanup();vi.restoreAllMocks();localStorage.removeItem("desktop_titlebar_design");restoreTitlebarDesign();});
+afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.restoreAllMocks();localStorage.removeItem("desktop_titlebar_design");restoreTitlebarDesign();});
 async function mount(path="/"){
   const client=createAppQueryClient(),router=createAppRouter(client,createMemoryHistory({initialEntries:[path]}));
   await act(async()=>{
@@ -53,6 +55,215 @@ async function mount(path="/"){
   });
   return router;
 }
+it("switches between Create, Remix and Mix from the icon navigation and keeps the Create draft", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => name === "stem_jobs" ? [] : invoke(name, args));
+  await mount();
+  const navigation = within(await screen.findByRole("navigation", { name: "Workspace" }));
+  const create = navigation.getByRole("button", { name: "Create" });
+  const remix = navigation.getByRole("button", { name: "Remix" });
+  const mix = navigation.getByRole("button", { name: "Mix" });
+  expect(create.getAttribute("aria-current")).toBe("page");
+  expect([create, remix, mix].every(button => button.textContent === "")).toBe(true);
+  const title = await screen.findByRole<HTMLInputElement>("textbox", { name: t("title") });
+  fireEvent.change(title, { target: { value: "In progress" } });
+  fireEvent.click(remix);
+  expect(remix.getAttribute("aria-current")).toBe("page");
+  expect(screen.getByRole("region", { name: "Remix" })).toBeTruthy();
+  expect(document.querySelector("#studio .top > .logo")).toBeTruthy();
+  const remixTitle = screen.getByRole<HTMLInputElement>("textbox", { name: t("title") });
+  expect(remixTitle.value).toBe("");
+  fireEvent.change(remixTitle, { target: { value: "Remix draft" } });
+  fireEvent.click(mix);
+  expect(mix.getAttribute("aria-current")).toBe("page");
+  expect(await screen.findByText(t("stem_empty_projects"))).toBeTruthy();
+  fireEvent.click(create);
+  expect(screen.getByRole<HTMLInputElement>("textbox", { name: t("title") }).value).toBe("In progress");
+  fireEvent.click(remix);
+  expect(screen.getByRole<HTMLInputElement>("textbox", { name: t("title") }).value).toBe("Remix draft");
+});
+
+it("counts running audio jobs and downloads from another tab and cancels the selected download", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  const file = "model.gguf";
+  let running = true;
+  mocks.invoke.mockImplementation(async (name, args) => name === "work_queue" ? {
+    jobs: [
+      ...(running ? [{ id: "running-song", caption: "Night Session", kind: "song", status: "running" }] : []),
+      { id: "waiting-song", caption: "Morning Session", kind: "song", status: "queued" },
+    ],
+    progress: { job_id: "running-song", overall_percent: 42 },
+    downloads: [
+      { id: "model", file, phase: running ? "downloading" : "done", downloaded: 10 * 1024 ** 2, total: 20 * 1024 ** 2, error: null },
+      { id: "engine", file: "engine.zip", phase: "queued", downloaded: 0, total: 100, error: null },
+    ],
+    download_limit: 4,
+  } : invoke(name, args));
+  await mount();
+  const navigation = within(await screen.findByRole("navigation", { name: "Workspace" }));
+  const queue = navigation.getByRole("button", { name: "Job queue" });
+  await waitFor(() => expect(queue.textContent).toBe("2"));
+  expect(queue.getAttribute("aria-description")).toBe("2 running jobs");
+  fireEvent.click(queue);
+  expect(queue.getAttribute("aria-current")).toBe("page");
+  expect(await screen.findByText("1 of 4 download slots in use")).toBeTruthy();
+  expect(screen.getByRole("progressbar", { name: "Night Session" }).getAttribute("value")).toBe("42");
+  expect(screen.getByRole("progressbar", { name: file }).getAttribute("value")).toBe(String(10 * 1024 ** 2));
+  fireEvent.click(screen.getByRole("button", { name: `${t("cancel")} · ${file}` }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("cancel_download", { id: "model" }));
+  fireEvent.click(navigation.getByRole("button", { name: "Create" }));
+  running = false;
+  await waitFor(() => expect(queue.textContent).toBe(""), { timeout: 2500 });
+});
+
+it("uses persisted progress for a running stem export", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => name === "work_queue" ? {
+    jobs: [{ id: "export", caption: "Mix export", kind: "export", status: "running", progress: 37 }],
+    progress: null, downloads: [], download_limit: 4,
+  } : invoke(name, args));
+  await mount();
+  fireEvent.click(screen.getByRole("button", { name: "Job queue" }));
+  const progress = await screen.findByRole("progressbar", { name: "Mix export" });
+  expect(progress.getAttribute("value")).toBe("37");
+});
+
+it("opens settings from the bottom of the workspace sidebar", async () => {
+  firstRun = false;
+  await mount();
+  const navigation = within(await screen.findByRole("navigation", { name: "Workspace" }));
+  const settings = navigation.getByRole("button", { name: t("settings_title") });
+  expect(navigation.getAllByRole("button").at(-1)).toBe(settings);
+  fireEvent.click(settings);
+  expect(await screen.findByRole("dialog", { name: t("settings_title") })).toBeTruthy();
+});
+
+it("loads completed jobs and older history without adding them to the running badge", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  const finishedAt = "2026-11-22T01:00:00Z";
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name !== "completed_work") return invoke(name, args);
+    if (args.offset === 0) return {
+      jobs: [{ id: "recent", label: "Finished remix", kind: "remix", finished_at: finishedAt }], next_offset: 25,
+    };
+    return { jobs: [{ id: "older", label: "Earlier export", kind: "export", finished_at: finishedAt }], next_offset: null };
+  });
+  await mount();
+  const queue = screen.getByRole("button", { name: t("workspace_queue") });
+  fireEvent.click(queue);
+  const completed = within(await screen.findByRole("region", { name: t("queue_completed") }));
+  const recent = await completed.findByText("Finished remix");
+  expect(recent.closest("li")?.querySelector("time")?.dateTime).toBe(finishedAt);
+  expect(completed.queryByRole("button", { name: /Cancel/ })).toBeNull();
+  fireEvent.click(completed.getByRole("button", { name: t("queue_show_older") }));
+  await completed.findByText("Earlier export");
+  expect(completed.getByText("Finished remix")).toBeTruthy();
+  expect(queue.textContent).toBe("");
+  expect(mocks.invoke).toHaveBeenCalledWith("completed_work", { offset: 25 });
+});
+it("queues a library remix with its own model selection and Create-style input fields", async () => {
+  firstRun = false;
+  const song: Song = { id: "source-song", title: "Library song", caption: "Acoustic", status: "done", path: "/songs/song.wav",
+    group_id: "group", letter: "", created_at: "2026-01-01", finished_at: "2026-01-01", message: null, lyrics: "[Chorus]\nTry again",
+    seed: 1, params: { vocal_language: "en" }, result_meta: null, file: "song.wav", audio_missing: false, favorite: false, folder_id: null };
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "list_song_page") return { songs: [song], total: 1 };
+    if (name === "generate") return { ids: ["remix-song"] };
+    if (name === "get_settings") return { ...setupFixture.settings, recommended_profiles: [standard, turbo] };
+    return invoke(name, args);
+  });
+  await mount();
+  const row = within(await screen.findByRole("article", { name: song.title! }));
+  fireEvent.click(row.getByRole("button", { name: "Remix" }));
+  const remix = within(screen.getByRole("region", { name: "Remix" }));
+  const model = remix.getByRole<HTMLSelectElement>("combobox", { name: t("picker_title") });
+  const turboKey = JSON.stringify([turbo.provider, turbo.synthesis, turbo.language]);
+  const standardKey = JSON.stringify([standard.provider, standard.synthesis, standard.language]);
+  await waitFor(() => expect(model.value).toBe(standardKey));
+  expect(Array.from(model.options).map(option => option.value)).toEqual([standardKey, turboKey]);
+  fireEvent.change(model, { target: { value: turboKey } });
+  expect(remix.getByRole<HTMLTextAreaElement>("textbox", { name: t("lyrics") }).value).toBe(song.lyrics);
+  expect(remix.getByRole<HTMLInputElement>("textbox", { name: t("title") }).value).toBe("Library song (Remix)");
+  fireEvent.change(remix.getByRole("textbox", { name: t("title") }), { target: { value: "After Hours" } });
+  fireEvent.change(remix.getByRole("textbox", { name: t("remix_prompt") }), { target: { value: "Warm jazz" } });
+  fireEvent.change(remix.getByRole("textbox", { name: t("style") }), { target: { value: "Brush drums" } });
+  fireEvent.change(remix.getByRole("combobox", { name: t("remix_mode") }), { target: { value: "cover-nofsq" } });
+  const generate = remix.getByRole<HTMLButtonElement>("button", { name: t("remix_submit") });
+  await waitFor(() => expect(generate.disabled).toBe(false));
+  fireEvent.click(generate);
+  expect(await remix.findByText(t("remix_queued"))).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: expect.objectContaining({
+    title: "After Hours", prompt: "Warm jazz", style: "Brush drums", lyrics: song.lyrics, model_selection: turbo,
+    remix: { mode: "cover-nofsq", source_song_id: song.id },
+  }) });
+  fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Create" }));
+  expect(screen.getByRole<HTMLSelectElement>("combobox", { name: t("picker_title") }).value).toBe(standardKey);
+});
+it("opens the current song as a single track and offers separation from Mix", async () => {
+  firstRun = false;
+  const song: Song = { id: "current-song", title: "Current song", caption: "Piano", status: "done", path: "/songs/song.wav",
+    group_id: "group", letter: "", created_at: "2026-01-01", finished_at: "2026-01-01", message: null,
+    lyrics: null, seed: 1, params: {}, result_meta: null, file: "song.wav", audio_missing: false, favorite: false, folder_id: null };
+  const invoke = mocks.invoke.getMockImplementation()!;
+  let separated = false;
+  const audio = { rate: 44100, channels: 2, frames: 44100, peaks: [] };
+  const project: StemJob = {
+    id: "finished-separation", status: "done", phase: "done", error: null, created_at: "", finished_at: "",
+    project: { ...audio, source_start_frame: 0, source_frames: audio.frames, roles: ["vocals"], engine: "Demucs",
+      engine_version: "4.0.1", backend: "cpu", original_peak: 0, track_peaks: [] },
+    request: { source_id: "source", pin: { model: "htdemucs", repository: "fixture", revision: "abc" }, start: 0,
+      end: null, name: "Separated song", quality: "standard", overlap: .25, outputs: ["vocals"], preview: false },
+    source: { id: "source", song_id: song.id, name: song.title!, hash: "test", audio },
+  };
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "list_song_page") return { songs: [song], total: 1 };
+    if (name === "read_song_audio") return new ArrayBuffer(8);
+    if (name === "stem_latest_project") {
+      if (separated) return project;
+      throw "stem_project_missing";
+    }
+    if (name === "stem_mixes" || name === "stem_exports") return [];
+    if (name === "stem_models") return { engine_ready: false, platform_supported: true, models: [] };
+    return invoke(name, args);
+  });
+  vi.stubGlobal("WaveSurfer", { create: () => ({
+    on: () => () => {}, loadBlob: async () => {}, play: async () => {}, pause: vi.fn(), destroy: vi.fn(), setVolume: vi.fn(),
+  }) });
+  vi.stubGlobal("OfflineAudioContext", class {
+    async decodeAudioData() {
+      return { sampleRate: 48000, length: 48000, numberOfChannels: 1, getChannelData: () => new Float32Array(48000) };
+    }
+  });
+  vi.stubGlobal("AudioContext", class {
+    sampleRate = 48000;
+    state = "suspended";
+    createScriptProcessor() { return { connect() {}, disconnect() {} }; }
+    async close() { this.state = "closed"; }
+  });
+  await mount();
+  const row = within(await screen.findByRole("article", { name: song.title! }));
+  fireEvent.click(row.getByRole("button", { name: t("play") }));
+  fireEvent.click(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("button", { name: "Mix" }));
+  const mixer = within(await screen.findByRole("region", { name: "Stem-Mixer" }));
+  expect(mixer.getByText(song.title!)).toBeTruthy();
+  expect(mixer.getAllByRole("button", { name: / · MUTE$/ }).map(button => button.getAttribute("aria-label")))
+    .toEqual(["Original · MUTE"]);
+  await waitFor(() => expect(mixer.getByRole<HTMLButtonElement>("button", { name: t("stem_play") }).disabled).toBe(false));
+  fireEvent.click(mixer.getByRole("button", { name: t("stem_split") }));
+  const separation = within(await screen.findByRole("dialog", { name: t("stem_title") }));
+  expect(separation.getByText(song.title!)).toBeTruthy();
+  fireEvent.click(separation.getByRole("button", { name: t("desktop_close") }));
+  const nav = within(screen.getByRole("navigation", { name: "Workspace" }));
+  fireEvent.click(nav.getByRole("button", { name: "Job queue" }));
+  separated = true;
+  fireEvent.click(nav.getByRole("button", { name: "Mix" }));
+  expect(await screen.findByRole("button", { name: "Vocals · MUTE" })).toBeTruthy();
+});
 it("starts another separation from the mixer and keeps its draft until the user switches projects", async () => {
   firstRun = false;
   const roles = ["vocals", "drums"];
@@ -113,7 +324,7 @@ it("starts another separation from the mixer and keeps its draft until the user 
   fireEvent.click(wizard.getByRole("button", { name: t("stem_start") }));
   await wizard.findByText(nextProject.request.name);
   expect(mocks.invoke).toHaveBeenCalledWith("stem_start", { request: expect.objectContaining({ source_id: project.source.id }) });
-  fireEvent.click(wizard.getByRole("button", { name: t("close") }));
+  fireEvent.click(wizard.getByRole("button", { name: t("desktop_close") }));
   expect(draft.isConnected && draft.value).toBe("Unsaved draft");
   expect(mute.getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(within(mixer).getByRole("button", { name: t("stem_undo") }));
@@ -164,7 +375,7 @@ it("opens a song's latest project directly and restores separation after confirm
   fireEvent.click(remove);
   await dialog.findByText(t("stem_empty_projects"));
   expect(mocks.invoke).toHaveBeenCalledWith("stem_remove_project", { id: project.id });
-  fireEvent.click(dialog.getByRole("button", { name: t("close") }));
+  fireEvent.click(dialog.getByRole("button", { name: t("desktop_close") }));
   expect(await row.findByRole("button", { name: t("stem_split") })).toBeTruthy();
 });
 it("changes the title bar design immediately and restores it independently of the app theme", async () => {

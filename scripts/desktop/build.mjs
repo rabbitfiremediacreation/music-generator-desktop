@@ -15,15 +15,16 @@ import { buildBranding, buildIconConfig } from "./build-branding.mjs";
 import { architecture, exists, files, hash, platform, root, run, target as desktop } from "./common.mjs";
 
 const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, desktop);
-const audioCraft = process.argv.includes("--audiocraft");
+const audioCraftBundle = process.argv.includes("--audiocraft");
+const audioCraft = audioCraftBundle || process.env.MUSIC_GENERATOR_AUDIOCRAFT === "1";
 if (audioCraft && (platform !== "macos" || architecture !== "arm64")) {
-  throw new Error("The experimental AudioCraft bundle requires macOS arm64");
+  throw new Error("The AudioCraft engine requires macOS arm64");
 }
 const output = path.resolve(process.env.MUSIC_GENERATOR_RELEASE_DIR || path.join(root, "release"));
 await mkdir(output, { recursive: true });
 const pkg = JSON.parse(await readFile(path.join(root,"package.json"),"utf8"));
 const signing = platform === "macos" ? macSigningSettings(process.env) : null;
-const updater = platform === "macos" && !audioCraft ? macUpdaterSettings(process.env, pkg.version) : null;
+const updater = platform === "macos" && !audioCraftBundle ? macUpdaterSettings(process.env, pkg.version) : null;
 const updateNotes = updater && process.env.MUSIC_GENERATOR_UPDATE_NOTES
   ? await readFile(process.env.MUSIC_GENERATOR_UPDATE_NOTES, "utf8") : undefined;
 for (const key of Object.keys(process.env)) {
@@ -108,7 +109,7 @@ try {
         await rm(submission);
         await run("spctl", ["--assess", "--type", "execute", "--verbose=2", app]);
       }
-      const suffix = audioCraft ? "-audiocraft" : "";
+      const suffix = audioCraftBundle ? "-audiocraft" : "";
       artifact = path.join(output, `${name}-macos-${architecture}${suffix}.zip`);
       await zip(artifact);
       const dmg = path.join(output, `${name}-macos-${architecture}${suffix}.dmg`);

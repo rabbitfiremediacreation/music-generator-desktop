@@ -87,6 +87,8 @@ pub struct GenerateRequest {
     pub model_selection: Option<crate::catalog::Selection>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reference_audio: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remix: Option<RemixOptions>,
     pub prompt: String,
     pub style: String,
     pub caption: String,
@@ -118,6 +120,7 @@ impl Default for GenerateRequest {
         Self {
             model_selection: None,
             reference_audio: None,
+            remix: None,
             prompt: String::new(),
             style: String::new(),
             caption: String::new(),
@@ -141,6 +144,21 @@ impl Default for GenerateRequest {
             folder_id: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemixOptions {
+    pub mode: RemixMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_song_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemixMode {
+    #[serde(rename = "cover")]
+    Cover,
+    #[serde(rename = "cover-nofsq")]
+    Close,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

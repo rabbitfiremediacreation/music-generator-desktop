@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backend } from "../../backend";
 import { creatorOptions, profileKey, selectionFromSettings } from "../../creator-models";
-import { modelAllowed, modelErrorText, modelLabel } from "../../expert-mode";
+import { modelAllowed, modelErrorText } from "../../expert-mode";
 import { hasModelEngine } from "../../model-options";
 import type { ModelSelection } from "../../types";
 import { useI18n } from "../i18n";
 import { ModelDialog } from "./ModelDialog";
+import { ModelPickerBar } from "./ModelPickerBar";
 import { invalidateModels } from "./model-state";
 
 export interface ModelControlsProps {
@@ -34,7 +35,6 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     intent.current = { selection, externalRevision: selectionRevision, revision: intent.current.revision + 1 };
   }
   const previousDefault = useRef<string | null>(null), initialized = useRef(false);
-  const downloadBusy = useIsMutating({ mutationKey: ["models"] }) > 0;
   const activate = useMutation({
     mutationKey: ["models", "activate"], networkMode: "always",
     mutationFn: async ({ next }: { next: ModelSelection; before: number }) => backend.selectModels(next),
@@ -63,14 +63,13 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
   const options = catalog.data && settings.data
     ? creatorOptions({ ...catalog.data, recommended_profiles: recommendations, expert_mode: settings.data.expert_mode }, chosen)
     : [];
-  const selected = chosen && options.some(option => option.value === profileKey(chosen));
   const missingEngine = Boolean(catalog.data && chosen && !hasModelEngine(catalog.data, chosen));
   const showXlHint = !missingEngine && chosen?.provider === "ace-step" && !recommendations.some(profile => profile.synthesis.includes("-xl-"));
   const loading = settings.isPending || catalog.isPending;
   const loadError = settings.error || catalog.error;
   function choose(value: string) {
     const option = options.find(item => item.value === value);
-    if (!option || loadError || downloadBusy) return;
+    if (!option || loadError || activate.isPending) return;
     setError(null);
     activate.mutate({ next: option.selection, before: ++intent.current.revision });
   }
@@ -83,17 +82,9 @@ export function ModelControls({ selection, selectionRevision, onSelectionChange,
     if (intent.current.revision === before) { preserveSongSelection.current = false; onSelectionChange(next); setPending(null); setError(null); }
   }
   return <>
-    <div className="model-bar">
-      <label className="lbl" htmlFor="creatorModel">{t("picker_title")}</label>
-      <div className="model-select">
-        <select id="creatorModel" value={selected && chosen ? profileKey(chosen) : ""} disabled={loading || !!loadError || downloadBusy || !options.length} aria-describedby={showXlHint ? "currentModels creatorXlRamHint" : "currentModels"} onChange={event => choose(event.target.value)}>
-          {!selected && <option value="" disabled>{t(loading ? "desktop_checking" : options.length ? "picker_choose" : "picker_no_ready_models")}</option>}
-          {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </div>
-      <button type="button" className="sek" onClick={() => onOpenManager ? onOpenManager(pending || chosen || null) : setOpen(true)}>{t("picker_choose")}</button>
-      <span id="currentModels" className="small" role="status">{selected && chosen?.language ? `${t("desktop_language_model")}: ${modelLabel(chosen.language, !allowed)}` : ""}</span>
-    </div>
+    <ModelPickerBar scope="creator" selection={chosen} options={options} loading={loading}
+      disabled={!!loadError || activate.isPending} allowed={allowed} hintId={showXlHint ? "creatorXlRamHint" : undefined}
+      onChange={choose} onManage={() => onOpenManager ? onOpenManager(pending || chosen || null) : setOpen(true)} />
     {showXlHint && <p id="creatorXlRamHint" className="small">{t("creator_xl_ram_hint")}</p>}
     {(error || loadError) && <div><p className="setup-error" role="alert">{modelErrorText(error || loadError, t)}</p>{loadError && <button type="button" className="sek" onClick={() => { if (settings.isError) void settings.refetch(); if (catalog.isError) void catalog.refetch(); }}>{t("settings_retry")}</button>}<button type="button" className="sek" onClick={error instanceof Error && error.message === "expert_mode_required" ? openExpertSettings : openSettings}>{t("expert_settings")}</button></div>}
     {missingEngine && <div role="status"><p className="small">{t("engine_install_required")}</p>{onOpenEngines && <button type="button" className="sek" onClick={onOpenEngines}>{t("settings_page_engines")}</button>}</div>}

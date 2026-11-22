@@ -26,9 +26,11 @@ export interface Settings {
 export interface GenerationFormPreferences {
   duration: number; bpm: number; inference_steps: number; lm_temperature: number; variants: number;
 }
+export type RemixMode = "cover" | "cover-nofsq";
 export interface Generation {
   model_selection?: ModelSelection;
   reference_audio?: string;
+  remix?: { mode: RemixMode; source_song_id?: string };
   prompt?: string; style?: string; caption?: string; lyrics?: string; instrumental?: boolean;
   keep_caption?: boolean; title?: string; duration?: number; bpm?: number; bars?: number; keyscale?: string;
   ignore_recommended_duration?: boolean;
@@ -65,6 +67,22 @@ export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
 export interface SongPage { songs: Song[]; total: number }
 export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number }; audio_export?: { default_format: AudioFormat; formats: AudioFormat[] } }
+
+export interface WorkJob {
+  id: string; caption: string; title?: string | null; status: "queued" | "running"; kind: "song" | "separation" | "export" | "stem_generation";
+  progress?: number | null;
+}
+export interface QueuedDownload {
+  id: string; file: string; phase: "queued" | "downloading" | "verifying" | "done" | "cancelled" | "error";
+  downloaded: number; total: number; error: string | null;
+}
+export interface WorkQueue {
+  jobs: WorkJob[]; progress: Pick<JobProgress, "job_id" | "overall_percent"> | null; downloads: QueuedDownload[]; download_limit: number;
+}
+export interface CompletedWorkPage {
+  jobs: { id: string; kind: WorkJob["kind"] | "remix"; label: string | null; finished_at: string }[];
+  next_offset: number | null;
+}
 export type BackendReason = "cpu_requested" | "cpu_only" | "lm_selftest_failed" | "cuda_architecture_unsupported" | "cuda_initialization_failed";
 export interface ComponentBackend {
   state: "not_started" | "unconfirmed" | "confirmed" | "stopped";

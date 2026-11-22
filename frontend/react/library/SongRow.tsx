@@ -16,8 +16,9 @@ import { useGenerationAdmission } from "../generation/admission";
 import type { StemStudioRequest } from "../stems/StemStudio";
 import { progressText } from "../../progress";
 
-export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems}: {
+export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems}: {
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
+  onRemix?:(song:Song)=>void;
   armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormats:AudioFormat[];queueProgress?:JobProgress|null;onStems?:(request:StemStudioRequest)=>void;
 }) {
   const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
@@ -54,7 +55,7 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
         generation.model_selection = params.model_selection ?? selection ?? undefined;
         if (midi) generation.prompt = params.prompt || params.caption || song.caption;
         if (midi || capabilities?.prompt === false || params.bars !== undefined) delete generation.caption;
-        const instrumental = generation.model_selection?.provider === "yue2"
+        const instrumental = generation.model_selection?.provider === "yue2" || params.remix
           ? params.instrumental === true || song.lyrics === "[Instrumental]"
           : midi || params.bars !== undefined || (capabilities?.instrumental === true && capabilities.lyrics === false);
         Object.assign(generation, { instrumental, keep_caption: params.use_cot_caption !== true, seed: -1, variants: 1, group_id: song.group_id });
@@ -120,6 +121,8 @@ export function SongRow({song,folders,selection,onReuse,armed,onArm,onError,newG
       {lyrics&&action(t(suppliedLyrics ? "lyrics" : "show_lyrics"),"TXT",()=>setLyricsOpen(!lyricsOpen),`txt ${lyricsOpen?"on":""}`)}
       {folders.length>0&&<div ref={moveMenu}>{action(t("move"),"▱",()=>setMoving(!moving))}{moving&&<div className="song-move-menu" role="menu" onKeyDown={event=>{if(event.key==="Escape")setMoving(false);}}>{[{id:"none",name:t("f_none"),count:0},...folders].map(folder=><button role="menuitem" key={folder.id} className={(song.folder_id||"none")===folder.id?"on":""} onClick={()=>{setMoving(false);change.mutate(()=>backend.patch(song.id,{folder_id:folder.id==="none"?null:folder.id}));}}>{folder.name}</button>)}</div>}</div>}
       {action(t("more"),"＋",()=>{void more();},"",admission.busy)}
+      {onRemix && !midi && song.status === "done" && song.path?.toLowerCase().endsWith(".wav") && !song.audio_missing &&
+        <button className="sek mini" type="button" onClick={() => onRemix(song)}>{t("workspace_remix")}</button>}
       {action(t("reuse"),"↑",()=>onReuse(song))}
       {["error","cancelled"].includes(song.status)&&action(t("retry"),"↻",()=>{void more(true);},"",admission.busy)}
       <button type="button" data-arm={canCancel ? undefined : `song:${song.id}`} className={`sek icon del ${confirmDelete?"armed":""}`} title={removeLabel} aria-label={removeLabel} disabled={change.isPending}

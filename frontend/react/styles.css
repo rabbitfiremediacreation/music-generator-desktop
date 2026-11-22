@@ -240,8 +240,6 @@ summary > :first-child:not(:only-child) { margin-right: auto; }
 }
 @media (prefers-reduced-motion: reduce) { #genBtn.fired { animation: none; } #genBtn:active { transform: none; } }
 .aktion.round { width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 14px; flex: none; letter-spacing: 0; }
-.gear { background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 6px; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; }
-.gear:hover { color: var(--accent); border-color: var(--border); }
 .sek:hover { border-color: var(--accent); color: var(--accent); }
 .sek.on { color: var(--accent2); border-color: var(--accent2); }
 .download { background: transparent; color: var(--accent2); border: 1px solid var(--accent2); border-radius: 8px; }
@@ -536,14 +534,14 @@ html[data-platform=macos] .titlebar nav { display: none; }
 #setupBack { margin-top: 16px; }
 .download { cursor: pointer; color: var(--accent2); background: transparent; border: 1px solid var(--border); border-radius: 5px; }
 .model-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
-.model-bar > .lbl, #currentModels { grid-column: 1 / -1; }
+.model-bar > .lbl, .model-current-details { grid-column: 1 / -1; }
 .model-select { position: relative; min-width: 0; }
 .model-select::after { content: ""; position: absolute; top: 50%; right: 13px; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
-#creatorModel { appearance: none; display: block; min-height: 38px; padding: 7px 30px 7px 10px; text-overflow: ellipsis; }
-#creatorModel:disabled { color: var(--muted); cursor: not-allowed; }
+.model-select select { appearance: none; display: block; min-height: 38px; padding: 7px 30px 7px 10px; text-overflow: ellipsis; }
+.model-select select:disabled { color: var(--muted); cursor: not-allowed; }
 .model-bar > .sek { min-height: 38px; }
-#currentModels { overflow-wrap: anywhere; }
-#currentModels:empty { display: none; }
+.model-current-details { overflow-wrap: anywhere; }
+.model-current-details:empty { display: none; }
 .model-picker-dialog { width: min(1040px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: clamp(12px, 2vw, 20px); box-sizing: border-box; overflow: auto; }
 .model-picker-head, .model-step-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .model-picker-head > div { flex: 1; min-width: 0; }
@@ -583,7 +581,7 @@ html[data-platform=macos] .titlebar nav { display: none; }
   #studio > .wrap.side { display: grid; grid-template-columns: minmax(360px, .9fr) minmax(0, 1.4fr); grid-template-rows: auto minmax(0, 1fr); align-items: stretch; overflow: hidden; }
   #studio > .wrap.side > .top { grid-column: 1 / -1; }
   #studio > .wrap.side > .card { position: static; min-height: 0; max-height: none; overflow: auto; }
-  #studio > .wrap.side > .card[aria-labelledby=genHeading] { align-self: start; max-height: 100%; }
+  #studio > .wrap.side > .generation-card { align-self: start; max-height: 100%; }
   #studio > .wrap.side > section[aria-labelledby=libHeading] { display: flex; flex-direction: column; }
   #studio > .wrap.side #library { min-height: 0; flex: 1; overflow: auto; }
   #studio > .wrap.side .libhead, #studio > .wrap.side .folderbar { flex-shrink: 0; }

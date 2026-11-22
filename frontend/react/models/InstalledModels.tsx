@@ -74,7 +74,7 @@ export function InstalledModels({ section, active, expertMode, manager, adding =
             <span className="small">{t(modelRoleLabel(model.role))} · {t(status)}</span></td>
             <td><code>{model.precision}</code></td><td>{bytes(model.estimated_bytes)}</td>
             <td><div className="settings-inventory-actions">
-              {next && !selected && <button type="button" className="sek" disabled={busy || manager.disabled} onClick={() => activate.mutate({ next, before: manager.selectionRevision })}>{t("picker_use")}</button>}
+              {next && !selected && <button type="button" className="sek" disabled={activate.isPending || manager.disabled} onClick={() => activate.mutate({ next, before: manager.selectionRevision })}>{t("picker_use")}</button>}
               <span title={protectedModel ? t("model_remove_active") : undefined}>
                 <button type="button" className="sek danger" aria-label={`${t("model_remove")} · ${removeName}`} disabled={protectedModel || busy || manager.disabled} onClick={() => remove.mutate({ target, name: removeName })}>{t("model_remove")}</button>
               </span>
@@ -84,7 +84,7 @@ export function InstalledModels({ section, active, expertMode, manager, adding =
       </table></div>
     </div> : <p className="installed-models-empty">{t(onAdd ? "models_installed_empty" : "models_category_empty")}</p>)}
     {catalog && <p className="small installed-models-path">{catalog.models_dir}</p>}
-    {section === "text" && catalog && !catalog.title_model.verified && <TitleModelCard catalog={catalog} disabled={busy || !!manager.disabled} onDownload={() => title.mutate()} />}
+    {section === "text" && catalog && !catalog.title_model.verified && <TitleModelCard catalog={catalog} disabled={title.isPending || !!manager.disabled} onDownload={() => title.mutate()} />}
     {!adding && downloading && <div className="installed-models-progress"><ModelDownloadProgress busy /><button type="button" className="sek" disabled={cancel.isPending} onClick={() => cancel.mutate()}>{t("picker_cancel_download")}</button></div>}
     {failure && <p role="alert" className="setup-error">{modelErrorText(failure, t)}</p>}
   </section>;
