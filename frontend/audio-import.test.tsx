@@ -34,9 +34,15 @@ it.each(["click", "Enter", " "])("native audio selection via %s applies the anal
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);
   const analyzed = mount(); const user = userEvent.setup();
-  const upload = screen.getByRole("button", { name: t("drop_aria") });
+  const upload = screen.getByRole("button", { name: t("dialog_audio_import") });
   if (activation === "click") await user.click(upload);
-  else { upload.focus(); await user.keyboard(activation === "Enter" ? "{Enter}" : " "); }
+  else {
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: t("rec_aria") }));
+    await user.tab();
+    expect(document.activeElement).toBe(upload);
+    await user.keyboard(activation === "Enter" ? "{Enter}" : " ");
+  }
   await waitFor(() => expect(analyzed).toHaveBeenCalledWith({ caption: "Piano", bpm: 100 }, false));
   expect(invoke.mock.calls.map(([command]) => command)).toEqual(["dialog_directory", "pick_and_analyze_audio"]);
   expect(invoke).toHaveBeenCalledWith("pick_and_analyze_audio", { directory: "/home/test", title: t("dialog_audio_import"), filterName: t("dialog_audio_filter"), selection: null, onSelected: expect.any(Object) });
@@ -45,7 +51,7 @@ it.each(["click", "Enter", " "])("native audio selection via %s applies the anal
 });
 it("leaves analysis and folder history untouched on cancellation and reports native read errors", async () => {
   const analyzed = mount(); const user = userEvent.setup();
-  const upload = screen.getByRole("button", { name: t("drop_aria") });
+  const upload = screen.getByRole("button", { name: t("dialog_audio_import") });
   let finish!: (value: null) => void;
   invoke.mockImplementation(async command => command === "dialog_directory" ? "/home/test" : new Promise(resolve => { finish = resolve; }));
   await user.click(upload); await user.click(upload);
@@ -77,7 +83,7 @@ it("serializes the 8 MiB drop as raw fetch bytes and applies the analysis", asyn
   });
   vi.stubGlobal("fetch", fetch);
   const analyzed = mount(selection);
-  fireEvent.drop(screen.getByRole("button", { name: t("drop_aria") }), {
+  fireEvent.drop(screen.getByTitle(t("drop_title")), {
     dataTransfer: { files: [new File([bytes], "雨 & Piano.wav")] },
   });
   await waitFor(() => expect(analyzed).toHaveBeenCalledWith({ caption: "Piano", bpm: 100 }, false));
