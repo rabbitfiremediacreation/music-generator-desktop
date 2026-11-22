@@ -58,7 +58,7 @@ On Apple Silicon, the **PyTorch** engine package supplies one CPython 3.11 and P
 
 Apple Silicon Develop and Daily releases offer **Magenta RealTime 2** and **AudioCraft** as separate engine packages under **Engines**. You can install their model weights separately through the ModelPicker.
 
-**Models → Music generation → Add model** and the Creator show models for installed engines. When a newer app build includes updated engine packages, install those updates individually in **Engines**. Updating or removing an engine keeps its downloaded model files for reuse. Reinstall the engine to make those models selectable again.
+**Models → Music generation → Add model** and the Creator show models for installed engines. When a newer app build includes updated engine packages, install those updates individually in **Engines**. The installed engine remains available until its replacement has been verified and activated. Updating or removing an engine keeps its downloaded model files for reuse. Reinstall the engine to make those models selectable again.
 
 On **Models → Music generation**, installed music models show their status and disk usage. Apply Expert Mode under **General → App settings** to update the available choices. Save other pending settings with **Save**. Layout, language-model device selection and connection switches apply immediately.
 
