@@ -57,10 +57,18 @@ pub(super) async fn install_and_separate(
     .await
     .expect("model setup timed out");
     // This range resamples to 132413.00625 frames, which rounds down in float32.
-    let args = json!({"path":path,"model_id":profile.id,"name":"Reference separation",
+    let mut args = json!({"path":path,"model_id":profile.id,"name":"Reference separation",
         "start":0.15,"end":151_323.0 / 48_000.0,"overlap":0.25,
+        "shifts":1,
         "quality":if profile.id == "htdemucs-6s" {"standard"} else {"fast"},
-        "outputs":profile.roles.iter().copied().chain(["instrumental"]).collect::<Vec<_>>()});
+        "outputs":profile.roles.iter().copied().chain(["instrumental", "no_drums", "residual"]).collect::<Vec<_>>()});
+    if profile.id == "htdemucs-6s" {
+        args["no_split"] = json!(true);
+    } else {
+        args["segment"] = json!(2.0);
+        args["transition_power"] = json!(2.0);
+        args["num_workers"] = json!(2);
+    }
     let id = call("separate_song", args).await["id"]
         .as_str()
         .unwrap()

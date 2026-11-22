@@ -26,11 +26,16 @@ fn separation() -> Value {
         "song_id":id(),"source_id":id(),"path":{"type":"string","minLength":1,"description":"Absolute audio path on the desktop host."},
         "model_id":id(),"name":{"type":"string","minLength":1,"maxLength":160},"folder_id":id(),
         "start":{"type":"number","minimum":0,"description":"Start in source seconds."},
-        "end":{"type":"number","exclusiveMinimum":0,"description":"Exclusive end in source seconds. Omit for the end of the source or the first 20 seconds of a preview range."},
+        "end":{"type":"number","exclusiveMinimum":0,"description":"Exclusive end in source seconds. Omit for the end of the source or the first 20 seconds of a preview range (one model window with no_split)."},
         "quality":{"enum":["fast","standard"],"default":"standard"},
-        "overlap":{"type":"number","minimum":0,"maximum":0.5,"default":0.25},
-        "preview":{"type":"boolean","default":false},"outputs":{"type":"array","items":id(),"minItems":1,"uniqueItems":true,"description":"Model roles and/or instrumental. Omit for all native roles."},
-        "vocals_and_instrumental":{"type":"boolean","description":"Select vocals plus summed accompaniment. Use alone or set false with outputs."}
+        "overlap":{"type":"number","minimum":0,"maximum":0.99,"default":0.25},
+        "shifts":{"type":"integer","minimum":0,"maximum":10,"default":0,"description":"Average shifted predictions. Zero disables shifting."},
+        "segment":{"type":"number","minimum":1,"maximum":7.8,"description":"Chunk length in seconds. Overrides the quality preset."},
+        "no_split":{"type":"boolean","default":false,"description":"Process one window. Maximum duration 7.8 seconds, or 7.3 with shifts. Omit segment."},
+        "transition_power":{"type":"number","minimum":1,"maximum":4,"default":1,"description":"Exponent of the crossfade weights for overlapping chunks."},
+        "num_workers":{"type":"integer","minimum":0,"maximum":4,"default":0,"description":"Parallel CPU chunk workers. Zero processes chunks sequentially."},
+        "preview":{"type":"boolean","default":false},"outputs":{"type":"array","items":id(),"minItems":1,"uniqueItems":true,"description":"Omit for all native roles plus residual. Derived roles are instrumental (sum excluding vocals), no_<native role> for other complements, and residual (original minus all native estimates)."},
+        "vocals_and_instrumental":{"type":"boolean","description":"Select vocals, summed accompaniment and the reconstruction residual. Use alone or set false with outputs."}
     }), &["model_id"], false, false);
     definition["inputSchema"]["oneOf"] =
         json!([{"required":["song_id"]},{"required":["source_id"]},{"required":["path"]}]);

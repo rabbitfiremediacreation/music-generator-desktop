@@ -9,7 +9,7 @@ import type { ActiveGenerationProfile } from "../types";
 import models from "../../models/catalog.json";
 
 const request = vi.fn();
-const song = { id: "one", title: "Rain song", status: "done", favorite: false, folder_id: null, duration: 90, bpm: 80, has_audio: true, message: null };
+const song = { id: "one", title: "Rain song", status: "done" as const, favorite: false, folder_id: null, duration: 90, bpm: 80, has_audio: true, message: null };
 const library = { songs: [song], folders: { folders: [], all: 1, none: 1 } };
 const ace: ActiveGenerationProfile = { selection: { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "lm.gguf" }, name: "ACE-Step 1.5", capabilities: ACE_STEP_ABILITIES, available: true };
 const heartmula: ActiveGenerationProfile = {
@@ -32,6 +32,21 @@ beforeEach(() => {
   });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it("queues all six native mobile stems and the difference track by default", async () => {
+  const roles = ["drums", "bass", "other", "vocals", "guitar", "piano"];
+  request.mockImplementation(async (path: string, options: RequestInit) => {
+    const body = path === "/api/stems/models" ? { models: [{ id: "htdemucs-6s", name: "HTDemucs 6s", status: "ready", roles }] }
+      : options?.method === "POST" ? { id: "job" } : [];
+    return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+  });
+  render(<MobileStems api={new RemoteApi("paired-key", "en", vi.fn())} song={song} language="en" exit={vi.fn()}/>);
+  expect((await screen.findByRole<HTMLInputElement>("checkbox", { name: "Reconstruction difference" })).checked).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Queue separation" }));
+  await waitFor(() => expect(request.mock.calls.find(([, options]) => options?.method === "POST")).toBeTruthy());
+  const [, options] = request.mock.calls.find(([, options]) => options?.method === "POST")!;
+  expect(JSON.parse(options.body)).toMatchObject({ song_id: song.id, model_id: "htdemucs-6s", outputs: [...roles, "residual"] });
+});
 
 it("exports the selected mobile Original from a legacy mix with current package selection rules", async () => {
   const project = {

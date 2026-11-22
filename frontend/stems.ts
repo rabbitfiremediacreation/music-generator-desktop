@@ -59,6 +59,11 @@ export interface StemRequest {
   end: number | null;
   quality: "standard" | "fast";
   overlap: number;
+  shifts?: number;
+  segment?: number | null;
+  no_split?: boolean;
+  transition_power?: number | null;
+  num_workers?: number;
   outputs: string[];
   preview: boolean;
 }
@@ -192,6 +197,7 @@ export function audibleTracks(mix: StemMix) {
 }
 
 export function stemRole(role: string, t: (key: string) => string) {
+  if (role.startsWith("no_")) return t("stem_without").replace("{stem}", t(`stem_role_${role.slice(3)}`));
   if (role === "original") return t("stem_original");
   return t(role.startsWith("layer_") ? "stem_imported_track" : `stem_role_${role}`);
 }

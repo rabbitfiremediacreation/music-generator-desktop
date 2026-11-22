@@ -171,6 +171,8 @@ Modellinstallation, Titelmodelldownload, Audioanalyse, Import und Export liefern
    {"song_id":"SONG_ID","model_id":"htdemucs","name":"Refrain","start":12,"end":20,"preview":true,"outputs":["vocals","instrumental"]}
    ```
 
+   Ohne `outputs` übernimmt `separate_song` alle nativen Spuren des gewählten Modells und die Rekonstruktionsdifferenz. Eine explizite Auswahlliste übernimmt genau die angegebenen Spuren. Für eine vollständige Rekonstruktion mit HTDemucs 6s verwende `["drums","bass","other","vocals","guitar","piano","residual"]`. Ein Instrumentenpaar wie `["piano","no_piano"]` enthält das Klavier und die Summe der übrigen Schätzungen. Für Gesang heißt die Begleitspur `instrumental`. Die optionalen Parameter `shifts`, `segment` (Sekunden), `overlap`, `transition_power`, `no_split` und `num_workers` werden mit dem Auftrag gespeichert.
+
 3. Mit der zurückgegebenen Projekt-ID `get_stem_job` aufrufen. Bei `status: "done"` liefert `include_mix: true` den `default_mix` mit den tatsächlichen Kanälen und dem vollständigen Framebereich. Für eine vorhandene Fassung `list_stem_mixes` verwenden.
 4. Im Mix beispielsweise am Kanal `vocals` den Wert `gain_db` auf `-3` setzen. Kanal-EQ, Kompressor, Limiter, Stereobreite und Filter stehen in `fx`. `first` und das exklusive `end` verwenden Projektframes, Fades verwenden Sekunden. Mit `save_stem_mix` Projekt-`id`, `name` und den bearbeiteten `mix` speichern. Zum Aktualisieren die ID der Fassung im Feld `version` mitsenden.
 5. Die ID der gespeicherten Fassung als `version_id` an `export_stems` übergeben. Der Export übernimmt ihren Zustand beim Einreihen. Bei Einzelspuren und Paketen übernimmt er die Export-Häkchen, wenn `selected` fehlt. Auch ein direkt übergebener `mix` wird unterstützt.

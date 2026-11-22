@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 import sys
 from fractions import Fraction
 from importlib.metadata import version
@@ -192,6 +193,7 @@ def separate(request_path):
     config = json.loads(Path(request_path).read_text(encoding="utf-8"))
     torch.set_num_threads(4)
     torch.manual_seed(0)
+    random.seed(0)
     report(phase="loading")
     model = load_model(config["weights"], tuple(config["roles"]))
     report(phase="preparing")
@@ -205,20 +207,29 @@ def separate(request_path):
     mean = reference.mean()
     scale = reference.std(unbiased=False).clamp_min(1e-8)
     overlap = config["overlap"]
-    segment = min(float(model.segment), 4.0) if config["quality"] == "fast" else None
+    options = config["inference"]
+    segment = options["segment"]
+    if segment is None and not options["no_split"] and config["quality"] == "fast":
+        segment = min(float(model.segment), 4.0)
     report(phase="separating")
     with torch.inference_mode():
         estimates = apply_model(
-            model, ((waveform - mean) / scale)[None], shifts=0, split=True,
+            model, ((waveform - mean) / scale)[None], shifts=options["shifts"], split=not options["no_split"],
             device="cpu", overlap=overlap, segment=segment,
+            transition_power=options["transition_power"] or 1.0, num_workers=options["num_workers"],
         )[0]
         estimates = estimates * scale + mean / len(model.sources)
         outputs = dict(zip(model.sources, estimates, strict=True))
         report(phase="validating")
         save("original", waveform)
         for role in config["outputs"]:
-            save(role, sum(value for key, value in outputs.items() if key != "vocals")
-                 if role == "instrumental" else outputs[role])
+            if role == "residual":
+                save(role, waveform - sum(outputs.values()))
+            elif role == "instrumental" or role.startswith("no_"):
+                excluded = "vocals" if role == "instrumental" else role.removeprefix("no_")
+                save(role, sum(stem for name, stem in outputs.items() if name != excluded))
+            else:
+                save(role, outputs[role])
 
 
 if __name__ == "__main__":

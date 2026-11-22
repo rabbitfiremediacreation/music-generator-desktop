@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
-import { sourceDuration, stemApi, stemError, type Pin, type StemRequest, type StemSource } from "../../stems";
+import { useEffect, useRef, useState } from "react";
+import { sourceDuration, stemRole, stemApi, stemError, type Pin, type StemRequest, type StemSource } from "../../stems";
 import type { Song } from "../../types";
 import { foldersQuery } from "../data";
 import { useI18n } from "../i18n";
@@ -8,10 +8,10 @@ import { useStemCatalog, useStemJob } from "./data";
 import { StemRuntimeRequirement } from "./StemModelTasks";
 import { StemProjectEstimate } from "./StemProjectEstimate";
 import { StemSourcePicker, type SourceRange } from "./StemSourcePicker";
+import { defaults, maxSingleWindow, outputSelection, validInference, type OutputSelection } from "./separation-options";
+import { StemInferenceFields, StemOutputFields } from "./SeparationFields";
 
 const steps = ["stem_sources", "stem_goal", "stem_result"] as const;
-const goals = ["multitrack", "vocal_pair", "vocals_only", "instrumental_only"] as const;
-type Goal = typeof goals[number];
 
 export function StemWizard({ song, initialSource, folderId, active = true, onQueued, onPreview, onOpenEngines, onOpenModels }: {
   song?: Song; initialSource?: StemSource; folderId?: string; active?: boolean; onQueued: (ids: string[]) => void; onPreview: (id: string) => void;
@@ -20,7 +20,6 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
   const { t } = useI18n();
   const catalog = useStemCatalog();
   const view = useRef<HTMLDivElement>(null);
-  const modelHint = useId();
   const [step, setStep] = useState(0);
   const [sources, setSources] = useState<StemSource[]>(() => initialSource ? [initialSource] : []);
   const [ranges, setRanges] = useState<Record<string, SourceRange>>({});
@@ -29,11 +28,9 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
   const [queued, setQueued] = useState(0);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [goal, setGoal] = useState<Goal>("multitrack");
+  const [selection, setSelection] = useState<OutputSelection>({ goal: "multitrack" });
   const [modelId, setModelId] = useState("");
-  const [selected, setSelected] = useState<string[]>();
-  const [quality, setQuality] = useState<StemRequest["quality"]>("standard");
-  const [overlap, setOverlap] = useState(0.25);
+  const [options, setOptions] = useState(defaults);
   const [previewPosition, setPreviewPosition] = useState<number>();
   const [previewId, setPreviewId] = useState<string>();
   const [name, setName] = useState(() => initialSource?.name.slice(0, 150) ?? "");
@@ -44,16 +41,20 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
   const models = catalog.data?.models.filter(model => model.status === "ready" && model.active) ?? [];
   const model = models.find(model => model.id === modelId) ?? models[0];
   const pin = model?.active;
-  const roles = goal === "multitrack" ? model?.roles ?? [] : goal === "vocal_pair" ? ["vocals", "instrumental"]
-    : goal === "vocals_only" ? ["vocals"] : ["instrumental"];
-  const outputs = selected ? roles.filter(role => selected.includes(role)) : roles;
+  const { outputs } = outputSelection(model?.roles ?? [], selection);
   const source = sources[0];
   const previewRange = source ? ranges[source.id] : undefined;
   const previewStart = previewPosition ?? previewRange?.start ?? 0;
   const previewRunning = preview.data?.status === "queued" || preview.data?.status === "running";
-  const canSeparate = Boolean(engineReady && pin && outputs.length);
-  const canAdvance = step === 0 ? Boolean(engineReady && sources.length) : canSeparate;
-  const canStart = canSeparate && sources.length > 0 && name.trim().length > 0;
+  const canSeparate = Boolean(engineReady && pin && outputs.length && validInference(options));
+  const windowTooShort = options.no_split && sources.some(item => {
+    const range = ranges[item.id];
+    const first = Math.round((range?.start ?? 0) * item.audio.rate);
+    const end = range?.end == null ? item.audio.frames : Math.round(range.end * item.audio.rate);
+    return (end - first) / item.audio.rate > maxSingleWindow(options);
+  });
+  const canAdvance = step === 0 ? Boolean(engineReady && sources.length) : canSeparate && !windowTooShort;
+  const canStart = canSeparate && !windowTooShort && sources.length > 0 && name.trim().length > 0;
 
   useEffect(() => {
     if (!active) view.current?.querySelectorAll("audio").forEach(audio => { if (!audio.paused) audio.pause(); });
@@ -103,8 +104,8 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
       source_id: item.id, pin: revision,
       name: sources.length + queued > 1 && !isPreview ? `${title} · ${item.name}`.slice(0, 160) : title,
       folder_id: folder || null, start: isPreview ? previewStart : range.start,
-      end: isPreview ? Math.min(previewStart + 12, range.end ?? sourceDuration(item)) : range.end,
-      quality, overlap, outputs, preview: isPreview,
+      end: isPreview ? Math.min(previewStart + (options.no_split ? maxSingleWindow(options) : 12), range.end ?? sourceDuration(item)) : range.end,
+      ...options, outputs, preview: isPreview,
     };
   }
 
@@ -163,37 +164,13 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
         if (source?.id === id) setPreviewPosition(undefined);
       }} />}
     {step === 1 && model && <>
-      <div className="stem-field-grid">
-        <label className="field"><span className="lbl">{t("stem_goal")}</span><select value={goal} onChange={event => { setGoal(event.target.value as Goal); setSelected(undefined); }}>
-          {goals.map(value => <option key={value} value={value}>{t(`stem_${value}`)}</option>)}
-        </select></label>
-        <div>
-          <label className="field"><span className="lbl">{t("stem_model")}</span><select value={model.id}
-            aria-describedby={model === models[0] ? modelHint : undefined} onChange={event => { setModelId(event.target.value); setSelected(undefined); }}>
-            {models.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}
-          </select></label>
-          {model === models[0] && <p id={modelHint} className="small">{t("stem_recommended")}</p>}
-        </div>
-      </div>
-      <fieldset className="stem-output">
-        <legend className="lbl">{t("stem_roles")}</legend>
-        <div className="stem-output-grid">{roles.map(role => <label className="stem-check" key={role}>
-          <input type="checkbox" checked={outputs.includes(role)} onChange={event => setSelected(event.target.checked ? [...outputs, role] : outputs.filter(value => value !== role))} />
-          {t(`stem_role_${role}`)}
-        </label>)}</div>
-        {outputs.includes("instrumental") && <p className="small">{t("stem_derived")}</p>}
-      </fieldset>
-      <details className="stem-block"><summary>{t("stem_advanced")}</summary>
-        <div className="stem-detail-body">
-          <div className="stem-field-grid">
-            <label className="field"><span className="lbl">{t("stem_quality")}</span><select value={quality} onChange={event => setQuality(event.target.value as StemRequest["quality"])}>
-              <option value="standard">{t("stem_standard")}</option><option value="fast">{t("stem_fast")}</option>
-            </select></label>
-            <label className="field"><span className="lbl">{t("stem_overlap")}</span><input type="number" min={0} max={0.5} step={0.05} value={overlap} onChange={event => setOverlap(Number(event.target.value))} /></label>
-          </div>
-          <p className="small">{t("stem_cpu")}</p>
-        </div>
-      </details>
+      <label className="field"><span className="lbl">{t("stem_model")}</span><select value={model.id}
+        onChange={event => { setModelId(event.target.value); setSelection({ goal: selection.goal }); }}>
+        {models.map(value => <option key={value.id} value={value.id}>{value.name} · {value.roles.length}</option>)}
+      </select></label>
+      <StemOutputFields native={model.roles} selection={selection} change={setSelection} t={t} />
+      <StemInferenceFields options={options} change={setOptions} t={t} />
+      {windowTooShort && <p className="small" role="status">{t("stem_window_range")}</p>}
       {source && <details className="stem-block"><summary>{t("stem_preview")}</summary>
         <div className="stem-detail-body">
           <p className="small">{t("stem_preview_hint")}</p>
@@ -220,8 +197,8 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
       <dl className="stem-summary stem-block">
         <dt>{t("stem_sources")}</dt><dd>{sources.map(item => `${item.name} (${ranges[item.id]?.start ?? 0}–${(ranges[item.id]?.end ?? sourceDuration(item)).toFixed(2)} s)`).join(", ")}</dd>
         <dt>{t("stem_model")}</dt><dd>{model && `${model.engine} ${model.engine_version} · ${model.name}`}{pin && <> · <code title={pin.revision}>{pin.revision.slice(0, 12)}</code></>}</dd>
-        <dt>{t("stem_roles")}</dt><dd>{outputs.map(role => t(`stem_role_${role}`)).join(" · ")}</dd>
-        <dt>{t("stem_quality")}</dt><dd>{t(`stem_${quality}`)} · CPU · {t("stem_overlap")} {Math.round(overlap * 100)}%</dd>
+        <dt>{t("stem_roles")}</dt><dd>{outputs.map(role => stemRole(role, t)).join(" · ")}</dd>
+        <dt>{t("stem_quality")}</dt><dd>{options.no_split ? t("stem_no_split") : <>{options.segment ?? (options.quality === "fast" ? 4 : 7.8)} s · {t("stem_overlap")} {Math.round(options.overlap * 100)}%</>} · {t("stem_shifts")} {options.shifts}</dd>
         <dt>{t("stem_storage")}</dt><dd>{t("stem_mixer")} · 44.1 kHz · WAV</dd>
         <StemProjectEstimate requests={canStart && pin ? sources.map(item => request(item, pin, false)) : []} />
       </dl>
