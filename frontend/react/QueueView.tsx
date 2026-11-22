@@ -57,7 +57,7 @@ export function QueueView({ onModels, onEngines }: { onModels: () => void; onEng
           {data.jobs.length === 0 ? <p className="small">{t("queue_no_jobs")}</p> : <ul>
             {data.jobs.map(job => {
               const label = job.title || job.caption || t(`queue_${job.kind}`);
-              const progress = data.progress?.job_id === job.id ? data.progress.overall_percent : undefined;
+              const progress = data.progress?.job_id === job.id ? data.progress.overall_percent : job.progress ?? undefined;
               return <li key={job.id} data-state={job.status}>
                 <div><strong>{label}</strong>
                   <p className="small queue-item-status">{t(`queue_${job.kind}`)} · {t(`queue_${job.status}`)}</p>

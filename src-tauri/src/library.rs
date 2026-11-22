@@ -51,11 +51,11 @@ impl Database {
 
     pub(crate) fn active_work(&self) -> Result<Vec<Value>> {
         let con = self.lock();
-        let mut stmt = con.prepare("SELECT id,status,message,caption,kind,title FROM (
-            SELECT id,status,message,caption,'song' AS kind,title,created_at,rowid AS position
+        let mut stmt = con.prepare("SELECT id,status,message,caption,kind,title,progress FROM (
+            SELECT id,status,message,caption,'song' AS kind,title,NULL AS progress,created_at,rowid AS position
             FROM songs WHERE status IN ('queued','running')
-            UNION ALL SELECT id,status,phase,json_extract(request,'$.name'),'separation',NULL,created_at,rowid FROM stem_jobs WHERE status IN ('queued','running')
-            UNION ALL SELECT e.id,e.status,'export',json_extract(j.request,'$.name'),'export',NULL,e.created_at,e.rowid FROM stem_exports e
+            UNION ALL SELECT id,status,phase,json_extract(request,'$.name'),'separation',NULL,NULL,created_at,rowid FROM stem_jobs WHERE status IN ('queued','running')
+            UNION ALL SELECT e.id,e.status,'export',json_extract(j.request,'$.name'),'export',NULL,e.progress,e.created_at,e.rowid FROM stem_exports e
             JOIN stem_jobs j ON j.id=e.project_id WHERE e.status IN ('queued','running')
         ) ORDER BY created_at,position")?;
         let rows = stmt
@@ -67,6 +67,7 @@ impl Database {
                     "caption": row.get::<_, String>(3)?,
                     "kind": row.get::<_, String>(4)?,
                     "title": row.get::<_, Option<String>>(5)?,
+                    "progress": row.get::<_, Option<u8>>(6)?,
                 }))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -163,8 +164,9 @@ mod tests {
                 INSERT INTO stem_sources VALUES ('source',NULL,'{}');
                 INSERT INTO stem_jobs(id,source_id,request,status,phase,created_at,finished_at)
                 VALUES ('project','source','{"name":"Split song"}','done','done','2026-01-01','2026-01-07');
-                INSERT INTO stem_exports(id,project_id,request,status,created_at,finished_at)
-                VALUES ('export','project','{}','done','2026-01-01','2026-01-08');
+                INSERT INTO stem_exports(id,project_id,request,status,progress,created_at,finished_at)
+                VALUES ('export','project','{}','done',100,'2026-01-01','2026-01-08'),
+                    ('export-running','project','{}','running',37,'2026-01-02',NULL);
                 INSERT INTO stem_layers(id,project_id,source_id,created_at,generated_name)
                 VALUES ('generated','project','source','2026-01-10','Keys'),
                     ('imported','project','source','2026-01-11',NULL);
@@ -194,6 +196,9 @@ mod tests {
         );
         assert!(page["next_offset"].is_null());
         assert_eq!(db.completed_work(3).unwrap()["jobs"][0]["id"], "project");
-        assert_eq!(db.active_work().unwrap().len(), 1);
+        let active = db.active_work().unwrap();
+        assert_eq!(active.len(), 2);
+        assert_eq!(active[1]["id"], "export-running");
+        assert_eq!(active[1]["progress"], 37);
     }
 }

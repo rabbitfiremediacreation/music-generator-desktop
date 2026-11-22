@@ -62,21 +62,7 @@ impl Target {
             .file_name()
             .ok_or_else(|| message("Missing export filename"))?;
         let destination = parent.join(filename);
-        // Protect the database, model weights and original library files.
-        for protected in [
-            state.db.root.as_path(),
-            Path::new(&settings.models_dir),
-            Path::new(&settings.songs_dir),
-        ] {
-            if let Ok(protected) = protected.canonicalize() {
-                let resolved = destination
-                    .canonicalize()
-                    .unwrap_or_else(|_| destination.clone());
-                if destination.starts_with(&protected) || resolved.starts_with(&protected) {
-                    return Err(message("Choose an export destination outside the app data, model and song-library directories"));
-                }
-            }
-        }
+        ensure_unmanaged(state, &settings, &destination)?;
         Self::stage(destination, overwrite)
     }
 
@@ -123,6 +109,42 @@ impl Target {
         }
         Ok(())
     }
+}
+
+pub(in crate::mcp::operations) fn preview_directory(
+    state: &AppState,
+    destination: &Path,
+) -> Result<tempfile::TempDir> {
+    let destination = destination.canonicalize()?;
+    ensure_unmanaged(state, &state.db.settings()?, &destination)?;
+    Ok(tempfile::Builder::new()
+        .prefix("stem-repair-preview-")
+        .tempdir_in(destination)?)
+}
+
+/// Protect the database, model weights and original library files from export writes.
+fn ensure_unmanaged(
+    state: &AppState,
+    settings: &crate::types::Settings,
+    destination: &Path,
+) -> Result<()> {
+    let resolved = destination.canonicalize().ok();
+    for protected in [
+        state.db.root.as_path(),
+        Path::new(&settings.models_dir),
+        Path::new(&settings.songs_dir),
+    ] {
+        if let Ok(protected) = protected.canonicalize() {
+            if destination.starts_with(&protected)
+                || resolved
+                    .as_ref()
+                    .is_some_and(|path| path.starts_with(&protected))
+            {
+                return Err(message("Choose an export destination outside the app data, model and song-library directories"));
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Drop for Target {

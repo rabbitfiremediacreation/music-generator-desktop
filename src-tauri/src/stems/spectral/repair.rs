@@ -1,6 +1,6 @@
 use super::{
     fft::{Transform, SIZE},
-    read_window, whole, Processing, RepairRequest, BIN_HZ, RATE,
+    read_window, whole, Processing, RepairRequest, AUDITION_CONTEXT, BIN_HZ, RATE,
 };
 use crate::{
     error::{Error, Result},
@@ -23,9 +23,8 @@ pub(super) fn audition(
     selection: &RepairRequest,
     cancel: &CancellationToken,
 ) -> Result<Vec<u8>> {
-    let context = u64::from(RATE) / 4;
-    let first = selection.first.saturating_sub(context);
-    let end = (selection.end + context).min(frames);
+    let first = selection.first.saturating_sub(AUDITION_CONTEXT);
+    let end = (selection.end + AUDITION_CONTEXT).min(frames);
     if selection.whole_track {
         return audition_whole(wave, frames, first..end, &selection.processing, cancel);
     }

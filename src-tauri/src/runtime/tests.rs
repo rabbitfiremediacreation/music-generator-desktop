@@ -3,6 +3,7 @@ use super::*;
 #[tokio::test]
 async fn live_stem_progress_is_visible_in_the_work_queue_and_cancelled_by_job_id() {
     let runtime = Arc::new(Runtime::default());
+    runtime.set_configured(true);
     let operation = runtime.try_begin(OperationKind::StemGeneration).unwrap();
     operation.start_stem_generation("Guitar");
     operation.report(Progress::new("context"), 5).unwrap();
@@ -14,12 +15,19 @@ async fn live_stem_progress_is_visible_in_the_work_queue_and_cancelled_by_job_id
     assert_eq!(progress.overall_percent, 5);
     assert!(runtime.progress().is_none());
 
+    assert!(runtime.enqueue(|| Ok(())).is_ok());
+    assert!(runtime.try_begin(OperationKind::Generation).is_err());
+    assert!(runtime.cancel_song("queued-song", || Ok(true)).unwrap());
+    assert!(runtime.remove_stem_project(|| Ok(())).is_err());
+    assert!(!operation.cancellation().is_cancelled());
+
     runtime.cancel_stem_generation(Some("old-job"));
     assert!(!operation.cancellation().is_cancelled());
     runtime.cancel_stem_generation(Some(&id));
     assert!(operation.cancellation().is_cancelled());
     drop(operation);
     assert!(matches!(runtime.work_progress(), (None, None)));
+    assert!(runtime.remove_stem_project(|| Ok(())).is_ok());
 }
 
 #[tokio::test]
@@ -27,6 +35,8 @@ async fn downloads_coexist_with_generation_and_only_activation_waits_for_the_eng
     let runtime = Arc::new(Runtime::default());
     runtime.set_configured(true);
     let first = runtime.transfer("models", "base").unwrap();
+    assert!(runtime.has_active_work());
+    assert!(!runtime.is_busy());
     let generating = runtime.try_begin(OperationKind::Generation).unwrap();
     let second = runtime.transfer("engines", "magenta").unwrap();
     assert!(runtime.enqueue(|| Ok(())).is_ok());
@@ -45,6 +55,7 @@ async fn downloads_coexist_with_generation_and_only_activation_waits_for_the_eng
     let setup = runtime.try_begin(OperationKind::Setup).unwrap();
     assert!(runtime.transfer("models", "base").is_err());
     drop(setup);
+    assert!(!runtime.has_active_work());
 }
 
 #[tokio::test]

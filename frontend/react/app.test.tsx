@@ -118,6 +118,19 @@ it("counts running audio jobs and downloads from another tab and cancels the sel
   await waitFor(() => expect(queue.textContent).toBe(""), { timeout: 2500 });
 });
 
+it("uses persisted progress for a running stem export", async () => {
+  firstRun = false;
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => name === "work_queue" ? {
+    jobs: [{ id: "export", caption: "Mix export", kind: "export", status: "running", progress: 37 }],
+    progress: null, downloads: [], download_limit: 4,
+  } : invoke(name, args));
+  await mount();
+  fireEvent.click(screen.getByRole("button", { name: "Job queue" }));
+  const progress = await screen.findByRole("progressbar", { name: "Mix export" });
+  expect(progress.getAttribute("value")).toBe("37");
+});
+
 it("opens settings from the bottom of the workspace sidebar", async () => {
   firstRun = false;
   await mount();
@@ -197,10 +210,24 @@ it("opens the current song as a single track and offers separation from Mix", as
     group_id: "group", letter: "", created_at: "2026-01-01", finished_at: "2026-01-01", message: null,
     lyrics: null, seed: 1, params: {}, result_meta: null, file: "song.wav", audio_missing: false, favorite: false, folder_id: null };
   const invoke = mocks.invoke.getMockImplementation()!;
+  let separated = false;
+  const audio = { rate: 44100, channels: 2, frames: 44100, peaks: [] };
+  const project: StemJob = {
+    id: "finished-separation", status: "done", phase: "done", error: null, created_at: "", finished_at: "",
+    project: { ...audio, source_start_frame: 0, source_frames: audio.frames, roles: ["vocals"], engine: "Demucs",
+      engine_version: "4.0.1", backend: "cpu", original_peak: 0, track_peaks: [] },
+    request: { source_id: "source", pin: { model: "htdemucs", repository: "fixture", revision: "abc" }, start: 0,
+      end: null, name: "Separated song", quality: "standard", overlap: .25, outputs: ["vocals"], preview: false },
+    source: { id: "source", song_id: song.id, name: song.title!, hash: "test", audio },
+  };
   mocks.invoke.mockImplementation(async (name, args) => {
     if (name === "list_song_page") return { songs: [song], total: 1 };
     if (name === "read_song_audio") return new ArrayBuffer(8);
-    if (name === "stem_latest_project") throw "stem_project_missing";
+    if (name === "stem_latest_project") {
+      if (separated) return project;
+      throw "stem_project_missing";
+    }
+    if (name === "stem_mixes" || name === "stem_exports") return [];
     if (name === "stem_models") return { engine_ready: false, platform_supported: true, models: [] };
     return invoke(name, args);
   });
@@ -230,6 +257,12 @@ it("opens the current song as a single track and offers separation from Mix", as
   fireEvent.click(mixer.getByRole("button", { name: t("stem_split") }));
   const separation = within(await screen.findByRole("dialog", { name: t("stem_title") }));
   expect(separation.getByText(song.title!)).toBeTruthy();
+  fireEvent.click(separation.getByRole("button", { name: t("desktop_close") }));
+  const nav = within(screen.getByRole("navigation", { name: "Workspace" }));
+  fireEvent.click(nav.getByRole("button", { name: "Job queue" }));
+  separated = true;
+  fireEvent.click(nav.getByRole("button", { name: "Mix" }));
+  expect(await screen.findByRole("button", { name: "Vocals · MUTE" })).toBeTruthy();
 });
 it("starts another separation from the mixer and keeps its draft until the user switches projects", async () => {
   firstRun = false;

@@ -29,7 +29,7 @@ export function SongMixer({ song, active, onProject, onSeparate, onBack, onClose
         throw error;
       }
     },
-    enabled: active, networkMode: "always", retry: false, gcTime: 0,
+    enabled: active, networkMode: "always", retry: false, staleTime: 0, gcTime: 0,
   });
   const audio = useQuery({
     queryKey: ["stem-original-audio", song.id],

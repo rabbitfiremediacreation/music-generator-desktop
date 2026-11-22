@@ -47,7 +47,7 @@ export function RemixForm({ song, selection, folder, blocked }: {
     setPicking(true);
     setError("");
     try {
-      const file = await backend.pickReferenceAudio(t("remix_source"));
+      const file = await backend.pickReferenceAudio(t("remix_source"), true);
       if (!file) return;
       const next = { name: file.name, reference: file.id };
       setTitle(current => !current || current === sourceTitle(source) ? sourceTitle(next) : current);

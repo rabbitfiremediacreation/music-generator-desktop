@@ -42,14 +42,15 @@ fn publishes_repaired_audio_as_a_project_layer_and_preserves_the_source() {
         "first": 2048, "end": 6144, "low_hz": 1250, "high_hz": 1500, "reduction_db": 18
     }))
     .unwrap();
-    let audition = spectral::audition(&state, &project, "vocals", &selection).unwrap();
+    let cancel = state.runtime.cancellation();
+    let audition = spectral::audition(&state, &project, "vocals", &selection, &cancel).unwrap();
     let layers: u64 = state
         .db
         .lock()
         .query_row("SELECT COUNT(*) FROM stem_layers", [], |row| row.get(0))
         .unwrap();
     assert_eq!(layers, 0);
-    let result = spectral::apply(&state, &project, "vocals", &selection).unwrap();
+    let result = spectral::apply(&state, &project, "vocals", &selection, &cancel).unwrap();
     let output = std::fs::read(layer::path(&state, &project, &result.role).unwrap()).unwrap();
     let start = header_length + 2048 * 8;
     let end = header_length + 6144 * 8;

@@ -1,8 +1,8 @@
 use crate::{
     audio_facts::is_reference_wav,
-    audio_import::{read_selection, read_selection_with_limit},
+    audio_import::{read_selection, read_selection_with_limit, AudioSelection},
     db::Database,
-    error::{message, Result},
+    error::{message, Error, Result},
     state::AppState,
     types::GenerateRequest,
 };
@@ -83,17 +83,25 @@ pub(crate) fn prepare_remix(db: &Database, request: &mut GenerateRequest) -> Res
             .audio_path()
             .filter(|_| song.status == "done")
             .ok_or_else(|| message("mulacover_reference_missing"))?;
-        let audio = read_selection_with_limit(Path::new(path), MAX_REMIX_BYTES)?;
-        let duration = remix_duration(
-            crate::audio_facts::duration(&audio.data)
-                .map_err(|_| message("mulacover_reference_format"))?,
-        )?;
+        let (audio, duration) = read_remix_source(Path::new(path))?;
         (stage(&db.root, audio.name, &audio.data)?.id, duration)
     };
     request.reference_audio = Some(id);
     request.duration = duration;
     request.ignore_recommended_duration = false;
     Ok(())
+}
+
+fn read_remix_source(path: &Path) -> Result<(AudioSelection, f64)> {
+    let audio = read_selection_with_limit(path, MAX_REMIX_BYTES).map_err(|error| match error {
+        Error::Message(code) if code == "audio_size" => message("remix_source_size"),
+        error => error,
+    })?;
+    let duration = remix_duration(
+        crate::audio_facts::duration(&audio.data)
+            .map_err(|_| message("mulacover_reference_format"))?,
+    )?;
+    Ok((audio, duration))
 }
 
 fn remix_duration(seconds: f64) -> Result<f64> {
@@ -109,6 +117,7 @@ pub async fn pick_reference_audio(
     app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
     title: String,
+    remix: Option<bool>,
 ) -> Result<Option<ReferenceAudio>> {
     let root = state.db.root.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -124,7 +133,11 @@ pub async fn pick_reference_audio(
             return Ok(None);
         };
         let path = chosen.into_path().map_err(|_| message("audio_read"))?;
-        let audio = read_selection(&path)?;
+        let audio = if remix.unwrap_or(false) {
+            read_remix_source(&path)?.0
+        } else {
+            read_selection(&path)?
+        };
         stage(&root, audio.name, &audio.data).map(Some)
     })
     .await
@@ -170,6 +183,26 @@ mod tests {
         let mut wrong = wav();
         wrong[20] = 3;
         assert!(stage(root.path(), "float.wav".into(), &wrong).is_err());
+    }
+
+    #[test]
+    fn remix_accepts_a_valid_wav_larger_than_the_standard_reference_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("stereo.wav");
+        let bytes = 64 * 1024 * 1024_u32;
+        let mut wave = std::fs::File::create(&path).unwrap();
+        wave.write_all(b"RIFF").unwrap();
+        wave.write_all(&(bytes + 36).to_le_bytes()).unwrap();
+        wave.write_all(b"WAVEfmt \x10\0\0\0\x01\0\x02\0").unwrap();
+        wave.write_all(&48_000_u32.to_le_bytes()).unwrap();
+        wave.write_all(&192_000_u32.to_le_bytes()).unwrap();
+        wave.write_all(b"\x04\0\x10\0data").unwrap();
+        wave.write_all(&bytes.to_le_bytes()).unwrap();
+        wave.set_len(u64::from(bytes) + 44).unwrap();
+        drop(wave);
+        assert_eq!(read_selection(&path).unwrap_err().to_string(), "audio_size");
+        let (_, duration) = read_remix_source(&path).unwrap();
+        assert_eq!(duration, f64::from(bytes) / 192_000.0);
     }
 
     #[test]

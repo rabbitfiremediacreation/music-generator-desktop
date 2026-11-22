@@ -2,7 +2,7 @@ use super::mix_schema::mix;
 use crate::{audio_export::AudioFormat, mcp::tool};
 use serde_json::{json, Value};
 
-fn id() -> Value {
+pub(super) fn id() -> Value {
     json!({"type":"string","minLength":1,"maxLength":200})
 }
 

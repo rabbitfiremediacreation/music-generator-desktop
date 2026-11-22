@@ -492,10 +492,7 @@ impl Render<'_> {
                         f64::from(sample_value(&sample[4..])?),
                     ];
                     if let (Some(track), Some(strip)) = (*controls, strip.as_mut()) {
-                        strip.process(
-                            &mut pair,
-                            envelope(track, frame, self.mix.first, self.mix.end),
-                        );
+                        strip.process(&mut pair, envelope(track, frame, self.first, self.end));
                     }
                     if dry {
                         target[0] += pair[0];
@@ -545,6 +542,55 @@ mod tests {
                 file.write_all(&value.to_le_bytes()).unwrap();
             }
         }
+    }
+
+    #[test]
+    fn full_project_render_applies_fades_at_render_bounds_even_with_a_trimmed_mix() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.wav");
+        let output = root.path().join("context.wav");
+        let frames = 12;
+        sample_wave(&source, frames, [0.5; 2]);
+        let track = Track {
+            fade_in: 2.0 / f64::from(RATE),
+            fade_out: 2.0 / f64::from(RATE),
+            ..Track::new("drums")
+        };
+        let mix: Mix = serde_json::from_value(serde_json::json!({
+            "tracks": [&track], "master_db": 0, "first": 3, "end": 8, "looping": true
+        }))
+        .unwrap();
+        let render = Render {
+            tracks: &[RenderTrack {
+                path: &source,
+                controls: Some(&track),
+            }],
+            frames,
+            first: 0,
+            end: frames,
+            prefix: 0,
+            mix: &mix,
+            master: true,
+            format: WaveFormat::Float32,
+        };
+        assert_eq!(
+            render
+                .write(&output, &CancellationToken::new(), |_| {})
+                .unwrap(),
+            0.5
+        );
+        let mut wave = StereoWave::open(&output, frames).unwrap();
+        wave.seek(0).unwrap();
+        let mut bytes = [0; 96];
+        wave.read(&mut bytes).unwrap();
+        let left: Vec<_> = bytes
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|frame| sample_value(&frame[..4]).unwrap())
+            .collect();
+        assert_eq!(&left[..3], &[0.0, 0.25, 0.5]);
+        assert_eq!(&left[9..], &[0.5, 0.25, 0.0]);
     }
 
     #[test]

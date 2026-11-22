@@ -11,3 +11,5 @@ MUSIC_GENERATOR_MCP_TEST_TRANSCRIPT=/tmp/music-generator-mcp-transcript.json \
 ```
 
 Additional tests exercise actual loopback HTTP requests (authentication, legacy and modern negotiation, routing, body size), the console stdio bridge as a child process, CPU admission, imported vocal variants, cancellation races, pagination, scoped background operations and export publication. See [the setup guide](../../mcp.md) for supported features and remaining native setup requirements.
+
+`stem-restoration.png` shows the scan, audition and repair results from the server test `stem_restoration_scans_a_track_and_previews_the_replacement_before_saving`. The spectrum uses the actual before and after WAVs from an isolated project with a synthetic whistle. Set `MUSIC_GENERATOR_MCP_STEM_EVIDENCE` to an existing output directory when running that test to capture the responses and WAVs.

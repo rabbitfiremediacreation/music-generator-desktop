@@ -1,4 +1,5 @@
 mod mix_schema;
+pub(super) mod production;
 mod schemas;
 mod setup;
 pub(super) use setup::select;
@@ -20,6 +21,10 @@ pub const NAMES: &[&str] = &[
     "cancel_stem_job",
     "retry_stem_job",
     "add_stem_track",
+    production::GENERATE,
+    production::SCAN,
+    production::PREVIEW,
+    production::REPAIR,
     "list_stem_mixes",
     "save_stem_mix",
     "export_stems",
@@ -29,7 +34,9 @@ pub const NAMES: &[&str] = &[
 ];
 
 pub fn tools() -> Vec<Value> {
-    schemas::tools()
+    let mut tools = schemas::tools();
+    tools.extend(production::tools());
+    tools
 }
 
 async fn separate(state: &AppState, args: Value) -> Result<Value> {

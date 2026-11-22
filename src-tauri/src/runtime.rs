@@ -33,7 +33,6 @@ impl OperationKind {
                 | Self::ModelActivation
                 | Self::Settings
                 | Self::Import
-                | Self::StemGeneration
         )
     }
 
@@ -184,7 +183,7 @@ impl Runtime {
         self.status.lock().unwrap().configured && !self.is_shutdown()
     }
 
-    /// Serialize queue admission with configuration admission without blocking an active song.
+    /// Serialize queue admission with configuration admission while generation can continue.
     pub fn enqueue<T>(&self, enqueue: impl FnOnce() -> Result<T>) -> Result<T> {
         let status = self.status.lock().unwrap();
         if !status.configured
@@ -213,6 +212,20 @@ impl Runtime {
         update()
     }
 
+    /// Keep the audio project available until the current generated layer is published.
+    pub(crate) fn remove_stem_project<T>(&self, remove: impl FnOnce() -> Result<T>) -> Result<T> {
+        let status = self.status.lock().unwrap();
+        self.ensure_update_allowed(&status)?;
+        if status
+            .active
+            .as_ref()
+            .is_some_and(|active| active.kind == OperationKind::StemGeneration)
+        {
+            return Err(message("stem_project_generation_busy"));
+        }
+        remove()
+    }
+
     fn ensure_update_allowed(&self, status: &Status) -> Result<()> {
         if self.is_shutdown()
             || status
@@ -227,6 +240,12 @@ impl Runtime {
 
     pub fn is_busy(&self) -> bool {
         self.status.lock().unwrap().active.is_some()
+    }
+
+    /// Include background transfers when deciding whether it is safe to close the app.
+    pub(crate) fn has_active_work(&self) -> bool {
+        let status = self.status.lock().unwrap();
+        status.active.is_some() || !status.transfers.is_empty()
     }
     pub fn progress(&self) -> Option<JobProgress> {
         self.status

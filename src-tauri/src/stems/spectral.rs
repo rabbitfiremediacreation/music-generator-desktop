@@ -1,5 +1,6 @@
 mod effects;
 mod fft;
+mod preview_files;
 mod repair;
 mod suggest;
 mod whole;
@@ -12,14 +13,16 @@ use super::{
 };
 use crate::{
     error::{message, Result},
-    runtime::OperationKind,
     state::AppState,
 };
 use fft::{Transform, SIZE};
+pub(crate) use preview_files::write_audition;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
+use tokio_util::sync::CancellationToken;
 
 const MAX_FRAMES: u64 = 20 * RATE as u64;
+const AUDITION_CONTEXT: u64 = RATE as u64 / 4;
 const BIN_HZ: f64 = RATE as f64 / SIZE as f64;
 const MIN_HZ: f64 = 20.0;
 const MAX_HZ: f64 = RATE as f64 / 2.0;
@@ -35,7 +38,9 @@ pub struct Selection {
 
 #[derive(Deserialize)]
 pub struct RepairRequest {
+    #[serde(default)]
     first: u64,
+    #[serde(default)]
     end: u64,
     #[serde(default)]
     whole_track: bool,
@@ -81,11 +86,16 @@ pub fn preview(
     Ok(spectrogram(&audio, range))
 }
 
-pub fn scan(state: &AppState, id: &str, role: &str) -> Result<Vec<Selection>> {
+pub fn scan(
+    state: &AppState,
+    id: &str,
+    role: &str,
+    cancel: &CancellationToken,
+) -> Result<Vec<Selection>> {
     let job = jobs::get(state, id)?;
     let frames = job.complete()?.frames;
     let mut wave = StereoWave::open_project(&layer::audio_path(state, &job, role)?, frames)?;
-    suggest::scan(&mut wave, frames, &state.runtime.cancellation())
+    suggest::scan(&mut wave, frames, cancel)
 }
 
 pub fn audition(
@@ -93,31 +103,44 @@ pub fn audition(
     id: &str,
     role: &str,
     selection: &RepairRequest,
+    cancel: &CancellationToken,
 ) -> Result<Vec<u8>> {
     let job = jobs::get(state, id)?;
     let frames = job.complete()?.frames;
     validate_selection(selection, frames)?;
     let mut wave = StereoWave::open_project(&layer::audio_path(state, &job, role)?, frames)?;
-    repair::audition(&mut wave, frames, selection, &state.runtime.cancellation())
+    repair::audition(&mut wave, frames, selection, cancel)
 }
 
-pub fn apply(state: &AppState, id: &str, role: &str, selection: &RepairRequest) -> Result<Layer> {
-    let operation = state.runtime.try_begin(OperationKind::Import)?;
-    let cancel = operation.cancellation();
+pub fn apply(
+    state: &AppState,
+    id: &str,
+    role: &str,
+    selection: &RepairRequest,
+    cancel: &CancellationToken,
+) -> Result<Layer> {
     let job = jobs::get(state, id)?;
     let frames = job.complete()?.frames;
     if job.request.preview {
         return Err(message("stem_spectral_range"));
     }
-    validate_selection(selection, frames)?;
+    if selection.whole_track {
+        validate_processing(selection)?;
+    } else {
+        validate_selection(selection, frames)?;
+    }
     let mut wave = StereoWave::open_project(&layer::audio_path(state, &job, role)?, frames)?;
     let staging = LayerStaging::new(state, frames)?;
-    repair::render(&mut wave, &staging.audio(), frames, selection, &cancel)?;
-    staging.publish(state, id, &job.source.id, job.source.name, frames, &cancel)
+    repair::render(&mut wave, &staging.audio(), frames, selection, cancel)?;
+    staging.publish(state, id, &job.source.id, job.source.name, frames, cancel)
 }
 
 fn validate_selection(selection: &RepairRequest, frames: u64) -> Result<()> {
     validate_time(selection.first, selection.end, frames)?;
+    validate_processing(selection)
+}
+
+fn validate_processing(selection: &RepairRequest) -> Result<()> {
     let valid = match &selection.processing {
         Processing::Effect { effect } => effect.valid(),
         Processing::Attenuate {

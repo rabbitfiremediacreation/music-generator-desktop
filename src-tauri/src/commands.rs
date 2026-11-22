@@ -380,7 +380,7 @@ pub fn delete_folder(state: Desktop<'_>, app: AppHandle, id: String) -> Result<(
 #[tauri::command]
 pub fn queue(state: Desktop<'_>) -> Result<Value> {
     let mut queue = state.db.queue()?;
-    queue["active"] = json!(state.runtime.is_busy());
+    queue["active"] = json!(state.runtime.has_active_work());
     queue["progress"] = json!(state.runtime.progress());
     Ok(queue)
 }

@@ -9,7 +9,7 @@ use crate::{
     download::DownloadProgress,
     engine::progress::Progress,
     error::{message, Result},
-    runtime::{JobProgress, OperationKind},
+    runtime::{JobProgress, Operation},
     state::AppState,
     types::Settings,
 };
@@ -26,7 +26,7 @@ pub struct Request {
     pub mix: Mix,
 }
 
-const INSTRUMENTS: &[&str] = &[
+pub(crate) const INSTRUMENTS: &[&str] = &[
     "drums",
     "bass",
     "guitar",
@@ -88,9 +88,9 @@ pub async fn generate(
     state: &Arc<AppState>,
     project_id: &str,
     request: Request,
+    operation: Operation,
     progress: impl Fn(JobProgress),
 ) -> Result<Layer> {
-    let operation = state.runtime.try_begin(OperationKind::StemGeneration)?;
     let cancel = operation.cancellation();
     let job = jobs::get(state, project_id)?;
     let project = job.complete()?;

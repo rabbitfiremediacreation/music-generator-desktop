@@ -230,7 +230,8 @@ pub async fn stem_generate_track(
     request: model_layer::Request,
     progress: tauri::ipc::Channel<JobProgress>,
 ) -> Result<layer::Layer> {
-    let outcome = model_layer::generate(state.inner(), &id, request, |update| {
+    let operation = state.runtime.try_begin(OperationKind::StemGeneration)?;
+    let outcome = model_layer::generate(state.inner(), &id, request, operation, |update| {
         let _ = progress.send(update);
     })
     .await;
@@ -266,7 +267,8 @@ pub async fn stem_spectral_scan(
     role: String,
 ) -> Result<Vec<spectral::Selection>> {
     let state = state.inner().clone();
-    tokio::task::spawn_blocking(move || spectral::scan(&state, &id, &role))
+    let cancel = state.runtime.cancellation();
+    tokio::task::spawn_blocking(move || spectral::scan(&state, &id, &role, &cancel))
         .await
         .map_err(|_| message("stem_spectral_failed"))?
 }
@@ -279,7 +281,8 @@ pub async fn stem_spectral_audition(
     selection: spectral::RepairRequest,
 ) -> Result<tauri::ipc::Response> {
     let state = state.inner().clone();
-    tokio::task::spawn_blocking(move || spectral::audition(&state, &id, &role, &selection))
+    let cancel = state.runtime.cancellation();
+    tokio::task::spawn_blocking(move || spectral::audition(&state, &id, &role, &selection, &cancel))
         .await
         .map_err(|_| message("stem_spectral_failed"))?
         .map(tauri::ipc::Response::new)
@@ -293,9 +296,12 @@ pub async fn stem_repair_spectrum(
     selection: spectral::RepairRequest,
 ) -> Result<layer::Layer> {
     let state = state.inner().clone();
-    tokio::task::spawn_blocking(move || spectral::apply(&state, &id, &role, &selection))
-        .await
-        .map_err(|_| message("stem_spectral_failed"))?
+    tokio::task::spawn_blocking(move || {
+        let operation = state.runtime.try_begin(OperationKind::Import)?;
+        spectral::apply(&state, &id, &role, &selection, &operation.cancellation())
+    })
+    .await
+    .map_err(|_| message("stem_spectral_failed"))?
 }
 
 #[tauri::command]

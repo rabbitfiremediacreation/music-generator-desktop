@@ -9,7 +9,7 @@ pub(super) fn remove_project(state: &AppState, id: &str) -> Result<()> {
     if !valid_id(id) {
         return Err(message("stem_invalid_id"));
     }
-    let assets = state.runtime.update_preferences(|| {
+    let assets = state.runtime.remove_stem_project(|| {
         let mut con = state.db.lock();
         let tx = con.transaction()?;
         let busy: bool = tx.query_row(

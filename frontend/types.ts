@@ -70,6 +70,7 @@ export interface Queue { progress: JobProgress | null; running: { id: string; ca
 
 export interface WorkJob {
   id: string; caption: string; title?: string | null; status: "queued" | "running"; kind: "song" | "separation" | "export" | "stem_generation";
+  progress?: number | null;
 }
 export interface QueuedDownload {
   id: string; file: string; phase: "queued" | "downloading" | "verifying" | "done" | "cancelled" | "error";
