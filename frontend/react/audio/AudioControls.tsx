@@ -78,16 +78,17 @@ export function AudioControls({ selection, onAnalysis, enabled = true, blocked =
   const fileLabel = referencePicker?.label ?? t("dialog_audio_import");
   const disabledHint = unavailableHint ?? t("audio_analysis_unavailable");
   return <>
-    <button type="button" id="dropzone" className={`logo-wrap ${drag ? "drag" : ""} ${message.state || ""}`} disabled={!enabled || blocked}
-      aria-label={t("drop_aria")} title={enabled ? t("drop_title") : disabledHint} onClick={pickForAnalysis}
-      onDragEnter={event => { event.preventDefault(); setDrag(true); }} onDragOver={event => { event.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDragEnd={() => setDrag(false)}
+    <div id="dropzone" className={`logo-wrap ${canAnalyzeFile && drag ? "drag" : ""} ${message.state || ""}`}
+      title={canAnalyzeFile ? t("drop_title") : undefined}
+      onDragOver={event => { event.preventDefault(); if (canAnalyzeFile) setDrag(true); }}
+      onDragLeave={() => setDrag(false)} onDragEnd={() => setDrag(false)}
       onDrop={event => { event.preventDefault(); setDrag(false); if (canAnalyzeFile) void analyze(event.dataTransfer.files[0]); }}>
       <WaveLogo className="logo" active={generating} />
       <span className={`dz-bubble ${text ? "show" : ""}`} role="status" aria-live="polite">
         {text}
         {message.state === "busy" && <progress className="song-activity-meter" aria-label={text} />}
       </span>
-    </button>
+    </div>
     <div className="studio-audio-actions">
       <button type="button" id="recBtn" className={`rec ${recorder.active ? "on" : ""} ${recorder.busy || analysis.isPending ? "busy" : ""}`} style={recorder.active ? { "--p": Math.min(1, recorder.seconds / 30) } as CSSProperties : undefined} aria-pressed={recorder.active} aria-label={t("rec_aria")} title={enabled ? t("rec_aria") : disabledHint} disabled={!enabled || recorder.busy || analysis.isPending}
         onPointerDown={event => { if (event.button === 0) void recorder.start(); }}
@@ -96,13 +97,14 @@ export function AudioControls({ selection, onAnalysis, enabled = true, blocked =
         onClick={event => { if (event.detail === 0) recorder.toggle(); }} onContextMenu={event => event.preventDefault()}>
         <svg className="rec-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" /></svg><span className="rec-time" aria-hidden="true">{recorder.active ? recorder.seconds : ""}</span>
       </button>
-      <button type="button" className={`rec reference-pick${referencePicker?.selected ? " has-reference" : ""}${!referencePicker && analysis.isPending ? " busy" : ""}`}
-        aria-label={fileLabel} title={referencePicker || enabled ? fileLabel : disabledHint}
+      <button type="button" className={`rec audio-file-pick${referencePicker?.selected ? " has-reference" : ""}${!referencePicker && analysis.isPending ? " busy" : ""}`}
+        title={!referencePicker && !enabled ? disabledHint : undefined}
         disabled={referencePicker ? blocked || referencePicker.disabled : !canAnalyzeFile}
         aria-describedby={referencePicker?.descriptionId} onClick={referencePicker?.pick ?? pickForAnalysis}>
         <svg className="rec-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10zM13 3v7h7M7 15h2l1-2 2 4 2-3 1 1h2" />
         </svg>
+        {fileLabel}
       </button>
     </div>
   </>;
