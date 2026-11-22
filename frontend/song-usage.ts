@@ -5,7 +5,7 @@ import type { Song } from "./types";
 
 const modelSourceRoles = ["official", "weights", "checkpoint", "weights_codec", "mimetic_weights_vae"];
 const aceStepSources = [
-  "https://github.com/ace-step/ACE-Step-1.5#-license--disclaimer",
+  catalog.ace_step_terms.policy_url,
   "https://huggingface.co/ACE-Step/Ace-Step1.5#key-features",
   "https://huggingface.co/spaces/ACE-Step/Ace-Step-v1.5/blob/cd892b3afc8348027b61f8a60c1dc96d919563a6/LICENSE",
   "https://github.com/ace-step/ACE-Step-1.5/discussions/1256",

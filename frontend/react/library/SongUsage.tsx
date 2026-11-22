@@ -1,7 +1,7 @@
 import { audioFormats, type AudioFormat } from "../../audio-formats";
 import type { songUsage } from "../../song-usage";
 import { useI18n } from "../i18n";
-import { ProfileLink } from "../models/ModelProfileDetails";
+import { ProfileLink } from "../models/ProfileLink";
 import { Dialog } from "../ui";
 import "./song-usage-i18n";
 

@@ -13,6 +13,7 @@
       { "url": "https://www.nvidia.com/Download/index.aspx" },
       { "url": "https://huggingface.co/**" },
       { "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      { "url": "https://creativecommons.org/licenses/by/4.0/" },
       { "url": "https://creativecommons.org/licenses/by-nc/4.0/" },
       { "url": "https://www.gnu.org/licenses/gpl-3.0.html" },
       { "url": "https://opensource.org/license/mit" },

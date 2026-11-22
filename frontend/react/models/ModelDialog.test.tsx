@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { setLang } from "../../i18n.js";
 import { profileKey } from "../../creator-models";
 import type { ModelCatalog } from "../../types";
@@ -332,6 +333,12 @@ it("discloses MuLaCover source pins and noncommercial output terms before acquis
   const dialog = within(await open());
   expect(dialog.queryByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeNull();
   fireEvent.click(await dialog.findByRole("button", { name: "MuLaCover" }));
+  const action = dialog.getByRole("button", { name: "Herunterladen und verwenden" });
+  expect(action).toHaveAccessibleDescription(/Lizenz der Modellgewichte.*CC BY-NC 4.0.*Nur für nichtkommerzielle Nutzung.*Erzeugte Musik.*schriftliche Genehmigung von MuLa Labs/);
+  const terms = dialog.getByRole("link", { name: "Nutzungsbedingungen" });
+  expect(terms).toBeVisible();
+  expect(terms.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(terms).toHaveAttribute("href", "https://huggingface.co/HeartMuLa/MuLaCover/blob/0f5ca612a41134738a14a28f95ed80bfa9b52adc/MODEL_LICENSE");
   expandSources(dialog);
   expect(dialog.getByText(/Erzeugte Musik darf nur nichtkommerziell/)).toBeTruthy();
   for (const source of ["HeartMuLa/MuLaCover", "HeartMuLa/HeartCodec-oss-20260123", "Qwen/Qwen3-Embedding-0.6B"]) {
@@ -341,6 +348,36 @@ it("discloses MuLaCover source pins and noncommercial output terms before acquis
   expect(dialog.getByRole("link", { name: "music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition" }).getAttribute("href")).toContain("https://github.com/");
   expect((dialog.getByRole("button", { name: "Herunterladen und verwenden" }) as HTMLButtonElement).disabled).toBe(false);
   expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("shows the ACE-Step weight licenses and output guidance before the standard model download", async () => {
+  const catalog = structuredClone(catalogFixture);
+  catalog.models = catalog.models.map(model => ({ ...model, verified: false, present: false }));
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  const download = await dialog.findByRole("button", { name: "Herunterladen und verwenden" });
+  expect(download).toHaveAccessibleDescription(/Lizenz der Modellgewichte.*MIT.*Apache-2.0.*Erzeugte Musik.*Rechte für eine Veröffentlichung separat/);
+  expect(dialog.getByRole("link", { name: "Lizenztext MIT" })).toBeVisible();
+  expect(ipc.invoke.mock.calls.some(([command]) => command === "use_models")).toBe(false);
+});
+
+it("updates license links for the selected HeartMuLa quantization and model family", async () => {
+  const catalog = catalogWithHeartMuLa();
+  const invoke = ipc.invoke.getMockImplementation()!;
+  ipc.invoke.mockImplementation((name, args) => name === "model_catalog" ? Promise.resolve(catalog) : invoke(name, args));
+  mountControls();
+  const dialog = within(await open());
+  fireEvent.click(await dialog.findByRole("button", { name: "HeartMuLa 3B Happy New Year" }));
+  const weightLicense = () => dialog.getByRole("link", { name: "Lizenztext Apache-2.0" });
+  fireEvent.click(dialog.getByRole("radio", { name: /^F32/ }));
+  expect(weightLicense()).toHaveAttribute("href", expect.stringContaining("HeartMuLa/HeartMuLa-oss-3B-happy-new-year"));
+  fireEvent.click(dialog.getByRole("radio", { name: /^Q8_0/ }));
+  expect(weightLicense()).toHaveAttribute("href", expect.stringContaining("themindstudio/HeartMuLa-GGUF"));
+  fireEvent.click(dialog.getByRole("button", { name: "SFT" }));
+  expect(weightLicense()).toHaveAttribute("href", "https://www.apache.org/licenses/LICENSE-2.0");
+  expect(dialog.getByRole("link", { name: "Lizenztext MIT" })).toBeVisible();
 });
 
 it("does not expose advanced models when an old catalog arrives after Expert Mode was disabled", async () => {

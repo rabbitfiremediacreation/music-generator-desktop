@@ -1,17 +1,11 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useId } from "react";
 import type { CatalogProfile, ProfilePlatform } from "../../types";
 import { useI18n } from "../i18n";
-
-export function ProfileLink({ url, children }: { url: string; children: string }) {
-  return <a href={url} onClick={event => { event.preventDefault(); void openUrl(url).catch(() => {}); }}>{children}</a>;
-}
+import { ProfileLink } from "./ProfileLink";
 
 export function ModelProfileDetails({ profile, bytes, total, folder }: { profile: CatalogProfile; bytes: (value: number) => string; total: number; folder?: string }) {
   const { t, language } = useI18n();
-  const isYue2 = profile.selection.provider === "yue2";
-  const usage = (key: "model_use" | "redistribution" | "outputs") =>
-    isYue2 && language === "de" ? t(`yue2_usage_${key}`) : t(profile.usage[key]);
+  const redistribution = profile.selection.provider === "yue2" && language === "de" ? "yue2_usage_redistribution" : profile.usage.redistribution;
   const platforms = (targets: ProfilePlatform[]) => <ul>{targets.map(platform => <li key={`${platform.os}/${platform.arch}/${platform.backend}`}>
     {`${platform.os} · ${platform.arch} · ${platform.backend}`}
     {platform.minimum_ram_bytes > 0 && ` · RAM ≥ ${bytes(platform.minimum_ram_bytes)}`}
@@ -21,11 +15,6 @@ export function ModelProfileDetails({ profile, bytes, total, folder }: { profile
   return <details className="model-picker-disclosure model-profile-details">
     <summary>{t("provider_license_usage")}</summary>
     <dl>
-      <div><dt>{t("provider_model_use")}</dt><dd>
-        {usage("model_use")}
-        {profile.usage.policy_url && !profile.usage.noncommercial_evaluation && <> · <ProfileLink url={profile.usage.policy_url}>{t(isYue2 ? "yue2_usage_policy" : "provider_usage_policy")}</ProfileLink></>}
-      </dd></div>
-      <div><dt>{t("provider_outputs")}</dt><dd>{usage("outputs")}{profile.usage.policy_url && profile.usage.noncommercial_evaluation && <> · <ProfileLink url={profile.usage.policy_url}>{t("provider_publisher_notes")}</ProfileLink></>}</dd></div>
       <div><dt>{t("provider_runtime")}</dt><dd><ProfileLink url={profile.runtime.source}>{profile.runtime.name}</ProfileLink>{" "}<code>{profile.runtime.revision}</code> · <ProfileLink url={profile.runtime.license_url}>{profile.runtime.license}</ProfileLink></dd></div>
       {!!profile.runtime.components?.length && <div><dt>{t("provider_runtime_components")}</dt><dd>
         <ul>{profile.runtime.components.map(component => <li key={component.name}>
@@ -42,7 +31,7 @@ export function ModelProfileDetails({ profile, bytes, total, folder }: { profile
           {source.gated && <> · <ProfileLink url={`https://huggingface.co/${source.repository}`}>{t("provider_review_download_terms")}</ProfileLink></>}
         </dd>
       </div>)}
-      <div><dt>{t("provider_redistribution")}</dt><dd>{usage("redistribution")}</dd></div>
+      <div><dt>{t("provider_redistribution")}</dt><dd>{t(redistribution)}</dd></div>
       <div><dt>{t("provider_acquisition")}</dt><dd>{t(profile.acquisition === "manual" ? "provider_manual_hint" : "provider_download_hint")}</dd></div>
       {folder && <div><dt>{t("provider_model_folder")}</dt><dd><code>{folder}</code></dd></div>}
       {total > 0 && <div><dt>{t(profile.acquisition === "manual" ? "browser_size" : "provider_total_download")}</dt><dd>{bytes(total)}</dd></div>}
