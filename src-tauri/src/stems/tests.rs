@@ -62,8 +62,11 @@ fn verify_reconstruction(root: &Path, job: &jobs::Job, profile: &model::Profile)
         let (_, offset) =
             crate::audio_facts::float_data(&mut std::io::Cursor::new(&bytes)).unwrap();
         bytes[offset as usize..][..project.frames as usize * 8]
-            .chunks_exact(4)
-            .map(|sample| f32::from_le_bytes(sample.try_into().unwrap()))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .copied()
+            .map(f32::from_le_bytes)
             .collect::<Vec<_>>()
     };
     let native: Vec<_> = profile.roles.iter().map(|role| samples(role)).collect();
