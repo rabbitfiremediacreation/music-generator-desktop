@@ -7,6 +7,7 @@ import { GenerationProgress, WaveLogo } from "../../GenerationActivity";
 import { exportSong } from "../../exports";
 import { songErrorKey } from "../../song-errors";
 import { generationSeconds } from "../../song-timing";
+import { songModel } from "../../song-model";
 import { audioTime, songDuration, songDurationWarning, songIterations, songMachineGeneratedBy, songStreamMetrics, songWavFormat } from "../../song-result";
 import { songUsage } from "../../song-usage";
 import type { Folder, JobProgress, ModelSelection, Song } from "../../types";
@@ -74,6 +75,10 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
   const runtime = typeof meta.runtime === "string" ? meta.runtime : null;
   const revision = typeof meta.runtime_revision === "string" ? meta.runtime_revision : null;
   const generatedBy = songMachineGeneratedBy(song);
+  const model = songModel(song);
+  const modelText = model.name
+    ? t(model.hasVariant ? "result_music_model" : "result_music_model_partial", model.name)
+    : t("result_music_model_unknown");
   const canExport = song.status === "done" && !song.audio_missing;
   const usage = !midi && song.status === "done" ? songUsage(song, language, t) : null;
   const stream = song.status === "done" ? songStreamMetrics(song) : null;
@@ -92,6 +97,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
         onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();commit();}if(event.key==="Escape"){event.preventDefault();setEditing(false);}}}/> :
         <h3 className="m-0"><button type="button" className="t song-title" aria-label={`${label} · ${t("rename")}`} title={t("rename")} onClick={()=>{setTitle(song.title||"");setEditing(true);}}>{label}</button></h3>}
       <div className="m" title={midi ? undefined : t("meta_tip")}>{info}</div>
+      <div className="m result-audio" title={model.revision ? t("result_music_model_revision", model.revision) : undefined}>{modelText}</div>
       {(runtime || wavLabel) && <div className="m result-audio">{runtime && <span title={revision || undefined}>{runtime}{revision && ` ${revision.slice(0, 8)}`}</span>}{runtime && wavLabel && " · "}{wavLabel}</div>}
       {generatedBy && <div className="generated-disclosure" id={publicDisclosureId} role="note"><strong>{t("result_machine_generated", generatedBy)}</strong>{canExport && ` · ${t("result_public_disclosure")}`}</div>}
       {usage && <SongUsageDetails usage={usage} />}

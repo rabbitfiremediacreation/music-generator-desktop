@@ -59,6 +59,53 @@ function mount(withPlayer=false, selection: ModelSelection | null = null) {
   return Object.assign(client, { switchModel: (model: ModelSelection) => view.rerender(tree(model)) });
 }
 
+it("shows each song's saved model and variant after reopening with another active profile", async () => {
+  const ace = { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "acestep-5Hz-lm-4B-Q8_0.gguf" };
+  const yue = { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" };
+  songs[0].params = { model_selection: ace };
+  songs.push({ ...songs[0], id: "yue", title: "Another song", params: { model_selection: yue } });
+
+  const expectSavedModels = async () => {
+    const first = within(await screen.findByRole("article", { name: "A song A" }));
+    const second = within(screen.getByRole("article", { name: "Another song A" }));
+    expect(first.getByText("Music model: ACE-Step 1.5 SFT · Q8_0 · LM 4B-Q8_0")).toBeTruthy();
+    expect(second.getByText("Music model: YuE2 3B · Q5_K_M")).toBeTruthy();
+  };
+  const library = mount(false, ace);
+  await expectSavedModels();
+  library.switchModel(yue);
+  await expectSavedModels();
+  cleanup();
+  library.clear();
+  mount(false, yue);
+  await expectSavedModels();
+
+  expect(mocks.invoke.mock.calls.filter(([name]) => name === "list_song_page")).toHaveLength(2);
+  expect(mocks.invoke.mock.calls.some(([name]) => name === "generate")).toBe(false);
+});
+
+it("uses only recorded origins when old songs lack a saved model selection", async () => {
+  setLang("de");
+  const legacy = songs[0];
+  legacy.engine = "acestep_cpp";
+  songs.push(
+    { ...legacy, id: "profile", title: "Profil", engine: null, params: { generation_profile: { provider: "heartmula", model_revision: "saved-pin" } } },
+    { ...legacy, id: "unknown", title: "Ohne Herkunft", engine: null },
+  );
+  mount(false, { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" });
+
+  expect(await screen.findByText("Musikmodell: ACE-Step · Variante unbekannt")).toBeTruthy();
+  expect(screen.getByText("Musikmodell: HeartMuLa · Variante unbekannt")).toHaveProperty("title", "Modellrevision: saved-pin");
+  expect(within(screen.getByRole("article", { name: "Ohne Herkunft A" })).getByText("Musikmodell unbekannt")).toBeTruthy();
+  expect(screen.queryByText(/YuE2/)).toBeNull();
+});
+
+it("keeps the saved variant visible when it no longer exists in the model catalog", async () => {
+  songs[0].params = { model_selection: { provider: "heartmula", synthesis: "heartmula-retired-q5_0", language: "" } };
+  mount();
+  expect(await screen.findByText("Music model: HeartMuLa · heartmula-retired-q5_0")).toBeTruthy();
+});
+
 function seedPages(count: number) {
   const song = songs[0];
   songs = Array.from({length:count}, (_,index) => ({
