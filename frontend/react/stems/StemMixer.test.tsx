@@ -18,6 +18,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 afterEach(cleanup);
 
+// Multi-step flows through the full mixer can exceed Vitest's default on macOS Intel CI.
+const mixerFlowTimeout = 15_000;
 const roles = ["drums", "bass", "other", "vocals", "guitar", "piano", "layer_1", "layer_2"];
 const job: StemJob = {
   id: "console", status: "done", phase: "done", error: null, created_at: "", finished_at: "",
@@ -242,7 +244,7 @@ it("deletes a separated track from the mixer and waveform lanes, then saves the 
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("stem_save_mix", expect.objectContaining({ mix: expected })));
 });
 
-it("saves the effect and channel strip settings for a return independently of its send", async () => {
+it("saves the effect and channel strip settings for a return independently of its send", { timeout: mixerFlowTimeout }, async () => {
   setLang("en");
   mount([]);
   const drums = within(await screen.findByRole("region", { name: /Drums/ }));
@@ -346,7 +348,7 @@ it("defaults both individual stem exports to the mixer region and checks package
   }
 });
 
-it("marks results across the whole track and repairs a selected band as an undoable replacement", async () => {
+it("marks results across the whole track and repairs a selected band as an undoable replacement", { timeout: mixerFlowTimeout }, async () => {
   setLang("en");
   mount([], { ...job, project: { ...job.project!, frames: 30 * 44100 } });
   const drums = await screen.findByRole("region", { name: /Drums/ });
@@ -483,7 +485,7 @@ it("edits independent live EQ points and saves them with the mix without replaci
   expect(invoke).not.toHaveBeenCalledWith("stem_repair_spectrum", expect.anything());
 });
 
-it("groups one drag into one undo, keeps legacy gain, and saves the processed track selection", async () => {
+it("groups one drag into one undo, keeps legacy gain, and saves the processed track selection", { timeout: mixerFlowTimeout }, async () => {
   setLang("en");
   mount([{ id: "legacy", name: "Legacy mix", updated_at: "", mix: {
     tracks: roles.map(role => ({ role, name: role, gain_db: role === "drums" ? 9 : 0, pan: 0, mute: false, solo: false, fade_in: 0, fade_out: 0 })),
