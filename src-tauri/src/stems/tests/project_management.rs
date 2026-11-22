@@ -58,7 +58,7 @@ fn publishes_repaired_audio_as_a_project_layer_and_preserves_the_source() {
     assert_ne!(output[start..end], original[start..end]);
     assert_eq!(output[end..], original[end..]);
     assert_eq!(audition.len(), frames as usize * 16);
-    for (index, sample) in audition.chunks_exact(16).enumerate() {
+    for (index, sample) in audition.as_chunks::<16>().0.iter().enumerate() {
         let offset = header_length + index * 8;
         assert_eq!(sample[..8], original[offset..offset + 8]);
         assert_eq!(sample[8..], output[offset..offset + 8]);

@@ -53,7 +53,7 @@ fn audition_whole(
     let mut dry = vec![0; (excerpt.end - excerpt.start) as usize * 8];
     wave.seek(excerpt.start)?;
     wave.read(&mut dry)?;
-    let mut original = dry.chunks_exact(8);
+    let mut original = dry.as_chunks::<8>().0.iter();
     let mut paired = Vec::with_capacity(dry.len() * 2);
     whole::process(wave, frames, excerpt, processing, cancel, |audio| {
         for frame in audio {
@@ -155,7 +155,7 @@ fn attenuate(
 ) -> Result<()> {
     let transform = Transform::new();
     let mut spectrum = [[0.0; 2]; SIZE];
-    let mut difference = vec![[0.0; 2]; range.len()];
+    let mut difference: [Vec<f64>; 2] = std::array::from_fn(|_| vec![0.0; range.len()]);
     let reduction = 10.0_f64.powf(-reduction_db / 20.0) - 1.0;
     let weights: [f64; SIZE] = std::array::from_fn(|bin| {
         let hz = bin.min(SIZE - bin) as f64 * BIN_HZ;
@@ -167,7 +167,7 @@ fn attenuate(
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        for channel in 0..2 {
+        for (channel, delta) in difference.iter_mut().enumerate() {
             transform.analyse(audio, start, channel, &mut spectrum);
             for ([real, imag], gain) in spectrum.iter_mut().zip(weights.iter()) {
                 *real *= gain;
@@ -179,17 +179,22 @@ fn attenuate(
             for frame in from..to {
                 let bin = (frame - start) as usize;
                 // Four periodic Hann windows squared sum to 1.5 at this hop size.
-                difference[frame as usize - range.start][channel] +=
+                delta[frame as usize - range.start] +=
                     spectrum[bin][0] * transform.window[bin] * (2.0 / 3.0);
             }
         }
     }
     let length = range.len();
     let fade = (length / 4).clamp(1, HOP);
-    for (index, (pair, delta)) in audio[range].iter_mut().zip(difference).enumerate() {
+    let [left, right] = difference;
+    for (index, (pair, (left, right))) in audio[range]
+        .iter_mut()
+        .zip(left.into_iter().zip(right))
+        .enumerate()
+    {
         let weight = index.min(length - 1 - index).min(fade) as f64 / fade as f64;
-        for channel in 0..2 {
-            pair[channel] = (f64::from(pair[channel]) + delta[channel] * weight) as f32;
+        for (sample, delta) in pair.iter_mut().zip([left, right]) {
+            *sample = (f64::from(*sample) + delta * weight) as f32;
         }
     }
     Ok(())
@@ -260,7 +265,7 @@ mod tests {
                 dry[beyond_preview..beyond_preview + 8]
             );
             assert_eq!(example.len(), (end - first + 2 * context) as usize * 16);
-            for (offset, pair) in example.chunks_exact(16).enumerate() {
+            for (offset, pair) in example.as_chunks::<16>().0.iter().enumerate() {
                 let start = header_length + ((first - context) as usize + offset) * 8;
                 assert_eq!(pair[..8], dry[start..start + 8]);
                 assert_eq!(pair[8..], wet[start..start + 8]);
@@ -328,7 +333,7 @@ mod tests {
             assert_eq!(&wet[end_byte..], &dry[end_byte..]);
             assert_ne!(&wet[start_byte..end_byte], &dry[start_byte..end_byte]);
             let clip_start = first - RATE as usize / 4;
-            for (index, pair) in excerpt.chunks_exact(16).enumerate() {
+            for (index, pair) in excerpt.as_chunks::<16>().0.iter().enumerate() {
                 let start = header_length + (clip_start + index) * 8;
                 assert_eq!(pair[..8], dry[start..start + 8]);
                 assert_eq!(pair[8..], wet[start..start + 8]);

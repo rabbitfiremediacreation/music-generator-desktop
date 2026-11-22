@@ -142,7 +142,10 @@ fn only_explicit_download_tools_advertise_network_side_effects() {
         let name = tool["name"].as_str().unwrap();
         assert_eq!(
             tool["annotations"]["openWorldHint"],
-            matches!(name, "install_models" | "download_title_model")
+            matches!(
+                name,
+                "install_models" | "download_title_model" | "set_stem_model"
+            )
         );
         if matches!(
             name,

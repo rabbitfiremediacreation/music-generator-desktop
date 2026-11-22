@@ -13,7 +13,7 @@ use crate::{
 use dsp::dynamic_eq::DynamicEqSettings;
 pub use dynamics::{CompressorMode, DynamicsSettings};
 use returns::{empty_sends, valid_send, FxReturn, FX_SLOTS};
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
@@ -258,6 +258,20 @@ pub fn versions(state: &AppState, project_id: &str) -> Result<Vec<Version>> {
         version.mix.validate(project)?;
     }
     Ok(versions)
+}
+
+/// Resolve a saved snapshot within its owning project, including versions outside the recent list.
+pub fn load(state: &AppState, project_id: &str, version_id: &str) -> Result<Mix> {
+    state
+        .db
+        .lock()
+        .query_row(
+            "SELECT data FROM stem_mixes WHERE project_id=?1 AND id=?2",
+            params![project_id, version_id],
+            |row| crate::db::parse_json(row.get(0)?),
+        )
+        .optional()?
+        .ok_or_else(|| message("stem_mix_missing"))
 }
 
 pub fn save(
@@ -865,7 +879,7 @@ mod tests {
             wave.seek(frames - 1).unwrap();
             let mut sample = [0; 8];
             wave.read(&mut sample).unwrap();
-            for (bytes, expected) in sample.chunks_exact(4).zip(expected) {
+            for (bytes, expected) in sample.as_chunks::<4>().0.iter().zip(expected) {
                 let actual = sample_value(bytes).unwrap();
                 assert!(
                     (actual - expected).abs() < 1e-6,

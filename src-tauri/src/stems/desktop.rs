@@ -43,7 +43,7 @@ pub async fn stem_check_update(state: Desktop<'_>, id: String) -> Result<model::
 }
 
 async fn transfer<T>(
-    state: &AppState,
+    state: &Arc<AppState>,
     app: &AppHandle,
     key: &str,
     run: impl AsyncFnOnce(tokio_util::sync::CancellationToken) -> Result<T>,

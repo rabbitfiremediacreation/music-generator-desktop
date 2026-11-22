@@ -157,7 +157,9 @@ fn read_window(
     wave.seek(offset)?;
     wave.read(&mut bytes)?;
     let audio = bytes
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|frame| Ok([sample_value(&frame[..4])?, sample_value(&frame[4..])?]))
         .collect::<Result<_>>()?;
     Ok((audio, (first - offset) as usize..(end - offset) as usize))

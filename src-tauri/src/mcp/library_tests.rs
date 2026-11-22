@@ -33,11 +33,20 @@ fn installed(state: &AppState) {
     settings.lm_model = "acestep-5Hz-lm-0.6B-Q8_0.gguf".into();
     state.db.save_settings(&settings).unwrap();
     state.restore_setup().unwrap();
+    verify_selections(state, &[catalog::Selection::from_settings(&settings)]);
+}
+
+fn verify_selections(state: &AppState, selections: &[catalog::Selection]) {
+    let settings = state.db.settings().unwrap();
     let root = Path::new(&settings.models_dir);
     std::fs::create_dir_all(root).unwrap();
     let mut entries = serde_json::Map::new();
-    for model in catalog::required(&catalog::Selection::from_settings(&settings)).unwrap() {
+    for model in selections
+        .iter()
+        .flat_map(|selection| catalog::required(selection).unwrap())
+    {
         let path = root.join(model.file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, b"verified model fixture").unwrap();
         let metadata = path.metadata().unwrap();
         entries.insert(
@@ -59,6 +68,69 @@ fn installed(state: &AppState) {
         json!({"entries": entries}).to_string(),
     )
     .unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn compact_catalog_selections_queue_distinct_jobs_without_switching_the_default() {
+    let (_root, state) = fixture();
+    installed(&state);
+    let current = catalog::Selection::from_settings(&state.db.settings().unwrap());
+    let alternate = catalog::Selection {
+        language: "acestep-5Hz-lm-1.7B-Q8_0.gguf".into(),
+        ..current.clone()
+    };
+    let midi = catalog::catalog()
+        .profiles
+        .into_iter()
+        .find(|profile| profile.selection.provider == "text2midi")
+        .unwrap();
+    verify_selections(
+        &state,
+        &[current.clone(), alternate.clone(), midi.selection.clone()],
+    );
+    let app = tauri::test::mock_app();
+    let server = crate::mcp::server::MusicServer::new(state.clone(), app.handle().clone());
+    let result = server
+        .invoke("list_models", json!({"view":"installed"}))
+        .await
+        .unwrap();
+    let catalog = &result.structured_content.unwrap()["result"];
+    assert_eq!(catalog["selection"], json!(current));
+    let profiles = catalog["profiles"].as_array().unwrap();
+    assert_eq!(profiles.len(), 3);
+    let midi_profile = profiles
+        .iter()
+        .find(|p| p["selection"] == json!(midi.selection))
+        .unwrap();
+    assert_eq!(midi_profile["output_kind"], "midi");
+    assert_eq!(midi_profile["available"], false);
+    assert!(midi_profile["unavailable_reason"].is_string());
+    for selection in [current.clone(), alternate] {
+        assert!(catalog["profiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["selection"] == json!(selection)));
+        let result = server
+            .invoke(
+                "generate_music",
+                json!({"model_selection":selection,
+            "prompt":"Piano","title":"Demo","variants":1,"inference_steps":8}),
+            )
+            .await
+            .unwrap();
+        let queued = result.structured_content.unwrap();
+        let id = queued["result"]["ids"][0].as_str().unwrap();
+        assert_eq!(
+            state.db.song(id).unwrap().params["model_selection"],
+            json!(selection)
+        );
+    }
+    assert_eq!(
+        catalog::Selection::from_settings(&state.db.settings().unwrap()),
+        current
+    );
 }
 
 #[test]

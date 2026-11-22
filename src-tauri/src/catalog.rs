@@ -144,6 +144,33 @@ pub fn ensure_allowed(selection: &Selection, expert_mode: bool) -> Result<()> {
 }
 
 impl Catalog {
+    fn compatible(&self, selection: &Selection, hardware: &Hardware) -> Result<bool> {
+        if let Some(profile) = self.profile(selection) {
+            return Ok(profile.platform(hardware).is_ok());
+        }
+        Ok(memory_bytes(&self.required(selection)?) <= hardware.ram_bytes)
+    }
+
+    pub(crate) fn validate_activation(
+        &self,
+        settings: &Settings,
+        selection: &Selection,
+        hardware: &Hardware,
+    ) -> Result<()> {
+        if !settings.setup_complete {
+            return Err(message("Complete the first-run assistant first"));
+        }
+        self.ensure_allowed(selection, settings.expert_mode, Some(hardware))?;
+        if !self.compatible(selection, hardware)?
+            && selection != &Selection::from_settings(settings)
+        {
+            return Err(message(
+                "This model combination exceeds the estimated RAM budget. Choose smaller models",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn ensure_allowed(
         &self,
         selection: &Selection,
@@ -300,16 +327,7 @@ pub fn validate_activation(
     selection: &Selection,
     hardware: &Hardware,
 ) -> Result<()> {
-    if !settings.setup_complete {
-        return Err(message("Complete the first-run assistant first"));
-    }
-    catalog().ensure_allowed(selection, settings.expert_mode, Some(hardware))?;
-    if !compatible(selection, hardware)? && selection != &Selection::from_settings(settings) {
-        return Err(message(
-            "This model combination exceeds the estimated RAM budget. Choose smaller models",
-        ));
-    }
-    Ok(())
+    catalog().validate_activation(settings, selection, hardware)
 }
 
 /// Activate verified local files only. Creator selection never downloads or repairs assets.
@@ -332,8 +350,7 @@ pub fn activate_cached_profile(
     db.save_settings(&settings)
 }
 
-/// Prepare and activate an isolated profile for engine acceptance tests.
-#[cfg(test)]
+/// Prepare a complete profile before activating it.
 pub async fn install_profile(
     catalog: &Catalog,
     db: &crate::db::Database,
@@ -395,7 +412,7 @@ pub(crate) async fn prepare_profile(
                 |source| (source.url(), Some(pinned.estimated_bytes)),
             );
             crate::download::fetch(
-                || crate::hugging_face_token::get(&client, &url, &db.root),
+                || crate::hugging_face_token::get(client, &url, &db.root),
                 bytes,
                 root,
                 &pinned,
@@ -466,7 +483,6 @@ async fn verify_imported_files(
     Ok(())
 }
 
-#[cfg(test)]
 fn activate_installed(
     db: &crate::db::Database,
     settings: &mut Settings,
@@ -526,11 +542,7 @@ pub fn restore_supported_profile(settings: &mut Settings) -> Result<()> {
 }
 
 pub fn compatible(selection: &Selection, hardware: &Hardware) -> Result<bool> {
-    let catalog = catalog();
-    if let Some(profile) = catalog.profile(selection) {
-        return Ok(profile.platform(hardware).is_ok());
-    }
-    Ok(memory_bytes(&catalog.required(selection)?) <= hardware.ram_bytes)
+    catalog().compatible(selection, hardware)
 }
 
 pub fn cached(selection: &Selection, folder: &Path, verifier: &ModelVerifier) -> Result<bool> {

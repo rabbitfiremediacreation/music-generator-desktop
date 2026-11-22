@@ -135,7 +135,9 @@ pub(super) fn align_generated(
         samples.clear();
         samples.extend(
             pcm[first as usize * 4..last as usize * 4]
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|frame| {
                     let left = i16::from_le_bytes([frame[0], frame[1]]);
                     let right = i16::from_le_bytes([frame[2], frame[3]]);

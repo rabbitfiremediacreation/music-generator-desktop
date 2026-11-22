@@ -1,7 +1,7 @@
 //! Local source separation, immutable audio projects, and non-destructive mixes.
 pub mod desktop;
 mod dsp;
-mod engine;
+pub(crate) mod engine;
 pub mod export;
 pub mod jobs;
 pub mod layer;

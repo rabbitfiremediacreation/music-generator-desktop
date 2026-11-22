@@ -60,7 +60,7 @@ WAV ist als 16 oder 24 Bit PCM sowie als 32 Bit Float möglich. Ausgaben unterst
 
 SQLite speichert Quell-Hash, Quellbereich, Engineversion, Modellrevision, Parameter, Ergebnisstatus, Spuren, Mischfassungen und Exportverlauf. Die zugehörigen Dateien liegen unter `stems/` im Anwendungsdatenverzeichnis. Projektordner in der Bibliothek dienen zur Ablage der Metadaten. Die Modelle liegen im konfigurierten Modellordner unter `stem-separation/`. Die gemeinsame Warteschlange verarbeitet Generierung, Trennung und Export nacheinander. Beim Neustart bleiben wartende Aufträge erhalten. Unterbrochene, fehlgeschlagene und abgebrochene Trennungen lassen sich in der Projektliste wiederholen oder entfernen. Beim nächsten App-Start werden nicht mehr referenzierte Importkopien freigegeben.
 
-Die gekoppelte Smartphone-Oberfläche startet Trennung für Bibliothekstitel, zeigt Aufträge, spielt Stems ab und lädt Exporte. Die authentifizierte API verwendet `/api/stems/` mit verwalteten Song-, Projekt- und Export-IDs. MCP stellt `list_stem_models`, `separate_song`, `list_stem_jobs`, `get_stem_job`, `cancel_stem_job`, Mischfassungen sowie die Exportoperationen bereit.
+Die gekoppelte Smartphone-Oberfläche startet Trennung für Bibliothekstitel, zeigt Aufträge, spielt Stems ab und lädt Exporte. Die authentifizierte API verwendet `/api/stems/` mit verwalteten Song-, Projekt- und Export-IDs. Über MCP lassen sich Trennmodelle einrichten, Ausschnitte von Songs oder lokalen Dateien trennen, Kanäle mischen und gespeicherte Fassungen exportieren. [MCP-Ablauf mit Beispielen](mcp.md#vom-song-zum-stem-mix)
 
 ## Prüfen
 
