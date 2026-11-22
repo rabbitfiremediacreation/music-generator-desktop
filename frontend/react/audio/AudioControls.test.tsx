@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n";
-import { t } from "../../i18n.js";
+import { setLang, t } from "../../i18n.js";
 import { AudioControls } from "./AudioControls";
 const mocks = vi.hoisted(() => ({ pickAndAnalyzeAudio: vi.fn(), analyze: vi.fn(), dialogDirectory: vi.fn(), remember: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
@@ -12,18 +12,22 @@ function mount(onAnalysis = vi.fn()) {
   const view = render(<QueryClientProvider client={new QueryClient()}><I18nProvider><AudioControls selection={null} onAnalysis={onAnalysis} /></I18nProvider></QueryClientProvider>);
   return { ...view, onAnalysis };
 }
-beforeEach(() => { vi.clearAllMocks(); mocks.dialogDirectory.mockResolvedValue("/audio"); });
+beforeEach(() => { vi.clearAllMocks(); setLang("en"); mocks.dialogDirectory.mockResolvedValue("/audio"); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-it("analyzes audio through the file button beside the microphone and shares the logo's dialog lock", async () => {
+it("opens the analysis dialog only from the file button beside the microphone", async () => {
   mocks.pickAndAnalyzeAudio.mockImplementation(async (_dir, _title, _filter, _selection, onSelected) => {
     onSelected({ name: "idea.wav", directory: "/chosen" });
     return { caption: "A calm song", bpm: 90 };
   });
   const { onAnalysis } = mount();
-  const file = screen.getByRole("button", { name: t("dialog_audio_import") });
-  const upload = screen.getByRole("button", { name: t("drop_aria") });
+  const file = screen.getByRole("button", { name: "Analyze audio file" });
+  const dropzone = screen.getByTitle(t("drop_title"));
+  expect(file.textContent).toBe("Analyze audio file");
+  expect(screen.getAllByRole("button")).toHaveLength(2);
   expect(file.previousElementSibling).toBe(screen.getByRole("button", { name: t("rec_aria") }));
-  fireEvent.click(file); fireEvent.click(upload);
+  fireEvent.click(dropzone);
+  expect(mocks.dialogDirectory).not.toHaveBeenCalled();
+  fireEvent.click(file);
   await waitFor(() => expect(onAnalysis).toHaveBeenCalledWith({ caption: "A calm song", bpm: 90 }, false));
   expect(mocks.pickAndAnalyzeAudio).toHaveBeenCalledTimes(1);
   expect(mocks.analyze).not.toHaveBeenCalled();

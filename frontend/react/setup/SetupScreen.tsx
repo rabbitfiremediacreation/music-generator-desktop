@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LANGS, type Language } from "../../locales";
 import { Switch } from "../../Switch";
 import { modelErrorText } from "../../expert-mode";
@@ -10,6 +10,7 @@ import { HardwareCard } from "./HardwareCard";
 import { CudaSetup } from "./CudaSetup";
 import { useSetup } from "./useSetup";
 import { PhoneAccessField } from "../settings/PhoneAccessField";
+import { ModelLicenseSummary } from "../models/ModelLicenseSummary";
 
 export interface SetupScreenProps {
   bootstrap: Bootstrap; onComplete: () => void; onBack?: () => void; onReady?: () => void;
@@ -18,6 +19,7 @@ export interface SetupScreenProps {
 
 export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }: SetupScreenProps) {
   const { language, setLanguage, t } = useI18n();
+  const licenseId = useId();
   const state = useSetup(bootstrap, onReady);
   const { draft, setDraft, request, setup, progress, stage } = state;
   const [error, setError] = useState<unknown>(null), [imported, setImported] = useState(false);
@@ -108,6 +110,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
         {(error || (!cancelled && setup.error) || state.cancel.error) && <p role="alert" className="setup-error">{errorText(error || state.cancel.error || setup.error)}</p>}
       </div>
       <footer className="setup-footer">
+        {step === 3 && !result && !busy && !state.unsupported && <ModelLicenseSummary id={licenseId} />}
         {busy && <div id="setupProgressArea"><progress id="setupProgress" max={1} value={!activeStage && activeProgress?.total ? activeProgress.downloaded / activeProgress.total : undefined} aria-label={t("picker_download")} /><p id="setupProgressText" role="status" aria-live="polite">{progressText}</p></div>}
         <div className="setup-actions">
           {!result && <div className="setup-back-actions">
@@ -115,7 +118,7 @@ export function SetupScreen({ bootstrap, onComplete, onBack, onReady, onImport }
             {bootstrap.needs_setup && bootstrap.optional_engines && <button className="sek" type="button" disabled={busy || !request.models_dir || !request.songs_dir} onClick={() => { setError(null); setup.mutate({ request, foldersOnly: true }); }}>{t("setup_without_engines")}</button>}
             {!bootstrap.needs_setup && onBack && <button id="setupBack" className="sek" type="button" disabled={busy} onClick={onBack}>{t("desktop_back")}</button>}
           </div>}
-          {result ? <button type="button" ref={enter} className="aktion big" onClick={onComplete}>{t("backend_enter_studio")}</button> : busy ? <button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button> : <button className="aktion big" type="submit" disabled={step === 1 ? pathsPending || invalidPaths : step === 2 ? cudaChecking : cannotStart}>{t(step < 3 ? "setup_next" : "desktop_start")}</button>}
+          {result ? <button type="button" ref={enter} className="aktion big" onClick={onComplete}>{t("backend_enter_studio")}</button> : busy ? <button className="sek" type="button" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t("cancel")}</button> : <button className="aktion big" type="submit" aria-describedby={step === 3 && !state.unsupported ? licenseId : undefined} disabled={step === 1 ? pathsPending || invalidPaths : step === 2 ? cudaChecking : cannotStart}>{t(step < 3 ? "setup_next" : "desktop_start")}</button>}
         </div>
       </footer>
     </form>

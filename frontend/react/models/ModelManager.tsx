@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { backend } from "../../backend";
 import { modelErrorText } from "../../expert-mode";
 import { profile } from "../../model-options";
@@ -9,6 +9,7 @@ import { ModelDownloadProgress } from "./ModelDownloadProgress";
 import { ModelBrowser } from "./ModelBrowser";
 import { ModelProfileFiles } from "./ModelProfileFiles";
 import { ModelProfileDetails } from "./ModelProfileDetails";
+import { ModelLicenseSummary } from "./ModelLicenseSummary";
 import { TitleModelCard } from "./TitleModelCard";
 import { useModelDialog } from "./useModelDialog";
 
@@ -21,6 +22,7 @@ export interface ModelManagerProps {
 
 export function ModelManager({ selection, currentSelection, selectionRevision, onUse, onOpenSettings, onOpenEngines, onRecommendedSteps, disabled = false, showTitleModel = true }: ModelManagerProps) {
   const { t, language } = useI18n();
+  const licenseId = useId();
   const state = useModelDialog(selection, selectionRevision, onUse);
   const { draft, busy } = state;
   const downloadBusy = busy && !state.adopt.isPending;
@@ -41,6 +43,7 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
   const bytes = (value: number) => `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GiB`;
   const selected = catalog && draft ? profile(catalog, draft) : null;
   const metadata = selected?.metadata;
+  const showLicense = !!metadata || draft?.provider === "ace-step";
   const manual = metadata?.acquisition === "manual";
   const yue2 = metadata?.selection.provider === "yue2";
   const evaluation = metadata?.usage.noncommercial_evaluation;
@@ -71,7 +74,8 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
   if (verifyOnly) actionLabel = selected?.filesVerified ? "provider_import_verified" : "provider_verify_only";
   else if (selected?.verified) actionLabel = evaluation ? "provider_evaluation_use" : "picker_use";
   else if (!manual && selected?.download) actionLabel = evaluation ? "provider_evaluation_download" : "picker_download_use";
-  const footer = catalog && selected && (selected.complete || canApply) && <>
+  const footer = catalog && selected && (selected.complete || canApply || metadata) && <>
+    {showLicense && <ModelLicenseSummary id={licenseId} profile={metadata} />}
     <div className="model-download-footer">
       <dl className="model-requirements">
         {selected.complete && <div><dt>{t("picker_memory")}</dt><dd>{bytes(selected.memory)}</dd></div>}
@@ -82,7 +86,7 @@ export function ModelManager({ selection, currentSelection, selectionRevision, o
       </dl>
       {canApply && <div className="model-download-actions">
         {downloadBusy && <button type="button" className="sek" disabled={state.cancel.isPending} onClick={() => state.cancel.mutate()}>{t(manual ? "provider_cancel_verification" : "picker_cancel_download")}</button>}
-        <button type="button" className="aktion" disabled={blocked} onClick={() => state.apply(verifyOnly)}>
+        <button type="button" className="aktion" aria-describedby={showLicense ? licenseId : undefined} disabled={blocked} onClick={() => state.apply(verifyOnly)}>
           {!manual && selected.download > 0 && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>}
           {t(actionLabel)}
         </button>

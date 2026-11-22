@@ -1,6 +1,6 @@
 import { modelName, modelRoleLabel, type profile } from "../../model-options";
 import { useI18n } from "../i18n";
-import { ProfileLink } from "./ModelProfileDetails";
+import { ProfileLink } from "./ProfileLink";
 
 export function ModelProfileFiles({ selected }: { selected: ReturnType<typeof profile> }) {
   const { t, language } = useI18n();
