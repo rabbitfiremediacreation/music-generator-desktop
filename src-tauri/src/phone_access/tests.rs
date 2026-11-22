@@ -304,6 +304,7 @@ async fn pwa_library_reference_payload_is_compact() {
     }
     let native = f
         .get("/api/songs")
+        .timeout(Duration::from_secs(30))
         .send()
         .await
         .unwrap()
