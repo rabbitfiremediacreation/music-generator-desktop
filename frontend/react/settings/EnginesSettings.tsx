@@ -16,11 +16,14 @@ export function EnginesSettings() {
   const stems = useStemCatalog();
   const progress = useQuery<DownloadProgress | null>({ queryKey: ["engines", "progress"], queryFn: async () => null, enabled: false }).data;
   const modelBusy = useIsMutating({ mutationKey: ["models"] }) > 0;
-  const pending = useMutationState({
+  const actions = useMutationState({
     filters: { mutationKey: ["models", "engines"], status: "pending" },
     select: mutation => mutation.state.variables as EngineAction | undefined,
-  }).at(-1);
-  const installingDemucs = !!pending && "demucs" in pending;
+  }).filter((action): action is EngineAction => !!action);
+  const pending = actions.at(-1);
+  const installingDemucs = actions.some(action => "demucs" in action);
+  const changingFiles = actions.some(action => "title" in action || "remove" in action);
+  const installing = new Set(actions.flatMap(action => "id" in action ? [action.id] : []));
   const phase = progress?.phase ?? (installingDemucs ? "installing" : null);
   const change = useMutation({
     mutationKey: ["models", "engines"], networkMode: "always",
@@ -39,7 +42,11 @@ export function EnginesSettings() {
     },
   });
   const cancel = useMutation({
-    mutationFn: (action: EngineAction) => "demucs" in action ? stemApi.pause("engine") : backend.cancelModelDownload(),
+    mutationFn: (action: EngineAction) => {
+      if ("demucs" in action) return stemApi.pause("engine");
+      if ("id" in action) return backend.cancelTransfer("engines", action.id);
+      return backend.cancelModelDownload();
+    },
     networkMode: "always",
   });
   const failure = change.error && stemError(change.error, t);
@@ -55,8 +62,9 @@ export function EnginesSettings() {
     {stems.error && <p role="alert" className="setup-error">{t("stem_engine")} · {stemError(stems.error, t)}</p>}
     {packages.data?.length === 0 && !stems.isPending && !stems.data?.platform_supported && <p role="status">{t("engine_package_unavailable")}</p>}
     {(!!packages.data?.length || stems.data) && <EngineTable packages={packages.data ?? []} busy={modelBusy}
+      installing={installing} installBlocked={changingFiles}
       onInstall={id => change.mutate({ id })} onRemove={id => change.mutate({ remove: id })}>
-      {stems.data && <DemucsEngineRow catalog={stems.data} busy={modelBusy} installing={installingDemucs}
+      {stems.data && <DemucsEngineRow catalog={stems.data} busy={changingFiles || installingDemucs || installing.has("pytorch")} installing={installingDemucs}
         onInstall={() => change.mutate({ demucs: true })} />}
     </EngineTable>}
     {pending && ("remove" in pending ? <p className="small" role="status">{t("engine_removing")}</p> : <div>

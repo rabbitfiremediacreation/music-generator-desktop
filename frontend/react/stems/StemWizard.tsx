@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { sourceDuration, stemApi, stemError, type Pin, type StemRequest, type StemSource } from "../../stems";
 import type { Song } from "../../types";
 import { foldersQuery } from "../data";
@@ -20,6 +20,7 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
   const { t } = useI18n();
   const catalog = useStemCatalog();
   const view = useRef<HTMLDivElement>(null);
+  const modelHint = useId();
   const [step, setStep] = useState(0);
   const [sources, setSources] = useState<StemSource[]>(() => initialSource ? [initialSource] : []);
   const [ranges, setRanges] = useState<Record<string, SourceRange>>({});
@@ -162,51 +163,61 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
         if (source?.id === id) setPreviewPosition(undefined);
       }} />}
     {step === 1 && model && <>
-      <div className="stem-row">
-        <label className="field">{t("stem_goal")}<select value={goal} onChange={event => { setGoal(event.target.value as Goal); setSelected(undefined); }}>
+      <div className="stem-field-grid">
+        <label className="field"><span className="lbl">{t("stem_goal")}</span><select value={goal} onChange={event => { setGoal(event.target.value as Goal); setSelected(undefined); }}>
           {goals.map(value => <option key={value} value={value}>{t(`stem_${value}`)}</option>)}
         </select></label>
-        <label className="field">{t("stem_model")}<select value={model.id} onChange={event => { setModelId(event.target.value); setSelected(undefined); }}>
-          {models.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}
-        </select></label>
-      </div>
-      {model === models[0] && <p className="small">{t("stem_recommended")}</p>}
-      <fieldset><legend>{t("stem_roles")}</legend>{roles.map(role => <label className="stem-check" key={role}>
-        <input type="checkbox" checked={outputs.includes(role)} onChange={event => setSelected(event.target.checked ? [...outputs, role] : outputs.filter(value => value !== role))} />
-        {t(`stem_role_${role}`)}
-      </label>)}</fieldset>
-      {outputs.includes("instrumental") && <p className="small">{t("stem_derived")}</p>}
-      <details className="stem-block"><summary>{t("stem_advanced")}</summary>
-        <div className="stem-row">
-          <label className="field">{t("stem_quality")}<select value={quality} onChange={event => setQuality(event.target.value as StemRequest["quality"])}>
-            <option value="standard">{t("stem_standard")}</option><option value="fast">{t("stem_fast")}</option>
+        <div>
+          <label className="field"><span className="lbl">{t("stem_model")}</span><select value={model.id}
+            aria-describedby={model === models[0] ? modelHint : undefined} onChange={event => { setModelId(event.target.value); setSelected(undefined); }}>
+            {models.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}
           </select></label>
-          <label className="field">{t("stem_overlap")}<input type="number" min={0} max={0.5} step={0.05} value={overlap} onChange={event => setOverlap(Number(event.target.value))} /></label>
+          {model === models[0] && <p id={modelHint} className="small">{t("stem_recommended")}</p>}
         </div>
-        <p className="small">{t("stem_cpu")}</p>
+      </div>
+      <fieldset className="stem-output">
+        <legend className="lbl">{t("stem_roles")}</legend>
+        <div className="stem-output-grid">{roles.map(role => <label className="stem-check" key={role}>
+          <input type="checkbox" checked={outputs.includes(role)} onChange={event => setSelected(event.target.checked ? [...outputs, role] : outputs.filter(value => value !== role))} />
+          {t(`stem_role_${role}`)}
+        </label>)}</div>
+        {outputs.includes("instrumental") && <p className="small">{t("stem_derived")}</p>}
+      </fieldset>
+      <details className="stem-block"><summary>{t("stem_advanced")}</summary>
+        <div className="stem-detail-body">
+          <div className="stem-field-grid">
+            <label className="field"><span className="lbl">{t("stem_quality")}</span><select value={quality} onChange={event => setQuality(event.target.value as StemRequest["quality"])}>
+              <option value="standard">{t("stem_standard")}</option><option value="fast">{t("stem_fast")}</option>
+            </select></label>
+            <label className="field"><span className="lbl">{t("stem_overlap")}</span><input type="number" min={0} max={0.5} step={0.05} value={overlap} onChange={event => setOverlap(Number(event.target.value))} /></label>
+          </div>
+          <p className="small">{t("stem_cpu")}</p>
+        </div>
       </details>
       {source && <details className="stem-block"><summary>{t("stem_preview")}</summary>
-        <p className="small">{t("stem_preview_hint")}</p>
-        <label className="field">{t("stem_preview_position")}<input type="number" min={previewRange?.start ?? 0}
-          max={previewRange?.end ?? sourceDuration(source)} step="any" value={previewStart} onChange={event => setPreviewPosition(Number(event.target.value))} /></label>
-        <div className="stem-row">
-          <button type="button" className="sek" disabled={busy || !canSeparate || previewRunning || Boolean(previewId && preview.isPending)}
-            onClick={() => void run(startPreview)}>{t("stem_preview")}</button>
-          {preview.data && <span role="status">{t(`stem_${preview.data.phase}`)}{preview.data.error && ` · ${t(preview.data.error)}`}</span>}
-          {preview.data?.status === "done" && <button type="button" className="sek" onClick={() => onPreview(preview.data!.id)}>{t("stem_preview_result")}</button>}
-          {preview.data && previewRunning && <button type="button" className="sek" disabled={busy}
-            onClick={() => void run(async () => { await stemApi.cancel(preview.data!.id); })}>{t("cancel")}</button>}
+        <div className="stem-detail-body">
+          <p className="small">{t("stem_preview_hint")}</p>
+          <label className="field"><span className="lbl">{t("stem_preview_position")}</span><input type="number" min={previewRange?.start ?? 0}
+            max={previewRange?.end ?? sourceDuration(source)} step="any" value={previewStart} onChange={event => setPreviewPosition(Number(event.target.value))} /></label>
+          <div className="stem-row">
+            <button type="button" className="sek" disabled={busy || !canSeparate || previewRunning || Boolean(previewId && preview.isPending)}
+              onClick={() => void run(startPreview)}>{t("stem_preview")}</button>
+            {preview.data && <span role="status">{t(`stem_${preview.data.phase}`)}{preview.data.error && ` · ${t(preview.data.error)}`}</span>}
+            {preview.data?.status === "done" && <button type="button" className="sek" onClick={() => onPreview(preview.data!.id)}>{t("stem_preview_result")}</button>}
+            {preview.data && previewRunning && <button type="button" className="sek" disabled={busy}
+              onClick={() => void run(async () => { await stemApi.cancel(preview.data!.id); })}>{t("cancel")}</button>}
+          </div>
         </div>
       </details>}
     </>}
     {step === 2 && <>
-      <div className="stem-row">
-        <label className="field">{t("stem_project_name")}<input maxLength={150} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>
-        <label className="field">{t("stem_project_folder")}<select value={folder} disabled={busy} onChange={event => setFolder(event.target.value)}>
+      <div className="stem-field-grid">
+        <label className="field"><span className="lbl">{t("stem_project_name")}</span><input maxLength={150} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>
+        <label className="field"><span className="lbl">{t("stem_project_folder")}</span><select value={folder} disabled={busy} onChange={event => setFolder(event.target.value)}>
           <option value="">{t("f_none")}</option>{folders.data?.folders.map(value => <option value={value.id} key={value.id}>{value.name}</option>)}
         </select></label>
       </div>
-      <dl className="stem-summary">
+      <dl className="stem-summary stem-block">
         <dt>{t("stem_sources")}</dt><dd>{sources.map(item => `${item.name} (${ranges[item.id]?.start ?? 0}–${(ranges[item.id]?.end ?? sourceDuration(item)).toFixed(2)} s)`).join(", ")}</dd>
         <dt>{t("stem_model")}</dt><dd>{model && `${model.engine} ${model.engine_version} · ${model.name}`}{pin && <> · <code title={pin.revision}>{pin.revision.slice(0, 12)}</code></>}</dd>
         <dt>{t("stem_roles")}</dt><dd>{outputs.map(role => t(`stem_role_${role}`)).join(" · ")}</dd>
@@ -215,7 +226,7 @@ export function StemWizard({ song, initialSource, folderId, active = true, onQue
         <StemProjectEstimate requests={canStart && pin ? sources.map(item => request(item, pin, false)) : []} />
       </dl>
     </>}
-    <div className="stem-row">
+    <div className="stem-row stem-wizard-actions">
       {step > 0 && <button type="button" className="sek" disabled={busy} onClick={() => setStep(value => value - 1)}>{t("stem_back")}</button>}
       {step < steps.length - 1 ? <button type="button" className="aktion" disabled={busy || !canAdvance}
         onClick={() => setStep(value => value + 1)}>{t("stem_continue")}</button> :

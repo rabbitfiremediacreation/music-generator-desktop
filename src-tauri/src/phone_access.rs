@@ -900,6 +900,7 @@ impl PhoneGeneration {
         Ok(GenerateRequest {
             model_selection: self.model_selection,
             reference_audio: None,
+            remix: None,
             prompt: self.prompt,
             style: self.style,
             caption: self.caption,

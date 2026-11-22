@@ -118,7 +118,8 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             selection.apply(&mut settings)?;
             crate::admission::validate_saved_profile(&selection, &params)?;
             let ace_step = selection.provider == "ace-step";
-            let has_token_stages = ace_step || selection.provider == "yue2";
+            let has_token_stages =
+                (ace_step && params["remix"].is_null()) || selection.provider == "yue2";
             let render_progress = |progress: Progress, section, sections| {
                 let percent = render_percent(&progress, section, sections, has_token_stages);
                 report(progress, percent);

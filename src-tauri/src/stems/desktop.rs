@@ -1,7 +1,7 @@
-use super::{engine, export, jobs, layer, mix, model, removal, source};
+use super::{engine, export, jobs, layer, mix, model, model_layer, removal, source, spectral};
 use crate::{
-    error::{message, Error, Result},
-    runtime::OperationKind,
+    error::{message, Result},
+    runtime::{JobProgress, OperationKind},
     state::AppState,
 };
 use std::{path::PathBuf, sync::Arc};
@@ -42,40 +42,15 @@ pub async fn stem_check_update(state: Desktop<'_>, id: String) -> Result<model::
     model::update(&state, &id, &state.runtime.cancellation()).await
 }
 
-struct Transfer<'a>(&'a AppState);
-impl Drop for Transfer<'_> {
-    fn drop(&mut self) {
-        self.0.stem_transfer.lock().unwrap().take();
-    }
-}
-
 async fn transfer<T>(
     state: &AppState,
     app: &AppHandle,
     key: &str,
     run: impl AsyncFnOnce(tokio_util::sync::CancellationToken) -> Result<T>,
 ) -> Result<T> {
-    let cancel = state.runtime.cancellation();
-    {
-        let mut running = state.stem_transfer.lock().unwrap();
-        if running.is_some() {
-            return Err(message("stem_install_busy"));
-        }
-        *running = Some((key.into(), cancel.clone()));
-    }
-    let _transfer = Transfer(state);
+    let transfer = state.runtime.transfer("stems", key)?;
     let _ = app.emit("stem-models-changed", ());
-    let operation = tokio::select! {
-        _ = cancel.cancelled() => return Err(Error::Cancelled),
-        operation = state.runtime.begin(OperationKind::Models) => operation?,
-    };
-    let job_cancel = operation.cancellation();
-    let result = run(job_cancel.clone());
-    tokio::pin!(result);
-    tokio::select! {
-        _ = cancel.cancelled() => { job_cancel.cancel(); result.await },
-        result = &mut result => result,
-    }
+    run(transfer.cancellation()).await
 }
 
 #[tauri::command]
@@ -103,15 +78,7 @@ pub async fn stem_install_model(state: Desktop<'_>, app: AppHandle, pin: model::
 
 #[tauri::command]
 pub fn stem_pause_transfer(state: Desktop<'_>, id: String) {
-    if let Some((_, cancel)) = state
-        .stem_transfer
-        .lock()
-        .unwrap()
-        .as_ref()
-        .filter(|(key, _)| key == &id)
-    {
-        cancel.cancel();
-    }
+    state.runtime.cancel_transfer(Some("stems"), Some(&id));
 }
 
 #[tauri::command]
@@ -240,6 +207,95 @@ pub async fn stem_add_track(
         .ok_or_else(|| message("audio_read"))?
         .to_string_lossy();
     Ok(Some(layer::import(&state, &id, &path, &filename).await?))
+}
+
+#[tauri::command]
+pub async fn stem_prepare_track_model(
+    state: Desktop<'_>,
+    app: AppHandle,
+    selection: crate::catalog::Selection,
+) -> Result<()> {
+    let progress = crate::download::ProgressEvents::new(&app, "model-download-progress");
+    let result = model_layer::prepare(&state, &selection, |update| progress.report(update)).await;
+    drop(progress);
+    let _ = app.emit("models-changed", ());
+    result
+}
+
+#[tauri::command]
+pub async fn stem_generate_track(
+    state: Desktop<'_>,
+    app: AppHandle,
+    id: String,
+    request: model_layer::Request,
+    progress: tauri::ipc::Channel<JobProgress>,
+) -> Result<layer::Layer> {
+    let outcome = model_layer::generate(state.inner(), &id, request, |update| {
+        let _ = progress.send(update);
+    })
+    .await;
+    if outcome.is_ok() {
+        state.changed(&app);
+    }
+    outcome
+}
+
+#[tauri::command]
+pub fn stem_cancel_track_generation(state: Desktop<'_>, id: Option<String>) {
+    state.runtime.cancel_stem_generation(id.as_deref());
+}
+
+#[tauri::command]
+pub async fn stem_spectral_preview(
+    state: Desktop<'_>,
+    id: String,
+    role: String,
+    first: u64,
+    end: u64,
+) -> Result<spectral::Spectrogram> {
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || spectral::preview(&state, &id, &role, first, end))
+        .await
+        .map_err(|_| message("stem_spectral_failed"))?
+}
+
+#[tauri::command]
+pub async fn stem_spectral_scan(
+    state: Desktop<'_>,
+    id: String,
+    role: String,
+) -> Result<Vec<spectral::Selection>> {
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || spectral::scan(&state, &id, &role))
+        .await
+        .map_err(|_| message("stem_spectral_failed"))?
+}
+
+#[tauri::command]
+pub async fn stem_spectral_audition(
+    state: Desktop<'_>,
+    id: String,
+    role: String,
+    selection: spectral::RepairRequest,
+) -> Result<tauri::ipc::Response> {
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || spectral::audition(&state, &id, &role, &selection))
+        .await
+        .map_err(|_| message("stem_spectral_failed"))?
+        .map(tauri::ipc::Response::new)
+}
+
+#[tauri::command]
+pub async fn stem_repair_spectrum(
+    state: Desktop<'_>,
+    id: String,
+    role: String,
+    selection: spectral::RepairRequest,
+) -> Result<layer::Layer> {
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || spectral::apply(&state, &id, &role, &selection))
+        .await
+        .map_err(|_| message("stem_spectral_failed"))?
 }
 
 #[tauri::command]

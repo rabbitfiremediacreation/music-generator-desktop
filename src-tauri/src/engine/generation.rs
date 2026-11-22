@@ -6,7 +6,10 @@ use super::{
 };
 use crate::error::{message, Error, Result};
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 use tokio_util::sync::CancellationToken;
 
 /// At 1.2 the language model drifted between languages and scripts while it
@@ -134,17 +137,105 @@ impl EngineClient {
         enriched["output_format"] = json!("wav16");
         enriched["peak_clip"] = json!(0);
         enriched["synth_model"] = json!(dit);
+        let request = self
+            .http
+            .post(format!("{}/synth", self.synth))
+            .json(&enriched);
+        self.render(request, params, enriched, steps, cancel, progress)
+            .await
+    }
+
+    pub(crate) async fn remix(
+        &self,
+        params: &Value,
+        dit: &str,
+        source: &Path,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+    ) -> Result<(Vec<u8>, String, Value)> {
+        use crate::types::{RemixMode, RemixOptions};
+        use reqwest::multipart::{Form, Part};
+
+        let options: RemixOptions = serde_json::from_value(params["remix"].clone())?;
+        let close = options.mode == RemixMode::Close;
+        let steps =
+            crate::generation_limits::effective_steps(params["inference_steps"].as_u64(), dit);
+        let request = json!({
+            "task_type": options.mode,
+            "caption": params["caption"],
+            "lyrics": params["lyrics"],
+            "vocal_language": params["vocal_language"],
+            "seed": params["seed"],
+            "synth_model": dit,
+            "inference_steps": steps,
+            "audio_cover_strength": if close { 0.4 } else { 0.2 },
+            "output_format": "wav16",
+            "peak_clip": 0,
+        });
+        let mut form = Form::new()
+            .text("request", request.to_string())
+            .part("audio", Part::file(source).await?);
+        if close {
+            form = form.part("ref_audio", Part::file(source).await?);
+        }
+        let http = self
+            .http
+            .post(format!("{}/synth", self.synth))
+            .multipart(form);
+        self.render(http, params, request, steps, cancel, progress)
+            .await
+    }
+
+    /// Generate one instrument in the context of the supplied backing mix.
+    pub(crate) async fn lego(
+        &self,
+        dit: &str,
+        track: &str,
+        caption: &str,
+        source: &Path,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+    ) -> Result<Vec<u8>> {
+        use reqwest::multipart::{Form, Part};
+
+        let steps = 50;
+        let request = json!({
+            "task_type": "lego",
+            "track": track,
+            "caption": caption,
+            "lyrics": "[Instrumental]",
+            "synth_model": dit,
+            "inference_steps": steps,
+            "guidance_scale": 1.0,
+            "shift": 1.0,
+            "output_format": "wav16",
+            "peak_clip": 0,
+        });
+        let form = Form::new()
+            .text("request", request.to_string())
+            .part("audio", Part::file(source).await?);
+        let http = self
+            .http
+            .post(format!("{}/synth", self.synth))
+            .multipart(form);
+        let (audio, _, _) = self
+            .render(http, &Value::Null, request, steps, cancel, progress)
+            .await?;
+        Ok(audio)
+    }
+
+    async fn render(
+        &self,
+        request: reqwest::RequestBuilder,
+        params: &Value,
+        mut enriched: Value,
+        steps: u32,
+        cancel: &CancellationToken,
+        progress: impl Fn(Progress),
+    ) -> Result<(Vec<u8>, String, Value)> {
         let log = self.synth_log.as_deref().map(SynthesisLog::capture);
         let result = self
-            .operation(
-                &self.synth,
-                "synth",
-                self.http
-                    .post(format!("{}/synth", self.synth))
-                    .json(&enriched),
-                cancel,
-                progress,
-            )
+            .operation(&self.synth, "synth", request, cancel, progress)
             .await
             .and_then(|(ctype, body)| extract_generation(&ctype, body));
         let (audio, extension, metadata) = result.map_err(|error| {

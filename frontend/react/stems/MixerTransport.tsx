@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
-import type { StemJob, StemMix } from "../../stems";
+import { stemRole, type StemMix, type StemProject, type StemSource } from "../../stems";
 import { useI18n } from "../i18n";
+import { StereoWaveform } from "./StereoWaveform";
 import { Waveform } from "./Waveform";
 import type { MixerTransport } from "./useStemTransport";
 
@@ -21,29 +22,52 @@ function RegionField({ label, frame, rate, update }: { label: string; frame: num
   </label>;
 }
 
-export function MixerTransportPanel({ job, mix, transport, original, compare, change }: {
-  job: StemJob; mix: StemMix; transport: MixerTransport; original: boolean; compare: (original: boolean) => void;
+export function MixerTransportPanel({ project, source, mix, transport, change }: {
+  project: Pick<StemProject, "rate" | "frames" | "source_start_frame" | "source_frames">;
+  source?: StemSource["audio"]; mix: StemMix; transport: MixerTransport;
   change: (patch: Partial<StemMix>) => void;
 }) {
   const { t } = useI18n();
   const position = useSyncExternalStore(transport.subscribe, transport.getPosition);
-  const project = job.project!;
   const { rate, frames } = project;
   const duration = frames / rate;
   const peaks = useMemo(() => {
-    const source = job.source.audio;
+    if (!source) return [];
     const scale = source.peaks.length / Math.max(source.frames, 1);
     return source.peaks.slice(Math.floor(project.source_start_frame * scale), Math.ceil((project.source_start_frame + project.source_frames) * scale));
-  }, [job.source.audio, project.source_start_frame, project.source_frames]);
+  }, [source, project.source_start_frame, project.source_frames]);
+  const lanes = [
+    ...(source ? [{ key: "source", role: "original", asset: "original", name: t("stem_original") }] : []),
+    ...mix.tracks.map(track => ({
+      key: track.role, role: track.role, asset: track.replacement ?? track.role,
+      name: track.name === track.role ? stemRole(track.role, t) : track.name,
+    })),
+  ];
+  const from = mix.first / frames, to = mix.end / frames;
   return <section className="mixer-transport" aria-label={t("stem_time")}>
-    <div className="mixer-ticks" aria-hidden="true">{Array.from({ length: 10 }, (_, index) =>
-      <span key={index}>{timecode(duration * index / 9)}</span>)}</div>
-    <div className="mixer-wave">
-      <Waveform peaks={peaks} from={mix.first / frames} to={mix.end / frames} label={t("stem_waveform")} />
-      <span className="mixer-playhead" aria-hidden="true" style={{ left: `${Math.max(0, Math.min(100, position.frame * 100 / frames))}%` }} />
-      <input type="range" className="mixer-seek" aria-label={t("stem_seek")} aria-valuetext={timecode(position.frame / rate)}
-        min={0} max={frames} value={position.frame} disabled={!transport.ready}
-        onChange={event => transport.seek(Math.max(mix.first, Math.min(mix.end, Number(event.target.value))))} />
+    <div className="mixer-timeline" tabIndex={lanes.length > 4 ? 0 : undefined}>
+      <div className="mixer-ticks" aria-hidden="true">{Array.from({ length: 10 }, (_, index) =>
+        <span key={index} style={{ left: `${index * 100 / 9}%` }}>{timecode(duration * index / 9)}</span>)}</div>
+      <div className="mixer-wave-labels" role="list" aria-label={t("stem_waveform_lanes")}>
+        {lanes.map(lane => <div key={lane.key} className={`mixer-wave-label stem-role-${lane.role}`} role="listitem">
+          <span className="mixer-wave-name" title={lane.name}>{lane.name}</span>
+          {transport.waveforms[lane.asset] && <span className="mixer-wave-sides" aria-hidden="true"><span>L</span><span>R</span></span>}
+        </div>)}
+      </div>
+      <div className="mixer-wave">
+        {lanes.map(lane => {
+          const envelope = transport.waveforms[lane.asset];
+          return <div key={lane.key} className={`mixer-wave-lane stem-role-${lane.role}`} data-stereo={!!envelope}>
+            {envelope
+              ? <StereoWaveform envelope={envelope} from={from} to={to} label={`${lane.name} · ${t("stem_stereo_waveform")}`} />
+              : lane.key === "source" && <Waveform peaks={peaks} from={from} to={to} label={t("stem_waveform")} />}
+          </div>;
+        })}
+        <span className="mixer-playhead" aria-hidden="true" style={{ left: `${Math.max(0, Math.min(100, position.frame * 100 / frames))}%` }} />
+        <input type="range" className="mixer-seek" aria-label={t("stem_seek")} aria-valuetext={timecode(position.frame / rate)}
+          min={0} max={frames} value={position.frame} disabled={!transport.ready}
+          onChange={event => transport.seek(Math.max(mix.first, Math.min(mix.end, Number(event.target.value))))} />
+      </div>
     </div>
     <div className="mixer-transport-actions">
       <div className="mixer-playback">
@@ -62,12 +86,6 @@ export function MixerTransportPanel({ job, mix, transport, original, compare, ch
           <button type="button" className="sek mini" onClick={() => change({ first: 0, end: frames })}>{t("stem_full")}</button>
         </div>
       </details>
-      <div className="mixer-monitor" role="group" aria-label={t("stem_comparing")}>
-        <button type="button" aria-pressed={original} disabled={!transport.ready || !!transport.missing.original}
-          onClick={() => compare(true)}>{t("stem_original")}</button>
-        <button type="button" aria-pressed={!original} disabled={!transport.ready || mix.tracks.every(track => transport.missing[track.replacement ?? track.role])}
-          onClick={() => compare(false)}>{t("stem_mix")}</button>
-      </div>
     </div>
   </section>;
 }

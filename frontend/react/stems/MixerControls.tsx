@@ -5,6 +5,7 @@ export interface Gesture { begin: () => void; end: () => void }
 interface Control {
   label: string; value: number; min: number; max: number; neutral: number; step: number;
   change: (value: number) => void; format: (value: number) => string; gesture: Gesture; title?: string;
+  stepped?: boolean; disabled?: boolean;
 }
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -12,6 +13,7 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 function useSlider(control: Control, toPosition: (value: number) => number, fromPosition: (value: number) => number, fader = false) {
   const drag = useRef<{ id: number; y: number; position: number; height: number }>(undefined);
   const change = (value: number) => {
+    if (control.disabled) return;
     const { step, min, max, neutral } = control;
     const rounded = Math.round(value / step) * step;
     const snapped = Math.abs(rounded - neutral) < step / 2 ? neutral : rounded;
@@ -23,11 +25,12 @@ function useSlider(control: Control, toPosition: (value: number) => number, from
     control.gesture.end();
   }
   function keyboard(event: KeyboardEvent<HTMLButtonElement>) {
-    const { min, max, neutral, value, step } = control;
-    const interval = event.shiftKey ? step : step * 5;
+    const { min, max, neutral, value, step, stepped } = control;
+    const interval = stepped || event.shiftKey ? step : step * 5;
+    const page = step * (stepped ? 3 : 20);
     const values: Record<string, number> = {
       ArrowUp: value + interval, ArrowRight: value + interval, ArrowDown: value - interval, ArrowLeft: value - interval,
-      PageUp: value + step * 20, PageDown: value - step * 20, Home: min, End: max, "0": neutral,
+      PageUp: value + page, PageDown: value - page, Home: min, End: max, "0": neutral,
     };
     if (!(event.key in values)) return;
     event.preventDefault();
@@ -36,11 +39,11 @@ function useSlider(control: Control, toPosition: (value: number) => number, from
   return {
     type: "button" as const, role: "slider", "aria-label": control.label, "aria-valuetext": control.format(control.value),
     "aria-valuemin": control.min, "aria-valuemax": Math.max(control.max, control.value), "aria-valuenow": control.value,
-    title: control.title ?? control.label,
+    title: control.title ?? control.label, disabled: control.disabled,
     onKeyDown: keyboard,
-    onDoubleClick: () => control.change(control.neutral),
+    onDoubleClick: () => change(control.neutral),
     onPointerDown(event: PointerEvent<HTMLButtonElement>) {
-      if (event.button !== 0 || drag.current) return;
+      if (control.disabled || event.button !== 0 || drag.current) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const position = toPosition(control.value);
       const height = fader ? rect.height || 190 : 155;
@@ -87,7 +90,7 @@ function NumericValue({ control, off }: { control: Control; off?: number }) {
     }} />;
 }
 
-export function MixerKnob({ caption, marks, ...control }: Control & { caption: string; marks?: string }) {
+export function MixerKnob({ caption, ...control }: Control & { caption: string }) {
   const position = (value: number) => (value - control.min) / (control.max - control.min);
   const slider = useSlider(control, position, value => control.min + value * (control.max - control.min));
   const angle = position(control.value) * 270;
@@ -99,8 +102,9 @@ export function MixerKnob({ caption, marks, ...control }: Control & { caption: s
   return <div className="mixer-knob">
     <span className="mixer-control-caption">{caption}</span>
     <button {...slider} className="mixer-dial" style={style}><span className="mixer-dial-face" /></button>
-    <NumericValue control={control} />
-    {marks && <span className="mixer-knob-marks" aria-hidden="true">{marks}</span>}
+    {control.stepped || control.disabled
+      ? <span className="mixer-knob-readout" aria-hidden="true">{control.format(control.value)}</span>
+      : <NumericValue control={control} />}
   </div>;
 }
 

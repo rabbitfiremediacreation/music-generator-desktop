@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { stemApi, type StemMix, type StemProject } from "../../stems";
+import { mapFxSlots } from "../../stem-returns";
 import { createTransport, type AudioGraph } from "./audio-graph";
-import { readStereoWave, type Position, type TransportMessage } from "./transport-core";
+import { stereoEnvelope, type StereoEnvelope } from "./stereo-envelope";
+import { readStereoWave, type Pcm, type Position, type TransportMessage } from "./transport-core";
 
 interface Controller extends AudioGraph { context: AudioContext; assetKey: string; started: boolean }
 interface PlayIntent { playing: boolean; revision: number }
@@ -10,11 +12,15 @@ export interface TransportStore {
   getPosition: () => Position;
 }
 
-const empty: Position = { frame: 0, playing: false, playRevision: 0, peaks: [], master: 0, stereo: [], masterStereo: [0, 0] };
+const empty: Position = {
+  frame: 0, playing: false, playRevision: 0, peaks: [], master: 0, stereo: [], masterStereo: [0, 0],
+  reduction: [], masterReduction: 0,
+  returnStereo: mapFxSlots(() => [0, 0]), returnReduction: mapFxSlots(() => 0),
+};
 
 export type MixerTransport = ReturnType<typeof useStemTransport>;
 
-export function useStemTransport(id: string, project: StemProject, mix: StemMix) {
+export function useStemTransport(id: string, project: Pick<StemProject, "frames" | "rate">, mix: StemMix, songAudio?: Pcm) {
   const control = useRef<Controller | null>(null);
   const mixRef = useRef(mix);
   const position = useRef(empty);
@@ -28,6 +34,7 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
   const [readyKey, setReadyKey] = useState<string>();
   const [missing, setMissing] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<unknown>(null);
+  const [waveforms, setWaveforms] = useState<Record<string, StereoEnvelope>>({});
 
   const publish = useCallback((value: Position) => {
     position.current = value;
@@ -72,7 +79,11 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
     let context: AudioContext | undefined;
     let graph: AudioGraph | undefined;
     const lifetime = new AbortController();
-    setReadyKey(undefined); setError(null); setMissing({});
+    setReadyKey(undefined); setError(null); setMissing({}); setWaveforms({});
+    const rememberWaveform = (role: string, pcm: Pcm) => {
+      const envelope = stereoEnvelope(pcm, project.frames);
+      setWaveforms(current => ({ ...current, [role]: envelope }));
+    };
     const dispose = () => {
       graph?.dispose();
       graph = undefined;
@@ -95,7 +106,12 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
       });
       if (lifetime.signal.aborted) { dispose(); return; }
       const failures: Record<string, unknown> = {};
-      for (const [index, role] of ["original", ...assets].entries()) {
+      if (songAudio && assets.length) {
+        rememberWaveform("original", songAudio);
+        // Worklet messages transfer ownership, so keep the decoded source for retries.
+        graph.send({ type: "audio", index: 0, pcm: { left: songAudio.left.slice(), right: songAudio.right.slice() } });
+      }
+      for (const [index, role] of (songAudio ? [] : ["original", ...assets]).entries()) {
         if (lifetime.signal.aborted) return;
         try {
           const url = await stemApi.projectAudio(id, role);
@@ -103,6 +119,7 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
           if (!response.ok) throw new Error("stem_asset_missing");
           const pcm = readStereoWave(await response.arrayBuffer(), project.frames, project.rate);
           if (lifetime.signal.aborted) return;
+          rememberWaveform(role, pcm);
           graph.send({ type: "audio", index: index - 1, pcm });
         } catch (cause) {
           if (lifetime.signal.aborted) return;
@@ -112,7 +129,8 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
       await handoff.current;
       if (lifetime.signal.aborted) return;
       setMissing(failures);
-      if (failures.original && assets.every(role => failures[role])) throw new Error("stem_asset_missing");
+      const mixUnavailable = assets.length > 0 && assets.every(role => failures[role]);
+      if (failures.original && mixUnavailable) throw new Error("stem_asset_missing");
       const active = { context, ...graph, assetKey, started: false };
       control.current = active;
       const currentMix = mixRef.current;
@@ -120,7 +138,7 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
       const frame = Math.max(currentMix.first, Math.min(currentPosition.frame, currentMix.end));
       graph.send({ type: "mix", mix: currentMix });
       graph.send({ type: "seek", frame });
-      graph.send({ type: "compare", original: !failures.original && (monitoring.current.original || assets.every(role => failures[role])) });
+      graph.send({ type: "compare", original: !failures.original && (monitoring.current.original || mixUnavailable) });
       graph.send({ type: "mono", mono: monitoring.current.mono });
       const intent = playIntent.current;
       publish({ ...currentPosition, frame, playing: false });
@@ -141,7 +159,7 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
       if (!retiring?.started) { dispose(); return; }
       handoff.current = retire(retiring, dispose);
     };
-  }, [id, project, assetKey, reload, publish, resume, retire]);
+  }, [id, project, assetKey, reload, publish, resume, retire, songAudio]);
 
   const send = useCallback((message: TransportMessage) => control.current?.send(message), []);
   const play = useCallback((playing: boolean) => {
@@ -166,5 +184,5 @@ export function useStemTransport(id: string, project: StemProject, mix: StemMix)
     monitoring.current.mono = mono;
     send({ type: "mono", mono });
   }, [send]);
-  return { subscribe, getPosition, ready: readyKey === assetKey && !error, error, missing, retry, play, seek, compare, setMono };
+  return { subscribe, getPosition, ready: readyKey === assetKey && !error, error, missing, waveforms, retry, play, seek, compare, setMono };
 }

@@ -265,12 +265,10 @@ pub fn catalog(state: &AppState) -> Result<Catalog> {
     let models_dir = Path::new(&settings.models_dir);
     let verifier = ModelVerifier::open(&state.db.root);
     let engine_ready = engine::installed(state);
-    let transfer = state
-        .stem_transfer
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map(|(id, _)| id.clone());
+    let transfers = PROFILES
+        .iter()
+        .map(|profile| state.runtime.is_transferring("stems", profile.id))
+        .collect::<Vec<_>>();
     let con = state.db.lock();
     let mut installed = con.prepare(
         "SELECT repository,revision,artifact,active FROM stem_models WHERE model=?1 ORDER BY installed_at DESC",
@@ -279,7 +277,7 @@ pub fn catalog(state: &AppState) -> Result<Catalog> {
         "SELECT repository,revision,artifact,error FROM stem_model_transfers WHERE model=?1",
     )?;
     let mut models = Vec::new();
-    for profile in &PROFILES {
+    for (profile, transferring) in PROFILES.iter().zip(transfers) {
         let revisions = installed
             .query_map([profile.id], |row| {
                 Ok((revision(row, profile.id)?, row.get::<_, bool>(3)?))
@@ -309,7 +307,7 @@ pub fn catalog(state: &AppState) -> Result<Catalog> {
             "unsupported"
         } else if !engine_ready {
             "engine_missing_status"
-        } else if transfer.as_deref() == Some(profile.id) {
+        } else if transferring {
             "installing"
         } else if let Some(active) = &active {
             if profile

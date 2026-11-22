@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { randomPrompt, randomStyle, randomTitle, STYLE_TAGS } from "../../prompts";
+import { randomPrompt, randomStyle } from "../../prompts";
 import { bundledProfile, modelErrorText } from "../../expert-mode";
 import { ACE_STEP_ABILITIES, DEFAULT_CLIP_BPM, MAX_CLIP_BPM, MAX_EXTENDED_DURATION, boundedDuration, clipSeconds, supportsExtendedDuration } from "../../generation-limits";
 import { profileKey } from "../../creator-models";
@@ -15,7 +15,7 @@ import { useGenerationAdmission } from "./admission";
 import { analyzedValues, isInstrumentalLyrics, numericValues, songValues, type FormValues } from "./form-state";
 import { useFormValues } from "./useFormValues";
 import { Slider } from "./Slider";
-import { DiceButton } from "./DiceButton";
+import { GenerationPromptField, GenerationStyleField, GenerationTitleField } from "./GenerationInputFields";
 import { LyricsFields } from "./LyricsFields";
 import { AdvancedFields } from "./AdvancedFields";
 import { analyzedYue2Style } from "../../style-tags";
@@ -185,7 +185,6 @@ export function GenerationForm({ selection, reference, onSelectionChange, settin
     };
     document.addEventListener("keydown", hotkey); return () => document.removeEventListener("keydown", hotkey);
   }, [settingsBlocked]);
-  const styles = values.style.split(",").map(value => value.trim()).filter(Boolean);
   const errorText = error instanceof Error ? error.message : String(error);
   const displayedError = errorText.startsWith("mulacover_reference_") ? t(errorText) : errorText.startsWith("yue2_") ? yue2ErrorText(errorText, language) : modelErrorText(error, t);
   const styleLabel = abilities.style_description ? "provider_style_description" : abilities.prompt || abilities.reference_audio ? "style" : "provider_style_tags";
@@ -194,37 +193,19 @@ export function GenerationForm({ selection, reference, onSelectionChange, settin
     <fieldset disabled={!ready} className="generation-fields">
       {midi && <h3 className="col-title">{t("midi_mode")}</h3>}
       {minimax && <strong>MiniMax-Music3</strong>}
-      <div className="field"><div className="lblrow"><label className="lbl" htmlFor="generation-title" title={t("title_tip")}>{t("title")}</label><DiceButton id="titleDice" label={t("title_dice")} onClick={() => update({ title: randomTitle() })} /></div><input id="generation-title" name="title" value={values.title} placeholder={t("title_ph")} onChange={event => update({ title: event.target.value })} /></div>
-      {abilities.prompt && <div className="field">
-        <div className="lblrow">
-          <div className="prompt-label">
-            <label className="lbl" htmlFor="generation-prompt" title={midi || minimax || barOptions ? undefined : t("prompt_tip")}>{promptLabel}</label>
-            {!midi && !minimax && !barOptions && values.generated && <span id="promptGenerated" className="generated-chip" role="status" title={t("prompt_generated")} aria-label={t("prompt_generated")}>GENERATED</span>}
-          </div>
-          {!midi && !minimax && !barOptions && <DiceButton id="diceBtn" label={t("prompt_dice")} onClick={() => update({ prompt: randomPrompt(instrumental), generated: true })} />}
-        </div>
-        <textarea id="generation-prompt" name="prompt" rows={midi || minimax ? 3 : 2} required={midi || minimax || Boolean(barOptions)}
-          aria-describedby="generation-prompt-hint" value={values.prompt}
-          placeholder={t(barOptions ? "clip_description_example" : minimax ? "minimax_music3_prompt_placeholder" : midi ? "midi_prompt_placeholder" : "prompt_ph")}
-          onChange={event => update({ prompt: event.target.value, generated: values.generated && event.target.value === values.prompt })} />
-        <span className="small" id="generation-prompt-hint">{promptHint}{midi && ` ${t("midi_prompt_hint")}`}</span>
-      </div>}
-      {!midi && !barOptions && <>
-        <div className="field">
-          <div className="lblrow"><label className="lbl" htmlFor="generation-style" title={t(styleHint)}>{t(styleLabel)}</label>{!abilities.reference_audio && <DiceButton id="styleDice" label={t("style_dice")} onClick={() => update({ style: randomStyle(instrumental) })} />}</div>
-          <textarea id="generation-style" name="style" required={!abilities.prompt} rows={2}
-            aria-describedby={abilities.prompt ? "generation-prompt-hint" : "generation-style-hint"}
-            value={values.style} onChange={event => update({ style: event.target.value })} />
-          {!abilities.prompt && <span className="small" id="generation-style-hint">{t(styleHint)}</span>}
-          {!abilities.reference_audio && <details className="style-suggestions">
-            <summary>{t("styles")}</summary>
-            <div className="chips" id="tagChips">{STYLE_TAGS.map(tag => {
-              const active = styles.some(value => value.toLowerCase() === tag.toLowerCase());
-              return <button type="button" key={tag} className={`chip${active ? " on" : ""}`} aria-pressed={active} onClick={() => update({ style: (active ? styles.filter(value => value.toLowerCase() !== tag.toLowerCase()) : [...styles, tag]).join(", ") })}>{tag}</button>;
-            })}</div>
-          </details>}
-        </div>
-      </>}
+      <GenerationTitleField id="generation-title" diceId="titleDice" value={values.title} onChange={title => update({ title })} />
+      {abilities.prompt && <GenerationPromptField id="generation-prompt" diceId="diceBtn" label={promptLabel}
+        title={midi || minimax || barOptions ? undefined : t("prompt_tip")}
+        hint={midi ? `${promptHint} ${t("midi_prompt_hint")}` : promptHint}
+        value={values.prompt} rows={midi || minimax ? 3 : 2} required={midi || minimax || Boolean(barOptions)}
+        placeholder={t(barOptions ? "clip_description_example" : minimax ? "minimax_music3_prompt_placeholder" : midi ? "midi_prompt_placeholder" : "prompt_ph")}
+        generated={!midi && !minimax && !barOptions && values.generated} generatedId="promptGenerated"
+        onChange={prompt => update({ prompt, generated: values.generated && prompt === values.prompt })}
+        onRoll={!midi && !minimax && !barOptions ? () => update({ prompt: randomPrompt(instrumental), generated: true }) : undefined} />}
+      {!midi && !barOptions && <GenerationStyleField id="generation-style" diceId="styleDice" chipId="tagChips"
+        label={t(styleLabel)} hint={t(styleHint)} descriptionId={abilities.prompt ? "generation-prompt-hint" : undefined}
+        value={values.style} required={!abilities.prompt} onChange={style => update({ style })}
+        onRoll={abilities.reference_audio ? undefined : () => update({ style: randomStyle(instrumental) })} />}
       <input name="instrumental" type="checkbox" hidden checked={instrumental} readOnly /><input name="keep_caption" type="checkbox" hidden checked readOnly />
       {barOptions && bars !== undefined ? <>
         <div className="clip-meter">

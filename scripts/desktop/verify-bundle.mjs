@@ -30,11 +30,12 @@ const output = path.resolve(process.env.MUSIC_GENERATOR_RELEASE_DIR || path.join
 const diskImage = process.argv.includes("--dmg");
 const installer = process.argv.includes("--msi");
 const diffRhythm2 = diffrhythm2Enabled(process.env.MUSIC_GENERATOR_DIFFRHYTHM2, target);
-const audioCraft = process.argv.includes("--audiocraft");
+const audioCraftBundle = process.argv.includes("--audiocraft");
+const audioCraft = audioCraftBundle || process.env.MUSIC_GENERATOR_AUDIOCRAFT === "1";
 assert(!installer || platform === "windows", "MSI verification requires Windows");
 assert(!diskImage || platform === "macos", "DMG verification requires macOS");
 assert(!audioCraft || (platform === "macos" && architecture === "arm64"), "AudioCraft bundle verification requires macOS arm64");
-const packageKind = audioCraft ? "-audiocraft" : "";
+const packageKind = audioCraftBundle ? "-audiocraft" : "";
 const linuxSuffix = diffRhythm2 ? diffrhythm2ArtifactSuffix : target.artifactSuffix;
 const suffix = installer ? "-windows-x64.msi" : diskImage ? `-macos-${architecture}${packageKind}.dmg` : platform === "linux" ? `-${linuxSuffix}` : `-${platform}-${architecture}${packageKind}.zip`;
 const { version } = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
@@ -201,7 +202,7 @@ try {
     }
     const macTarget = `macos-${architecture}`;
     const hasAppcast = await exists(path.join(output, appcastName(macTarget)));
-    if (!audioCraft && (requiresNotarization || hasAppcast)) {
+    if (!audioCraftBundle && (requiresNotarization || hasAppcast)) {
       const update = macUpdateRelease(process.env, version);
       assert(update && hasAppcast, "Missing Sparkle appcast");
       const plist = key => execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, path.join(bundle, "Contents/Info.plist")], { encoding: "utf8" }).trim();

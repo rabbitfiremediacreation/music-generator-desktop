@@ -15,8 +15,6 @@ pub struct AppState {
     engine: EngineManager,
     pub synthesis_probe: crate::synthesis_policy::Probe,
     pub(crate) stem_search: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
-    pub(crate) stem_transfer:
-        std::sync::Mutex<Option<(String, tokio_util::sync::CancellationToken)>>,
     pub phone_access: crate::phone_access::PhoneAccess,
 }
 
@@ -31,7 +29,6 @@ impl AppState {
             synthesis_probe,
             phone_access: Default::default(),
             stem_search: Default::default(),
-            stem_transfer: Default::default(),
         }
     }
 
@@ -41,6 +38,10 @@ impl AppState {
 
     pub(crate) fn ace_resources(&self) -> PathBuf {
         crate::engine_packages::ace_resources(&self.resources, &self.db.root)
+    }
+
+    pub(crate) fn refresh_engine_models(&self) {
+        self.engine.refresh_models();
     }
 
     // Restore durable configuration without starting or scanning the engine.
@@ -96,9 +97,17 @@ impl AppState {
     ) -> Result<(Vec<u8>, String, serde_json::Value)> {
         let cancel = operation.cancellation();
         if selection.provider == "ace-step" {
-            return self
-                .start_engine(operation, settings)
-                .await?
+            let engine = self.start_engine(operation, settings).await?;
+            if !params["remix"].is_null() {
+                let reference = params["reference_audio"]
+                    .as_str()
+                    .ok_or_else(|| message("mulacover_reference_required"))?;
+                let source = crate::reference_audio::resolve(&self.db.root, reference)?;
+                return engine
+                    .remix(params, &selection.synthesis, &source, &cancel, progress)
+                    .await;
+            }
+            return engine
                 .generate(
                     params,
                     &selection.language,

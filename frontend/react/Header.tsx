@@ -2,7 +2,7 @@ import { bundledProfile, modelErrorText } from "../expert-mode";
 import { pathErrorText } from "../path-dialogs";
 import { useQuery } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GenerationProgress } from "../GenerationActivity";
+import { GenerationProgress, WaveLogo } from "../GenerationActivity";
 import { Switch } from "../Switch";
 import type { ModelSelection } from "../types";
 import { useI18n } from "./i18n";
@@ -11,12 +11,12 @@ import type { ReferenceAudio } from "./audio/useReferenceAudio";
 import { useGenerationStatus } from "./generation/GenerationStatus";
 import { generationPolicyQuery } from "./data";
 
-export function Header({selection,onAnalysis,reference,blocked=false}:{
+export function Header({selection,onAnalysis,reference,blocked=false,brandOnly=false}:{
   selection:ModelSelection|null;onAnalysis:(values:Record<string,unknown>,microphone:boolean)=>void;
-  reference?:ReferenceAudio;blocked?:boolean;
+  reference?:ReferenceAudio;blocked?:boolean;brandOnly?:boolean;
 }){
   const {t}=useI18n();
-  const policy=useQuery(generationPolicyQuery(selection));
+  const policy=useQuery({...generationPolicyQuery(selection), enabled:!brandOnly});
   const abilities = policy.data?.capabilities ?? bundledProfile(selection)?.capabilities;
   const hasLanguageModel = abilities?.advanced ?? (selection === null || Boolean(selection.language));
   const canAnalyze = policy.data?.analysis_available ?? abilities?.analysis ?? hasLanguageModel;
@@ -26,7 +26,8 @@ export function Header({selection,onAnalysis,reference,blocked=false}:{
   const referenceLoading = t("audio_reference_loading");
   const referenceError = reference?.error ? pathErrorText(modelErrorText(reference.error, t)) : "";
   return <header className="top">
-    <AudioControls key={`${selection?.provider ?? ""}:${canAnalyze}`} selection={selection} onAnalysis={onAnalysis} enabled={canAnalyze}
+    {brandOnly && <WaveLogo className="logo" active={active} />}
+    {!brandOnly && <AudioControls key={`${selection?.provider ?? ""}:${canAnalyze}`} selection={selection} onAnalysis={onAnalysis} enabled={canAnalyze}
       unavailableHint={selection?.provider === "yue2" ? t("yue2_analysis_requires_ace_step") : undefined}
       blocked={blocked} generating={active} referencePicker={supportsReference && reference ? {
         label: referenceLabel,
@@ -34,10 +35,10 @@ export function Header({selection,onAnalysis,reference,blocked=false}:{
         selected: Boolean(reference.file),
         disabled: !selection || policy.data?.available === false || reference.picking,
         pick: () => { void reference.pick(referenceLabel); },
-      } : undefined} />
+      } : undefined} />}
     <a className="brand-link" href="https://alphatester.rabbitfire.de/" title={t("brand_title")} onClick={event=>{event.preventDefault();void openUrl(event.currentTarget.href);}}><img className="brand" src="/alphatester.png" alt="Alphatester"/></a>
     <div className="divider"/><h1 className="title"><span>MUSIC</span><span>GENERATOR</span></h1>
-    {supportsReference && reference && <div className="reference-audio-status">
+    {!brandOnly && supportsReference && reference && <div className="reference-audio-status">
       <span id="generation-reference-hint" className="small">{t("mulacover_reference_hint")}</span>
       {reference.picking && <GenerationProgress wave={false} className="reference-audio-progress" label={referenceLoading} details={referenceLoading} />}
       {reference.file && <>

@@ -13,6 +13,20 @@ test("native runtime cache keeps both Linux backends and Mac architectures separ
   assert.equal(await runtimeCacheKey(targets[1]), keys[1]);
 });
 
+test("Apple Silicon preview builds use a different runtime cache when Magenta is enabled", async () => {
+  const build = desktopTarget("macos", "arm64");
+  const previous = process.env.MUSIC_GENERATOR_MAGENTA;
+  try {
+    process.env.MUSIC_GENERATOR_MAGENTA = "0";
+    const standard = await runtimeCacheKey(build);
+    process.env.MUSIC_GENERATOR_MAGENTA = "1";
+    assert.notEqual(await runtimeCacheKey(build), standard);
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_GENERATOR_MAGENTA;
+    else process.env.MUSIC_GENERATOR_MAGENTA = previous;
+  }
+});
+
 test("cross-release cache rejects expired, failed, foreign and unrelated workflow artifacts", async () => {
   const repository = "owner/desktop", key = "native-cuda-key";
   const artifacts = [

@@ -14,19 +14,31 @@ pub enum OperationKind {
     Startup,
     Setup,
     Models,
+    ModelActivation,
     Settings,
     Import,
     Analysis,
     Export,
     Generation,
+    StemGeneration,
 }
 
 impl OperationKind {
     fn blocks_enqueue(self) -> bool {
         matches!(
             self,
-            Self::Startup | Self::Setup | Self::Models | Self::Settings | Self::Import
+            Self::Startup
+                | Self::Setup
+                | Self::Models
+                | Self::ModelActivation
+                | Self::Settings
+                | Self::Import
+                | Self::StemGeneration
         )
+    }
+
+    fn reserves_assets(self) -> bool {
+        matches!(self, Self::Startup | Self::Setup | Self::Models)
     }
 }
 
@@ -50,6 +62,7 @@ struct Active {
 
 struct RunningSong {
     id: String,
+    title: Option<String>,
     started_at: Instant,
     remaining_time_sample: Option<RemainingTimeSample>,
 }
@@ -105,6 +118,7 @@ struct Status {
     configured: bool,
     active: Option<Active>,
     sequence: u64,
+    transfers: Vec<(String, String, CancellationToken)>,
 }
 
 /// Owns operation admission, cancellation and observable job state, independently of engines.
@@ -142,6 +156,9 @@ impl Runtime {
         let mut status = self.status.lock().unwrap();
         if self.is_shutdown() {
             return Err(Error::Cancelled);
+        }
+        if kind.reserves_assets() && !status.transfers.is_empty() {
+            return Err(message("download_assets_busy"));
         }
         let cancel = self.shutdown.child_token();
         status.active = Some(Active {
@@ -217,7 +234,21 @@ impl Runtime {
             .unwrap()
             .active
             .as_ref()
+            .filter(|active| active.kind == OperationKind::Generation)
             .and_then(|a| a.progress.clone())
+    }
+
+    /// Snapshot the live progress and the in-memory stem job, whose result is added to its mix.
+    pub(crate) fn work_progress(&self) -> (Option<JobProgress>, Option<(String, String)>) {
+        let status = self.status.lock().unwrap();
+        let Some(active) = &status.active else {
+            return (None, None);
+        };
+        let stem = active
+            .song
+            .as_ref()
+            .and_then(|song| Some((song.id.clone(), song.title.as_ref()?.clone())));
+        (active.progress.clone(), stem)
     }
     /// Keep the durable cancellation and the worker signal together across retries.
     pub fn cancel_song(&self, id: &str, cancel: impl FnOnce() -> Result<bool>) -> Result<bool> {
@@ -246,6 +277,15 @@ impl Runtime {
             }
         }
     }
+    pub fn cancel_stem_generation(&self, id: Option<&str>) {
+        let status = self.status.lock().unwrap();
+        if let Some(active) = status.active.as_ref().filter(|active| {
+            active.kind == OperationKind::StemGeneration
+                && id.is_none_or(|id| active.song.as_ref().is_some_and(|song| song.id == id))
+        }) {
+            active.cancel.cancel();
+        }
+    }
     pub fn shutdown(&self) {
         self.shutdown.cancel();
         self.wake();
@@ -256,11 +296,84 @@ impl Runtime {
     pub fn cancellation(&self) -> CancellationToken {
         self.shutdown.child_token()
     }
+
+    pub(crate) fn transfer(self: &Arc<Self>, scope: &str, key: &str) -> Result<Transfer> {
+        let mut status = self.status.lock().unwrap();
+        if self.is_shutdown() {
+            return Err(Error::Cancelled);
+        }
+        if status
+            .active
+            .as_ref()
+            .is_some_and(|active| active.kind.reserves_assets())
+            || status
+                .transfers
+                .iter()
+                .any(|(active_scope, active_key, _)| active_scope == scope && active_key == key)
+        {
+            return Err(message("download_assets_busy"));
+        }
+        let cancel = self.cancellation();
+        status
+            .transfers
+            .push((scope.to_owned(), key.to_owned(), cancel.clone()));
+        Ok(Transfer {
+            runtime: self.clone(),
+            scope: scope.to_owned(),
+            key: key.to_owned(),
+            cancel,
+        })
+    }
+
+    pub(crate) fn cancel_transfer(&self, scope: Option<&str>, key: Option<&str>) -> bool {
+        let status = self.status.lock().unwrap();
+        if let Some((_, _, token)) = status.transfers.iter().rev().find(|(value, target, _)| {
+            scope.is_none_or(|scope| scope == value) && key.is_none_or(|key| key == target)
+        }) {
+            token.cancel();
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn is_transferring(&self, scope: &str, key: &str) -> bool {
+        self.status
+            .lock()
+            .unwrap()
+            .transfers
+            .iter()
+            .any(|(active_scope, active_key, _)| scope == active_scope && key == active_key)
+    }
     pub fn wake(&self) {
         self.wake.notify_one();
     }
     pub async fn wait(&self) {
         tokio::select! { _ = self.shutdown.cancelled() => {}, _ = self.wake.notified() => {} }
+    }
+}
+
+pub(crate) struct Transfer {
+    runtime: Arc<Runtime>,
+    scope: String,
+    key: String,
+    cancel: CancellationToken,
+}
+
+impl Transfer {
+    pub(crate) fn cancellation(&self) -> CancellationToken {
+        self.cancel.clone()
+    }
+}
+
+impl Drop for Transfer {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+        self.runtime
+            .status
+            .lock()
+            .unwrap()
+            .transfers
+            .retain(|(scope, key, _)| scope != &self.scope || key != &self.key);
     }
 }
 
@@ -284,10 +397,18 @@ impl Operation {
     }
     pub(crate) fn start_song(&self, id: &str) {
         assert_eq!(self.kind, OperationKind::Generation);
+        self.start_work(id.to_owned(), None);
+    }
+    pub(crate) fn start_stem_generation(&self, title: &str) {
+        assert_eq!(self.kind, OperationKind::StemGeneration);
+        self.start_work(crate::types::id(), Some(title.to_owned()));
+    }
+    fn start_work(&self, id: String, title: Option<String>) {
         let mut status = self.runtime.status.lock().unwrap();
         let active = status.active.as_mut().unwrap();
         active.song = Some(RunningSong {
-            id: id.into(),
+            id,
+            title,
             started_at: Instant::now(),
             remaining_time_sample: None,
         });

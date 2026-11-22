@@ -47,6 +47,7 @@ beforeEach(() => {
     if (name === "list_song_page") return {songs,total:songs.length};
     if (name === "list_folders") return { folders: [], all: 2, none: 2 };
     if (name === "queue") return { running: queueActive ? [{ id: "active", caption: "A song", message: null }] : [], queued: 0, active: queueActive, progress: null, library: { count: 2, bytes: 100 } };
+    if (name === "work_queue") return { jobs: [], progress: null, downloads: [], download_limit: 4 };
     if (name === "health") return { ok: true, backend_status: backendStatus };
     if (name === "discover_hugging_face_models") return { candidates: [], unavailable_repositories: [] };
     if (name === "generate") return { ids: ["new"] };
@@ -156,7 +157,7 @@ it("lets Sparkle present native updates and ignores duplicate requests while che
   expect(mocks.confirm).not.toHaveBeenCalled();
   expect(mocks.message).not.toHaveBeenCalled();
 });
-it.each([false, true])("keeps generation blocked after closing an inline model operation and preserves a newer song choice=%s", async restore => {
+it.each([false, true])("generates with the current model during a download and preserves a newer song choice=%s", async restore => {
   const xl = { ...standard, synthesis: "acestep-v15-xl-sft-Q8_0.gguf" };
   settings.recommended_profiles = [standard, xl];
   let finish!: (selection: typeof standard) => void;
@@ -179,8 +180,9 @@ it.each([false, true])("keeps generation blocked after closing an inline model o
   fireEvent.keyDown(catalogDialog, { key: "Escape" });
   fireEvent.click(within(dialog).getByRole("button", { name: t("cancel") }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  await attemptAll(form);
-  expect(calls("generate")).toHaveLength(0); expect(calls("retry_song")).toHaveLength(0);
+  fireEvent.submit(form);
+  await waitFor(() => expect(calls("generate")).toHaveLength(1));
+  expect(calls("generate")[0][1]).toMatchObject({ request: { model_selection: standard } });
   if (restore) fireEvent.click(within(screen.getByText("done song A").closest("article")!).getByRole("button", { name: t("reuse") }));
   await act(async () => { settings = { ...settings, synthesis_model: xl.synthesis }; finish(xl); });
   await waitFor(() => expect(creator.disabled).toBe(false));

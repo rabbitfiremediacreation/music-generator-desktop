@@ -80,5 +80,6 @@ CREATE TABLE IF NOT EXISTS stem_layers (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES stem_jobs(id),
     source_id TEXT NOT NULL REFERENCES stem_sources(id),
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    generated_name TEXT
 );

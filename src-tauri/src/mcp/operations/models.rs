@@ -14,7 +14,7 @@ pub(super) fn select<R: tauri::Runtime>(
     app: &AppHandle<R>,
     selection: Selection,
 ) -> Result<Value> {
-    let _operation = state.runtime.try_begin(OperationKind::Models)?;
+    let _operation = state.runtime.try_begin(OperationKind::ModelActivation)?;
     catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
     catalog::activate_cached_profile(&state.db, &selection, crate::hardware::inspect())?;
     state.stop_engine();
@@ -27,33 +27,29 @@ pub(super) fn install<R: tauri::Runtime>(
     app: &AppHandle<R>,
     selection: Selection,
 ) -> Result<Value> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let transfer = state
+        .runtime
+        .transfer("models", &serde_json::to_string(&selection)?)?;
     catalog::validate_activation(
         &state.db.settings()?,
         &selection,
         crate::hardware::inspect(),
     )?;
     catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
-    let cancel = operation.cancellation();
+    let cancel = transfer.cancellation();
     let task = tasks::for_app(app).begin("install_models", cancel.clone())?;
     let result = task.accepted();
     let progress = task.clone();
     let app = app.clone();
     task.spawn(async move {
-        let _operation = operation;
-        state.stop_engine();
+        let _transfer = transfer;
         let events = crate::download::ProgressEvents::new(&app, "model-download-progress");
-        let outcome = catalog::install_profile(
-            &catalog::catalog(),
-            &state.db,
-            &selection,
-            &cancel,
-            |update| {
+        let outcome =
+            crate::model_commands::download_and_activate(&state, &selection, &cancel, |update| {
                 progress.progress(&update);
                 events.report(update);
-            },
-        )
-        .await;
+            })
+            .await;
         changed(&state, &app);
         outcome?;
         Ok(json!({"selection":selection}))
@@ -62,19 +58,18 @@ pub(super) fn install<R: tauri::Runtime>(
 }
 
 pub(super) fn title<R: tauri::Runtime>(state: Arc<AppState>, app: &AppHandle<R>) -> Result<Value> {
-    let operation = state.runtime.try_begin(OperationKind::Models)?;
+    let transfer = state.runtime.transfer("models", "title")?;
     let settings = state.db.settings()?;
     if !settings.setup_complete {
         return Err(message("Complete the first-run assistant first"));
     }
-    let cancel = operation.cancellation();
+    let cancel = transfer.cancellation();
     let task = tasks::for_app(app).begin("download_title_model", cancel.clone())?;
     let result = task.accepted();
     let progress = task.clone();
     let app = app.clone();
     task.spawn(async move {
-        let _operation = operation;
-        state.stop_engine();
+        let _transfer = transfer;
         let events = crate::download::ProgressEvents::new(&app, "model-download-progress");
         let outcome = crate::titles::install(
             &state.db.root,

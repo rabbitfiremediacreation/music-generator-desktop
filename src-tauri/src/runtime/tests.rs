@@ -1,6 +1,53 @@
 use super::*;
 
 #[tokio::test]
+async fn live_stem_progress_is_visible_in_the_work_queue_and_cancelled_by_job_id() {
+    let runtime = Arc::new(Runtime::default());
+    let operation = runtime.try_begin(OperationKind::StemGeneration).unwrap();
+    operation.start_stem_generation("Guitar");
+    operation.report(Progress::new("context"), 5).unwrap();
+    let (progress, stem) = runtime.work_progress();
+    let (id, title) = stem.unwrap();
+    let progress = progress.unwrap();
+    assert_eq!(title, "Guitar");
+    assert_eq!(progress.job_id, id);
+    assert_eq!(progress.overall_percent, 5);
+    assert!(runtime.progress().is_none());
+
+    runtime.cancel_stem_generation(Some("old-job"));
+    assert!(!operation.cancellation().is_cancelled());
+    runtime.cancel_stem_generation(Some(&id));
+    assert!(operation.cancellation().is_cancelled());
+    drop(operation);
+    assert!(matches!(runtime.work_progress(), (None, None)));
+}
+
+#[tokio::test]
+async fn downloads_coexist_with_generation_and_only_activation_waits_for_the_engine() {
+    let runtime = Arc::new(Runtime::default());
+    runtime.set_configured(true);
+    let first = runtime.transfer("models", "base").unwrap();
+    let generating = runtime.try_begin(OperationKind::Generation).unwrap();
+    let second = runtime.transfer("engines", "magenta").unwrap();
+    assert!(runtime.enqueue(|| Ok(())).is_ok());
+    assert!(runtime.try_begin(OperationKind::ModelActivation).is_err());
+    assert!(runtime.transfer("models", "base").is_err());
+    assert!(runtime.cancel_transfer(Some("engines"), Some("magenta")));
+    assert!(second.cancellation().is_cancelled());
+    assert!(!first.cancellation().is_cancelled());
+    assert!(!generating.cancellation().is_cancelled());
+
+    drop(generating);
+    assert!(runtime.try_begin(OperationKind::Models).is_err());
+    assert!(runtime.try_begin(OperationKind::ModelActivation).is_ok());
+    drop(first);
+    drop(second);
+    let setup = runtime.try_begin(OperationKind::Setup).unwrap();
+    assert!(runtime.transfer("models", "base").is_err());
+    drop(setup);
+}
+
+#[tokio::test]
 async fn operations_exclude_each_other_and_release_on_error() {
     let runtime = Arc::new(Runtime::default());
     runtime.set_configured(true);

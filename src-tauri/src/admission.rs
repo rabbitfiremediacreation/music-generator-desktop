@@ -126,7 +126,7 @@ pub fn retry(state: &AppState, id: &str) -> Result<()> {
         catalog::catalog().ensure_allowed(&selection, settings.expert_mode, Some(hardware))?;
         catalog::ensure_runtime(&selection, &state.resources, &state.db.root)?;
         validate_saved_profile(&selection, &song.params)?;
-        if selection.provider != "ace-step" {
+        if selection.provider != "ace-step" || !song.params["remix"].is_null() {
             let capabilities = catalog::capabilities(&selection)?;
             let mut request: GenerateRequest = serde_json::from_value(song.params)?;
             request.variants = 1;

@@ -1,8 +1,10 @@
 use crate::{
     audio_facts::is_reference_wav,
-    audio_import::read_selection,
+    audio_import::{read_selection, read_selection_with_limit},
+    db::Database,
     error::{message, Result},
     state::AppState,
+    types::GenerateRequest,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -13,6 +15,8 @@ use std::{
 };
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
+
+const MAX_REMIX_BYTES: usize = 120 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 pub struct ReferenceAudio {
@@ -58,6 +62,46 @@ fn stage(root: &Path, name: String, data: &[u8]) -> Result<ReferenceAudio> {
         resolve(root, &id)?;
     }
     Ok(ReferenceAudio { id, name })
+}
+
+/// Snapshot the source before queueing so that deleting the original cannot break a retry.
+pub(crate) fn prepare_remix(db: &Database, request: &mut GenerateRequest) -> Result<()> {
+    let remix = request.remix.as_ref().expect("remix options are required");
+    let (id, duration) = if let Some(id) = &request.reference_audio {
+        let path = resolve(&db.root, id)?;
+        (
+            id.clone(),
+            remix_duration(crate::audio_facts::file_duration(&path)?)?,
+        )
+    } else {
+        let source = remix
+            .source_song_id
+            .as_deref()
+            .ok_or_else(|| message("mulacover_reference_required"))?;
+        let song = db.song(source)?;
+        let path = song
+            .audio_path()
+            .filter(|_| song.status == "done")
+            .ok_or_else(|| message("mulacover_reference_missing"))?;
+        let audio = read_selection_with_limit(Path::new(path), MAX_REMIX_BYTES)?;
+        let duration = remix_duration(
+            crate::audio_facts::duration(&audio.data)
+                .map_err(|_| message("mulacover_reference_format"))?,
+        )?;
+        (stage(&db.root, audio.name, &audio.data)?.id, duration)
+    };
+    request.reference_audio = Some(id);
+    request.duration = duration;
+    request.ignore_recommended_duration = false;
+    Ok(())
+}
+
+fn remix_duration(seconds: f64) -> Result<f64> {
+    if seconds > 0.0 && seconds <= 600.0 {
+        Ok(seconds)
+    } else {
+        Err(message("remix_source_duration"))
+    }
 }
 
 #[tauri::command]
@@ -126,5 +170,42 @@ mod tests {
         let mut wrong = wav();
         wrong[20] = 3;
         assert!(stage(root.path(), "float.wav".into(), &wrong).is_err());
+    }
+
+    #[test]
+    fn queued_remix_keeps_a_copy_and_provenance_after_removing_the_library_source() {
+        use crate::types::{RemixMode, RemixOptions};
+        let root = tempfile::tempdir().unwrap();
+        let db = Database::open(root.path()).unwrap();
+        let songs = PathBuf::from(db.settings().unwrap().songs_dir);
+        std::fs::create_dir_all(&songs).unwrap();
+        let input = GenerateRequest {
+            prompt: "Original".into(),
+            ..Default::default()
+        };
+        let source = db.enqueue(&input).unwrap().remove(0);
+        db.claim_next().unwrap().unwrap();
+        let file = songs.join("original.wav");
+        std::fs::write(&file, wav()).unwrap();
+        assert!(db
+            .finish(&source, "original.wav", &serde_json::json!({}))
+            .unwrap());
+
+        let ids = db
+            .enqueue(&GenerateRequest {
+                prompt: "Acoustic arrangement".into(),
+                remix: Some(RemixOptions {
+                    mode: RemixMode::Cover,
+                    source_song_id: Some(source.clone()),
+                }),
+                ..Default::default()
+            })
+            .unwrap();
+        std::fs::remove_file(file).unwrap();
+        let params = db.song(&ids[0]).unwrap().params;
+        assert_eq!(params["remix"]["source_song_id"], source);
+        assert_eq!(params["duration"], 2.0 / 16000.0);
+        let snapshot = resolve(root.path(), params["reference_audio"].as_str().unwrap()).unwrap();
+        assert_eq!(std::fs::read(snapshot).unwrap(), wav());
     }
 }

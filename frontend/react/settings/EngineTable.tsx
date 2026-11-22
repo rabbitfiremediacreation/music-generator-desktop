@@ -20,8 +20,9 @@ function Version({ version, showBuild = false }: { version: EngineVersion; showB
   return <code className="wrap-anywhere" title={version.revision}>{[version.tag, revision].filter(Boolean).join(" · ")}</code>;
 }
 
-export function EngineTable({ packages, busy, onInstall, onRemove, children }: {
-  packages: EnginePackage[]; busy: boolean; onInstall: (id: string) => void; onRemove: (id: string) => void;
+export function EngineTable({ packages, busy, installing, installBlocked, onInstall, onRemove, children }: {
+  packages: EnginePackage[]; busy: boolean; installing: ReadonlySet<string>; installBlocked: boolean;
+  onInstall: (id: string) => void; onRemove: (id: string) => void;
   children?: ReactNode;
 }) {
   const { t, language } = useI18n();
@@ -62,7 +63,7 @@ export function EngineTable({ packages, busy, onInstall, onRemove, children }: {
           <td>{engine.bytes > 0 ? downloadSize(engine.bytes) : "—"}</td>
           <td><div className="settings-inventory-actions engine-actions">
             {engine.bytes > 0 && (!engine.installed || engine.update_available) &&
-              <button type="button" className={`sek engine-action--${action}`} disabled={busy} aria-label={`${install} · ${packageLabel}`} onClick={() => onInstall(engine.id)}>{install}</button>}
+              <button type="button" className={`sek engine-action--${action}`} disabled={installBlocked || installing.has(engine.id)} aria-label={`${install} · ${packageLabel}`} onClick={() => onInstall(engine.id)}>{install}</button>}
             {engine.removable && <button type="button" className="sek engine-action--remove" disabled={busy}
               aria-label={`${remove} · ${packageLabel}`} onClick={() => onRemove(engine.id)}>{remove}</button>}
           </div></td>

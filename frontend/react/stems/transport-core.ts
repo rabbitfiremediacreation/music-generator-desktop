@@ -1,11 +1,15 @@
 import { audibleTracks, type StemMix } from "../../stems";
+import { defaultFxReturns, fxSlots, mapFxSlots, returnSoloActive, type FxSlots } from "../../stem-returns";
+import { EffectBus } from "./dsp-returns";
+import { Smoothed } from "./dsp-smoothed";
 import { amplitude, DspMaster, DspStrip } from "./dsp-strip";
 
 export interface Pcm { left: Float32Array; right: Float32Array }
 export type StereoPeak = [number, number];
 export interface Position {
   frame: number; playing: boolean; playRevision: number; peaks: number[]; master: number;
-  stereo: StereoPeak[]; masterStereo: StereoPeak;
+  stereo: StereoPeak[]; masterStereo: StereoPeak; reduction: number[]; masterReduction: number;
+  returnStereo: FxSlots<StereoPeak>; returnReduction: FxSlots<number>;
 }
 export type PlaybackSnapshot = Pick<Position, "frame" | "playing" | "playRevision">;
 export type TransportMessage =
@@ -18,7 +22,7 @@ export type TransportMessage =
 export type WorkletCommand = TransportMessage | { type: "freeze" };
 export type WorkletReport = Position | { type: "frozen"; position: PlaybackSnapshot };
 
-interface Channel { pcm?: Pcm; dsp: DspStrip; fadeIn: number; fadeOut: number }
+interface Channel { pcm?: Pcm; dsp: DspStrip; fadeIn: number; fadeOut: number; sends: FxSlots<Smoothed> }
 
 /** Both monitor paths share the same sample clock, even at a different device rate. */
 export class StemTransport {
@@ -30,6 +34,10 @@ export class StemTransport {
   private original?: Pcm;
   private channels: Channel[];
   private master: DspMaster;
+  private readonly buses: FxSlots<EffectBus>;
+  private activeBuses: EffectBus[] = [];
+  private readonly dry = new Smoothed(1);
+  private readonly sendSlew: number;
   private comparison = 0;
   private compareTarget = 0;
   private mono = 0;
@@ -42,10 +50,16 @@ export class StemTransport {
     this.end = frames;
     this.increment = rate / outputRate;
     this.transition = 1 / (outputRate * .008);
+    this.sendSlew = 1 - Math.exp(-1 / (outputRate * .008));
     this.master = new DspMaster(outputRate);
-    this.channels = Array.from({ length: tracks }, () => ({ dsp: new DspStrip(outputRate), fadeIn: 0, fadeOut: 0 }));
+    this.buses = mapFxSlots(slot => new EffectBus(slot, outputRate));
+    this.channels = Array.from({ length: tracks }, () => ({
+      dsp: new DspStrip(outputRate), fadeIn: 0, fadeOut: 0, sends: mapFxSlots(() => new Smoothed(0)),
+    }));
     this.status = { frame: 0, playing: false, playRevision: 0, peaks: Array(tracks).fill(0), master: 0,
-      stereo: Array.from({ length: tracks }, () => [0, 0]), masterStereo: [0, 0] };
+      stereo: Array.from({ length: tracks }, () => [0, 0]), masterStereo: [0, 0],
+      reduction: Array(tracks).fill(0), masterReduction: 0,
+      returnStereo: mapFxSlots(() => [0, 0]), returnReduction: mapFxSlots(() => 0) };
   }
 
   receive(message: TransportMessage) {
@@ -89,6 +103,7 @@ export class StemTransport {
 
   private reset() {
     for (const channel of this.channels) channel.dsp.reset();
+    for (const bus of this.activeBuses) bus.reset();
     this.master.reset();
   }
 
@@ -102,19 +117,35 @@ export class StemTransport {
       this.reset();
     }
     const audible = new Set(audibleTracks(mix).map(track => track.role));
-    this.master.configure(mix.master_off ? 0 : amplitude(mix.master_db), mix.master_comp ?? 0, mix.master_limit ?? 0, !this.playing);
+    const returns = mix.fx_returns ?? defaultFxReturns;
+    const soloReturns = returnSoloActive(returns);
+    // An isolated return still needs the source channels to feed its sends.
+    this.dry.set(!soloReturns || mix.tracks.some(track => track.solo) ? 1 : 0, !this.playing);
+    for (const bus of this.buses) {
+      const settings = returns[bus.slot];
+      const routed = mix.tracks.some(track => (track.sends?.[bus.slot] ?? 0) > 0);
+      bus.configure(settings, routed, !settings.mute && (!soloReturns || !!settings.solo), !this.playing);
+    }
+    this.activeBuses = this.buses.filter(bus => bus.active);
+    this.master.configure(mix.master_off ? 0 : amplitude(mix.master_db), mix.master_comp ?? 0, mix.master_limit ?? 0,
+      mix.master_dynamics, !this.playing);
     for (const [index, track] of mix.tracks.entries()) {
       const channel = this.channels[index];
       channel.dsp.configure(track, audible.has(track.role), !this.playing);
       channel.fadeIn = track.fade_in * this.rate;
       channel.fadeOut = track.fade_out * this.rate;
+      for (const slot of fxSlots) channel.sends[slot].set((track.sends?.[slot] ?? 0) / 100, !this.playing);
     }
   }
 
   render(left: Float32Array, right: Float32Array): Position {
-    const { stereo, masterStereo, peaks } = this.status;
+    const { stereo, masterStereo, peaks, reduction, returnStereo, returnReduction } = this.status;
+    reduction.fill(1);
+    returnReduction.fill(1);
+    let masterReduction = 1;
     masterStereo[0] = masterStereo[1] = 0;
     for (const peak of stereo) peak[0] = peak[1] = 0;
+    for (const peak of returnStereo) peak[0] = peak[1] = 0;
     for (let sample = 0; sample < left.length; sample++) {
       if (this.frame >= this.end) {
         if (this.playing && this.loop) { this.frame = this.first + (this.frame - this.end) % (this.end - this.first); this.reset(); }
@@ -129,6 +160,7 @@ export class StemTransport {
       const fraction = this.frame - index;
       const next = index + 1 < this.end ? index + 1 : this.loop ? this.first : index;
       let l = 0, r = 0;
+      for (const bus of this.activeBuses) { bus.left = 0; bus.right = 0; }
       for (let ch = 0; ch < this.channels.length; ch++) {
         const channel = this.channels[ch];
         if (!channel.pcm) continue;
@@ -138,13 +170,32 @@ export class StemTransport {
         const pair = channel.dsp.output;
         stereo[ch][0] = Math.max(stereo[ch][0], Math.abs(pair[0]));
         stereo[ch][1] = Math.max(stereo[ch][1], Math.abs(pair[1]));
+        reduction[ch] = Math.min(reduction[ch], channel.dsp.reductionGain);
         l += pair[0]; r += pair[1];
+        for (const bus of this.activeBuses) {
+          const send = channel.sends[bus.slot].next(this.sendSlew);
+          bus.left += pair[0] * send;
+          bus.right += pair[1] * send;
+        }
+      }
+      const dry = this.dry.next(this.sendSlew);
+      l *= dry;
+      r *= dry;
+      for (const bus of this.activeBuses) {
+        bus.process();
+        const meter = returnStereo[bus.slot];
+        meter[0] = Math.max(meter[0], Math.abs(bus.left));
+        meter[1] = Math.max(meter[1], Math.abs(bus.right));
+        returnReduction[bus.slot] = Math.min(returnReduction[bus.slot], bus.reductionGain);
+        l += bus.left;
+        r += bus.right;
       }
       this.master.process(l, r);
       l = this.master.output[0];
       r = this.master.output[1];
       masterStereo[0] = Math.max(masterStereo[0], Math.abs(l));
       masterStereo[1] = Math.max(masterStereo[1], Math.abs(r));
+      masterReduction = Math.min(masterReduction, this.master.reductionGain);
       this.comparison = approach(this.comparison, this.compareTarget, this.transition);
       if (this.original && this.comparison) {
         l += (at(this.original.left, index, next, fraction) - l) * this.comparison;
@@ -156,12 +207,21 @@ export class StemTransport {
       right[sample] = r + (mid - r) * this.mono;
       this.frame += this.increment;
     }
-    for (let index = 0; index < peaks.length; index++) peaks[index] = Math.max(stereo[index][0], stereo[index][1]);
+    for (let index = 0; index < peaks.length; index++) {
+      peaks[index] = Math.max(stereo[index][0], stereo[index][1]);
+      reduction[index] = reductionDb(reduction[index]);
+    }
+    for (const slot of fxSlots) returnReduction[slot] = reductionDb(returnReduction[slot]);
     this.status.master = Math.max(...masterStereo);
+    this.status.masterReduction = reductionDb(masterReduction);
     this.status.frame = Math.floor(Math.min(this.frame, this.end));
     this.status.playing = this.playing;
     return this.status;
   }
+}
+
+function reductionDb(gain: number) {
+  return gain < 1 ? -20 * Math.log10(Math.max(1e-12, gain)) : 0;
 }
 
 function at(channel: Float32Array, index: number, next: number, fraction: number) {

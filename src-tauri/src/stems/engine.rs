@@ -232,13 +232,22 @@ pub async fn install(
         return Ok(());
     }
     if !external_python_required(state) {
-        crate::engine_packages::install(&state.db.root, "pytorch", cancel, progress).await?;
+        let transfer = state.runtime.transfer("engines", "pytorch")?;
+        crate::engine_packages::install_background(state, "pytorch", cancel, progress).await?;
+        drop(transfer);
         if bundled_runner(state).is_none() {
             return Err(message("stem_engine_install_failed"));
         }
         return Ok(());
     }
-    install_python(&state.db.root, cancel).await
+    let root = &state.db.root;
+    crate::download::queue::external(
+        "Demucs · Python",
+        &directory(root),
+        cancel,
+        async |cancel| install_python(root, cancel).await,
+    )
+    .await
 }
 
 async fn install_python(root: &Path, cancel: &CancellationToken) -> Result<()> {

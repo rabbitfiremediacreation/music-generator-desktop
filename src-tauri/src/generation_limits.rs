@@ -41,7 +41,7 @@ pub fn validate_request(
         options.validate(request.instrumental)?;
     }
     match (
-        capabilities.reference_audio,
+        capabilities.reference_audio || request.remix.is_some(),
         request.reference_audio.as_deref(),
     ) {
         (true, None) => return Err(message("mulacover_reference_required")),

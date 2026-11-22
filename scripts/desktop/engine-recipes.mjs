@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import catalog from "../../models/catalog.json" with { type: "json" };
 import titlePin from "../../models/title-model.json" with { type: "json" };
 import { audioCppSupported, files, hash, manifest, root, shipsYue2, target } from "./native-build.mjs";
 
 const scripts = (...names) => names.map(name => `scripts/desktop/${name}`);
 const sandbox = "scripts/desktop/engine-sandbox.mm";
 const plugin = scripts("macos-plugin.mjs", "macos-plugin-probe.cpp");
+const magentaRevision = catalog.profiles.find(profile => profile.selection.provider === "magenta-realtime-2").runtime.revision;
 
 async function tree(directory) {
   return (await files(path.join(root, directory))).map(file => path.relative(root, file).split(path.sep).join("/"));
@@ -52,5 +54,9 @@ export async function componentRecipes(build = target) {
     ...scripts("prepare-pytorch.mjs", "prepare-stems.mjs", "prepare-text2midi.mjs", "embedded-python-plugin.cpp"),
     ...await tree("scripts/desktop/mimetic-runtime"), ...await tree("scripts/desktop/stems-runtime"),
     ...["text2midi.py", "decoder.py", "vocab_remi.json", "LICENSE.upstream", "LICENSE.vocab", "NOTICE"].map(name => `src-tauri/resources/text2midi/${name}`)]);
+  if (platform === "macos" && arch === "arm64" && process.env.MUSIC_GENERATOR_MAGENTA === "1") {
+    recipes.magenta = await fingerprint({ ...host, revision: magentaRevision },
+      [sandbox, ...scripts("prepare-magenta.mjs"), ...await tree("scripts/desktop/magenta-runtime")]);
+  }
   return recipes;
 }

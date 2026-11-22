@@ -17,6 +17,7 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
 mod events;
+pub(crate) mod queue;
 pub(crate) use events::ProgressEvents;
 
 #[derive(Clone, Serialize)]
@@ -166,6 +167,48 @@ pub async fn download_pinned_model(
 }
 
 pub(crate) async fn fetch(
+    request: impl FnOnce() -> Result<RequestBuilder>,
+    pinned_bytes: Option<u64>,
+    root: &Path,
+    model: &Model,
+    verifier: &mut ModelVerifier,
+    cancel: &CancellationToken,
+    progress: impl Fn(DownloadProgress),
+) -> Result<PathBuf> {
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    tokio::fs::create_dir_all(root).await?;
+    let canonical = root.canonicalize()?;
+    let target = canonical.join(&model.file);
+    if verifier.is_verified(&target, &model.sha256)
+        && pinned_bytes.is_none_or(|bytes| target.metadata().is_ok_and(|file| file.len() == bytes))
+    {
+        return Ok(root.join(&model.file));
+    }
+    let task = queue::Task::begin(&model.file, model.estimated_bytes, cancel);
+    let result = async {
+        let _permit = task.acquire(&target).await?;
+        fetch_file(
+            request,
+            pinned_bytes,
+            root,
+            model,
+            verifier,
+            task.cancellation(),
+            |update| {
+                task.progress(&update);
+                progress(update);
+            },
+        )
+        .await
+    }
+    .await;
+    task.finish(&result);
+    result
+}
+
+async fn fetch_file(
     request: impl FnOnce() -> Result<RequestBuilder>,
     pinned_bytes: Option<u64>,
     root: &Path,

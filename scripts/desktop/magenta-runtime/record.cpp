@@ -221,6 +221,15 @@ void prepare_prompt(MLXEngine& engine, const char* prompt) {
 } // namespace
 
 extern "C" int music_generator_engine_main_v1(int argc, char** argv) try {
+    if (argc == 2 && std::string_view(argv[1]) == "--runtime-probe") {
+        const auto kernels = std::filesystem::path(argv[0]).parent_path() / "mlx.metallib";
+        if (!std::filesystem::is_regular_file(kernels)) {
+            std::cerr << "Magenta Metal library is missing\n";
+            return EXIT_FAILURE;
+        }
+        std::cout << "mrt2-record/1\n";
+        return EXIT_SUCCESS;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
         namespace mx = mlx::core;
         auto check = mx::add(mx::ones({1}), mx::ones({1}), mx::Device::gpu);

@@ -52,6 +52,14 @@ impl Database {
                     [],
                 )?;
             }
+            let has_generated_name: bool = con.query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('stem_layers') WHERE name='generated_name')",
+                [],
+                |row| row.get(0),
+            )?;
+            if !has_generated_name {
+                con.execute("ALTER TABLE stem_layers ADD COLUMN generated_name TEXT", [])?;
+            }
             con.execute(
                 "UPDATE songs SET status='queued', message=NULL WHERE status='running'",
                 [],
@@ -284,6 +292,18 @@ impl Database {
             crate::catalog::Selection::from_settings(&self.settings()?)
         };
         let capabilities = crate::catalog::capabilities(&selection)?;
+        let prepared;
+        let req = if req.remix.is_some() {
+            if selection.provider != "ace-step" {
+                return Err(message("remix_ace_required"));
+            }
+            let mut remix = req.clone();
+            crate::reference_audio::prepare_remix(self, &mut remix)?;
+            prepared = remix;
+            &prepared
+        } else {
+            req
+        };
         let duration = crate::generation_limits::validate_request(req, &capabilities)?;
         if let Some(reference) = &req.reference_audio {
             crate::reference_audio::resolve(&self.root, reference)?;

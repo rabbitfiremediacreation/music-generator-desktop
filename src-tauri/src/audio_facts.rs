@@ -9,7 +9,7 @@ use std::{
 };
 mod wav;
 pub(crate) use wav::WavFacts;
-pub(crate) use wav::{float_data, WavAssembly};
+pub(crate) use wav::{float_data, pcm16_data, WavAssembly};
 
 #[derive(PartialEq, Eq)]
 struct Signature {

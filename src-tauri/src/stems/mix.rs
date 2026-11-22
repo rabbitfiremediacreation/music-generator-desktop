@@ -1,4 +1,8 @@
 pub use super::wave::WaveFormat;
+mod dynamics;
+pub(super) mod returns;
+#[cfg(test)]
+mod returns_tests;
 use super::wave::{header, sample_value, StereoWave};
 use super::{dsp, jobs, model::RATE};
 use crate::{
@@ -6,6 +10,9 @@ use crate::{
     state::AppState,
     types::{id, now},
 };
+use dsp::dynamic_eq::DynamicEqSettings;
+pub use dynamics::{CompressorMode, DynamicsSettings};
+use returns::{empty_sends, valid_send, FxReturn, FX_SLOTS};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -35,6 +42,9 @@ pub struct ChannelFx {
     pub limit: f64,
     pub width: f64,
     pub filter: f64,
+    pub de_ess: f64,
+    #[serde(skip_serializing_if = "DynamicsSettings::is_default")]
+    pub dynamics: DynamicsSettings,
 }
 
 impl Default for ChannelFx {
@@ -47,6 +57,8 @@ impl Default for ChannelFx {
             limit: 0.0,
             width: 100.0,
             filter: 0.0,
+            de_ess: 0.0,
+            dynamics: DynamicsSettings::default(),
         }
     }
 }
@@ -56,11 +68,12 @@ impl ChannelFx {
         [self.low_db, self.mid_db, self.high_db]
             .iter()
             .all(|gain| (-12.0..=12.0).contains(gain))
-            && [self.comp, self.limit]
+            && [self.comp, self.limit, self.de_ess]
                 .iter()
                 .all(|amount| (0.0..=100.0).contains(amount))
             && (0.0..=200.0).contains(&self.width)
             && (-100.0..=100.0).contains(&self.filter)
+            && self.dynamics.valid()
     }
 }
 
@@ -82,6 +95,10 @@ pub struct Track {
     pub export: bool,
     #[serde(default)]
     pub fx: ChannelFx,
+    #[serde(default, skip_serializing_if = "DynamicEqSettings::is_default")]
+    pub dynamic_eq: DynamicEqSettings,
+    #[serde(default, skip_serializing_if = "empty_sends")]
+    pub sends: [f64; FX_SLOTS],
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -96,6 +113,10 @@ pub struct Mix {
     pub master_comp: f64,
     #[serde(default)]
     pub master_limit: f64,
+    #[serde(default, skip_serializing_if = "DynamicsSettings::is_default")]
+    pub master_dynamics: DynamicsSettings,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) fx_returns: Option<[FxReturn; FX_SLOTS]>,
     pub first: u64,
     pub end: u64,
     pub looping: bool,
@@ -124,6 +145,8 @@ impl Track {
             gain_off: false,
             export: true,
             fx: ChannelFx::default(),
+            dynamic_eq: DynamicEqSettings::default(),
+            sends: [0.0; FX_SLOTS],
         }
     }
 
@@ -135,6 +158,8 @@ impl Track {
             && (0.0..=duration).contains(&self.fade_in)
             && (0.0..=duration).contains(&self.fade_out)
             && self.fx.valid()
+            && self.dynamic_eq.valid()
+            && self.sends.into_iter().all(valid_send)
     }
 }
 
@@ -147,6 +172,8 @@ impl Mix {
             master_off: false,
             master_comp: 0.0,
             master_limit: 0.0,
+            master_dynamics: DynamicsSettings::default(),
+            fx_returns: None,
             first: 0,
             end: project.frames,
             looping: false,
@@ -159,20 +186,16 @@ impl Mix {
             || !gain_valid(self.master_db)
             || !(0.0..=100.0).contains(&self.master_comp)
             || !(0.0..=100.0).contains(&self.master_limit)
+            || !self.master_dynamics.valid()
+            || self
+                .fx_returns
+                .is_some_and(|slots| !slots.into_iter().all(FxReturn::valid))
             || self.first >= self.end
             || self.end > project.frames
             || self.tracks.len() > 32
-            || !self
-                .tracks
-                .iter()
-                .take(project.roles.len())
-                .map(|track| &track.role)
-                .eq(&project.roles)
-            || self
-                .tracks
-                .iter()
-                .skip(project.roles.len())
-                .any(|track| !super::layer::is_role(&track.role))
+            || self.tracks.iter().any(|track| {
+                !project.roles.contains(&track.role) && !super::layer::is_role(&track.role)
+            })
             || self
                 .tracks
                 .iter()
@@ -352,6 +375,19 @@ pub(crate) struct Render<'a> {
 }
 
 impl Render<'_> {
+    pub(super) fn clip_ceiling(&self) -> Option<f32> {
+        let threshold = if self.master {
+            self.mix
+                .master_dynamics
+                .brickwall_threshold(self.mix.master_comp)
+        } else {
+            let [input] = self.tracks else { return None };
+            let track = input.controls?;
+            track.fx.dynamics.brickwall_threshold(track.fx.comp)
+        };
+        threshold.map(|db| dsp::amplitude(db) as f32)
+    }
+
     pub fn write(
         &self,
         path: &Path,
@@ -394,6 +430,26 @@ impl Render<'_> {
         let mut master = self
             .master
             .then(|| dsp::Master::new(self.mix, f64::from(RATE)));
+        let solo_returns = self.master
+            && self
+                .mix
+                .fx_returns
+                .is_some_and(|slots| slots.into_iter().any(FxReturn::is_soloed));
+        let dry = !solo_returns || self.mix.tracks.iter().any(|track| track.solo);
+        let mut returns = if self.master {
+            let settings = self.mix.fx_returns.unwrap_or_else(returns::defaults);
+            let routed = std::array::from_fn(|slot| {
+                self.tracks
+                    .iter()
+                    .any(|input| input.controls.is_some_and(|track| track.sends[slot] > 0.0))
+            });
+            dsp::returns::Rack::new(settings, routed, solo_returns, f64::from(RATE))
+        } else {
+            None
+        };
+        let mut sends = returns
+            .as_ref()
+            .map(|_| vec![[[0.0; 2]; FX_SLOTS]; BLOCK_FRAMES]);
         let mut peak = 0.0_f32;
         for offset in (self.first..self.end).step_by(BLOCK_FRAMES) {
             if cancel.is_cancelled() {
@@ -401,8 +457,14 @@ impl Render<'_> {
             }
             let count = (self.end - offset).min(BLOCK_FRAMES as u64) as usize;
             let mut summed = [[0.0_f64; 2]; BLOCK_FRAMES];
+            if let Some(sends) = &mut sends {
+                sends[..count].fill([[0.0; 2]; FX_SLOTS]);
+            }
             for (reader, controls, strip) in &mut readers {
                 reader.read(&mut bytes[..count * 8])?;
+                let mut send_inputs = sends
+                    .as_mut()
+                    .zip(controls.filter(|track| !empty_sends(&track.sends)));
                 for (index, (sample, target)) in bytes[..count * 8]
                     .as_chunks::<8>()
                     .0
@@ -421,11 +483,22 @@ impl Render<'_> {
                             envelope(track, frame, self.mix.first, self.mix.end),
                         );
                     }
-                    target[0] += pair[0];
-                    target[1] += pair[1];
+                    if dry {
+                        target[0] += pair[0];
+                        target[1] += pair[1];
+                    }
+                    if let Some((inputs, track)) = &mut send_inputs {
+                        for (target, send) in inputs[index].iter_mut().zip(track.sends) {
+                            target[0] += pair[0] * (send / 100.0);
+                            target[1] += pair[1] * (send / 100.0);
+                        }
+                    }
                 }
             }
-            for pair in &mut summed[..count] {
+            for (index, pair) in summed[..count].iter_mut().enumerate() {
+                if let Some((rack, inputs)) = returns.as_mut().zip(sends.as_ref()) {
+                    rack.process(pair, inputs[index]);
+                }
                 if let Some(master) = &mut master {
                     master.process(pair);
                 }
@@ -560,6 +633,8 @@ mod tests {
                 comp: 37.0,
                 limit: 71.0,
                 width: 145.0,
+                de_ess: 0.0,
+                dynamics: DynamicsSettings::default(),
             },
             ..Track::new("vocals")
         };
@@ -569,6 +644,8 @@ mod tests {
             master_db: 2.0,
             master_comp: 28.0,
             master_limit: 54.0,
+            master_dynamics: DynamicsSettings::default(),
+            fx_returns: None,
             master_off: false,
             first: 0,
             end: frames,
@@ -610,6 +687,314 @@ mod tests {
     }
 
     #[test]
+    fn float_export_matches_live_eq_and_de_esser_on_the_existing_track() {
+        type Samples = std::collections::BTreeMap<u64, [f32; 2]>;
+        #[derive(Deserialize)]
+        struct DeEssReference {
+            amount: f64,
+            samples: Samples,
+        }
+        #[derive(Deserialize)]
+        struct Reference {
+            settings: DynamicEqSettings,
+            samples: Samples,
+            de_ess: DeEssReference,
+        }
+        let expected: Reference = serde_json::from_str(include_str!(
+            "../../../frontend/react/stems/mixer-live-eq-parity.json"
+        ))
+        .unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("source.wav");
+        let output = root.path().join("render.wav");
+        let frames = 4096;
+        let mut dry = Vec::new();
+        header(&mut dry, WaveFormat::Float32, frames, RATE, 2).unwrap();
+        for frame in 0..frames {
+            let phase = frame as f64 * std::f64::consts::TAU / f64::from(RATE);
+            for sample in [(phase * 700.0).sin() * 0.6, (phase * 6500.0).cos() * 0.48] {
+                dry.extend_from_slice(&(sample as f32).to_le_bytes());
+            }
+        }
+        std::fs::write(&path, &dry).unwrap();
+        let mut track = Track {
+            dynamic_eq: expected.settings,
+            ..Track::new("vocals")
+        };
+        assert!(track.valid(frames as f64 / f64::from(RATE)));
+        let encoded = serde_json::to_string(&track).unwrap();
+        track = serde_json::from_str(&encoded).unwrap();
+        let mix: Mix = serde_json::from_value(serde_json::json!({
+            "tracks": [], "master_db": 0, "first": 0, "end": frames, "looping": false
+        }))
+        .unwrap();
+        for (bypass, amount, points) in [
+            (false, 0.0, Some(&expected.samples)),
+            (true, expected.de_ess.amount, Some(&expected.de_ess.samples)),
+            (true, 0.0, None),
+        ] {
+            track.dynamic_eq.bypass = bypass;
+            track.fx.de_ess = amount;
+            Render {
+                tracks: &[RenderTrack {
+                    path: &path,
+                    controls: Some(&track),
+                }],
+                frames,
+                first: 0,
+                end: frames,
+                prefix: 0,
+                mix: &mix,
+                master: false,
+                format: WaveFormat::Float32,
+            }
+            .write(&output, &CancellationToken::new(), |_| {})
+            .unwrap();
+            let Some(points) = points else {
+                assert_eq!(std::fs::read(&output).unwrap(), dry);
+                continue;
+            };
+            let mut wave = StereoWave::open(&output, frames).unwrap();
+            let mut pair = [0; 8];
+            for (&frame, &[left, right]) in points {
+                wave.seek(frame).unwrap();
+                wave.read(&mut pair).unwrap();
+                assert!(
+                    (sample_value(&pair[..4]).unwrap() - left).abs() < 1e-6,
+                    "left {frame}"
+                );
+                assert!(
+                    (sample_value(&pair[4..]).unwrap() - right).abs() < 1e-6,
+                    "right {frame}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn float_export_applies_persisted_makeup_and_limiter_switches() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.wav");
+        let output = root.path().join("mixed.wav");
+        sample_wave(&source, 16, [0.5, 0.25]);
+        let mix: Mix = serde_json::from_value(serde_json::json!({
+            "version": MIX_VERSION,
+            "tracks": [{
+                "role": "vocals", "name": "Voice", "gain_db": 0.0, "pan": 0.0,
+                "mute": false, "solo": false, "fade_in": 0.0, "fade_out": 0.0,
+                "fx": { "limit": 100.0, "dynamics": { "makeup_db": 12.0, "limiter": false } }
+            }],
+            "master_db": 0.0, "master_dynamics": { "limiter": true },
+            "first": 0, "end": 16, "looping": false
+        }))
+        .unwrap();
+        let stored = serde_json::to_value(&mix).unwrap();
+        assert_eq!(stored["tracks"][0]["fx"]["dynamics"]["limiter"], false);
+        assert_eq!(stored["master_dynamics"]["limiter"], true);
+        let render = Render {
+            tracks: &[RenderTrack {
+                path: &source,
+                controls: Some(&mix.tracks[0]),
+            }],
+            frames: 16,
+            first: 0,
+            end: 16,
+            prefix: 0,
+            mix: &mix,
+            master: true,
+            format: WaveFormat::Float32,
+        };
+        let cancel = CancellationToken::new();
+        let peak = render.write(&output, &cancel, |_| {}).unwrap();
+        assert!((peak - 10f32.powf(-1.0 / 20.0)).abs() < 1e-6);
+        let processed = Render {
+            master: false,
+            ..render
+        };
+        let peak = processed.write(&output, &cancel, |_| {}).unwrap();
+        assert!((peak - 0.5 * 10f32.powf(12.0 / 20.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn float_export_uses_parallel_compression_and_the_independent_master_clipper() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.wav");
+        let output = root.path().join("mixed.wav");
+        let frames = 8192;
+        sample_wave(&source, frames, [0.8, -0.2]);
+        let mix: Mix = serde_json::from_value(serde_json::json!({
+            "version": MIX_VERSION,
+            "tracks": [{
+                "role": "vocals", "name": "Voice", "gain_db": 0.0, "pan": 0.0,
+                "mute": false, "solo": false, "fade_in": 0.0, "fade_out": 0.0,
+                "fx": { "dynamics": { "mix": 50.0, "threshold_db": -12.0, "ratio": 2.0, "attack_ms": 0.1, "knee_db": 0.0 } }
+            }],
+            "master_db": 3.0,
+            "master_dynamics": {
+                "mix": 0.0, "threshold_db": -12.0, "ratio": 1.5, "brickwall": true,
+                "attack_ms": 0.1, "release_ms": 10.0, "knee_db": 0.0
+            },
+            "first": 0, "end": frames, "looping": false
+        }))
+        .unwrap();
+        let mut render = Render {
+            tracks: &[RenderTrack {
+                path: &source,
+                controls: Some(&mix.tracks[0]),
+            }],
+            frames,
+            first: 0,
+            end: frames,
+            prefix: 0,
+            mix: &mix,
+            master: false,
+            format: WaveFormat::Float32,
+        };
+        let threshold = 10f64.powf(-12.0 / 20.0) as f32;
+        let left = (0.8 + (0.8 * threshold).sqrt()) / 2.0;
+        let right = -left / 4.0;
+        let cancel = CancellationToken::new();
+        for (master, expected) in [
+            (false, [left, right]),
+            (true, [threshold, right * 10f32.powf(3.0 / 20.0)]),
+        ] {
+            render.master = master;
+            assert_eq!(render.clip_ceiling(), master.then_some(threshold));
+            render.write(&output, &cancel, |_| {}).unwrap();
+            let mut wave = StereoWave::open(&output, frames).unwrap();
+            wave.seek(frames - 1).unwrap();
+            let mut sample = [0; 8];
+            wave.read(&mut sample).unwrap();
+            for (bytes, expected) in sample.chunks_exact(4).zip(expected) {
+                let actual = sample_value(bytes).unwrap();
+                assert!(
+                    (actual - expected).abs() < 1e-6,
+                    "master={master}: {actual} != {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn float_export_keeps_the_optical_release_tail() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.wav");
+        let output = root.path().join("mixed.wav");
+        let press = u64::from(RATE);
+        let frames = press * 7 / 5;
+        let mut input = BufWriter::new(File::create(&source).unwrap());
+        header(&mut input, WaveFormat::Float32, frames, RATE, 2).unwrap();
+        for frame in 0..frames {
+            let sample = if frame < press { 0.8f32 } else { 0.08f32 };
+            for value in [sample, sample / 2.0] {
+                input.write_all(&value.to_le_bytes()).unwrap();
+            }
+        }
+        input.flush().unwrap();
+        let mix: Mix = serde_json::from_value(serde_json::json!({
+            "version": MIX_VERSION,
+            "tracks": [],
+            "master_db": 0.0,
+            "master_dynamics": { "mix": 100.0, "threshold_db": -18.0, "ratio": 4.0, "knee_db": 0.0, "optical": true },
+            "first": 0, "end": frames, "looping": false
+        }))
+        .unwrap();
+        let render = Render {
+            tracks: &[RenderTrack {
+                path: &source,
+                controls: None,
+            }],
+            frames,
+            first: 0,
+            end: frames,
+            prefix: 0,
+            mix: &mix,
+            master: true,
+            format: WaveFormat::Float32,
+        };
+        render
+            .write(&output, &CancellationToken::new(), |_| {})
+            .unwrap();
+        let mut wave = StereoWave::open(&output, frames).unwrap();
+        wave.seek(frames - 1).unwrap();
+        let mut sample = [0; 8];
+        wave.read(&mut sample).unwrap();
+        let left = sample_value(&sample[..4]).unwrap();
+        let right = sample_value(&sample[4..]).unwrap();
+        let reduction = -0.75 * (20.0 * 0.8f64.log10() + 18.0);
+        let fast = reduction * (-0.4f64 / 0.03).exp();
+        let slow = reduction * (1.0 - (-1.0f64 / 0.25).exp()) * (-0.4f64 / 0.96).exp();
+        let expected = 0.08 * 10f64.powf((fast + slow) / 40.0);
+        assert!((f64::from(left) - expected).abs() < 1e-6);
+        assert_eq!(right, left / 2.0);
+    }
+
+    #[test]
+    fn float_export_uses_mode_specific_timing_ratio_and_makeup() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.wav");
+        let output = root.path().join("mixed.wav");
+        let frames = 1024;
+        let input = 0.8f32;
+        sample_wave(&source, frames, [input, input / 2.0]);
+        let input = f64::from(input);
+        for (settings, attack_seconds, ratio, makeup) in [
+            (
+                serde_json::json!({
+                    "mode": "fet", "mix": 100.0, "threshold_db": -12.0, "ratio": 2.0, "knee_db": 0.0,
+                    "fet_attack_us": 20.0, "fet_ratio": 8.0
+                }),
+                0.000_020,
+                8.0,
+                0.0,
+            ),
+            (
+                serde_json::json!({
+                    "mode": "vca", "mix": 100.0, "threshold_db": -12.0, "ratio": 2.0, "knee_db": 0.0,
+                    "vca_attack_ms": 0.1, "vca_ratio": 4.0, "makeup_db": -6.0, "auto_gain": true
+                }),
+                0.000_1,
+                4.0,
+                4.5,
+            ),
+        ] {
+            let mix: Mix = serde_json::from_value(serde_json::json!({
+                "version": MIX_VERSION, "tracks": [], "master_db": 0.0, "master_dynamics": settings,
+                "first": 0, "end": frames, "looping": false
+            }))
+            .unwrap();
+            assert!(mix.master_dynamics.valid());
+            let render = Render {
+                tracks: &[RenderTrack {
+                    path: &source,
+                    controls: None,
+                }],
+                frames,
+                first: 0,
+                end: frames,
+                prefix: 0,
+                mix: &mix,
+                master: true,
+                format: WaveFormat::Float32,
+            };
+            render
+                .write(&output, &CancellationToken::new(), |_| {})
+                .unwrap();
+            let mut wave = StereoWave::open(&output, frames).unwrap();
+            let target = (1.0 / ratio - 1.0) * (20.0 * input.log10() + 12.0);
+            for frame in [0, frames - 1] {
+                wave.seek(frame).unwrap();
+                let mut sample = [0; 8];
+                wave.read(&mut sample).unwrap();
+                let attack =
+                    1.0 - (-((frame + 1) as f64) / (f64::from(RATE) * attack_seconds)).exp();
+                let expected = input * 10f64.powf((target * attack + makeup) / 20.0);
+                assert!((f64::from(sample_value(&sample[..4]).unwrap()) - expected).abs() < 1e-6);
+            }
+        }
+    }
+
+    #[test]
     fn zero_or_multiple_solos_and_mute_precedence() {
         let mut mix = Mix {
             version: MIX_VERSION,
@@ -618,6 +1003,8 @@ mod tests {
             master_off: false,
             master_comp: 0.0,
             master_limit: 0.0,
+            master_dynamics: DynamicsSettings::default(),
+            fx_returns: None,
             first: 0,
             end: 42,
             looping: false,
@@ -660,6 +1047,8 @@ mod tests {
             master_off: false,
             master_comp: 0.0,
             master_limit: 0.0,
+            master_dynamics: DynamicsSettings::default(),
+            fx_returns: None,
             first: 3,
             end: 10,
             looping: false,
