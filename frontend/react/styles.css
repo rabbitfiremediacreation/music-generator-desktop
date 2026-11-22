@@ -276,6 +276,15 @@ summary > :first-child:not(:only-child) { margin-right: auto; }
 .song .result-audio { white-space: normal; overflow-wrap: anywhere; }
 .song .generated-disclosure { margin-top: 4px; font-size: .75rem; color: var(--muted); }
 .song .generated-disclosure strong { color: var(--text); }
+.song-usage-details { margin-top: 4px; font-size: .75rem; color: var(--muted); }
+.song-usage-details summary { width: fit-content; text-transform: none; letter-spacing: normal; }
+.song-usage-details[open] .song-usage-text { margin-top: 6px; }
+.song-usage-text { display: grid; gap: 6px; overflow-wrap: anywhere; }
+.song-usage-text p, .song-usage-text ul { margin: 0; }
+.song-usage-text ul { display: flex; gap: 12px; flex-wrap: wrap; padding: 0; list-style: none; }
+.song-usage-text a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.song-export-dialog h2 { margin: 0 0 4px; font-weight: 650; }
+.song-export-dialog .song-usage-text { margin: 14px 0 18px; font-size: .875rem; }
 .song .actions .del { margin-left: 10px; }
 button.armed, .sek.armed { color: var(--error) !important; border-color: var(--error) !important; background: color-mix(in srgb, var(--error) 12%, transparent) !important; }
 .song .actions .del.armed { font-weight: 700; }
