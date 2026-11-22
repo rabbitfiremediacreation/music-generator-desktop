@@ -80,9 +80,22 @@ pub(crate) fn managed() -> bool {
 }
 
 const LEGACY_PYTORCH_PACKAGES: [&str; 2] = ["mimetic", "text2midi"];
+const TEXT2MIDI_ENTRY: &str = "engine/text2midi/text2midi-runner";
 
 fn package_root(data: &Path, id: &str) -> PathBuf {
     data.join("engines/v1").join(id)
+}
+
+fn active_installation(data: &Path, id: &str) -> Option<(Installed, PathBuf)> {
+    let root = package_root(data, id);
+    let installed: Installed =
+        serde_json::from_slice(&fs::read(root.join("current.json")).ok()?).ok()?;
+    let directory = root.join(
+        uuid::Uuid::parse_str(&installed.directory)
+            .ok()?
+            .to_string(),
+    );
+    Some((installed, directory))
 }
 
 impl Package {
@@ -96,14 +109,7 @@ impl Package {
     }
 
     fn installed(&self, data: &Path) -> Option<(Installed, PathBuf)> {
-        let root = self.root(data);
-        let installed: Installed =
-            serde_json::from_slice(&fs::read(root.join("current.json")).ok()?).ok()?;
-        let directory = root.join(
-            uuid::Uuid::parse_str(&installed.directory)
-                .ok()?
-                .to_string(),
-        );
+        let (installed, directory) = active_installation(data, &self.id)?;
         self.files_ready(&directory)
             .then_some((installed, directory))
     }
@@ -124,6 +130,24 @@ impl Package {
                 .any(|entry| Path::new(entry) == executable)
     }
 
+    /// Resolve the requested runner from the active package while its replacement is pending.
+    fn installed_resources(&self, data: &Path, executable: &Path) -> Option<PathBuf> {
+        let active = |id| {
+            let (_, directory) = active_installation(data, id)?;
+            directory.join(executable).is_file().then_some(directory)
+        };
+        active(&self.id).or_else(|| {
+            if self.id != "pytorch" {
+                return None;
+            }
+            match executable.to_str()? {
+                entry if entry == self.executable => active("mimetic"),
+                TEXT2MIDI_ENTRY => active("text2midi"),
+                _ => None,
+            }
+        })
+    }
+
     fn has_legacy_pytorch(&self, data: &Path) -> bool {
         self.id == "pytorch"
             && LEGACY_PYTORCH_PACKAGES
@@ -141,10 +165,7 @@ pub(crate) fn resources_for(bundled: &Path, data: &Path, executable: &Path) -> P
         .packages
         .iter()
         .find(|package| package.has_executable(executable))
-        .and_then(|package| {
-            let (installed, directory) = package.installed(data)?;
-            (installed.revision == package.revision).then_some(directory)
-        })
+        .and_then(|package| package.installed_resources(data, executable))
         .unwrap_or_else(|| bundled.to_owned())
 }
 

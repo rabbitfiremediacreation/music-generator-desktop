@@ -104,9 +104,10 @@ def run(model_dir, prompt, output, seed, max_tokens):
 
 def main():
     if sys.argv[1:] == ["--self-test"]:
-        for module in ("decoder", "miditok", "sentencepiece", "symusic", "torch", "transformers"):
-            import_module(module)
-        load_vocabulary()
+        with model_access():
+            for module in ("decoder", "miditok", "sentencepiece", "symusic", "torch", "transformers"):
+                import_module(module)
+            load_vocabulary()
         print("text2midi-runner/1")
         return 0
     parser = argparse.ArgumentParser(description=__doc__)

@@ -1,4 +1,4 @@
-use super::{managed, release, Package};
+use super::{active_installation, managed, release, Package};
 use crate::catalog::{NativeRuntime, ProviderProfile};
 use serde::Serialize;
 use std::{fs, path::Path};
@@ -42,7 +42,10 @@ pub(super) fn package_status(
     data: &Path,
     profiles: &[ProviderProfile],
 ) -> EnginePackageStatus {
-    let installed = package.installed(data).map(|(current, _)| current);
+    let current = active_installation(data, &package.id);
+    let installed = current
+        .as_ref()
+        .filter(|(_, directory)| directory.join(&package.executable).is_file());
     let bundled = package.files_ready(resources);
     let legacy = package.has_legacy_pytorch(data);
     let runtime = profiles
@@ -61,16 +64,15 @@ pub(super) fn package_status(
     EnginePackageStatus {
         id: package.id.clone(),
         bytes: package.bytes,
-        installed: bundled
-            || installed
-                .as_ref()
-                .is_some_and(|current| current.revision == package.revision),
-        update_available: installed.as_ref().map_or(legacy, |current| {
-            current.sha256 != package.sha256 || current.revision != package.revision
+        installed: bundled || installed.is_some(),
+        update_available: installed.map_or(legacy, |(current, directory)| {
+            current.sha256 != package.sha256
+                || current.revision != package.revision
+                || !package.files_ready(directory)
         }),
-        removable: installed.is_some() || legacy || package.removed_root(data).exists(),
+        removable: current.is_some() || legacy || package.removed_root(data).exists(),
         installed_version: installed
-            .map(|current| version(current.revision))
+            .map(|(current, _)| version(current.revision.clone()))
             .or_else(|| bundled.then(|| version(package.revision.clone()))),
         available_version: Some(version(package.revision.clone())),
         ..Default::default()

@@ -1,4 +1,6 @@
-use super::{package_root, release, Installed, Package, LEGACY_PYTORCH_PACKAGES};
+use super::{
+    active_installation, package_root, release, Installed, Package, LEGACY_PYTORCH_PACKAGES,
+};
 use crate::{
     download::{self, DownloadProgress},
     error::{message, Error, Result},
@@ -237,7 +239,7 @@ pub(super) fn unpack(
 
 pub(super) fn activate(package: &Package, data: &Path, staging: tempfile::TempDir) -> Result<()> {
     let root = package.root(data);
-    let previous = package.installed(data);
+    let previous = active_installation(data, &package.id);
     let installed = Installed {
         directory: uuid::Uuid::new_v4().to_string(),
         revision: package.revision.clone(),

@@ -72,7 +72,7 @@ pub fn run(forbidden: &Path) -> Result<()> {
         let runtime = |entry| crate::engine_packages::resources_for(&resources, &root, Path::new(entry));
         verify_audiocraft(&runtime("engine/audiocraft/audiocraft-synth")).await?;
         let magenta = "engine/magenta/mrt2-record";
-        verify_plugin(&runtime(magenta).join(magenta), "--runtime-probe", "mrt2-record/1").await?;
+        verify_plugin(&runtime(magenta).join(magenta), "--runtime-probe", "mrt2-record/1", None).await?;
         #[cfg(target_arch = "aarch64")]
         verify_audio_cpp(&runtime("engine/providers/audio.cpp/audiocpp_cli"), &root).await?;
         #[cfg(target_arch = "aarch64")]
@@ -80,7 +80,7 @@ pub fn run(forbidden: &Path) -> Result<()> {
         #[cfg(target_arch = "aarch64")]
         verify_yue2(&runtime("engine/yue2/yue-synth")).await?;
         let midi = "engine/text2midi/text2midi-runner";
-        verify_plugin(&runtime(midi).join(midi), "--self-test", "text2midi-runner/1").await?;
+        verify_plugin(&runtime(midi).join(midi), "--self-test", "text2midi-runner/1", Some(&root.join("models"))).await?;
         if let Some(models) = std::env::var_os("MUSIC_PYTORCH_SMOKE_MODELS") {
             pytorch_probe::verify(&resources, &root, models.as_ref()).await?;
         }
@@ -180,16 +180,25 @@ async fn verify_audiocraft(resources: &Path) -> Result<()> {
         &resources.join("engine/audiocraft/audiocraft-synth"),
         "--self-test",
         "audiocraft-synth/1",
+        None,
     )
     .await
 }
 
-async fn verify_plugin(executable: &Path, test: &str, protocol: &str) -> Result<()> {
+async fn verify_plugin(
+    executable: &Path,
+    test: &str,
+    protocol: &str,
+    models: Option<&Path>,
+) -> Result<()> {
     if !executable.is_file() {
         return Ok(());
     }
     let mut launcher = crate::engine::process::probe_command(executable)?;
     launcher.arg(test).env("PATH", "").kill_on_drop(true);
+    if let Some(models) = models {
+        launcher.env("MUSIC_MODEL_BOOKMARK", super::transfer(models)?);
+    }
     let output = tokio::time::timeout(Duration::from_secs(60), launcher.output())
         .await
         .map_err(|_| message(format!("{protocol} plug-in self-test timed out")))??;
