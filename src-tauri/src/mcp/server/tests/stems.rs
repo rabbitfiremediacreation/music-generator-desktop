@@ -51,6 +51,17 @@ async fn mixer_roundtrip_renders_the_saved_snapshot_after_a_later_edit() {
     .await;
     let mut mix = job["default_mix"].clone();
     assert_eq!(mix["tracks"][0]["role"], "vocals");
+    mix["tracks"][0]["fx"]["dynamics"] = json!({"mix":0,"mode":"vca","vca_ratio":2.0});
+    mix["tracks"][0]["dynamic_eq"] = json!({"bypass":true,"bands":[
+        {"frequency_hz":8000,"threshold_db":-24,"reduction_db":9,"q":1.5}
+    ]});
+    mix["tracks"][0]["sends"] = json!([25, 0, 0, 0]);
+    mix["fx_returns"] = json!([
+        {"effect":{"kind":"delay","time_ms":300,"feedback":20,"damping_hz":6200},"level":100,"enabled":false},
+        {"effect":{"kind":"off"},"level":100},
+        {"effect":{"kind":"off"},"level":100},
+        {"effect":{"kind":"off"},"level":100}
+    ]);
     mix["master_db"] = json!(-6);
     let saved = invoke(
         &server,
@@ -58,6 +69,8 @@ async fn mixer_roundtrip_renders_the_saved_snapshot_after_a_later_edit() {
         json!({"id":project,"name":"Demo","mix":mix}),
     )
     .await;
+    assert_eq!(saved["mix"]["tracks"][0]["sends"][0], 25.0);
+    assert_eq!(saved["mix"]["fx_returns"][0]["effect"]["kind"], "delay");
     let exports = invoke(
         &server,
         "export_stems",

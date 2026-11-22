@@ -1,3 +1,4 @@
+mod mix_schema;
 mod schemas;
 mod setup;
 pub(super) use setup::select;
