@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useState } from "react";
@@ -276,7 +277,11 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
     ? Promise.resolve({ id, name: "Meine Aufnahme.wav" })
     : original(name, args));
   mount({ selection: profile.selection }, true);
-  const pick = await screen.findByRole("button", { name: "Referenz-WAV auswählen" });
+  const pick = await screen.findByRole("button", {
+    name: "WAV als Vorlage wählen",
+    description: /Die Aufnahme dient als Vorlage für die Generierung/,
+  });
+  expect(pick.textContent).toBe("WAV als Vorlage wählen");
   expect(pick.previousElementSibling?.id).toBe("recBtn");
   expect(pick.closest("form")).toBeNull();
   const generate = screen.getByRole("button", { name: "GENERIEREN" });
@@ -285,7 +290,10 @@ it("queues a MuLaCover remix only after choosing and approving a reference besid
   fireEvent.change(screen.getByRole("textbox", { name: "Lyrics" }), { target: { value: "[Verse]\nAm Ufer ist es leise" } });
   fireEvent.submit(form);
   expect(requests).toHaveLength(0);
-  fireEvent.click(pick);
+  const user = userEvent.setup();
+  await user.tab();
+  expect(document.activeElement).toBe(pick);
+  await user.keyboard("{Enter}");
   expect(await screen.findByText("Meine Aufnahme.wav")).toBeTruthy();
   fireEvent.submit(form);
   expect(requests).toHaveLength(0);
