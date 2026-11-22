@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Music Generator</title>
+    <item>
+      <title>Music Generator 0.2.0</title>
+      <sparkle:version>272</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<h2>Changes since daily-207</h2>
+<ul>
+<li>Give Studio one purpose-specific audio file button (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/171">#171</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/167">#167 Audio-Dateiauswahl im Studio auf einen eindeutigen Upload-Button zusammenführen</a></li>
+<li>Allow more time for the full-library reference request (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/163">#163</a>)</li>
+<li>Add remix, queue, and expanded stem mixing workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/162">#162</a>)</li>
+<li>Add MCP multimodel stem mixing workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/161">#161</a>)</li>
+<li>Fix stem resampling frame count rounding (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/160">#160</a>)</li>
+<li>Reuse native engine components across Linux CUDA builds (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/159">#159</a>)</li>
+<li>Release Web Audio resources and report decode failures (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/153">#153</a>)</li>
+<li>Restore Windows window placement on the destination monitor (#89) (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/152">#152</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/89">#89 Windows: Gespeicherten normalen Fensterzustand beim Start wiederherstellen</a></li>
+<li>Add local stem separation and mixer workflows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/158">#158</a>)</li>
+<li>Document verified ACE-Step seed reproducibility (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/154">#154</a>)</li>
+<li>Fix Develop packaging on macOS and Windows (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/157">#157</a>)</li>
+<li>Download generation engines separately (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/156">#156</a>)</li>
+<li>Add a localized macOS app menu (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/150">#150</a>)</li>
+<li>Prefer the LAN IPv4 address for phone pairing (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/151">#151</a>)</li>
+<li>Use verified HTTPS for phone and MCP LAN access (#104) (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/119">#119</a>) · <a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/issues/104">#104 Zugriffsschlüssel für nativen Handy-Zugriff und MCP im LAN verschlüsselt übertragen</a></li>
+<li>Add studio themes and improve generation and audio export (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/149">#149</a>)</li>
+<li>Integrate music providers and improve model management (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/148">#148</a>)</li>
+<li>Add notarized macOS Stable auto-updates (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/147">#147</a>)</li>
+<li>Retain the two newest daily desktop releases (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/146">#146</a>)</li>
+</ul>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/225d508720e96901949d0e900d1fb999a39e9950...af16dbd7fcae7c5bcad4957a97e20de8ace21ea7">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/daily-272/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="NTUY2MFr6u2mRuLIerwqx7ph6c0A+7Whp6xW/DhamdvqQo1WG0op2Q0rxG20fPs5wOEX5T3LqtvyO5GlRLKTCQ==" length="14278730" type="application/octet-stream"></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: kJgwCI55Xwh/o8Rgn8rM71KTsHLKrLNiobtuM3M8Gi2VJotRWmF8Wcjv30792/e1H8+1SK3dQvIcwyHVrP/zDg==
+length: 4796
+-->
