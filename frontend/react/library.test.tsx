@@ -9,7 +9,7 @@ import { createAppQueryClient } from "./data";
 import { Player, PlayerProvider } from "./player";
 import { GenerationAdmissionProvider } from "./generation/admission";
 import { setLang } from "../i18n.js";
-import type { Song } from "../types";
+import type { ModelSelection, Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: async ({ defaultPath }: { defaultPath: string }) => defaultPath }));
@@ -48,14 +48,15 @@ beforeEach(() => {
   });
 });
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
-function mount(withPlayer=false) {
+function mount(withPlayer=false, selection: ModelSelection | null = null) {
   const client = createAppQueryClient();
-  function TestLibrary() {
+  function TestLibrary({ model }: { model: ModelSelection | null }) {
     const [folder,setFolder]=useState("");
-    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={null}/>;
+    return <Library folder={folder} onFolderChange={setFolder} onReuse={() => {}} selection={model}/>;
   }
-  render(<QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><TestLibrary/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>);
-  return client;
+  const tree = (model: ModelSelection | null) => <QueryClientProvider client={client}><I18nProvider><GenerationAdmissionProvider><PlayerProvider><TestLibrary model={model}/>{withPlayer&&<Player/>}</PlayerProvider></GenerationAdmissionProvider></I18nProvider></QueryClientProvider>;
+  const view = render(tree(selection));
+  return Object.assign(client, { switchModel: (model: ModelSelection) => view.rerender(tree(model)) });
 }
 
 function seedPages(count: number) {
@@ -99,6 +100,9 @@ it("opens the song and ZIP format dropdowns and exports the chosen format", asyn
   expect(document.activeElement).toBe(download);
   fireEvent.click(download);
   fireEvent.click(screen.getByRole("menuitem", { name: "Ogg/Opus · 160 kbit/s" }));
+  const exportDialog = screen.getByRole("dialog", { name: "Export audio" });
+  expect(mocks.invoke).not.toHaveBeenCalledWith("export_default_path", expect.anything());
+  fireEvent.click(within(exportDialog).getByRole("button", { name: "Continue to save" }));
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
     kind: "audio", destination: "/Downloads/A song.ogg", id: "one", folder: null, format: "ogg",
   }));
@@ -109,6 +113,76 @@ it("opens the song and ZIP format dropdowns and exports the chosen format", asyn
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("export_file", {
     kind: "zip", destination: "/Downloads/Music Generator.zip", id: null, folder: "", format: "wav",
   }));
+});
+
+it("shows MuLaCover terms and the open reference rights before saving the selected audio", async () => {
+  songs[0].params = {
+    model_selection: { provider: "mulacover", synthesis: "mulacover-noncommercial", language: "" },
+    reference_audio: "saved-reference",
+  };
+  const terms = /Commercial use requires written permission from MuLa Labs/;
+  const reference = /Check whether your permission covers the intended use of this song/;
+  const view = mount(false, songs[0].params.model_selection);
+  const song = await screen.findByRole("article", { name: "A song A" });
+  expect(within(song).getByText(/Noncommercial use/)).toBeTruthy();
+  expect(within(song).getByText(terms)).toBeTruthy();
+  expect(within(song).getByText(reference)).toBeTruthy();
+  view.switchModel({ provider: "audiocraft", synthesis: "musicgen-small", language: "" });
+  expect(within(song).getByText(terms)).toBeTruthy();
+
+  const download = within(song).getByRole("button", { name: "Download" });
+  fireEvent.click(download);
+  fireEvent.click(screen.getByRole("menuitem", { name: "WAV" }));
+  const dialog = screen.getByRole("dialog", { name: "Export audio" });
+  expect(within(dialog).getByText("A song", { exact: false })).toBeTruthy();
+  expect(within(dialog).getByText(terms)).toBeTruthy();
+  expect(within(dialog).getByText(reference)).toBeTruthy();
+  expect(within(dialog).getByRole("link", { name: "Source" }).getAttribute("href")).toMatch(/HeartMuLa\/MuLaCover\/.*\/MODEL_LICENSE$/);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(mocks.invoke).not.toHaveBeenCalledWith("export_default_path", expect.anything());
+});
+
+it("shows uncertainty for unknown models and separates AudioCraft's weights from the song", async () => {
+  songs[0].params = { model_selection: { provider: "audiocraft", synthesis: "musicgen-small", language: "" } };
+  songs = [...songs,
+    { ...songs[0], id: "old", title: "Older recording", params: { reference_audio: "saved-reference" } },
+    { ...songs[0], id: "unlisted", title: "Unlisted profile", params: { model_selection: { provider: "audiocraft", synthesis: "unknown", language: "" } } },
+  ];
+  mount(false, songs[0].params.model_selection);
+  const audioCraft = await screen.findByRole("article", { name: "A song A" });
+  expect(within(audioCraft).getByText("The weights license applies to the weights. Rights to the generated music must be assessed separately.")).toBeTruthy();
+  expect(within(audioCraft).queryByText(/Noncommercial use/)).toBeNull();
+  const older = screen.getByRole("article", { name: "Older recording A" });
+  expect(within(older).getByText(/The original model is not known/)).toBeTruthy();
+  expect(within(older).getByText(/Check whether your permission covers the intended use/)).toBeTruthy();
+  expect(within(screen.getByRole("article", { name: "Unlisted profile A" })).getByText(/terms for this recording's saved model version are unclear/)).toBeTruthy();
+});
+
+it("uses the saved terms and their sources in the library and export after changing models", async () => {
+  setLang("de");
+  songs[0].params = { model_selection: { provider: "audiocraft", synthesis: "musicgen-small", language: "" } };
+  songs[0].result_meta = { output_usage: {
+    text: "Archived output terms", text_de: "Archivierte Bedingungen für den Song", source_urls: ["https://example.org/model-terms", "file:///private/source"],
+  } };
+  const view = mount(false, songs[0].params.model_selection);
+  const song = await screen.findByRole("article", { name: "A song A" });
+  view.switchModel({ provider: "mulacover", synthesis: "mulacover-noncommercial", language: "" });
+  expect(within(song).getByText("Archivierte Bedingungen für den Song")).toBeTruthy();
+  fireEvent.click(within(song).getByRole("button", { name: "Download" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "WAV" }));
+  const dialog = screen.getByRole("dialog", { name: "Audio exportieren" });
+  expect(within(dialog).getByText("Archivierte Bedingungen für den Song")).toBeTruthy();
+  expect(within(dialog).getByRole("link", { name: "Quelle" }).getAttribute("href")).toBe("https://example.org/model-terms");
+});
+
+it("keeps publication and monetization open for a local ACE-Step checkpoint", async () => {
+  songs[0].params = { model_selection: { provider: "ace-step", synthesis: "acestep-v15-base-BF16.gguf", language: "1.7B" } };
+  mount();
+  const song = await screen.findByRole("article", { name: "A song A" });
+  expect(within(song).getByText(/Publication and monetization rights for this local checkpoint are unclear/)).toBeTruthy();
+  expect(within(song).getByText(/check originality, disclose AI involvement and obtain permission/)).toBeTruthy();
+  expect(within(song).getAllByRole("link", { name: /^Source/, hidden: true }).some(link => link.getAttribute("href")?.endsWith("/discussions/1256"))).toBe(true);
 });
 
 it("navigates both ways and resets the page when search, folder or favorites changes", { timeout: 15_000 }, async () => {
