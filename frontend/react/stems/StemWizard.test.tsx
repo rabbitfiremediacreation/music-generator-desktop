@@ -60,7 +60,7 @@ it("queues independent imported sources with the confirmed revision and actual r
   }));
   invoke.mockImplementation(async (command: string, args) => {
     switch (command) {
-      case "stem_models": return { engine_ready: true, platform_supported: true, models: [profile] };
+      case "stem_models": return { engine_ready: true, platform_supported: true, models: [profile, { ...profile, id: "htdemucs-6s", name: "HTDemucs 6s", roles: [...profile.roles, "guitar", "piano"], active: { ...pin, model: "htdemucs-6s" } }] };
       case "stem_pick_sources": return sources.map(source => ({ name: source.name, source, error: null }));
       case "stem_source_audio": return "source.wav";
       case "stem_preflight": return { frames: 44100, bytes: 4 * 1024 ** 2, seconds: 1 };
@@ -81,7 +81,17 @@ it("queues independent imported sources with the confirmed revision and actual r
   fireEvent.click(screen.getByRole("button", { name: t("stem_continue") }));
   expect(screen.getByText(t("stem_goal"), { selector: "li" }).getAttribute("aria-current")).toBe("step");
   const model = screen.getByRole("combobox", { name: t("stem_model") });
-  expect(document.getElementById(model.getAttribute("aria-describedby")!)?.textContent).toBe(t("stem_recommended"));
+  fireEvent.change(model, { target: { value: "htdemucs-6s" } });
+  for (const role of [...profile.roles, "guitar", "piano", "residual"]) {
+    expect(screen.getByLabelText<HTMLInputElement>(t(`stem_role_${role}`)).checked).toBe(true);
+  }
+  fireEvent.change(screen.getByLabelText(t("stem_goal")), { target: { value: "stem_pair" } });
+  fireEvent.change(screen.getByLabelText(t("stem_track")), { target: { value: "piano" } });
+  expect(screen.getByLabelText<HTMLInputElement>("Without Piano").checked).toBe(true);
+  fireEvent.change(model, { target: { value: profile.id } });
+  screen.getByText(t("stem_advanced"), { selector: "summary" }).closest("details")!.open = true;
+  fireEvent.change(screen.getByLabelText(t("stem_shifts")), { target: { value: "3" } });
+  fireEvent.change(screen.getByLabelText(t("stem_segment")), { target: { value: "5.5" } });
   fireEvent.change(screen.getByLabelText(t("stem_goal")), { target: { value: "vocal_pair" } });
   expect(screen.getByText(t("stem_derived"))).toBeTruthy();
   expect(within(screen.getByRole("group", { name: t("stem_roles") })).getByRole("checkbox", { name: t("stem_role_vocals") })).toBeTruthy();
@@ -92,8 +102,9 @@ it("queues independent imported sources with the confirmed revision and actual r
   fireEvent.click(within(preview).getByRole("button", { name: t("stem_preview") }));
   await within(preview).findByRole("button", { name: t("stem_preview_result") });
   expect(invoke).toHaveBeenCalledWith("stem_start", {
-    request: expect.objectContaining({ source_id: sources[0].id, start: 0.25, end: 1, preview: true }),
+    request: expect.objectContaining({ source_id: sources[0].id, start: 0.25, end: 1, preview: true, shifts: 3, segment: 5.5, outputs: ["vocals", "instrumental", "residual"] }),
   });
+  fireEvent.click(screen.getByLabelText(t("stem_role_residual")));
   fireEvent.click(screen.getByRole("button", { name: t("stem_continue") }));
   fireEvent.change(screen.getByLabelText(t("stem_project_folder")), { target: { value: "demo" } });
   expect(await screen.findByText("8 MiB")).toBeTruthy();
@@ -102,6 +113,6 @@ it("queues independent imported sources with the confirmed revision and actual r
   await waitFor(() => expect(onQueued).toHaveBeenCalledWith(["job-source-0", "job-source-1"]));
   const enqueued = invoke.mock.calls.filter(([command, args]) => command === "stem_start" && !args.request.preview);
   expect(enqueued.map(([, { request }]) => request)).toEqual(sources.map(source => expect.objectContaining({
-    source_id: source.id, pin: expect.objectContaining(pin), outputs: ["vocals", "instrumental"], preview: false, folder_id: "demo",
+    source_id: source.id, pin: expect.objectContaining(pin), outputs: ["vocals", "instrumental"], preview: false, folder_id: "demo", shifts: 3, segment: 5.5,
   })));
 });

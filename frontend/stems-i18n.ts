@@ -1,6 +1,12 @@
 import { I18N } from "./i18n.js";
 
 Object.assign(I18N.en, {
+  stem_pair: "Instrument and remaining accompaniment", stem_without: "Without {stem}", stem_role_residual: "Reconstruction difference",
+  stem_residual_hint: "The difference track contains the original minus all native stems. Add it to all native stems to reconstruct the project audio.",
+  stem_segment: "Segment length (seconds)", stem_shifts: "Shift passes", stem_transition_power: "Crossfade exponent",
+  stem_num_workers: "Parallel CPU workers", stem_no_split: "Process in one window",
+  stem_inference_hint: "Shift passes average several predictions and take longer. More parallel workers use more memory. Zero disables each option.",
+  stem_window_range: "The selected range exceeds one model window. Shorten the range or enable chunking.",
   stem_title: "Stem separation", stem_split: "Separate into stems", stem_models: "Separation models",
   stem_mixer: "Mixer", stem_projects: "Stem projects", stem_jobs: "Separation queue", stem_new: "New separation",
   stem_remove_project: "Remove stem project",
@@ -11,7 +17,7 @@ Object.assign(I18N.en, {
   stem_choose_source: "Choose a song from the library or import audio.", stem_goal: "Separation goal",
   stem_multitrack: "Multiple instruments", stem_vocal_pair: "Vocals and instrumental", stem_vocals_only: "Isolate vocals",
   stem_instrumental_only: "Create instrumental", stem_derived: "Instrumental is the sum of the non-vocal estimates.",
-  stem_model: "Model", stem_recommended: "Recommended for these stems", stem_engine: "Demucs runtime",
+  stem_model: "Model", stem_engine: "Demucs runtime",
   stem_install_engine: "Install runtime", stem_engine_hint: "Requires Python 3.12 on this computer. The app installs Demucs in a dedicated environment.",
   stem_platform_unsupported: "This OS or architecture is unsupported by the separation runtime.",
   stem_engine_missing: "Install the Demucs runtime to continue.", stem_python_missing: "Python 3.12 is required. Install it and retry.",
@@ -76,6 +82,12 @@ Object.assign(I18N.en, {
   stem_waveform: "Source waveform", stem_stereo_waveform: "Stereo waveform", stem_waveform_lanes: "Track waveforms", stem_comparing: "A/B comparison",
 });
 Object.assign(I18N.de, {
+  stem_pair: "Instrument und übrige Spuren", stem_without: "Ohne {stem}", stem_role_residual: "Rekonstruktionsdifferenz",
+  stem_residual_hint: "Die Differenzspur enthält das Original abzüglich aller Modellspuren. Zusammen mit allen Modellspuren ergibt sie das Projektaudio.",
+  stem_segment: "Segmentlänge (Sekunden)", stem_shifts: "Zeitversetzte Durchläufe", stem_transition_power: "Exponent der Überblendung",
+  stem_num_workers: "Parallele CPU-Worker", stem_no_split: "In einem Zeitfenster trennen",
+  stem_inference_hint: "Mehrere zeitversetzte Durchläufe mitteln die Schätzungen und kosten Rechenzeit. Parallele Worker brauchen mehr Speicher. Null schaltet die jeweilige Option aus.",
+  stem_window_range: "Der Ausschnitt ist länger als ein Modellfenster. Verkürze ihn oder schalte die Trennung in einem Zeitfenster aus.",
   stem_title: "Stem-Separation", stem_split: "In Spuren aufteilen", stem_models: "Trennmodelle", stem_mixer: "Mixer",
   stem_projects: "Spurprojekte", stem_jobs: "Trennwarteschlange", stem_new: "Neue Trennung", stem_sources: "Audioquellen",
   stem_remove_project: "Spurprojekt entfernen",
@@ -86,7 +98,7 @@ Object.assign(I18N.de, {
   stem_choose_source: "Wähle einen Titel aus der Bibliothek oder importiere Audio.", stem_goal: "Trennziel",
   stem_multitrack: "Mehrere Instrumente", stem_vocal_pair: "Gesang und Instrumental", stem_vocals_only: "Gesang isolieren",
   stem_instrumental_only: "Instrumental erstellen", stem_derived: "Das Instrumental ist die Summe der geschätzten Begleitspuren.",
-  stem_model: "Modell", stem_recommended: "Für diese Spuren empfohlen", stem_engine: "Demucs-Laufzeit", stem_install_engine: "Laufzeit installieren",
+  stem_model: "Modell", stem_engine: "Demucs-Laufzeit", stem_install_engine: "Laufzeit installieren",
   stem_engine_hint: "Benötigt Python 3.12 auf diesem Computer. Die App installiert Demucs in einer eigenen Umgebung.",
   stem_platform_unsupported: "Die Trennengine unterstützt dieses Betriebssystem oder diese Architektur nicht.",
   stem_engine_missing: "Installiere die Demucs-Laufzeit, um fortzufahren.", stem_python_missing: "Installiere Python 3.12 und versuche es erneut.",

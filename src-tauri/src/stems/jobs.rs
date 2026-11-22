@@ -1,3 +1,4 @@
+mod inference;
 mod queue;
 mod separation;
 use super::{engine, export, managed_dir, model, source};
@@ -37,6 +38,8 @@ pub struct Request {
     pub end: Option<f64>,
     pub quality: Quality,
     pub overlap: f64,
+    #[serde(flatten)]
+    pub inference: inference::Inference,
     pub outputs: Vec<String>,
     #[serde(default)]
     pub preview: bool,
@@ -185,13 +188,12 @@ pub fn preflight(state: &AppState, request: &Request) -> Result<Preflight> {
     if request.name.trim().is_empty()
         || request.name.chars().count() > 160
         || !request.overlap.is_finite()
-        || !(0.0..=0.5).contains(&request.overlap)
+        || !(0.0..=0.99).contains(&request.overlap)
         || request.outputs.is_empty()
-        || request.outputs.len() > profile.roles.len() + 1
         || request
             .outputs
             .iter()
-            .any(|role| role != "instrumental" && !profile.roles.contains(&role.as_str()))
+            .any(|role| !inference::supported_output(role, profile.roles))
         || request
             .outputs
             .iter()
@@ -219,6 +221,12 @@ pub fn preflight(state: &AppState, request: &Request) -> Result<Preflight> {
         .filter(|count| *count > 0)
         .ok_or_else(|| message("stem_range"))?;
     let frames = (source_frames * u64::from(model::RATE)).div_ceil(u64::from(source.audio.rate));
+    if !request.inference.valid() {
+        return Err(message("stem_parameters"));
+    }
+    if !request.inference.fits_window(frames) {
+        return Err(message("stem_window_range"));
+    }
     if frames > u64::from((u32::MAX - 1024) / 8) {
         return Err(message("stem_range"));
     }
@@ -318,7 +326,7 @@ async fn separate(
         serde_json::to_vec(&serde_json::json!({
             "weights":local_weight, "input":source, "output":staging.path(), "first":preflight.first,
             "frames":preflight.source_frames, "source_rate":job.source.audio.rate,
-            "roles":profile.roles, "outputs":request.outputs, "quality":request.quality, "overlap":request.overlap,
+            "inference":request.inference, "roles":profile.roles, "outputs":request.outputs, "quality":request.quality, "overlap":request.overlap,
         }))?,
     )?;
     let timeout = Duration::from_secs_f64(

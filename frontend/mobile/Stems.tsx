@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { I18N } from "../i18n.js";
 import "../stems-i18n";
-import { defaultMix, upgradeMix, type MixVersion, type StemCatalog, type StemExport, type StemJob } from "../stems";
+import { defaultMix, stemRole, upgradeMix, type MixVersion, type StemCatalog, type StemExport, type StemJob } from "../stems";
 import { releaseMedia, type RemoteApi, type SongCard } from "./client";
+import { StemOutputFields, StemInferenceFields } from "../react/stems/SeparationFields";
+import { defaults, outputSelection, validInference, type OutputSelection } from "../react/stems/separation-options";
 
 const url = (id: string) => encodeURIComponent(id);
 type Translate = (key: string) => string;
@@ -17,13 +19,15 @@ export function MobileStems({ api, song, language, exit }: { api: RemoteApi; son
   const [models, setModels] = useState<StemCatalog>();
   const [jobs, setJobs] = useState<StemJob[]>();
   const [modelId, setModelId] = useState("");
-  const [vocalPair, setVocalPair] = useState(false);
+  const [selection, setSelection] = useState<OutputSelection>({ goal: "multitrack" });
+  const [options, setOptions] = useState(defaults);
   const [selected, setSelected] = useState<string>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const ready = models?.models.filter(model => model.status === "ready") ?? [];
   const current = ready.find(model => model.id === modelId) ?? ready[0];
+  const { outputs } = outputSelection(current?.roles ?? [], selection);
   const open = jobs?.find(job => job.id === selected && Boolean(job.project));
 
   useEffect(() => {
@@ -56,15 +60,16 @@ export function MobileStems({ api, song, language, exit }: { api: RemoteApi; son
 
   return <section className="panel mobile-stems" aria-label={t("stem_projects")}>
     <div className="section-heading"><h1>{t("stem_projects")}</h1><button type="button" className="secondary" onClick={exit}>{t("stem_back")}</button></div>
-    {song && <div>
+    {song && <div className="stem-mobile-setup">
       <h2>{song.title}</h2>
       {ready.length > 0 && <>
-        <label>{t("stem_model")} <select value={current?.id ?? ""} onChange={event => setModelId(event.target.value)}>
+        <label>{t("stem_model")} <select value={current?.id ?? ""} onChange={event => { setModelId(event.target.value); setSelection({ goal: selection.goal }); }}>
           {ready.map(model => <option value={model.id} key={model.id}>{model.name}</option>)}
         </select></label>
-        <label className="stem-mobile-check"><input type="checkbox" checked={vocalPair} onChange={event => setVocalPair(event.target.checked)} /> {t("stem_vocal_pair")}</label>
-        <button type="button" className="primary" disabled={busy} onClick={() => void mutate(async () => {
-          const result = await api.write<{ id: string }>("/api/stems/jobs", "POST", { song_id: song.id, model_id: current.id, vocals_and_instrumental: vocalPair });
+        <StemOutputFields native={current.roles} selection={selection} change={setSelection} t={t} />
+        <StemInferenceFields options={options} change={setOptions} t={t} />
+        <button type="button" className="primary" disabled={busy || !outputs.length || !validInference(options)} onClick={() => void mutate(async () => {
+          const result = await api.write<{ id: string }>("/api/stems/jobs", "POST", { song_id: song.id, model_id: current.id, ...options, outputs });
           setSelected(result.id);
         })}>{t("stem_start")}</button>
       </>}
@@ -163,10 +168,10 @@ function MobileProject({ api, job, t }: { api: RemoteApi; job: StemJob; t: Trans
   return <div className="stem-mobile-details">
     <label>{t("stem_track")} <select value={role} onChange={event => setRole(event.target.value)}>
       <option value="original">{t("stem_original")}</option>
-      {job.project!.roles.map(value => <option value={value} key={value}>{t(`stem_role_${value}`)}</option>)}
+      {job.project!.roles.map(value => <option value={value} key={value}>{stemRole(value, t)}</option>)}
     </select></label>
     <button type="button" className="secondary" disabled={busy} onClick={() => void run(play)}>{t("stem_play")}</button>
-    <audio ref={player} hidden={!current} controls preload="metadata" aria-label={current === "original" ? t("stem_original") : t(`stem_role_${current}`)} />
+    <audio ref={player} hidden={!current} controls preload="metadata" aria-label={stemRole(current, t)} />
     {!job.request.preview && <>
       {versions.length > 0 && <label>{t("stem_mix_version")} <select value={version} onChange={event => setVersion(event.target.value)}>
         <option value="">{t("stem_default_mix")}</option>{versions.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}

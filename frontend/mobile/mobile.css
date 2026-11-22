@@ -123,6 +123,8 @@ audio { width: 100%; height: 34px; }
 .secure-shortcut { margin-top: 24px; }
 
 .mobile-stems,
+.stem-mobile-setup,
+.stem-mobile-setup .stem-field-grid,
 .stem-mobile-details,
 .stem-mobile-project {
   display: grid;
@@ -135,12 +137,16 @@ audio { width: 100%; height: 34px; }
 }
 
 .stem-mobile-actions,
-.stem-mobile-check {
+.stem-mobile-setup .stem-check {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: .5rem;
 }
+
+.stem-mobile-setup .stem-check input { width: auto; }
+.stem-mobile-setup .stem-output-grid { display: grid; gap: .35rem; }
+.stem-mobile-setup .small { color: var(--muted); font-size: .85rem; }
 
 .stem-mobile-details audio {
   width: 100%;

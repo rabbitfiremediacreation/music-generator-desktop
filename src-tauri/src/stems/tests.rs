@@ -54,6 +54,38 @@ fn model_save_dir(root: &Path, artifact: &model::Artifact) -> PathBuf {
     artifact.path(&models)
 }
 
+#[cfg(unix)]
+fn verify_reconstruction(root: &Path, job: &jobs::Job, profile: &model::Profile) {
+    let project = job.complete().unwrap();
+    let samples = |role| {
+        let bytes = std::fs::read(job.audio_path(root, role).unwrap()).unwrap();
+        let (_, offset) =
+            crate::audio_facts::float_data(&mut std::io::Cursor::new(&bytes)).unwrap();
+        bytes[offset as usize..][..project.frames as usize * 8]
+            .chunks_exact(4)
+            .map(|sample| f32::from_le_bytes(sample.try_into().unwrap()))
+            .collect::<Vec<_>>()
+    };
+    let native: Vec<_> = profile.roles.iter().map(|role| samples(role)).collect();
+    let original = samples("original");
+    let residual = samples("residual");
+    let backing = samples("instrumental");
+    let no_drums = samples("no_drums");
+    let lead = |role| &native[profile.roles.iter().position(|name| *name == role).unwrap()];
+    let vocals = lead("vocals");
+    let drums = lead("drums");
+    for i in 0..original.len() {
+        let sum: f32 = native.iter().map(|stem| stem[i]).sum();
+        assert!((sum + residual[i] - original[i]).abs() < 1e-6);
+        assert!((sum - vocals[i] - backing[i]).abs() < 1e-6);
+        assert!((sum - drums[i] - no_drums[i]).abs() < 1e-6);
+    }
+    eprintln!(
+        "Peak reconstruction difference: {:.6}",
+        residual.iter().copied().map(f32::abs).fold(0.0, f32::max)
+    );
+}
+
 #[tokio::test]
 #[cfg(unix)]
 #[ignore = "requires real pinned model weights and a prepared Python or packaged Demucs runtime"]
@@ -163,6 +195,7 @@ async fn offline_separation_mix_and_export_after_restart_and_model_removal() {
         (44_100, 2, 132_414, 7_200)
     );
     assert_eq!(job.request.pin, pin);
+    verify_reconstruction(root, &job, profile);
     let original_stem = job.audio_path(root, "vocals").unwrap();
     let raw = std::fs::read(&original_stem).unwrap();
     for role in &project.roles {
