@@ -29,6 +29,11 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 - llama.cpp v0.7.0 (MIT): https://github.com/ggml-org/llama.cpp. The statically linked CPU-only `music-title` helper uses the pinned source revision and archive checksum in `models/title-model.json`. Its runtime checksums and build recipe are in `engine/title/TITLE_RUNTIME.json`; the llama.cpp/ggml and nlohmann/json MIT license texts accompany the helper.
 - Qwen3-0.6B-GGUF (Apache-2.0): https://huggingface.co/Qwen/Qwen3-0.6B-GGUF. Model weights are downloaded separately to the selected model folder, never fetched by the inference helper. The exact Q8 model revision, byte size and SHA-256 are pinned in `models/title-model.json`. Upstream license: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/LICENSE.
 
+## Optional local cover art
+
+- stable-diffusion.cpp is MIT-licensed. The app downloads a platform-specific archive on first use and retains the included license files. The engine revision, archive sizes and hashes are pinned in `models/cover-art.json`. [Pinned engine release](https://github.com/leejet/stable-diffusion.cpp/releases/tag/master-1132-5fa203c)
+- SDXS-512 DreamShaper uses the CreativeML Open RAIL++-M license. The app downloads the single Safetensors checkpoint on first use. [Pinned checkpoint](https://huggingface.co/akleine/sdxs-512/tree/a8ecb3ce283246912b07f1fed79acdaf7c9f8810) · [Original model card and license](https://huggingface.co/IDKiro/sdxs-512-dreamshaper)
+
 ## Optional AudioCraft runtime
 
 - AudioCraft 1.3.0 by Meta Platforms, Inc. and affiliates (MIT). The optional macOS arm64 bundle includes the locally patched inference code, its full MIT license and the pinned Python distribution and wheel license files. The archives and SHA-256 locks are in `scripts/desktop/audiocraft-runtime/`. [AudioCraft source and license](https://github.com/facebookresearch/audiocraft/tree/72cb16f9fb239e9cf03f7bd997198c7d7a67a01c)

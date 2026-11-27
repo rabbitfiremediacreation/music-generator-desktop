@@ -38,6 +38,7 @@ pub struct Settings {
     pub export_format: String,
     pub update_stream: UpdateStream,
     pub expert_mode: bool,
+    pub generate_cover_art: bool,
     pub cpu_iteration_behavior: CpuIterationBehavior,
     pub poll_interval: f64,
     pub timeout_minutes: f64,
@@ -64,6 +65,7 @@ impl Default for Settings {
             #[cfg(not(target_os = "macos"))]
             update_stream: UpdateStream::Stable,
             expert_mode: false,
+            generate_cover_art: false,
             cpu_iteration_behavior: CpuIterationBehavior::Ask,
             poll_interval: 1.5,
             timeout_minutes: 30.0,
@@ -223,6 +225,8 @@ pub struct Song {
     pub folder_id: Option<String>,
     pub letter: String,
     pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover_path: Option<String>,
 }
 
 fn is_zero(value: &u32) -> bool {

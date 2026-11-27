@@ -15,6 +15,8 @@ export interface Settings {
   lm_device: "auto" | "cpu"; export_format: AudioFormat; mp3_available?: boolean;
   export_formats?: AudioFormat[];
   expert_mode: boolean;
+  generate_cover_art?: boolean;
+  cover_art_supported?: boolean;
   update_stream: UpdateStream;
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_profiles?: ModelSelection[];
@@ -63,6 +65,7 @@ export interface Song {
   engine?: string | null;
   output_kind?: OutputKind; audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
+  cover_path?: string; cover_url?: string;
 }
 export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
@@ -123,7 +126,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying" | "installing"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "complete";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "cover_art_download" | "cover_art" | "complete";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
   overall_percent?: number;
   estimated_remaining_seconds?: number;
@@ -211,7 +214,7 @@ export interface ModelCatalog {
   models_dir: string; busy: boolean;
 }
 
-export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior" | "update_stream">>;
+export type SettingsPatch = Partial<Pick<Settings, "timeout_minutes" | "songs_dir" | "lm_device" | "export_format" | "expert_mode" | "cpu_iteration_behavior" | "update_stream" | "generate_cover_art">>;
 
 export interface ImportRequest { root: string; songs_source: string | null; songs_dir: string; allow_partial: boolean }
 export interface MissingAudio { id: string; title: string; file: string | null }

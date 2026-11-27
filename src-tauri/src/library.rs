@@ -5,6 +5,7 @@ use crate::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
 
 impl Database {
     /// Resolve playback by library identity, without accepting a frontend filesystem path.
@@ -133,14 +134,40 @@ impl Database {
         Ok(json!({"running":running,"queued":queued,"library":{"count":count,"bytes":bytes}}))
     }
 
-    pub(crate) fn result_files(&self) -> Result<Vec<String>> {
+    pub(crate) fn cover_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
+        let mut ids = Vec::new();
+        {
+            let con = self.lock();
+            let mut stmt = con.prepare(
+                "SELECT id FROM songs WHERE json_type(result_meta,'$.cover_art')='object'",
+            )?;
+            for row in stmt.query_map([], |row| row.get::<_, String>(0))? {
+                ids.push(row?);
+            }
+        }
+        Ok(ids
+            .iter()
+            .filter_map(|id| crate::cover_art::output_path(root, id, true))
+            .collect())
+    }
+
+    pub(crate) fn result_files(&self, root: &Path) -> Result<Vec<String>> {
         let con = self.lock();
         let mut stmt = con.prepare(
             "SELECT DISTINCT file FROM songs WHERE file IS NOT NULL AND audio_missing=0 ORDER BY file",
         )?;
-        let files = stmt
+        let mut files = stmt
             .query_map([], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(stmt);
+        drop(con);
+        files.extend(
+            self.cover_files(root)?
+                .iter()
+                .filter_map(|path| path.file_name()?.to_str().map(str::to_owned)),
+        );
+        files.sort_unstable();
+        files.dedup();
         Ok(files)
     }
 }

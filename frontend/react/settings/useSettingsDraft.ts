@@ -92,6 +92,7 @@ export function useSettingsDraft(open: boolean, onClose: () => void, onBusyChang
       timeout_minutes: Number(draft.timeout_minutes), songs_dir: draft.songs_dir.trim(),
       export_format: draft.export_format, expert_mode: draft.expert_mode,
       update_stream: draft.update_stream,
+      generate_cover_art: draft.generate_cover_art,
     });
     setSaving(true); setFailure(undefined); setStatus("");
     try {

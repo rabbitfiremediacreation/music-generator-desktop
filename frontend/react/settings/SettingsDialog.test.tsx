@@ -35,6 +35,16 @@ function goTo(page: SettingsPage) {
   fireEvent.click(screen.getByRole("button", { name: t(`settings_page_${page}`) }));
 }
 
+it("opts in to automatic cover art only when generation settings are saved", async () => {
+  render(view());
+  const toggle = await screen.findByRole<HTMLInputElement>("switch", { name: "Generate cover art" });
+  expect(toggle.checked).toBe(false);
+  fireEvent.click(toggle);
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: t("save") }));
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ generate_cover_art: true }));
+});
+
 it("places connection and expert switches after their labels in the shared row", async () => {
   render(view());
   await screen.findByRole("spinbutton");

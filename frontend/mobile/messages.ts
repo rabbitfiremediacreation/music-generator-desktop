@@ -43,12 +43,14 @@ export const generationPhases: Record<Language, Record<JobProgress["phase"], str
     starting: "Starting", loading: "Loading model", generation: "Generating music", planning: "Score planning",
     lm: "Preparing music", synth: "Synthesizing", dit: "Generating audio", vae: "Decoding audio",
     saving: "Saving audio", saving_midi: "Saving MIDI", title: "Creating title", title_download: "Downloading title model",
+    cover_art_download: "Preparing cover art model and engine", cover_art: "Generating cover art",
     complete: "Song ready",
   },
   de: {
     starting: "Wird gestartet", loading: "Modell wird geladen", generation: "Musik wird generiert", planning: "Partiturplanung",
     lm: "Musik wird vorbereitet", synth: "Synthese läuft", dit: "Audio wird erzeugt", vae: "Audio wird dekodiert",
     saving: "Audio wird gespeichert", saving_midi: "MIDI wird gespeichert", title: "Titel wird erstellt", title_download: "Titelmodell wird geladen",
+    cover_art_download: "Modell und Engine für Cover-Art werden vorbereitet", cover_art: "Cover-Art wird erzeugt",
     complete: "Song fertig",
   },
 };

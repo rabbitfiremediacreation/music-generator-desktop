@@ -13,6 +13,7 @@ import "../model-inventory-i18n";
 import "../hugging-face-i18n";
 import "../expert-i18n";
 import "../title-i18n";
+import "../cover-art-i18n";
 import "../import-i18n";
 import "../path-i18n";
 import "../form-preferences-i18n";

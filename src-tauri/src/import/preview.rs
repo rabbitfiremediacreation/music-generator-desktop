@@ -132,6 +132,16 @@ pub(super) fn inspect(source: &Source, request: &ImportRequest) -> Result<Import
             _ => preview.issue("songs_access", path),
         }
     }
+    drop(stmt);
+    drop(con);
+    for path in source.db.cover_files(&source.songs)? {
+        if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+            if names.insert(name.to_owned()) {
+                preview.files += 1;
+                preview.bytes = preview.bytes.saturating_add(path.metadata()?.len());
+            }
+        }
+    }
     target(
         &mut preview,
         Path::new(&request.songs_dir),

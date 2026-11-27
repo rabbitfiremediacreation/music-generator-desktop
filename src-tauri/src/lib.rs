@@ -7,6 +7,7 @@ mod audio_upload;
 pub mod catalog;
 mod commands;
 pub mod configuration;
+mod cover_art;
 pub mod cuda_runtime;
 pub mod db;
 pub mod download;

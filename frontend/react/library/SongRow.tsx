@@ -80,6 +80,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
     ? t(model.hasVariant ? "result_music_model" : "result_music_model_partial", model.name)
     : t("result_music_model_unknown");
   const canExport = song.status === "done" && !song.audio_missing;
+  const playSymbol = player.song?.id === song.id && player.playing ? "❚❚" : "▶";
   const usage = !midi && song.status === "done" ? songUsage(song, language, t) : null;
   const stream = song.status === "done" ? songStreamMetrics(song) : null;
   const formatMetric = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
@@ -91,7 +92,10 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
   return <article className={`song ${player.song?.id===song.id?"playing":""}${newGroup?" new-group":""}`} data-id={song.id}
     aria-label={label} draggable={folders.length>0&&!editing&&dragAllowed} onMouseDown={event=>setDragAllowed(!(event.target as Element).closest("button,input,a,.lyr,.song-usage-details,dialog"))}
     onDragStart={event=>{if(!dragAllowed){event.preventDefault();return;}event.dataTransfer.setData("text/song",song.id);event.dataTransfer.effectAllowed="move";}}>
-    {canExport&&!midi ? action(t("play"),player.song?.id===song.id&&player.playing?"❚❚":"▶",()=>player.play(song),"round") : <div className={`slot ${song.status==="running"?"run":song.status==="error"||song.audio_missing?"err":""}`} title={song.message??undefined}>{song.audio_missing||song.status==="error"?"!":song.status==="running"?<WaveLogo active />:canExport?"♪":song.status==="cancelled"?"✕":"…"}</div>}
+    {canExport&&!midi ? action(t("play"), song.cover_url ? <>
+      <img src={song.cover_url} alt={t("cover_art_image")} loading="lazy" draggable={false} onError={event => { event.currentTarget.hidden = true; }} />
+      <span aria-hidden="true">{playSymbol}</span>
+    </> : playSymbol, () => player.play(song), song.cover_url ? "cover-play" : "round") : <div className={`slot ${song.status==="running"?"run":song.status==="error"||song.audio_missing?"err":""}`} title={song.message??undefined}>{song.audio_missing||song.status==="error"?"!":song.status==="running"?<WaveLogo active />:canExport?"♪":song.status==="cancelled"?"✕":"…"}</div>}
     <div className="min-w-0">
       {editing ? <input ref={edit} className="t-edit" aria-label={t("rename")} value={title} onChange={event=>setTitle(event.target.value)} onBlur={commit}
         onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();commit();}if(event.key==="Escape"){event.preventDefault();setEditing(false);}}}/> :
@@ -112,6 +116,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
         <span>{t(stream.realtime ? "stream_realtime_met" : "stream_realtime_missed")}</span>
       </div>}
       {song.status==="done"&&Boolean(meta.title_generation_error)&&<div className="s err" title={String(meta.title_generation_error)}>{t("title_failed")}</div>}
+      {song.status === "done" && typeof meta.cover_art_error === "string" && <div className="s err" title={meta.cover_art_error}>{t("cover_art_failed")}</div>}
       {song.audio_missing&&<div className="s err">{t(midi ? "midi_missing" : "import_audio_missing")}</div>}
       {onStems && projectCount > 0 && stemJobStatus && <div className="s">{t("stem_jobs")} · {stemJobStatus}</div>}
       {!midi&&warning&&!song.audio_missing&&<div className="s duration-warning" role="note">{t(`duration_${warning.code}`,audioTime(warning.actual_seconds),audioTime(warning.requested_seconds))}</div>}
