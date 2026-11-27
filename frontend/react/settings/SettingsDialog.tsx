@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { useIsMutating } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { pathErrorText } from "../../path-dialogs";
 import { modelErrorText } from "../../expert-mode";
 import { useI18n } from "../i18n";
+import { settingsQuery } from "../data";
 import { useSettingsDraft } from "./useSettingsDraft";
 import { PhoneAccessField } from "./PhoneAccessField";
 import { McpSettings } from "./McpSettings";
 import { SettingsNavigation, settingsGroups, type SettingsPage } from "./SettingsNavigation";
 import { GeneralSettings } from "./GeneralSettings";
 import { GenerationSettings } from "./GenerationSettings";
+import { CoverArtSettings } from "./CoverArtSettings";
 import { ModelsSettings, type SettingsModelManager } from "./ModelsSettings";
 import { TextModelsSettings } from "./TextModelsSettings";
 import { EnginesSettings } from "./EnginesSettings";
@@ -34,6 +36,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const content = useRef<HTMLDivElement>(null);
   const backdropPress = useRef(false);
   const [page, setPage] = useState<SettingsPage>("generation");
+  const coverArtInstalled = useQuery({ ...settingsQuery(), enabled: props.open && page === "cover_art" }).data?.cover_art_installed;
   const [mcpSaving, setMcpSaving] = useState(false);
   const [pathError, setPathError] = useState<unknown>();
   const { draft, loading, saving, pending, status, failure } = state;
@@ -92,11 +95,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
           {settingsGroups.flatMap(group => group.pages).map(value => <section key={value} id={`settings-${value}`} data-settings-page={value} hidden={page !== value} aria-labelledby="settingsPageHeading">
             {value === "phone" ? <PhoneAccessField /> : <fieldset className="settings-fields" disabled={busy || (value !== "appearance" && (loading || !draft))}>
               {value === "general" && page === "general" && <GeneralSettings state={state} modelBusy={modelBusy} />}
-              {value === "generation" && <GenerationSettings state={state} />}
+              {value === "generation" && <GenerationSettings state={state} onCoverModels={() => selectPage("cover_art")} />}
               {value === "models" && <ModelsSettings state={state} active={page === "models"} manager={props.modelManager}
                 onOpenEngines={() => selectPage("engines")} onOpenExpertSettings={() => selectPage("general")} />}
               {value === "engines" && page === "engines" && <EnginesSettings />}
               {value === "llm" && page === "llm" && <TextModelsSettings state={state} manager={props.modelManager} />}
+              {value === "cover_art" && page === "cover_art" && <CoverArtSettings supported={draft?.cover_art_supported} installed={coverArtInstalled} />}
               {value === "stems" && <StemModelsSettings active={page === "stems"} onOpenEngines={() => selectPage("engines")} />}
               {value === "library" && <LibrarySettings state={state} onMoveLibrary={() => navigate(props.onMoveLibrary)} />}
               {value === "appearance" && <AppearanceSettings layout={props.layout} onLayoutChange={props.onLayoutChange} />}

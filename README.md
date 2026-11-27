@@ -68,6 +68,7 @@ Beim Ausschalten des Expert Mode bleibt eine zuvor aktive erweiterte Modellauswa
 
 ## Bibliothek, Vorlagen und Export
 
+- **Cover-Art:** Unter **Einstellungen → Modelle → Cover-Art** installierst du SDXS-512 DreamShaper und die passende Engine (rund 1 GB). Danach kannst du bei einem vorhandenen Audio-Track **Cover-Art erzeugen** wählen oder unter **Einstellungen → Generierung** automatische Cover für neue Tracks einschalten. Die 512×512-PNGs entstehen offline aus Titel und Beschreibung und liegen neben der Audiodatei. Die Cover-Funktion unterstützt macOS ab 26, Windows x64 und Linux x64 mit glibc ab 2.43 und einer libstdc++ mit `GLIBCXX_3.4.32`.
 - **Abspielen und verwalten:** Play startet den Waveform-Player. Mit dem Stern favorisieren, über die Suche filtern, Titel umbenennen und Songs in Ordnern organisieren.
 - **Varianten und Einstellungen:** **+** an einem Song erzeugt eine weitere Variante. Der Pfeil nach oben übernimmt dessen Vorgaben ins Formular; neue Songs speichern auch ihre Modellkombination.
 - **Exportieren:** **WAV** bzw. **MP3** öffnet den nativen Speicherdialog. Das Exportformat wird im Setup gewählt. **TXT** zeigt vorhandene Lyrics mit Textdownload. **Alle laden** bzw. der Ordnerdownload exportiert fertige Audiodateien als ZIP.

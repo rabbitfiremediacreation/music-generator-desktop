@@ -84,6 +84,24 @@ it("shows each song's saved model and variant after reopening with another activ
   expect(mocks.invoke.mock.calls.some(([name]) => name === "generate")).toBe(false);
 });
 
+it("generates a cover for a saved song with automatic cover generation off", async () => {
+  const invoke = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation(async (name, args) => {
+    if (name === "get_settings") return { export_format: "wav", generate_cover_art: false, cover_art_supported: true, cover_art_installed: true };
+    if (name === "generate_song_cover") {
+      songs = songs.map(song => song.id === args.id ? { ...song, cover_path: "/songs/one.cover.png" } : song);
+      return;
+    }
+    return invoke(name, args);
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Generate cover art" }));
+  const cover = await screen.findByAltText("Generated cover art");
+  expect(cover.getAttribute("src")).toBe("asset:/songs/one.cover.png");
+  expect(mocks.invoke).toHaveBeenCalledWith("generate_song_cover", { id: "one" });
+  expect(mocks.invoke.mock.calls.some(([name]) => name === "generate")).toBe(false);
+});
+
 it("uses only recorded origins when old songs lack a saved model selection", async () => {
   setLang("de");
   const legacy = songs[0];

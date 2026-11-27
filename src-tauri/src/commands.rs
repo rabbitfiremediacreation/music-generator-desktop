@@ -433,6 +433,8 @@ pub fn get_settings(state: Desktop<'_>) -> Result<Value> {
     result["export_formats"] = json!(formats);
     let hardware = crate::hardware::inspect();
     result["cpu_only"] = json!(hardware.cpu_only);
+    result["cover_art_supported"] = json!(crate::cover_art::supported());
+    result["cover_art_installed"] = json!(crate::cover_art::installed(&state.db.root));
     result["recommended_profiles"] = json!(crate::catalog::catalog().recommendations_for_build(
         hardware,
         &state.resources,

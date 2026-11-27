@@ -225,7 +225,7 @@ function DesktopShell(){
         <Library folder={folder} onFolderChange={setFolderChoice} selection={selection} onReuse={song=>{
           setReuse({song,revision:++intentRevision.current});
           changeMode("create");
-        }} onRemix={remixSong} onReady={libraryInitialized} onError={libraryFailed} onStems={request=>{
+        }} onRemix={remixSong} onReady={libraryInitialized} onError={libraryFailed} onCoverModels={() => openSettings("cover_art")} onStems={request=>{
           setMixerJob(null);
           setStemStudio(request);
         }}/>

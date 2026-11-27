@@ -32,6 +32,7 @@ pub async fn save_with_progress(
                 values.expert_mode,
                 values.cpu_iteration_behavior,
                 values.update_stream,
+                values.generate_cover_art,
             )?;
             state.db.settings()
         });

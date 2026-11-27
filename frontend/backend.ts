@@ -7,7 +7,11 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
   try { return await invoke<T>(name, args); }
   catch (error) { throw error instanceof Error ? error : new Error(typeof error === "string" ? error : String(error)); }
 }
-const audioUrl = (song: Song): Song => ({ ...song, url: song.output_kind !== "midi" && song.path ? convertFileSrc(song.path) : null });
+const songUrls = (song: Song): Song => ({
+  ...song,
+  url: song.output_kind !== "midi" && song.path ? convertFileSrc(song.path) : null,
+  ...(song.cover_path && { cover_url: convertFileSrc(song.cover_path) }),
+});
 
 async function uploadAudio<T>(route: "analyze" | "remix", file: File, query: URLSearchParams): Promise<T> {
   const url = `${convertFileSrc(route, "audio-analysis")}?${query}`;
@@ -50,6 +54,9 @@ export const backend = {
   adoptHuggingFaceModel: (pin: import("./types").HuggingFacePin, draft: ModelSelection) =>
     command<ModelSelection>("adopt_hugging_face_model", { pin, draft }),
   downloadTitleModel: () => command<void>("download_title_model"),
+  installCoverArt: () => command<void>("install_cover_art"),
+  generateCoverArt: (id: string) => command<void>("generate_song_cover", { id }),
+  cancelCoverArt: (id: string) => command<void>("cancel_song_cover", { id }),
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
   removeModel: (target: import("./types").ModelRemoval) => command<void>("remove_model", { target }),
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),
@@ -61,12 +68,12 @@ export const backend = {
   previewImport: (request: ImportRequest) => command<ImportPreview>("preview_import", { request }),
   previewMove: (songs_dir: string) => command<ImportPreview>("preview_library_move", { songsDir: songs_dir }),
   importLibrary: (request: ImportRequest) => command<ImportResult>("import_library", { request }),
-  songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(audioUrl),
+  songs: async (filter: Filter = {}) => (await command<Song[]>("list_songs", { filter })).map(songUrls),
   songPage: async (filter: Filter, offset: number, limit: number) => {
     const page = await command<import("./types").SongPage>("list_song_page", { filter, offset, limit });
-    return { ...page, songs: page.songs.map(audioUrl) };
+    return { ...page, songs: page.songs.map(songUrls) };
   },
-  song: async (id: string) => audioUrl(await command<Song>("get_song", { id })),
+  song: async (id: string) => songUrls(await command<Song>("get_song", { id })),
   songAudio: async (id: string): Promise<ArrayBuffer> => {
     // Tauri's postMessage fallback returns a byte array instead of an ArrayBuffer.
     const bytes = await command<ArrayBuffer | number[]>("read_song_audio", { id });

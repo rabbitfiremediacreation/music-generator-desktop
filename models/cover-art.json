@@ -1,0 +1,43 @@
+{
+  "model": {
+    "url": "https://huggingface.co/akleine/sdxs-512/resolve/a8ecb3ce283246912b07f1fed79acdaf7c9f8810/sdxs.safetensors",
+    "revision": "a8ecb3ce283246912b07f1fed79acdaf7c9f8810",
+    "file": "sdxs.safetensors",
+    "estimated_bytes": 882587118,
+    "sha256": "6cca5bfd11b588cdfb4602018c7e623d24c95fdfdc5ab2d4b9e6978b3186980f",
+    "kind": "cover_art"
+  },
+  "engine_version": "master-1132-5fa203c",
+  "engines": {
+    "macos": {
+      "file": "sd-master-5fa203c-bin-Darwin-macOS-26.7.2-arm64.zip",
+      "estimated_bytes": 39682822,
+      "sha256": "073c8ec849bb3d6850968c5ead1c7462205ff91a7ee7ac9bf54a45c95676ab70",
+      "kind": "cover_engine"
+    },
+    "windows-cpu": {
+      "file": "sd-master-5fa203c-bin-win-cpu-x64.zip",
+      "estimated_bytes": 19019011,
+      "sha256": "197f9729990bb17952bd83c7c2145844240ec6edcfadacf36bbe1cbffe3215fb",
+      "kind": "cover_engine"
+    },
+    "windows-vulkan": {
+      "file": "sd-master-5fa203c-bin-win-vulkan-x64.zip",
+      "estimated_bytes": 30969501,
+      "sha256": "4d5346346e77524601ea8e2ffa1b0eae820ce0ed92d440b711060f4a273ed371",
+      "kind": "cover_engine"
+    },
+    "linux-cpu": {
+      "file": "sd-master-5fa203c-bin-Linux-Ubuntu-26.04-x86_64.zip",
+      "estimated_bytes": 30826934,
+      "sha256": "082861bbcefaa29cc11def10fd4418b848670536aeca60c76ce0814559f983d9",
+      "kind": "cover_engine"
+    },
+    "linux-vulkan": {
+      "file": "sd-master-5fa203c-bin-Linux-Ubuntu-26.04-x86_64-vulkan.zip",
+      "estimated_bytes": 43919617,
+      "sha256": "82bb1e9b2f331954c8d92e282a667f13be0fce6d1fc57b43357a25149791deaf",
+      "kind": "cover_engine"
+    }
+  }
+}

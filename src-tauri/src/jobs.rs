@@ -236,6 +236,25 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             } else {
                 "saving_midi"
             };
+            let artwork = if output_kind.is_audio() && settings.generate_cover_art {
+                let song = state.db.song(&sid)?;
+                if crate::cover_art::installed(&state.db.root) {
+                    state.stop_engine();
+                    report(Progress::new("cover_art"), 96);
+                }
+                match crate::cover_art::generate_for_song(&state.db.root, &song, &meta, &cancel)
+                    .await
+                {
+                    Ok(artwork) => Some(artwork),
+                    Err(Error::Cancelled) => return Err(Error::Cancelled),
+                    Err(error) => {
+                        artwork_failed(&mut meta, &error);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
             report(Progress::new(saving), 98);
             let dir = PathBuf::from(settings.songs_dir);
             let provenance = if output_kind.is_audio() {
@@ -247,16 +266,42 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             let filename =
                 output::save(&dir, &sid, &ext, bytes, &cancel, provenance.as_deref()).await?;
             let path = dir.join(&filename);
+            let mut cover_file = None;
+            if let Some(artwork) = artwork {
+                match output::save(
+                    &dir,
+                    &sid,
+                    crate::cover_art::EXTENSION,
+                    artwork.png,
+                    &cancel,
+                    None,
+                )
+                .await
+                {
+                    Ok(file) => {
+                        cover_file = Some(dir.join(file));
+                        meta["cover_art"] = artwork.provenance;
+                    }
+                    Err(error) => artwork_failed(&mut meta, &error),
+                }
+            }
             let engine = if ace_step {
                 "acestep_cpp"
             } else {
                 &selection.provider
             };
-            let finish = state
-                .db
-                .finish_output(&sid, &filename, &meta, engine, output_kind);
+            let finish = if cancel.is_cancelled() {
+                Err(Error::Cancelled)
+            } else {
+                state
+                    .db
+                    .finish_output(&sid, &filename, &meta, engine, output_kind)
+            };
             if !matches!(finish, Ok(true)) {
                 let _ = tokio::fs::remove_file(&path).await;
+                if let Some(cover) = cover_file {
+                    let _ = tokio::fs::remove_file(cover).await;
+                }
             }
             if finish? {
                 report(Progress::new("complete"), 100);
@@ -273,6 +318,11 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
         state.changed(&app);
     }
     state.stop_engine();
+}
+
+fn artwork_failed(meta: &mut serde_json::Value, error: &Error) {
+    tracing::warn!(%error, "Automatic cover art failed");
+    meta["cover_art_error"] = serde_json::json!(error.to_string());
 }
 
 #[cfg(test)]

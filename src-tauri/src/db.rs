@@ -98,7 +98,7 @@ impl Database {
 
     /// Update only this preference; callers serialize admission with configuration writers.
     pub fn set_expert_mode(&self, enabled: bool) -> Result<()> {
-        self.set_preferences(Some(enabled), None, None)
+        self.set_preferences(Some(enabled), None, None, None)
     }
 
     /// Update only provided preferences atomically, preserving unrelated configuration.
@@ -107,6 +107,7 @@ impl Database {
         expert: Option<bool>,
         cpu: Option<crate::types::CpuIterationBehavior>,
         stream: Option<crate::types::UpdateStream>,
+        cover_art: Option<bool>,
     ) -> Result<()> {
         let mut con = self.lock();
         let tx = con.transaction()?;
@@ -114,6 +115,7 @@ impl Database {
             ("expert_mode", expert.map(serde_json::to_value)),
             ("cpu_iteration_behavior", cpu.map(serde_json::to_value)),
             ("update_stream", stream.map(serde_json::to_value)),
+            ("generate_cover_art", cover_art.map(serde_json::to_value)),
         ] {
             if let Some(value) = value {
                 tx.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![key, value?.to_string()])?;
@@ -201,10 +203,17 @@ impl Database {
                 let file: Option<String> = row.get("file")?;
                 let audio_missing: bool = row.get("audio_missing")?;
                 let meta: Option<String> = row.get("result_meta")?;
+                let result_meta: Option<Value> = meta.map(parse_json).transpose()?;
+                let id: String = row.get("id")?;
+                let has_cover = result_meta
+                    .as_ref()
+                    .is_some_and(|meta| meta["cover_art"].is_object());
                 let index: u32 = row.get("variant_index")?;
                 let count: u32 = row.get("variant_count")?;
                 Ok(Song {
-                    id: row.get("id")?,
+                    cover_path: crate::cover_art::output_path(Path::new(songs_dir), &id, has_cover)
+                        .map(|path| path.to_string_lossy().into()),
+                    id,
                     stem_project_count: row.get("stem_project_count")?,
                     stem_mix_count: row.get("stem_mix_count")?,
                     stem_status: row.get("stem_status")?,
@@ -219,7 +228,7 @@ impl Database {
                     lyrics: row.get("lyrics")?,
                     seed: row.get("seed")?,
                     params: parse_json(row.get("params")?)?,
-                    result_meta: meta.map(parse_json).transpose()?,
+                    result_meta,
                     engine: row.get("engine")?,
                     output_kind: row.get("output_kind")?,
                     path: file
@@ -498,11 +507,11 @@ impl Database {
         let songs_dir = self.settings()?.songs_dir;
         let mut con = self.lock();
         let tx = con.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let (status, file, audio_missing): (String, Option<String>, bool) = tx
+        let (status, file, audio_missing, has_cover): (String, Option<String>, bool, bool) = tx
             .query_row(
-                "SELECT status,file,audio_missing FROM songs WHERE id=?1",
+                "SELECT status,file,audio_missing,COALESCE(json_type(result_meta,'$.cover_art')='object',0) FROM songs WHERE id=?1",
                 [id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             )
             .optional()?
             .ok_or_else(|| message("Song not found"))?;
@@ -520,6 +529,11 @@ impl Database {
         }
         tx.commit()?;
         drop(con);
+        if let Some(cover) = crate::cover_art::output_path(Path::new(&songs_dir), id, has_cover) {
+            if let Err(error) = std::fs::remove_file(cover) {
+                tracing::warn!(%error, "Could not remove deleted song's cover art");
+            }
+        }
         crate::audio_export::remove_cached(&self.root, id);
         Ok(())
     }

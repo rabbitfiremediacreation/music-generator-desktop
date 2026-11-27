@@ -7,6 +7,57 @@ use std::{
     sync::Arc,
 };
 
+#[tokio::test]
+async fn moving_and_deleting_a_song_also_moves_and_deletes_its_cover() {
+    let library = Library::new();
+    let id = library
+        .db
+        .enqueue(&GenerateRequest {
+            title: "Violet Horizon".into(),
+            prompt: "electronic, aurora".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+    library.db.claim_next().unwrap();
+    let filename = format!("{id}.cover.png");
+    let original = library.original.parent().unwrap().join(&filename);
+    std::fs::write(&original, b"cover bytes").unwrap();
+    std::fs::write(
+        library.original.with_file_name("violet.wav"),
+        b"audio bytes",
+    )
+    .unwrap();
+    library
+        .db
+        .finish(
+            &id,
+            "violet.wav",
+            &json!({ "cover_art": { "model": "SDXS-512 DreamShaper" } }),
+        )
+        .unwrap();
+
+    save(
+        library.state.clone(),
+        SettingsPatch {
+            songs_dir: Some(library.proposed.songs_dir.clone()),
+            ..Default::default()
+        },
+        |_| Ok(()),
+    )
+    .await
+    .unwrap();
+    let destination = Path::new(&library.proposed.songs_dir).join(filename);
+    assert!(!original.exists());
+    assert_eq!(std::fs::read(&destination).unwrap(), b"cover bytes");
+    assert_eq!(
+        library.db.song(&id).unwrap().cover_path.as_deref(),
+        destination.to_str()
+    );
+    library.db.delete_song(&id).unwrap();
+    assert!(!destination.exists());
+}
+
 struct Library {
     root: tempfile::TempDir,
     db: Arc<Database>,

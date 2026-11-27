@@ -69,6 +69,7 @@ export function EventBridge({ children }: { children: ReactNode }) {
         ["cuda-stage", payload => { client.setQueryData(["cuda", "stage"], payload); }],
         ["setup-stage", payload => { client.setQueryData(["setup", "stage"], payload); }],
         ["model-download-progress", payload => { client.setQueryData(["models", "progress"], payload); }],
+        ["cover-art-download-progress", payload => { client.setQueryData(["models", "cover-art-progress"], payload); }],
         ["engine-download-progress", payload => { client.setQueryData(["engines", "progress"], payload); }],
         ["import-progress", payload => { client.setQueryData(["import", "progress"], payload); }],
       ];

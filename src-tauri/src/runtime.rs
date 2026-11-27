@@ -21,6 +21,7 @@ pub enum OperationKind {
     Export,
     Generation,
     StemGeneration,
+    CoverArt,
 }
 
 impl OperationKind {
@@ -305,6 +306,15 @@ impl Runtime {
             active.cancel.cancel();
         }
     }
+    pub(crate) fn cancel_cover_art(&self, id: &str) {
+        let status = self.status.lock().unwrap();
+        if let Some(active) = status.active.as_ref().filter(|active| {
+            active.kind == OperationKind::CoverArt
+                && active.song.as_ref().is_some_and(|song| song.id == id)
+        }) {
+            active.cancel.cancel();
+        }
+    }
     pub fn shutdown(&self) {
         self.shutdown.cancel();
         self.wake();
@@ -421,6 +431,10 @@ impl Operation {
     pub(crate) fn start_stem_generation(&self, title: &str) {
         assert_eq!(self.kind, OperationKind::StemGeneration);
         self.start_work(crate::types::id(), Some(title.to_owned()));
+    }
+    pub(crate) fn start_cover_art(&self, id: &str) {
+        assert_eq!(self.kind, OperationKind::CoverArt);
+        self.start_work(id.to_owned(), None);
     }
     fn start_work(&self, id: String, title: Option<String>) {
         let mut status = self.runtime.status.lock().unwrap();

@@ -666,6 +666,7 @@ pub fn phone_song(song: &Song) -> Value {
     let mut value = serde_json::to_value(song).unwrap_or_else(|_| json!({}));
     if let Some(object) = value.as_object_mut() {
         object.remove("path");
+        object.remove("cover_path");
         object.insert("url".into(), json!(url));
         if song.output_kind == OutputKind::Midi {
             let midi_url = (song.status == "done" && song.path.is_some())

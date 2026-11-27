@@ -18,10 +18,11 @@ describe("desktop contracts", () => {
     expect(invoke).toHaveBeenLastCalledWith("save_generation_form_preferences", { values });
   });
   it("uses commands and converts song paths to local asset URLs", async () => {
-    invoke.mockResolvedValue([{ id: "one", path: "/songs/one.wav" }]);
+    invoke.mockResolvedValue([{ id: "one", path: "/songs/one.wav", cover_path: "/songs/one.cover.png" }]);
     const songs = await backend.songs({ q: "piano", favorites: true });
     expect(invoke).toHaveBeenCalledWith("list_songs", { filter: { q: "piano", favorites: true } });
     expect(songs[0].url).toBe("asset:/songs/one.wav");
+    expect(songs[0].cover_url).toBe("asset:/songs/one.cover.png");
   });
   it("keeps MIDI files out of audio asset URLs", async () => {
     invoke.mockResolvedValue({ id: "one", output_kind: "midi", path: "/songs/one.mid" });

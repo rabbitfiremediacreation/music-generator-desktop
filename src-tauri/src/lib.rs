@@ -7,6 +7,7 @@ mod audio_upload;
 pub mod catalog;
 mod commands;
 pub mod configuration;
+mod cover_art;
 pub mod cuda_runtime;
 pub mod db;
 pub mod download;
@@ -183,6 +184,9 @@ pub fn run() {
             commands::list_songs,
             commands::list_song_page,
             commands::get_song,
+            cover_art::desktop::generate_song_cover,
+            cover_art::desktop::cancel_song_cover,
+            cover_art::desktop::install_cover_art,
             commands::read_song_audio,
             commands::generate,
             commands::patch_song,

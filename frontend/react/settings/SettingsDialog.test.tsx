@@ -10,7 +10,7 @@ import { setLang, t } from "../../i18n.js";
 import source from "../../../models/catalog.json";
 import { setupFixture, standard } from "../setup/fixtures";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn(), modelCatalog: vi.fn(), useModels: vi.fn(), downloadTitleModel: vi.fn(), cancelModelDownload: vi.fn(), generationPolicy: vi.fn(), enginePackages: vi.fn(), installEngine: vi.fn(), removeEngine: vi.fn(), huggingFaceTokenStatus: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn(), modelCatalog: vi.fn(), useModels: vi.fn(), downloadTitleModel: vi.fn(), installCoverArt: vi.fn(), cancelModelDownload: vi.fn(), generationPolicy: vi.fn(), enginePackages: vi.fn(), installEngine: vi.fn(), removeEngine: vi.fn(), huggingFaceTokenStatus: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../stems", async importOriginal => {
   const original = await importOriginal<typeof import("../../stems")>();
@@ -34,6 +34,30 @@ function view(open = true, client = new QueryClient({ defaultOptions: { queries:
 function goTo(page: SettingsPage) {
   fireEvent.click(screen.getByRole("button", { name: t(`settings_page_${page}`) }));
 }
+
+it("opts in to automatic cover art only when generation settings are saved", async () => {
+  render(view());
+  const toggle = await screen.findByRole<HTMLInputElement>("switch", { name: "Generate cover art" });
+  expect(toggle.checked).toBe(false);
+  fireEvent.click(toggle);
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: t("save") }));
+  await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith({ generate_cover_art: true }));
+});
+
+it("installs the fixed cover model from model settings without opting into automatic covers", async () => {
+  let installed = false;
+  mocks.settings.mockImplementation(async () => ({ ...settings, cover_art_supported: true, cover_art_installed: installed }));
+  mocks.installCoverArt.mockImplementation(async () => { installed = true; });
+  render(view());
+  await screen.findByRole("spinbutton");
+  fireEvent.click(screen.getByRole("button", { name: "Cover art" }));
+  expect(screen.getByText("SDXS-512 DreamShaper")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Install cover model" }));
+  await screen.findByText("Cover model installed");
+  expect(mocks.installCoverArt).toHaveBeenCalledOnce();
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
 
 it("places connection and expert switches after their labels in the shared row", async () => {
   render(view());
@@ -395,7 +419,7 @@ it("shows one settings page at a time and marks the selected navigation entry", 
   render(view());
   await screen.findByRole("spinbutton");
   const navigation = screen.getByRole("navigation", { name: t("settings_title") });
-  expect(navigation.querySelectorAll("button")).toHaveLength(11);
+  expect(navigation.querySelectorAll("button")).toHaveLength(12);
   expect(screen.getByRole("button", { name: t("settings_page_generation") }).getAttribute("aria-current")).toBe("page");
   expect(screen.queryByRole("button", { name: t("settings_open_folder") })).toBeNull();
   expect(screen.queryByRole("switch", { name: t("remote") })).toBeNull();

@@ -76,7 +76,7 @@ pub fn import_library(
             con.execute("UPDATE songs SET audio_missing=1,status=CASE WHEN status IN ('queued','running') THEN 'cancelled' ELSE status END WHERE id=?1", [id])?;
         }
     }
-    let names = source.db.result_files()?;
+    let names = source.db.result_files(&source.songs)?;
     let dest = Path::new(&request.songs_dir);
     std::fs::create_dir_all(dest)?;
     let mut copies = Copies::default();

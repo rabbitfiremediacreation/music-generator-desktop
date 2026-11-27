@@ -80,7 +80,7 @@ fn check_space(root: &Path, required: u64, available: u64) -> Result<()> {
     Ok(())
 }
 
-fn verification_progress<'a>(
+pub(crate) fn verification_progress<'a>(
     model: &'a Model,
     progress: &'a impl Fn(DownloadProgress),
 ) -> impl Fn(u64, u64) + 'a {
