@@ -54,6 +54,9 @@ export const backend = {
   adoptHuggingFaceModel: (pin: import("./types").HuggingFacePin, draft: ModelSelection) =>
     command<ModelSelection>("adopt_hugging_face_model", { pin, draft }),
   downloadTitleModel: () => command<void>("download_title_model"),
+  installCoverArt: () => command<void>("install_cover_art"),
+  generateCoverArt: (id: string) => command<void>("generate_song_cover", { id }),
+  cancelCoverArt: (id: string) => command<void>("cancel_song_cover", { id }),
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
   removeModel: (target: import("./types").ModelRemoval) => command<void>("remove_model", { target }),
   useModels: (selection: ModelSelection) => command<ModelSelection>("use_models", { selection }),

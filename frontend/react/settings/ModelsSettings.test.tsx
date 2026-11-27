@@ -331,7 +331,7 @@ it("groups the model pages in order and opens the separation catalog from Add mo
   mount();
   const group = await screen.findByRole("group", { name: t("settings_models_group") });
   expect(within(group).getAllByRole("button").map(button => button.textContent)).toEqual(
-    ["engines", "models", "llm", "stems"].map(page => t(`settings_page_${page}`)),
+    ["engines", "models", "llm", "cover_art", "stems"].map(page => t(`settings_page_${page}`)),
   );
   expect(ipc.invoke.mock.calls.some(([name]) => name === "stem_models")).toBe(false);
   goTo("models");

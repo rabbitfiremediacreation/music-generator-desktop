@@ -298,6 +298,7 @@ button.armed, .sek.armed { color: var(--error) !important; border-color: var(--e
 .song .cover-play { position: relative; display: grid; place-items: center; width: 72px; height: 72px; padding: 0; overflow: hidden; border-radius: 8px; }
 .song .cover-play img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .song .cover-play span { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #141414bf; color: #fff; }
+.song-cover-action { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .song .slot.run { border-color: var(--accent2); color: var(--accent2); }
 .song .slot.run .app-wave { width: 29px; height: 29px; }
 .song .slot.run .app-wave-background { fill: none; stroke: none; }

@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { DownloadProgress } from "../../types";
 import { useI18n } from "../i18n";
 
-export function ModelDownloadProgress({ busy, message }: { busy: boolean; message?: string }) {
+export function ModelDownloadProgress({ busy, message, source = "progress" }: { busy: boolean; message?: string; source?: "progress" | "cover-art-progress" }) {
   const { t, language } = useI18n();
-  const progress = useQuery<DownloadProgress | null>({ queryKey: ["models", "progress"], queryFn: async () => null, enabled: false, networkMode: "always" }).data;
+  const progress = useQuery<DownloadProgress | null>({ queryKey: ["models", source], queryFn: async () => null, enabled: false, networkMode: "always" }).data;
   const number = new Intl.NumberFormat(language, { maximumFractionDigits: 1 });
   const bytes = (value: number) => `${number.format(value / 1024 ** 3)} GiB`;
   if (!busy && !message) return null;

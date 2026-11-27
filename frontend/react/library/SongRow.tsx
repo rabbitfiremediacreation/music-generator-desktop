@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { audioFormats, type AudioFormat } from "../../audio-formats";
 import { backend } from "../../backend";
 import { DownloadFormatMenu } from "../../DownloadFormatMenu";
@@ -19,10 +19,11 @@ import type { StemStudioRequest } from "../stems/StemStudio";
 import { progressText } from "../../progress";
 import { SongExportDialog, SongUsageDetails } from "./SongUsage";
 
-export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems}: {
+export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onError,newGroup,exportFormats,queueProgress,onStems,coverModel}: {
   song:Song;folders:Folder[];selection:ModelSelection|null;onReuse:(song:Song)=>void;
   onRemix?:(song:Song)=>void;
   armed:boolean;onArm:()=>boolean;onError:(error:unknown)=>void;newGroup:boolean;exportFormats:AudioFormat[];queueProgress?:JobProgress|null;onStems?:(request:StemStudioRequest)=>void;
+  coverModel?: { installed: boolean; busy: boolean; onManage?: () => void };
 }) {
   const { t, language } = useI18n(), client = useQueryClient(), player = usePlayer(), admission = useGenerationAdmission();
   const publicDisclosureId = useId();
@@ -33,6 +34,14 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
   const liveProgress = useQuery<Record<string,JobProgress>>({queryKey:queryKeys.progress,queryFn:async()=>({}),enabled:false}).data?.[song.id];
   const progress = liveProgress ?? (queueProgress?.job_id === song.id ? queueProgress : undefined);
   const change = useMutation({mutationFn:async (action:()=>Promise<unknown>)=>action(),onSuccess:()=>invalidateLibrary(client),onError});
+  const coverKey = ["cover-art", song.id];
+  const coverPending = useIsMutating({ mutationKey: coverKey }) > 0;
+  const cover = useMutation({
+    mutationKey: coverKey,
+    mutationFn: () => backend.generateCoverArt(song.id),
+    onSuccess: () => invalidateLibrary(client),
+  });
+  const cancelCover = useMutation({ mutationFn: () => backend.cancelCoverArt(song.id), onError });
   const midi = song.output_kind === "midi";
   const audioExtension = audioFormats[exportFormats[0] ?? "wav"].extension ?? song.file?.split(".").pop();
   const audioFormat = audioExtension?.toUpperCase() || t("download_original");
@@ -116,7 +125,19 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
         <span>{t(stream.realtime ? "stream_realtime_met" : "stream_realtime_missed")}</span>
       </div>}
       {song.status==="done"&&Boolean(meta.title_generation_error)&&<div className="s err" title={String(meta.title_generation_error)}>{t("title_failed")}</div>}
-      {song.status === "done" && typeof meta.cover_art_error === "string" && <div className="s err" title={meta.cover_art_error}>{t("cover_art_failed")}</div>}
+      {song.status === "done" && typeof meta.cover_art_error === "string" && <div className="s err" title={t(meta.cover_art_error)}>
+        {t(meta.cover_art_error === "cover_art_install_required" ? meta.cover_art_error : "cover_art_failed")}
+      </div>}
+      {canExport && !midi && !song.cover_url && coverModel && (coverModel.installed || coverModel.onManage) && <div className="song-cover-action">
+        {coverPending ? <>
+          <span className="small" role="status">{t("desktop_progress_cover_art")}</span>
+          <button type="button" className="sek mini" disabled={cancelCover.isPending} onClick={() => cancelCover.mutate()}>{t("cover_art_cancel")}</button>
+        </> : <button type="button" className="sek mini" disabled={coverModel.installed && coverModel.busy}
+          onClick={() => coverModel.installed ? cover.mutate() : coverModel.onManage?.()}>
+          {t(coverModel.installed ? "cover_art_enable" : "cover_art_install")}
+        </button>}
+        {cover.error && cover.error.message !== "Operation cancelled" && <span className="s err" role="alert" title={t(cover.error.message)}>{t("cover_art_failed")}</span>}
+      </div>}
       {song.audio_missing&&<div className="s err">{t(midi ? "midi_missing" : "import_audio_missing")}</div>}
       {onStems && projectCount > 0 && stemJobStatus && <div className="s">{t("stem_jobs")} · {stemJobStatus}</div>}
       {!midi&&warning&&!song.audio_missing&&<div className="s duration-warning" role="note">{t(`duration_${warning.code}`,audioTime(warning.actual_seconds),audioTime(warning.requested_seconds))}</div>}
@@ -141,7 +162,7 @@ export function SongRow({song,folders,selection,onReuse,onRemix,armed,onArm,onEr
         <button className="sek mini" type="button" onClick={() => onRemix(song)}>{t("workspace_remix")}</button>}
       {action(t("reuse"),"↑",()=>onReuse(song))}
       {["error","cancelled"].includes(song.status)&&action(t("retry"),"↻",()=>{void more(true);},"",admission.busy)}
-      <button type="button" data-arm={canCancel ? undefined : `song:${song.id}`} className={`sek icon del ${confirmDelete?"armed":""}`} title={removeLabel} aria-label={removeLabel} disabled={change.isPending}
+      <button type="button" data-arm={canCancel ? undefined : `song:${song.id}`} className={`sek icon del ${confirmDelete?"armed":""}`} title={removeLabel} aria-label={removeLabel} disabled={change.isPending || coverPending}
         onClick={() => {
           if (canCancel) {
             change.mutate(() => backend.cancel(song.id));

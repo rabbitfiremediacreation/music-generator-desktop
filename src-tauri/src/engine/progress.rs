@@ -31,7 +31,6 @@ impl Progress {
             "vae" => "VAE",
             "title_download" => "Preparing title model",
             "title" => "Generating song title",
-            "cover_art_download" => "Preparing cover art model and engine",
             "cover_art" => "Generating cover art",
             "saving" => "Saving audio",
             "saving_midi" => "Saving MIDI",

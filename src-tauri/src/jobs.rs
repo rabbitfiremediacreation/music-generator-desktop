@@ -238,34 +238,15 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             };
             let artwork = if output_kind.is_audio() && settings.generate_cover_art {
                 let song = state.db.song(&sid)?;
-                let title = song
-                    .title
-                    .as_deref()
-                    .filter(|title| !title.trim().is_empty())
-                    .or_else(|| meta["generated_title"].as_str())
-                    .unwrap_or_default();
-                let caption = meta["caption"]
-                    .as_str()
-                    .filter(|caption| !caption.trim().is_empty())
-                    .unwrap_or(&song.caption);
-                if crate::cover_art::supported() {
+                if crate::cover_art::installed(&state.db.root) {
                     state.stop_engine();
+                    report(Progress::new("cover_art"), 96);
                 }
-                let transfer =
-                    crate::download::ProgressEvents::new(&app, "model-download-progress");
-                match crate::cover_art::generate(
-                    &state.db.root,
-                    title,
-                    caption,
-                    song.seed,
-                    &cancel,
-                    |progress| report(progress, 96),
-                    |progress| transfer.report(progress),
-                )
-                .await
+                match crate::cover_art::generate_for_song(&state.db.root, &song, &meta, &cancel)
+                    .await
                 {
                     Ok(artwork) => Some(artwork),
-                    Err(Error::Cancelled) if cancel.is_cancelled() => return Err(Error::Cancelled),
+                    Err(Error::Cancelled) => return Err(Error::Cancelled),
                     Err(error) => {
                         artwork_failed(&mut meta, &error);
                         None

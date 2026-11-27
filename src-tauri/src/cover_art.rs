@@ -1,9 +1,9 @@
 use crate::{
     db::safe_song_path,
     download::DownloadProgress,
-    engine::progress::Progress,
     error::{message, Error, Result},
     manifest::Model,
+    types::Song,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -16,6 +16,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 mod assets;
+pub(super) mod desktop;
 mod inference;
 #[cfg(test)]
 mod tests;
@@ -51,21 +52,73 @@ pub(crate) fn supported() -> bool {
     *SUPPORTED.get_or_init(assets::supported)
 }
 
+pub(crate) fn installed(data: &Path) -> bool {
+    supported() && assets::installed_model(&data.join("cover-art")).is_some()
+}
+
+/// Acquire the fixed model and a CPU runtime, plus the GPU runtime where available.
+async fn install(
+    data: &Path,
+    cancel: &CancellationToken,
+    progress: impl Fn(DownloadProgress),
+) -> Result<()> {
+    let Some(((cpu, _), accelerated)) = assets::engines().split_last().filter(|_| supported())
+    else {
+        return Err(message("cover_art_unsupported"));
+    };
+    let root = data.join("cover-art");
+    let work = assets::Work::new(&root, cancel, progress).await?;
+    for &(engine, _) in accelerated.iter().filter(|(engine, _)| engine != cpu) {
+        match work.engine(engine).await {
+            Ok(_) => (),
+            Err(Error::Cancelled) => return Err(Error::Cancelled),
+            Err(error) => tracing::warn!(%error, engine, "Optional GPU cover engine unavailable"),
+        }
+    }
+    work.engine(cpu).await?;
+    work.model().await?;
+    Ok(())
+}
+
 pub(crate) fn output_path(root: &Path, id: &str, generated: bool) -> Option<PathBuf> {
-    if !generated
-        || !id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
-    {
+    if !generated {
         return None;
     }
-    let path = safe_song_path(root, &format!("{id}.{EXTENSION}")).ok()?;
+    let path = safe_song_path(root, &filename(id)?).ok()?;
     path.is_file().then_some(path)
+}
+
+fn filename(id: &str) -> Option<String> {
+    (!id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte)))
+    .then(|| format!("{id}.{EXTENSION}"))
 }
 
 pub(super) struct Artwork {
     pub(super) png: Vec<u8>,
     pub(super) provenance: Value,
+}
+
+/// Prefer the finished description and user-provided title when building the picture prompt.
+pub(super) async fn generate_for_song(
+    data: &Path,
+    song: &Song,
+    metadata: &Value,
+    cancel: &CancellationToken,
+) -> Result<Artwork> {
+    let title = song
+        .title
+        .as_deref()
+        .filter(|title| !title.trim().is_empty())
+        .or_else(|| metadata["generated_title"].as_str())
+        .unwrap_or_default();
+    let caption = metadata["caption"]
+        .as_str()
+        .filter(|caption| !caption.trim().is_empty())
+        .unwrap_or(&song.caption);
+    generate(data, title, caption, song.seed, cancel).await
 }
 
 /// Render original artwork from the song's title and musical description.
@@ -75,14 +128,13 @@ pub(super) async fn generate(
     caption: &str,
     seed: i64,
     cancel: &CancellationToken,
-    report: impl Fn(Progress),
-    transfer: impl Fn(DownloadProgress),
 ) -> Result<Artwork> {
     if !supported() {
-        return Err(message("Cover art is unavailable on this operating system"));
+        return Err(message("cover_art_unsupported"));
     }
     let root = data.join("cover-art");
-    let work = assets::Work::new(&root, cancel, transfer).await?;
+    let weights =
+        assets::installed_model(&root).ok_or_else(|| message("cover_art_install_required"))?;
     let seed = seed.max(0);
     let title: String = title.chars().take(96).collect();
     let caption: String = caption.chars().take(400).collect();
@@ -98,17 +150,13 @@ pub(super) async fn generate(
     .join(", ")
     .replace('\0', " ");
     let pin = manifest();
-    let mut model = None;
     let mut last_error = message("No compatible cover art engine");
     for (engine, device_prefix) in assets::engines() {
-        let ready = async {
-            report(Progress::new("cover_art_download"));
-            let executable = work.engine(engine).await?;
-            let backend = inference::device(&executable, &root, device_prefix, cancel).await?;
-            Ok((executable, backend))
+        let executable = assets::executable(&root, engine);
+        if !executable.is_file() {
+            continue;
         }
-        .await;
-        let (executable, backend) = match ready {
+        let backend = match inference::device(&executable, &root, device_prefix, cancel).await {
             Ok(ready) => ready,
             Err(Error::Cancelled) => return Err(Error::Cancelled),
             Err(error) => {
@@ -117,13 +165,16 @@ pub(super) async fn generate(
                 continue;
             }
         };
-        let weights = match &model {
-            Some(weights) => weights,
-            None => model.insert(work.model().await?),
-        };
-        report(Progress::new("cover_art"));
-        let render =
-            inference::render(&root, &executable, weights, &backend, &prompt, seed, cancel).await;
+        let render = inference::render(
+            &root,
+            &executable,
+            &weights,
+            &backend,
+            &prompt,
+            seed,
+            cancel,
+        )
+        .await;
         match render {
             Ok(png) => {
                 return Ok(Artwork {

@@ -2,7 +2,7 @@ use super::manifest;
 use crate::{
     download::{self, DownloadProgress},
     error::{message, Error, Result},
-    verification::ModelVerifier,
+    verification::{ModelVerifier, Verification},
 };
 use std::{
     path::{Path, PathBuf},
@@ -41,6 +41,29 @@ pub(super) fn engines() -> &'static [(&'static str, &'static str)] {
     }
 }
 
+const CLI: &str = if cfg!(windows) {
+    "sd-cli.exe"
+} else {
+    "sd-cli"
+};
+
+pub(super) fn executable(root: &Path, platform: &str) -> PathBuf {
+    root.join(format!("{}-{platform}", manifest().engine_version))
+        .join(CLI)
+}
+
+pub(super) fn installed_model(root: &Path) -> Option<PathBuf> {
+    let (cpu, _) = engines().last()?;
+    if !executable(root, cpu).is_file() {
+        return None;
+    }
+    let pin = &manifest().model.file;
+    let path = root.join(&pin.file);
+    ModelVerifier::open(root)
+        .is_verified(&path, &pin.sha256)
+        .then_some(path)
+}
+
 pub(super) struct Work<'a, F> {
     root: &'a Path,
     cancel: &'a CancellationToken,
@@ -65,12 +88,31 @@ impl<'a, F: Fn(DownloadProgress)> Work<'a, F> {
 
     pub(super) async fn model(&self) -> Result<PathBuf> {
         let model = &manifest().model;
+        let path = self.root.join(&model.file.file);
+        let mut verifier = ModelVerifier::open(self.root);
+        if path.is_file()
+            && (path.metadata()?.len() != model.file.estimated_bytes
+                || verifier
+                    .verify(
+                        &path,
+                        &model.file.sha256,
+                        self.cancel,
+                        download::verification_progress(&model.file, &self.progress),
+                    )
+                    .await?
+                    == Verification::Invalid)
+        {
+            if self.cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            tokio::fs::remove_file(path).await?;
+        }
         download::download_pinned_model(
             &self.client,
             &model.url,
             self.root,
             &model.file,
-            &mut ModelVerifier::open(self.root),
+            &mut verifier,
             self.cancel,
             &self.progress,
         )
@@ -80,15 +122,10 @@ impl<'a, F: Fn(DownloadProgress)> Work<'a, F> {
     pub(super) async fn engine(&self, platform: &str) -> Result<PathBuf> {
         let manifest = manifest();
         let pin = &manifest.engines[platform];
-        let install = self
-            .root
-            .join(format!("{}-{platform}", manifest.engine_version));
-        let cli = if cfg!(windows) {
-            "sd-cli.exe"
-        } else {
-            "sd-cli"
-        };
-        let executable = install.join(cli);
+        let executable = executable(self.root, platform);
+        let install = executable
+            .parent()
+            .expect("cover engine has an installation folder");
         if executable.is_file() {
             return Ok(executable);
         }
@@ -110,16 +147,16 @@ impl<'a, F: Fn(DownloadProgress)> Work<'a, F> {
         let staging = tempfile::tempdir_in(self.root)?;
         let dest = staging.path().to_owned();
         let source = archive.clone();
-        tokio::task::spawn_blocking(move || unpack(&source, &dest, cli))
+        tokio::task::spawn_blocking(move || unpack(&source, &dest, CLI))
             .await
             .map_err(|error| message(error.to_string()))??;
         if self.cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
         if install.exists() {
-            tokio::fs::remove_dir_all(&install).await?;
+            tokio::fs::remove_dir_all(install).await?;
         }
-        tokio::fs::rename(staging.path(), &install).await?;
+        tokio::fs::rename(staging.path(), install).await?;
         if let Err(error) = tokio::fs::remove_file(archive).await {
             tracing::warn!(%error, "Could not remove cover engine archive");
         }

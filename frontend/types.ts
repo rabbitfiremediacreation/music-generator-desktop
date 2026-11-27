@@ -17,6 +17,7 @@ export interface Settings {
   expert_mode: boolean;
   generate_cover_art?: boolean;
   cover_art_supported?: boolean;
+  cover_art_installed?: boolean;
   update_stream: UpdateStream;
   cpu_iteration_behavior: CpuIterationBehavior;
   recommended_profiles?: ModelSelection[];
@@ -126,7 +127,7 @@ export interface SetupRequest { lm: string; xl: boolean; models_dir: string; son
 export interface DownloadProgress { file: string; phase: "downloading" | "verifying" | "installing"; downloaded: number; total: number; bytes_per_second: number }
 
 export interface JobProgress {
-  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "cover_art_download" | "cover_art" | "complete";
+  job_id: string; sequence: number; phase: "starting" | "loading" | "generation" | "planning" | "lm" | "synth" | "dit" | "vae" | "saving" | "saving_midi" | "title" | "title_download" | "cover_art" | "complete";
   step: number | null; total_steps: number | null; elapsed_seconds: number;
   overall_percent?: number;
   estimated_remaining_seconds?: number;
