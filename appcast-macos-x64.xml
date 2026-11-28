@@ -5,18 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>283</sparkle:version>
+      <sparkle:version>292</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.3</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-281</h2>
+      <description><![CDATA[<h2>Changes since develop-283</h2>
 <ul>
-<li>Vollständigen Stem-Mix mit Differenzspur und konfigurierbarer Demucs-Trennung erzeugen (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/177">#177</a>)</li>
+<li>Generate optional local cover art for songs (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/181">#181</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/831684ca09baf582dbb0ead1837fe6750535cb84...938f6979daa8a90c1d0ade6601b25419152a2fb8">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-283/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="xJGmLzGi87k11AJ2K31KuKLC4RfWqeNC8Jqv0L2hFAAND1Tq7kp7yjjmQL351llF4+PhfY2WrS0fXkl3KxkzAA==" length="15904694" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/938f6979daa8a90c1d0ade6601b25419152a2fb8...2a1ec32881904a025a697996b70bb25ec7a4adb6">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-292/Music-Generator-0.2.0-macos-x64.zip" sparkle:edSignature="1ZvELRvbnd8clflJzbt1EZoBwqr4SJmJ0TAsIjj8O9xfErHvcf5djVcroYbyuD+zsroUqrRQ8ugEh8nLMrggBw==" length="16039027" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 3rCMMruNE0HNHRgHKi7F7jTgMEz+U6P/7Us5mj3ZBxh04RX2PsKdAdDu36DV5pv09sLec3uU2MpbC7lr4yBABw==
-length: 1512
+edSignature: HwMBl1pblqY+eGZrPtAB3zJ5i6Bxhqf6D8ndTXBtDcB5OXIkmA/6Nerr1TuEa083xhrO0rWhwulCJs+dgepMBQ==
+length: 1468
 -->

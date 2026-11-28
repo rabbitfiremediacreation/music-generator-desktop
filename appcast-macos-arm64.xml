@@ -5,18 +5,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>Music Generator</title>
     <item>
       <title>Music Generator 0.2.0</title>
-      <sparkle:version>283</sparkle:version>
+      <sparkle:version>292</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>Changes since develop-281</h2>
+      <description><![CDATA[<h2>Changes since develop-283</h2>
 <ul>
-<li>Vollständigen Stem-Mix mit Differenzspur und konfigurierbarer Demucs-Trennung erzeugen (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/177">#177</a>)</li>
+<li>Generate optional local cover art for songs (<a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/pull/181">#181</a>)</li>
 </ul>
-<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/831684ca09baf582dbb0ead1837fe6750535cb84...938f6979daa8a90c1d0ade6601b25419152a2fb8">Full change history</a></p>]]></description>
-      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-283/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="K5UBuL4IKKEPYk5ySEfoF2HPe7bneRFFo56/EUslBl3o3/rxB12BB7LTgcdK//SoYLNwU7B0yyr7SliHdLiGBw==" length="14593497" type="application/octet-stream"></enclosure>
+<p><a href="https://github.com/rabbitfiremediacreation/music-generator-desktop/compare/938f6979daa8a90c1d0ade6601b25419152a2fb8...2a1ec32881904a025a697996b70bb25ec7a4adb6">Full change history</a></p>]]></description>
+      <enclosure url="https://github.com/rabbitfiremediacreation/music-generator-desktop/releases/download/develop-292/Music-Generator-0.2.0-macos-arm64.zip" sparkle:edSignature="F1Vo8gPOBJoAstTXbHrANzj7lQjx425TPz5p3tCK8FW2HigtNbzgOhkoN5va3C3YLx5n9wDd0lZdBHnzTbxHCg==" length="14747045" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: wk4dTI4GV9mIYnI8Qd+iGR9tb06JbtLq7a4BXQ/N6/Z2a5Khydzed9zYm2bveIXBNZBSKjprnplJO+pWfObQAw==
-length: 1514
+edSignature: qSA/68giarRzpVj6M4HftTSf+bLFBKJIvkYPQMVZm0gi9ypYlg8TYBP4KO0QmhEwYvWeBK37XrTKBL39R+qnDw==
+length: 1470
 -->
