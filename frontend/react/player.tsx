@@ -30,6 +30,7 @@ const PlayerContext = createContext<{
   song: Song | null; playing: boolean; played: Set<string>; play: (song: Song) => void; clear: (id: string) => void;
   loadRevision: React.RefObject<number>;
   playback: React.RefObject<"loading" | "ready" | "error">;
+  lastUserPlayAt: React.RefObject<number>;
   engine: React.RefObject<Waveform | null>; setPlaying: (value: boolean) => void; error: string; setError: (error: string) => void;
 } | null>(null);
 
@@ -42,7 +43,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const engine = useRef<Waveform | null>(null);
   const current = useRef<Song | null>(null), loadRevision = useRef(0);
   const playback = useRef<"loading" | "ready" | "error">("loading");
+  const lastUserPlayAt = useRef(0);
   const play = useCallback((next: Song) => {
+    lastUserPlayAt.current = Date.now();
     if (current.current?.id === next.id && engine.current && playback.current !== "error") {
       if (playback.current === "ready") {
         const version = loadRevision.current;
@@ -63,7 +66,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     loadRevision.current++; current.current = null; engine.current?.pause();
     setSong(null); setPlaying(false); setError("");
   }, []);
-  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, playback, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
+  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, playback, lastUserPlayAt, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
 }
 export function usePlayer() {
   const player = useContext(PlayerContext);
@@ -74,7 +77,7 @@ export function usePlayer() {
 /** Keep playback across route changes; isolate each song's media events and pending reads. */
 export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
   const { t } = useI18n();
-  const { song, playing, play, playback, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
+  const { song, playing, play, playback, lastUserPlayAt, engine, loadRevision: sequence, setPlaying, error, setError } = usePlayer();
   const waveform = useRef<HTMLDivElement>(null), footer = useRef<HTMLElement>(null);
   const [time, setTime] = useState("0:00 / 0:00");
   const [volume, setVolume] = useState(() => {
@@ -82,6 +85,8 @@ export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
     return typeof value==="number"&&Number.isFinite(value)?Math.max(0,Math.min(1,value)):1;
   });
   const [muted, setMuted] = useState(() => saved<number>("muted", 0) === 1);
+  const volRef = useRef(muted ? 0 : volume);
+  volRef.current = muted ? 0 : volume;
   const active = song !== null;
   const inMixer = useRef(mixerOpen);
   inMixer.current = mixerOpen;
@@ -103,7 +108,23 @@ export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
     };
     const update = () => setTime(`${audioTime(instance.getCurrentTime())} / ${audioTime(instance.getDuration())}`);
     // A media error can leave WaveSurfer's load promise waiting for metadata forever.
-    const offs = [instance.on("timeupdate", update), instance.on("ready", update), instance.on("play", () => setPlaying(true)), instance.on("pause", () => setPlaying(false)), instance.on("finish", () => setPlaying(false)), instance.on("error", fail)];
+    const offs = [
+      instance.on("timeupdate", update),
+      instance.on("ready", update),
+      instance.on("play", () => {
+        if (Date.now() - lastUserPlayAt.current > 15000) {
+          instance.setVolume(0);
+          instance.pause();
+          setPlaying(false);
+          return;
+        }
+        instance.setVolume(volRef.current);
+        setPlaying(true);
+      }),
+      instance.on("pause", () => { instance.setVolume(0); setPlaying(false); }),
+      instance.on("finish", () => { instance.setVolume(0); setPlaying(false); }),
+      instance.on("error", fail),
+    ];
     // Binary IPC avoids asset URL/path and custom-protocol media loading differences on Windows.
     void backend.songAudio(song.id).then(async bytes => {
       if (version !== sequence.current) return;
@@ -114,8 +135,8 @@ export function Player({ mixerOpen = false }: { mixerOpen?: boolean }) {
     }).catch(fail);
     const resize = new ResizeObserver(() => document.documentElement.style.setProperty("--player-h", `${footer.current?.offsetHeight ?? 0}px`));
     if (footer.current) resize.observe(footer.current);
-    return () => { loadSequence.current++; stopTheme(); offs.forEach(off => off()); resize.disconnect(); instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
-  }, [song, engine, sequence, playback, setPlaying, setError]);
+    return () => { loadSequence.current++; stopTheme(); offs.forEach(off => off()); resize.disconnect(); try { instance.setVolume(0); instance.pause(); } catch {} instance.destroy(); engine.current = null; document.documentElement.style.removeProperty("--player-h"); };
+  }, [song, engine, sequence, playback, lastUserPlayAt, setPlaying, setError]);
   useEffect(() => {
     engine.current?.setVolume(muted ? 0 : volume);
     try {localStorage.setItem("volume", String(volume)); localStorage.setItem("muted", muted ? "1" : "0");} catch { /* Audio does not depend on saved preferences. */ }
