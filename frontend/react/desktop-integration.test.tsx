@@ -74,7 +74,9 @@ async function mount() {
 async function attemptAll(form: HTMLFormElement) {
   fireEvent.submit(form);
   fireEvent.keyDown(document, { code: "KeyG", key: "g", altKey: true });
-  fireEvent.click(within(screen.getByText("done song A").closest("article")!).getByRole("button", { name: t("more") }));
+  const row = within(screen.getByText("done song A").closest("article")!);
+  fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+  fireEvent.click(screen.getByRole("menuitem", { name: t("more") }));
   fireEvent.click(within(screen.getByText("error song A").closest("article")!).getByRole("button", { name: t("retry") }));
   await act(async () => { await Promise.resolve(); });
 }
@@ -183,7 +185,11 @@ it.each([false, true])("generates with the current model during a download and p
   fireEvent.submit(form);
   await waitFor(() => expect(calls("generate")).toHaveLength(1));
   expect(calls("generate")[0][1]).toMatchObject({ request: { model_selection: standard } });
-  if (restore) fireEvent.click(within(screen.getByText("done song A").closest("article")!).getByRole("button", { name: t("reuse") }));
+  if (restore) {
+    const row = within(screen.getByText("done song A").closest("article")!);
+    fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+    fireEvent.click(screen.getByRole("menuitem", { name: t("reuse") }));
+  }
   await act(async () => { settings = { ...settings, synthesis_model: xl.synthesis }; finish(xl); });
   await waitFor(() => expect(creator.disabled).toBe(false));
   await waitFor(() => expect(creator.value).toBe(profileKey(restore ? standard : xl)));

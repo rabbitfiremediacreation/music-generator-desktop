@@ -28,6 +28,7 @@ function saved<T>(key: string, fallback: T): T {
 }
 const PlayerContext = createContext<{
   song: Song | null; playing: boolean; played: Set<string>; play: (song: Song) => void; clear: (id: string) => void;
+  selectedSongId: string | null; selectSong: (id: string | null) => void;
   loadRevision: React.RefObject<number>;
   playback: React.RefObject<"loading" | "ready" | "error">;
   engine: React.RefObject<Waveform | null>; setPlaying: (value: boolean) => void; error: string; setError: (error: string) => void;
@@ -35,6 +36,7 @@ const PlayerContext = createContext<{
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [song, setSong] = useState<Song | null>(null), [playing, setPlaying] = useState(false), [error, setError] = useState("");
+  const [selectedSongId, selectSong] = useState<string | null>(null);
   const [played, setPlayed] = useState(() => {
     const value=saved<unknown>("played",[]);
     return new Set<string>(Array.isArray(value)?value.filter((id):id is string=>typeof id==="string"):[]);
@@ -43,6 +45,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const current = useRef<Song | null>(null), loadRevision = useRef(0);
   const playback = useRef<"loading" | "ready" | "error">("loading");
   const play = useCallback((next: Song) => {
+    if (!playing || next.id !== current.current?.id) selectSong(next.id);
     if (current.current?.id === next.id && engine.current && playback.current !== "error") {
       if (playback.current === "ready") {
         const version = loadRevision.current;
@@ -57,13 +60,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     playback.current = "loading";
     engine.current?.pause(); setPlaying(false); setError(""); current.current = next; setSong({ ...next });
     setPlayed(previous => { const updated = new Set(previous).add(next.id); try {localStorage.setItem("played", JSON.stringify([...updated]));} catch { /* Playback remains available without storage. */ } return updated; });
-  }, []);
+  }, [playing]);
   const clear = useCallback((id: string) => {
+    selectSong(selected => selected === id ? null : selected);
     if (current.current?.id !== id) return;
     loadRevision.current++; current.current = null; engine.current?.pause();
     setSong(null); setPlaying(false); setError("");
   }, []);
-  return <PlayerContext.Provider value={{ song, playing, played, play, clear, loadRevision, playback, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
+  return <PlayerContext.Provider value={{ song, playing, played, play, clear, selectedSongId, selectSong, loadRevision, playback, engine, setPlaying, error, setError }}>{children}</PlayerContext.Provider>;
 }
 export function usePlayer() {
   const player = useContext(PlayerContext);

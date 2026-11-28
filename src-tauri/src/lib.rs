@@ -56,6 +56,7 @@ pub fn run() {
     #[cfg(windows)]
     windows::configure_runtime();
     let app = tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("cover-thumb", cover_art::thumbnail::handle)
         .register_asynchronous_uri_scheme_protocol("audio-analysis", audio_upload::handle)
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app
@@ -185,6 +186,9 @@ pub fn run() {
             commands::list_song_page,
             commands::get_song,
             cover_art::desktop::generate_song_cover,
+            cover_art::batch::missing_cover_count,
+            cover_art::batch::generate_missing_covers,
+            cover_art::batch::cancel_missing_covers,
             cover_art::desktop::cancel_song_cover,
             cover_art::desktop::install_cover_art,
             commands::read_song_audio,

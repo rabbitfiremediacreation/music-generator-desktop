@@ -26,6 +26,7 @@ src-tauri/resources/engine/*
 !src-tauri/resources/engine/.gitkeep
 src-tauri/resources/WebView2/
 src-tauri/resources/desktop-utilities/
+src-tauri/resources/cover-art/
 
 # Native / CMake build output
 build/

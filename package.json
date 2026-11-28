@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:desktop": "node --test scripts/desktop/*.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "engine:prepare": "node scripts/desktop/prepare-engine.mjs",
+    "engine:prepare": "node scripts/desktop/prepare-engine.mjs && node scripts/desktop/prepare-cover-art.mjs",
     "bundle": "node scripts/desktop/build.mjs",
     "tauri": "tauri",
     "lint": "eslint frontend"

@@ -2,6 +2,7 @@ import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-quer
 import { backend } from "../../backend";
 import { useI18n } from "../i18n";
 import { ModelDownloadProgress } from "../models/ModelDownloadProgress";
+import { MissingCoverSettings } from "./MissingCoverSettings";
 
 const installKey = ["models", "cover-art"] as const;
 
@@ -34,5 +35,6 @@ export function CoverArtSettings({ supported, installed }: { supported?: boolean
           <button type="button" className="sek" disabled={modelBusy} onClick={() => install.mutate()}>{t("cover_art_install")}</button>
         </div>}
       </div>}
+    {supported && <MissingCoverSettings installed={!!installed} />}
   </div>;
 }

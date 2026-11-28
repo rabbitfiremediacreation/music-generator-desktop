@@ -1,7 +1,7 @@
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { AudioFormat } from "./audio-formats";
 import type { AudioPermissionPrompt } from "./audio-permission";
-import type { GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
+import type { CoverBatchProgress, GenerationPolicy, Bootstrap, Filter, Folder, Generation, GenerationFormPreferences, Health, Queue, Settings, SettingsPatch, SetupRequest, SetupResult, Song, Update, UpdateStream, ModelCatalog, ModelSelection, ImportRequest, ImportPreview, ImportResult } from "./types";
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(name, args); }
@@ -10,7 +10,7 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 const songUrls = (song: Song): Song => ({
   ...song,
   url: song.output_kind !== "midi" && song.path ? convertFileSrc(song.path) : null,
-  ...(song.cover_path && { cover_url: convertFileSrc(song.cover_path) }),
+  ...(song.cover_path && { cover_url: convertFileSrc(song.cover_path), cover_thumbnail_url: convertFileSrc(song.id, "cover-thumb") }),
 });
 
 async function uploadAudio<T>(route: "analyze" | "remix", file: File, query: URLSearchParams): Promise<T> {
@@ -56,6 +56,10 @@ export const backend = {
   downloadTitleModel: () => command<void>("download_title_model"),
   installCoverArt: () => command<void>("install_cover_art"),
   generateCoverArt: (id: string) => command<void>("generate_song_cover", { id }),
+  missingCoverCount: () => command<number>("missing_cover_count"),
+  generateMissingCovers: (report: (progress: CoverBatchProgress) => void) =>
+    command<CoverBatchProgress>("generate_missing_covers", { progress: new Channel(report) }),
+  cancelMissingCovers: () => command<void>("cancel_missing_covers"),
   cancelCoverArt: (id: string) => command<void>("cancel_song_cover", { id }),
   selectModels: (selection: ModelSelection) => command<ModelSelection>("select_models", { selection }),
   removeModel: (target: import("./types").ModelRemoval) => command<void>("remove_model", { target }),

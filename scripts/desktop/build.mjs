@@ -5,6 +5,7 @@ import { macSigningSettings, withMacSigning } from "./macos-signing.mjs";
 import { installSparkle, macUpdaterSettings, writeAppcast } from "./macos-updater.mjs";
 import { prepareWebView } from "./prepare-webview.mjs";
 import { prepareEngine, engineFolder } from "./prepare-engine.mjs";
+import { prepareMacCoverArt } from "./prepare-cover-art.mjs";
 import { finalizeLinux } from "./finalize-linux.mjs";
 import { packageEngines, utilityResources } from "./engine-packages.mjs";
 import { createMacDiskImage } from "./macos-dmg.mjs";
@@ -97,6 +98,10 @@ try {
       const helper = path.join(app, "Contents/MacOS/music-engine-supervisor");
       await cp(path.join(target, "music-engine-supervisor"), helper);
       await sign(helper, inherit);
+      const cover = path.join(app, "Contents/Resources/cover-art");
+      await prepareMacCoverArt(cover);
+      await sign(path.join(cover, "libstable-diffusion.dylib"));
+      await sign(path.join(cover, "sd-cli"), inherit);
       const signer = updater ? await installSparkle(app, work, updater, sign) : null;
       // Seal the final application after every resource and nested executable is in place.
       await sign(app, ["--entitlements", path.join(root, "src-tauri/Entitlements.plist")]);

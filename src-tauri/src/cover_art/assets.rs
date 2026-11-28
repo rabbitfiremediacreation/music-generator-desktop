@@ -47,16 +47,15 @@ const CLI: &str = if cfg!(windows) {
     "sd-cli"
 };
 
-pub(super) fn executable(root: &Path, platform: &str) -> PathBuf {
+pub(super) fn executable(root: &Path, resources: &Path, platform: &str) -> PathBuf {
+    if platform == "macos" {
+        return resources.join("cover-art").join(CLI);
+    }
     root.join(format!("{}-{platform}", manifest().engine_version))
         .join(CLI)
 }
 
 pub(super) fn installed_model(root: &Path) -> Option<PathBuf> {
-    let (cpu, _) = engines().last()?;
-    if !executable(root, cpu).is_file() {
-        return None;
-    }
     let pin = &manifest().model.file;
     let path = root.join(&pin.file);
     ModelVerifier::open(root)
@@ -119,15 +118,18 @@ impl<'a, F: Fn(DownloadProgress)> Work<'a, F> {
         .await
     }
 
-    pub(super) async fn engine(&self, platform: &str) -> Result<PathBuf> {
+    pub(super) async fn engine(&self, resources: &Path, platform: &str) -> Result<PathBuf> {
         let manifest = manifest();
         let pin = &manifest.engines[platform];
-        let executable = executable(self.root, platform);
+        let executable = executable(self.root, resources, platform);
         let install = executable
             .parent()
             .expect("cover engine has an installation folder");
         if executable.is_file() {
             return Ok(executable);
+        }
+        if platform == "macos" {
+            return Err(message("cover_art_engine_missing"));
         }
         let url = format!(
             "https://github.com/leejet/stable-diffusion.cpp/releases/download/{}/{}",

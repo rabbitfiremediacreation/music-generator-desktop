@@ -12,7 +12,9 @@ export async function verifyMacSandbox(app, engines, utilities, probeWithArchive
   const parent = entitlements(app);
   assert(enabled(parent,"com.apple.security.app-sandbox"), "Main app is not sandboxed");
   assert(!enabled(parent,"com.apple.security.inherit"), "Main app must not use child inheritance");
-  const helpers = [path.join(path.dirname(app),"music-engine-supervisor"),path.join(utilities,"mp3-codec"),path.join(utilities,"title/music-title")];
+  const cover = path.resolve(utilities, "../cover-art");
+  await run("codesign", ["--verify", "--strict", path.join(cover, "libstable-diffusion.dylib")]);
+  const helpers = [path.join(cover, "sd-cli"),path.join(path.dirname(app),"music-engine-supervisor"),path.join(utilities,"mp3-codec"),path.join(utilities,"title/music-title")];
   const plugins = [path.join(engines["ace-step"], aceMacPlugin)];
   if (audioCppSupported(target)) plugins.push(path.join(engines["audio-cpp"], audioCppDirectory, "audiocpp_cli"));
   if (engines.magenta) plugins.push(path.join(engines.magenta, "magenta/mrt2-record"));

@@ -66,11 +66,14 @@ export interface Song {
   engine?: string | null;
   output_kind?: OutputKind; audio_missing: boolean;
   favorite: boolean; folder_id: string | null; letter: string; path: string | null; url?: string | null;
-  cover_path?: string; cover_url?: string;
+  cover_path?: string; cover_url?: string; cover_thumbnail_url?: string;
 }
 export interface Folder { id: string; name: string; count: number }
 export interface Filter { q?: string; favorites?: boolean; group?: string; folder?: string }
 export interface SongPage { songs: Song[]; total: number }
+export interface CoverBatchProgress {
+  total: number; processed: number; failed: number; last_failure: [string, string] | null;
+}
 export interface Queue { progress: JobProgress | null; running: { id: string; caption: string; message: string | null }[]; queued: number; active: boolean; library: { count: number; bytes: number }; audio_export?: { default_format: AudioFormat; formats: AudioFormat[] } }
 
 export interface WorkJob {

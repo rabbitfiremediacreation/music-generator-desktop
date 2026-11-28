@@ -186,7 +186,8 @@ try {
       assert(versions.length, `No macOS deployment target in ${file}`);
       for (const version of versions) {
         const actual = (version[1] || version[2]).split(".").map(Number); while (actual.length < 3) actual.push(0);
-        const limit = target.minimumSystemVersion.split(".").map(Number); limit.push(0);
+        const coverHelper = ["sd-cli", "libstable-diffusion.dylib"].some(name => file === path.resolve(utilities, "../cover-art", name));
+        const limit = (coverHelper ? "26.0" : target.minimumSystemVersion).split(".").map(Number); limit.push(0);
         assert(actual[0] < limit[0] || (actual[0] === limit[0] && (actual[1] < limit[1] || (actual[1] === limit[1] && actual[2] <= limit[2]))), `Higher deployment target in ${file}: ${version[1] || version[2]}`);
       }
     }

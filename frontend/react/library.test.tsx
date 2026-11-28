@@ -8,10 +8,10 @@ import { I18nProvider } from "./i18n";
 import { createAppQueryClient } from "./data";
 import { Player, PlayerProvider } from "./player";
 import { GenerationAdmissionProvider } from "./generation/admission";
-import { setLang } from "../i18n.js";
+import { setLang, t } from "../i18n.js";
 import type { ModelSelection, Song } from "../types";
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string)=>`asset:${path}` }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, convertFileSrc:(path:string, scheme = "asset")=>`${scheme}:${path}` }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: async ({ defaultPath }: { defaultPath: string }) => defaultPath }));
 const waveform={loadBlob:vi.fn(),play:vi.fn(),pause:vi.fn(),playPause:vi.fn(),destroy:vi.fn(),on:vi.fn(),setVolume:vi.fn(),getDuration:()=>10,getCurrentTime:()=>0};
 let songs: Song[];
@@ -59,6 +59,111 @@ function mount(withPlayer=false, selection: ModelSelection | null = null) {
   return Object.assign(client, { switchModel: (model: ModelSelection) => view.rerender(tree(model)) });
 }
 
+async function openDetails(name = "A song A") {
+  const row = within(await screen.findByRole("article", { name }));
+  const toggle = row.getByRole("button", { name });
+  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+  return row;
+}
+
+async function openActions(name = "A song A") {
+  const row = within(await screen.findByRole("article", { name }));
+  fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+  return within(screen.getByRole("menu", { name: t("song_actions") }));
+}
+
+it("opens only the selected song and selects a song when playback starts", async () => {
+  songs.push({ ...songs[0], id: "two", title: "Second song", path: "/songs/two.wav" });
+  mount(true);
+  const first = within(await screen.findByRole("article", { name: "A song A" }));
+  const second = within(screen.getByRole("article", { name: "Second song A" }));
+  const firstTitle = first.getByRole("button", { name: "A song A" });
+  const secondTitle = second.getByRole("button", { name: "Second song A" });
+  expect(firstTitle.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(first.getByText("0:08"));
+  expect(firstTitle.getAttribute("aria-expanded")).toBe("true");
+  expect(mocks.invoke).not.toHaveBeenCalledWith("read_song_audio", expect.anything());
+  fireEvent.click(second.getByRole("button", { name: "Play" }));
+  await waitFor(() => expect(waveform.play).toHaveBeenCalledOnce());
+  expect(secondTitle.getAttribute("aria-expanded")).toBe("true");
+  expect(firstTitle.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(firstTitle);
+  expect(secondTitle.getAttribute("aria-expanded")).toBe("false");
+  expect(document.querySelector("#pTitle")?.textContent).toBe("Second song");
+  fireEvent.click(firstTitle);
+  expect(firstTitle.getAttribute("aria-expanded")).toBe("false");
+});
+
+it("uses the ellipsis as a keyboard-accessible action menu independently of song details", async () => {
+  mount();
+  const row = within(await screen.findByRole("article", { name: "A song A" }));
+  const title = row.getByRole("button", { name: "A song A" });
+  const trigger = row.getByRole("button", { name: "Song actions" });
+  fireEvent.keyDown(trigger, { key: "ArrowDown" });
+  const menu = within(screen.getByRole("menu", { name: "Song actions" }));
+  const rename = menu.getByRole("menuitem", { name: "Rename" });
+  expect(document.activeElement).toBe(rename);
+  expect(title.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.keyDown(rename, { key: "Escape" });
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.click(title);
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(row.getByRole("textbox")).toHaveProperty("value", "A song");
+  expect(row.getByText("Iterations 200")).toBeTruthy();
+  expect(mocks.invoke).not.toHaveBeenCalledWith("read_song_audio", expect.anything());
+});
+
+it("moves a song from its action menu only after the destination is confirmed", async () => {
+  songs.push({ ...songs[0], id: "two", title: "Second song", folder_id: "ideas" });
+  mount();
+  const move = async () => {
+    fireEvent.click((await openActions()).getByRole("menuitem", { name: "Move to folder" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Move to folder" }));
+    fireEvent.change(dialog.getByRole("combobox"), { target: { value: "ideas" } });
+    return dialog;
+  };
+  fireEvent.click((await move()).getByRole("button", { name: "Cancel" }));
+  expect(mocks.invoke).not.toHaveBeenCalledWith("patch_song", expect.anything());
+  fireEvent.click((await move()).getByRole("button", { name: t("save") }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("patch_song", { id: "one", patch: { folder_id: "ideas" } }));
+  expect(screen.getByRole("button", { name: "A song A" }).getAttribute("aria-expanded")).toBe("false");
+});
+
+it("shows the model license and the song's own usage badge before and after selection", async () => {
+  songs[0].params.model_selection = { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" };
+  songs[0].result_meta = { output_usage: {
+    text: "Individual creators may release, sell, and license generated songs, including to clients, without license fees or mandatory output credit. Follow MAP’s responsible-use terms and obtain the necessary rights and consent.",
+    source_urls: ["https://github.com/multimodal-art-projection/YuE/blob/cbb3b060725ddd95ac6e6237cfb709e153da5988/MODEL_LICENSE",
+      "https://huggingface.co/m-a-p/YuE2-3B/blob/1a96eca688d6ae5d7f0feb88573fec89920fcd19/LICENSE"],
+  } };
+  mount(false, { provider: "audiocraft", synthesis: "musicgen-small", language: "" });
+  const row = within(await screen.findByRole("article", { name: "A song A" }));
+  const badges = () => within(row.getByRole("group", { name: "Usage terms" }));
+  expect(badges().getByText("CC-BY-NC-4.0")).toBeTruthy();
+  expect(badges().getByText("Individual creators may sell")).toBeTruthy();
+  expect(row.queryByText(/Individual creators may release/)).toBeNull();
+  fireEvent.click(badges().getByText("Individual creators may sell"));
+  expect(row.getByRole("button", { name: "A song A" }).getAttribute("aria-expanded")).toBe("true");
+  expect(row.getByText(/Individual creators may release/)).toBeTruthy();
+  expect(badges().getByText("CC-BY-NC-4.0")).toBeTruthy();
+  expect(badges().getByText("Individual creators may sell")).toBeTruthy();
+});
+
+it("shows known model licenses for queued songs and adds output terms after completion", async () => {
+  songs[0].status = "queued";
+  songs[0].params.model_selection = { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" };
+  const client = mount();
+  const row = within(await screen.findByRole("article", { name: "A song A" }));
+  expect(row.getByText("CC-BY-NC-4.0")).toBeTruthy();
+  expect(row.queryByText("Individual creators may sell")).toBeNull();
+  songs[0] = { ...songs[0], status: "done" };
+  await client.invalidateQueries({ queryKey: ["songs"] });
+  expect(await row.findByText("Individual creators may sell")).toBeTruthy();
+});
+
 it("shows each song's saved model and variant after reopening with another active profile", async () => {
   const ace = { provider: "ace-step", synthesis: "acestep-v15-sft-Q8_0.gguf", language: "acestep-5Hz-lm-4B-Q8_0.gguf" };
   const yue = { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" };
@@ -66,9 +171,9 @@ it("shows each song's saved model and variant after reopening with another activ
   songs.push({ ...songs[0], id: "yue", title: "Another song", params: { model_selection: yue } });
 
   const expectSavedModels = async () => {
-    const first = within(await screen.findByRole("article", { name: "A song A" }));
-    const second = within(screen.getByRole("article", { name: "Another song A" }));
+    const first = await openDetails();
     expect(first.getByText("Music model: ACE-Step 1.5 SFT · Q8_0 · LM 4B-Q8_0")).toBeTruthy();
+    const second = await openDetails("Another song A");
     expect(second.getByText("Music model: YuE2 3B · Q5_K_M")).toBeTruthy();
   };
   const library = mount(false, ace);
@@ -85,6 +190,7 @@ it("shows each song's saved model and variant after reopening with another activ
 });
 
 it("generates a cover for a saved song with automatic cover generation off", async () => {
+  songs[0].path = "/songs/one.wav";
   const invoke = mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation(async (name, args) => {
     if (name === "get_settings") return { export_format: "wav", generate_cover_art: false, cover_art_supported: true, cover_art_installed: true };
@@ -95,11 +201,31 @@ it("generates a cover for a saved song with automatic cover generation off", asy
     return invoke(name, args);
   });
   mount();
-  fireEvent.click(await screen.findByRole("button", { name: "Generate cover art" }));
+  fireEvent.click((await openActions()).getByRole("menuitem", { name: "Generate cover art" }));
   const cover = await screen.findByAltText("Generated cover art");
-  expect(cover.getAttribute("src")).toBe("asset:/songs/one.cover.png");
+  expect(cover.getAttribute("src")).toBe("cover-thumb:one");
+  const fullSize = () => document.querySelector('img[src="asset:/songs/one.cover.png"]');
+  expect(fullSize()).toBeNull();
+  const play = screen.getByRole("button", { name: "Play" });
+  fireEvent.mouseEnter(play);
+  expect(fullSize()).toBeTruthy();
+  fireEvent.mouseLeave(play);
+  expect(fullSize()).toBeNull();
   expect(mocks.invoke).toHaveBeenCalledWith("generate_song_cover", { id: "one" });
   expect(mocks.invoke.mock.calls.some(([name]) => name === "generate")).toBe(false);
+});
+
+it("reports a rejected cover action even when the song is collapsed", async () => {
+  songs[0].path = "/songs/one.wav";
+  const original = mocks.invoke.getMockImplementation()!;
+  mocks.invoke.mockImplementation((name, args) => {
+    if (name === "get_settings") return Promise.resolve({ export_format: "wav", cover_art_supported: true, cover_art_installed: true });
+    if (name === "generate_song_cover") return Promise.reject("cover_art_engine_denied");
+    return original(name, args);
+  });
+  mount();
+  fireEvent.click((await openActions()).getByRole("menuitem", { name: "Generate cover art" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(t("cover_art_engine_denied"));
 });
 
 it("uses only recorded origins when old songs lack a saved model selection", async () => {
@@ -112,8 +238,11 @@ it("uses only recorded origins when old songs lack a saved model selection", asy
   );
   mount(false, { provider: "yue2", synthesis: "yue2/YuE2-3B-Q5_K_M.gguf", language: "" });
 
+  await openDetails();
   expect(await screen.findByText("Musikmodell: ACE-Step · Variante unbekannt")).toBeTruthy();
+  await openDetails("Profil A");
   expect(screen.getByText("Musikmodell: HeartMuLa · Variante unbekannt")).toHaveProperty("title", "Modellrevision: saved-pin");
+  await openDetails("Ohne Herkunft A");
   expect(within(screen.getByRole("article", { name: "Ohne Herkunft A" })).getByText("Musikmodell unbekannt")).toBeTruthy();
   expect(screen.queryByText(/YuE2/)).toBeNull();
 });
@@ -121,7 +250,7 @@ it("uses only recorded origins when old songs lack a saved model selection", asy
 it("keeps the saved variant visible when it no longer exists in the model catalog", async () => {
   songs[0].params = { model_selection: { provider: "heartmula", synthesis: "heartmula-retired-q5_0", language: "" } };
   mount();
-  expect(await screen.findByText("Music model: HeartMuLa · heartmula-retired-q5_0")).toBeTruthy();
+  expect(await screen.findByText("HeartMuLa · heartmula-retired-q5_0")).toBeTruthy();
 });
 
 function seedPages(count: number) {
@@ -188,6 +317,10 @@ it("shows MuLaCover terms and the open reference rights before saving the select
   const terms = /Commercial use requires written permission from MuLa Labs/;
   const reference = /Check whether your permission covers the intended use of this song/;
   const view = mount(false, songs[0].params.model_selection);
+  const badges = within(await screen.findByRole("group", { name: "Usage terms" }));
+  expect(badges.getByText("Noncommercial use")).toBeTruthy();
+  expect(badges.getByText("Check reference rights")).toBeTruthy();
+  await openDetails();
   const song = await screen.findByRole("article", { name: "A song A" });
   expect(within(song).getByText(/Noncommercial use/)).toBeTruthy();
   expect(within(song).getByText(terms)).toBeTruthy();
@@ -215,12 +348,15 @@ it("shows uncertainty for unknown models and separates AudioCraft's weights from
     { ...songs[0], id: "unlisted", title: "Unlisted profile", params: { model_selection: { provider: "audiocraft", synthesis: "unknown", language: "" } } },
   ];
   mount(false, songs[0].params.model_selection);
+  await openDetails();
   const audioCraft = await screen.findByRole("article", { name: "A song A" });
   expect(within(audioCraft).getByText("The weights license applies to the weights. Rights to the generated music must be assessed separately.")).toBeTruthy();
   expect(within(audioCraft).queryByText(/Noncommercial use/)).toBeNull();
+  await openDetails("Older recording A");
   const older = screen.getByRole("article", { name: "Older recording A" });
   expect(within(older).getByText(/The original model is not known/)).toBeTruthy();
   expect(within(older).getByText(/Check whether your permission covers the intended use/)).toBeTruthy();
+  await openDetails("Unlisted profile A");
   expect(within(screen.getByRole("article", { name: "Unlisted profile A" })).getByText(/terms for this recording's saved model version are unclear/)).toBeTruthy();
 });
 
@@ -231,6 +367,10 @@ it("uses the saved terms and their sources in the library and export after chang
     text: "Archived output terms", text_de: "Archivierte Bedingungen für den Song", source_urls: ["https://example.org/model-terms", "file:///private/source"],
   } };
   const view = mount(false, songs[0].params.model_selection);
+  const badges = within(await screen.findByRole("group", { name: "Nutzungsbedingungen" }));
+  expect(badges.getByText("Gespeicherte Songbedingungen")).toBeTruthy();
+  expect(badges.queryByText("CC BY-NC 4.0")).toBeNull();
+  await openDetails();
   const song = await screen.findByRole("article", { name: "A song A" });
   view.switchModel({ provider: "mulacover", synthesis: "mulacover-noncommercial", language: "" });
   expect(within(song).getByText("Archivierte Bedingungen für den Song")).toBeTruthy();
@@ -244,6 +384,7 @@ it("uses the saved terms and their sources in the library and export after chang
 it("keeps publication and monetization open for a local ACE-Step checkpoint", async () => {
   songs[0].params = { model_selection: { provider: "ace-step", synthesis: "acestep-v15-base-BF16.gguf", language: "1.7B" } };
   mount();
+  await openDetails();
   const song = await screen.findByRole("article", { name: "A song A" });
   expect(within(song).getByText(/Publication and monetization rights for this local checkpoint are unclear/)).toBeTruthy();
   expect(within(song).getByText(/check originality, disclose AI involvement and obtain permission/)).toBeTruthy();
@@ -289,25 +430,25 @@ it("returns to the remaining page when deletion removes the last page", async ()
   seedPages(51);
   mount();
   fireEvent.click(await screen.findByRole("button",{name:"Next"}));
-  await screen.findByText("Piano 50");
-  fireEvent.click(screen.getByRole("button",{name:"Delete"}));
-  fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await openActions("Piano 50");
+  fireEvent.click(screen.getByRole("menuitem",{name:"Delete"}));
+  fireEvent.click(screen.getByRole("menuitem",{name:"Delete song?"}));
   await screen.findByText("Piano 0");
   expect(screen.queryByRole("navigation",{name:"Library pages"})).toBeNull();
   expect(screen.queryByText("Piano 50")).toBeNull();
 });
 it("updates the favorite view after mutation and preserves inline edits during a refresh", async () => {
   const client = mount();
-  await screen.findByText("A song A");
-  expect(screen.getByText(/200IT/)).toBeTruthy();
+  await openDetails();
+  expect(screen.getByText("Iterations 200")).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));
   await screen.findByText("Nothing yet");
   fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));
   await screen.findByText("A song A");
   fireEvent.click(screen.getByRole("button",{name:"Favorite"}));
   await waitFor(() => expect(songs[0].favorite).toBe(true));
-  fireEvent.click(screen.getByRole("button",{name:/A song A · Click to rename/}));
-  const input = screen.getByRole("textbox",{name:"Click to rename"});
+  fireEvent.click((await openActions()).getByRole("menuitem", { name: "Rename" }));
+  const input = screen.getByRole("textbox",{name:"Title"});
   fireEvent.change(input,{target:{value:"still editing"}});
   await client.invalidateQueries({queryKey:["songs"]});
   expect((input as HTMLInputElement).value).toBe("still editing");
@@ -329,14 +470,14 @@ it("shows MIDI results and missing files separately from playable audio", async 
 });
 
 it.each([
-  ["done",120,{effective_inference_steps:60},"60IT"],
-  ["done",120,{inference_steps:120},"100IT"],
-  ["queued",200,null,"200IT"],
-  ["running",200,null,"200IT"],
-  ["error",200,null,"200IT"],
+  ["done",120,{effective_inference_steps:60},"Iterations 60"],
+  ["done",120,{inference_steps:120},"Iterations 100"],
+  ["queued",200,null,"Iterations 200"],
+  ["running",200,null,"Iterations 200"],
+  ["error",200,null,"Iterations 200"],
 ] as const)("keeps measured execution distinct from the %s historical request",async(status,steps,meta,expected)=>{
   songs[0]={...songs[0],status,params:{inference_steps:steps},result_meta:meta};
-  mount();expect(await screen.findByText(expected)).toBeTruthy();
+  mount();await openDetails();expect(await screen.findByText(expected)).toBeTruthy();
   expect(songs[0].params.inference_steps).toBe(steps);
 });
 
@@ -349,7 +490,8 @@ it.each([["short_audio",22,"Kürzer als angefordert: 0:22 statt 0:30."],["long_a
 it("hides unverified duration and unknown automatic iterations",async()=>{
   songs[0].params={inference_steps:0};songs[0].result_meta={duration:85};
   const view=mount();await screen.findByText("A song A");
-  expect(document.querySelector(".song .m")!.textContent).toBe("");
+  const row = await openDetails();
+  expect(row.queryByText(/Iterations|1:25/)).toBeNull();
   songs[0]={...songs[0],result_meta:{duration:29.8,duration_source:"wav"}};
   await view.invalidateQueries({queryKey:["songs"]});
   await screen.findByText("0:29");
@@ -362,6 +504,7 @@ it("shows each Magenta recording observation separately from the WAV duration", 
     stream_metrics: { first_audio_ms: 750, underrun_blocks: 0, peak_rss_bytes: 2 ** 30, realtime: true },
   };
   mount();
+  await openDetails();
   expect(await screen.findByText("First audio after 0.75 s")).toBeTruthy();
   expect(screen.getByText("0 underrun blocks")).toBeTruthy();
   expect(screen.getByText("Peak resident RAM 1 GiB")).toBeTruthy();
@@ -378,6 +521,7 @@ it("shows measured MiniMax audio, runtime provenance and the publication reminde
   };
   mount();
   expect(await screen.findByText("0:27")).toBeTruthy();
+  await openDetails();
   expect(screen.getByText("WAV PCM 16-bit · 44.1 kHz · 2 ch", { exact: false })).toBeTruthy();
   expect(screen.getByText("audio.cpp 12345678")).toHaveProperty("title", "1234567890abcdef");
   expect(screen.getByText("AI-generated with MiniMax-Music3")).toBeTruthy();
@@ -407,7 +551,7 @@ it.each([
     return original(name, args);
   });
   mount();
-  fireEvent.click(await screen.findByRole("button", { name: "Another variant (new seed)" }));
+  fireEvent.click((await openActions()).getByRole("menuitem", { name: "Another variant (new seed)" }));
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", expect.anything()));
   const request = mocks.invoke.mock.calls.find(([name]) => name === "generate")?.[1].request;
   if (prompt) expect(request).toHaveProperty("caption", caption);
@@ -418,16 +562,17 @@ it.each([
 it("shows the variance with up to two decimals",async()=>{
   songs[0].params={inference_steps:0,lm_temperature:0.85};songs[0].result_meta={};
   const view=mount();await screen.findByText("A song A");
-  expect(document.querySelector(".song .m")!.textContent).toBe("0.85VAR");
+  await openDetails();
+  expect(screen.getByText("Variance 0.85")).toBeTruthy();
   songs[0]={...songs[0],params:{inference_steps:0,lm_temperature:1.2}};
   await view.invalidateQueries({queryKey:["songs"]});
-  await screen.findByText("1.2VAR");
+  await screen.findByText("Variance 1.2");
 });
 it("allows selecting lyrics without starting a song drag",async()=>{
   const original=mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation((name,args)=>name==="list_folders"?Promise.resolve({folders:[{id:"ideas",name:"Ideas",count:1}],all:1,none:0}):original(name,args));
   songs[0].lyrics="[Verse] lyrics";songs[0].result_meta={lyrics:"Select this lyric text"};
-  mount();fireEvent.click(await screen.findByRole("button",{name:"Show the lyrics the model wrote"}));
+  mount();await openDetails();fireEvent.click(await screen.findByRole("button",{name:"Show the lyrics the model wrote"}));
   const lyric=screen.getByText("Select this lyric text");
   fireEvent.mouseDown(lyric);
   expect(lyric.closest("article")!.getAttribute("draggable")).toBe("false");
@@ -440,7 +585,7 @@ it("localizes a rejected library variant instead of exposing a backend message k
     if(name==="generate")return Promise.reject(new Error("expert_mode_required"));
     return original(name,args);
   });
-  mount();fireEvent.click(await screen.findByRole("button",{name:"Another variant (new seed)"}));
+  mount();fireEvent.click((await openActions()).getByRole("menuitem",{name:"Another variant (new seed)"}));
   const alert=await screen.findByRole("alert");
   expect(alert.textContent).toContain("Expert Mode");
   expect(alert.textContent).not.toContain("expert_mode_required");
@@ -458,8 +603,10 @@ it("shows measured clip seconds and keeps the meter for a new library variant", 
     return original(name, args);
   });
   mount();
-  expect(await screen.findByText("300BPM · 0.8 s")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Another variant (new seed)" }));
+  const row = await openDetails();
+  expect(row.getByText("0.8 s")).toBeTruthy();
+  expect(row.getByText("300 BPM")).toBeTruthy();
+  fireEvent.click((await openActions()).getByRole("menuitem", { name: "Another variant (new seed)" }));
   await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("generate", { request: {
     model_selection: selection, prompt: "jazzy swung drums", instrumental: true, bars: 1, bpm: 300,
     duration: 0.8, seed: -1, variants: 1, keep_caption: true, title: "A song", folder_id: null, group_id: "g",
@@ -467,10 +614,11 @@ it("shows measured clip seconds and keeps the meter for a new library variant", 
 });
 
 it("resets delete confirmation after a keyboard or screenreader click on another action",async()=>{
-  mount();fireEvent.click(await screen.findByRole("button",{name:"Delete"}));
-  expect(screen.getByRole("button",{name:"Delete song?"})).toBeTruthy();
+  mount();fireEvent.click((await openActions()).getByRole("menuitem",{name:"Delete"}));
+  expect(screen.getByRole("menuitem",{name:"Delete song?"})).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Favorite"}));
-  expect(screen.getByRole("button",{name:"Delete"})).toBeTruthy();
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect((await openActions()).getByRole("menuitem",{name:"Delete"})).toBeTruthy();
 });
 
 it("translates the existing admission message for unverified models",async()=>{
@@ -480,7 +628,7 @@ it("translates the existing admission message for unverified models",async()=>{
     if(name==="generate")return Promise.reject(new Error("Open the ModelPicker and download or verify the selected models first"));
     return original(name,args);
   });
-  mount();fireEvent.click(await screen.findByRole("button",{name:"Weitere Variante (neuer Seed)"}));
+  mount();fireEvent.click((await openActions()).getByRole("menuitem",{name:"Weitere Variante (neuer Seed)"}));
   expect((await screen.findByRole("alert")).textContent).toContain("Dieses Modell ist noch nicht einsatzbereit.");
 });
 
@@ -503,17 +651,19 @@ it("only invokes cancellation when a running row is stale", async () => {
   expect(await screen.findByRole("button", {name:"Play"})).toBeTruthy();
   expect(mocks.invoke).toHaveBeenCalledWith("cancel_song", {id:"one"});
   expect(mocks.invoke).not.toHaveBeenCalledWith("delete_song", {id:"one"});
-  expect(screen.getByRole("button", {name:"Delete"})).toBeTruthy();
+  await openActions();
+  expect(screen.getByRole("menuitem", {name:"Delete"})).toBeTruthy();
 });
 
 it("stops playback and clears the player only after a successful confirmed deletion",async()=>{
   songs[0].path="/songs/one.wav";mount(true);
   fireEvent.click(await screen.findByRole("button",{name:"Play"}));
   await waitFor(()=>expect(waveform.play).toHaveBeenCalledOnce());
-  fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+  await openActions();
+  fireEvent.click(screen.getByRole("menuitem",{name:"Delete"}));
   expect(mocks.invoke).not.toHaveBeenCalledWith("delete_song", {id:"one"});
   expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);
-  fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  fireEvent.click(screen.getByRole("menuitem",{name:"Delete song?"}));
   await waitFor(()=>expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(true));
   expect(mocks.invoke).toHaveBeenCalledWith("delete_song", {id:"one"});
   await screen.findByText("Nothing yet");
@@ -526,7 +676,8 @@ it("keeps the loaded song after a rejected deletion or a filtered library refres
   mocks.invoke.mockImplementation((name,args)=>name==="delete_song"?Promise.reject(new Error("permission denied")):original(name,args));
   mount(true);fireEvent.click(await screen.findByRole("button",{name:"Play"}));
   await waitFor(()=>expect(waveform.play).toHaveBeenCalledOnce());
-  fireEvent.click(screen.getByRole("button",{name:"Delete"}));fireEvent.click(screen.getByRole("button",{name:"Delete song?"}));
+  await openActions();
+  fireEvent.click(screen.getByRole("menuitem",{name:"Delete"}));fireEvent.click(screen.getByRole("menuitem",{name:"Delete song?"}));
   await screen.findByRole("alert");
   expect(document.querySelector<HTMLElement>("#player")!.hidden).toBe(false);expect(waveform.destroy).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button",{name:"Show favorites only"}));await screen.findByText("Nothing yet");
@@ -544,6 +695,7 @@ it("shows the supplied lyrics for a YuE2 song", async () => {
   songs[0].engine = "yue2";
   songs[0].lyrics = "[Verse]\nI hear the ocean roar";
   mount();
-  fireEvent.click(await screen.findByRole("button", { name: "Lyrics" }));
+  await openDetails();
+  fireEvent.click(screen.getByRole("button", { name: "Lyrics" }));
   expect(screen.getByText(/I hear the ocean roar/)).toBeTruthy();
 });

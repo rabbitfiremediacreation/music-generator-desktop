@@ -8,6 +8,8 @@ use std::{
 use tokio::{io::AsyncReadExt, process::Command};
 use tokio_util::sync::CancellationToken;
 
+pub(super) const MAX_PNG_BYTES: u64 = 4 * 1024 * 1024;
+
 pub(super) async fn device(
     executable: &Path,
     root: &Path,
@@ -85,7 +87,6 @@ pub(super) async fn render(
     }
     run(&mut command, Duration::from_secs(180), cancel).await?;
     let mut bytes = Vec::new();
-    const MAX_PNG_BYTES: u64 = 4 * 1024 * 1024;
     tokio::fs::File::open(image)
         .await?
         .take(MAX_PNG_BYTES + 1)
@@ -122,7 +123,13 @@ async fn run(
         biased;
         _ = cancel.cancelled() => return Err(Error::Cancelled),
         result = tokio::time::timeout(timeout, command.output()) =>
-            result.map_err(|_| message("Cover engine timed out"))??,
+            result.map_err(|_| message("Cover engine timed out"))?.map_err(|error| {
+                if error.kind() == std::io::ErrorKind::PermissionDenied {
+                    message("cover_art_engine_denied")
+                } else {
+                    Error::Io(error)
+                }
+            })?,
     };
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

@@ -238,12 +238,18 @@ pub async fn worker<R: Runtime>(state: Arc<AppState>, app: AppHandle<R>) {
             };
             let artwork = if output_kind.is_audio() && settings.generate_cover_art {
                 let song = state.db.song(&sid)?;
-                if crate::cover_art::installed(&state.db.root) {
+                if crate::cover_art::installed(&state.db.root, &state.resources) {
                     state.stop_engine();
                     report(Progress::new("cover_art"), 96);
                 }
-                match crate::cover_art::generate_for_song(&state.db.root, &song, &meta, &cancel)
-                    .await
+                match crate::cover_art::generate_for_song(
+                    &state.db.root,
+                    &state.resources,
+                    &song,
+                    &meta,
+                    &cancel,
+                )
+                .await
                 {
                     Ok(artwork) => Some(artwork),
                     Err(Error::Cancelled) => return Err(Error::Cancelled),

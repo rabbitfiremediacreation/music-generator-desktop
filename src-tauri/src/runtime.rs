@@ -22,6 +22,7 @@ pub enum OperationKind {
     Generation,
     StemGeneration,
     CoverArt,
+    CoverArtBatch,
 }
 
 impl OperationKind {
@@ -306,11 +307,14 @@ impl Runtime {
             active.cancel.cancel();
         }
     }
-    pub(crate) fn cancel_cover_art(&self, id: &str) {
+    pub(crate) fn cancel_cover_art(&self, id: Option<&str>) {
         let status = self.status.lock().unwrap();
-        if let Some(active) = status.active.as_ref().filter(|active| {
-            active.kind == OperationKind::CoverArt
-                && active.song.as_ref().is_some_and(|song| song.id == id)
+        if let Some(active) = status.active.as_ref().filter(|active| match id {
+            None => active.kind == OperationKind::CoverArtBatch,
+            Some(id) => {
+                active.kind == OperationKind::CoverArt
+                    && active.song.as_ref().is_some_and(|song| song.id == id)
+            }
         }) {
             active.cancel.cancel();
         }
