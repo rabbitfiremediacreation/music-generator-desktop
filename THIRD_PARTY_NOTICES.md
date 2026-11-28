@@ -31,7 +31,7 @@ The separate NVIDIA build bundles CUDA Runtime and cuBLAS/cuBLASLt from CUDA Too
 
 ## Optional local cover art
 
-- stable-diffusion.cpp is MIT-licensed. Installing the cover model from Settings downloads the platform-specific runtime and retains the included license files. The engine revision, archive sizes and hashes are pinned in `models/cover-art.json`. [Pinned engine release](https://github.com/leejet/stable-diffusion.cpp/releases/tag/master-1132-5fa203c)
+- stable-diffusion.cpp is MIT-licensed. The macOS app bundles the signed CLI, its library and the included license files. Windows and Linux download the runtime and its notices during cover model installation. The engine revision, archive sizes and hashes are pinned in `models/cover-art.json`. [Pinned engine release](https://github.com/leejet/stable-diffusion.cpp/releases/tag/master-1132-5fa203c)
 - SDXS-512 DreamShaper uses the CreativeML Open RAIL++-M license. The model installer downloads a single Safetensors checkpoint. [Pinned checkpoint](https://huggingface.co/akleine/sdxs-512/tree/a8ecb3ce283246912b07f1fed79acdaf7c9f8810) · [Original model card and license](https://huggingface.co/IDKiro/sdxs-512-dreamshaper)
 
 ## Optional AudioCraft runtime

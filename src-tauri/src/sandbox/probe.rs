@@ -53,6 +53,14 @@ pub fn run(forbidden: &Path) -> Result<()> {
     };
     let result = tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(async {
         crate::engine_packages::install_probe_archives(&root)?;
+        if crate::cover_art::supported() {
+            let mut command = tokio::process::Command::new(resources.join("cover-art/sd-cli"));
+            command.arg("--list-devices").current_dir(&root);
+            let devices = probe_output(command).await?;
+            if !devices.status.success() || !String::from_utf8_lossy(&devices.stdout).to_lowercase().contains("cpu") {
+                return Err(message("The sandboxed cover engine could not enumerate its CPU backend"));
+            }
+        }
         let ace = crate::engine_packages::ace_resources(&resources, &root);
         verify_ace_cpu(&exe, &ace).await?;
         let engine = Engine::start(&ace, &root.join("logs"), &settings, &CancellationToken::new()).await?;

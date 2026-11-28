@@ -43,6 +43,9 @@
 .settings-section { padding: 22px 0; border-top: 1px solid var(--theme-border, #ffffff12); }
 .settings-section:first-child { padding-top: 4px; border-top: 0; }
 .settings-section h4 { margin: 0 0 18px; font-size: 15px; font-weight: 600; }
+.cover-batch { border-top: 1px solid var(--border); padding-top: 18px; }
+.cover-batch h4 { margin-bottom: 2px; }
+.cover-batch progress { width: min(100%, 28rem); accent-color: var(--settings-accent); }
 #settingsDlg .field { gap: 8px; margin-bottom: 20px; }
 #settingsDlg .field:last-child { margin-bottom: 0; }
 #settingsDlg .lbl { color: var(--settings-muted); font-size: 11px; letter-spacing: .04em; }

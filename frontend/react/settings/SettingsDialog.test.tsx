@@ -10,7 +10,7 @@ import { setLang, t } from "../../i18n.js";
 import source from "../../../models/catalog.json";
 import { setupFixture, standard } from "../setup/fixtures";
 
-const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn(), modelCatalog: vi.fn(), useModels: vi.fn(), downloadTitleModel: vi.fn(), installCoverArt: vi.fn(), cancelModelDownload: vi.fn(), generationPolicy: vi.fn(), enginePackages: vi.fn(), installEngine: vi.fn(), removeEngine: vi.fn(), huggingFaceTokenStatus: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), checkUpdate: vi.fn(), openSongsFolder: vi.fn(), pickFolder: vi.fn(), mcpSettings: vi.fn(), saveMcpSettings: vi.fn(), phoneAccess: vi.fn(), setPhoneAccess: vi.fn(), modelCatalog: vi.fn(), useModels: vi.fn(), downloadTitleModel: vi.fn(), installCoverArt: vi.fn(), missingCoverCount: vi.fn(), generateMissingCovers: vi.fn(), cancelMissingCovers: vi.fn(), queue: vi.fn(), cancelModelDownload: vi.fn(), generationPolicy: vi.fn(), enginePackages: vi.fn(), installEngine: vi.fn(), removeEngine: vi.fn(), huggingFaceTokenStatus: vi.fn() }));
 vi.mock("../../backend", () => ({ backend: mocks }));
 vi.mock("../../stems", async importOriginal => {
   const original = await importOriginal<typeof import("../../stems")>();
@@ -56,6 +56,29 @@ it("installs the fixed cover model from model settings without opting into autom
   fireEvent.click(screen.getByRole("button", { name: "Install cover model" }));
   await screen.findByText("Cover model installed");
   expect(mocks.installCoverArt).toHaveBeenCalledOnce();
+  expect(mocks.saveSettings).not.toHaveBeenCalled();
+});
+
+it("fills missing covers from Settings and keeps progress when returning to the page", async () => {
+  mocks.settings.mockResolvedValue({ ...settings, cover_art_supported: true, cover_art_installed: true, generate_cover_art: false });
+  mocks.missingCoverCount.mockResolvedValue(503);
+  let finish!: () => void;
+  mocks.generateMissingCovers.mockImplementation(async report => {
+    report({ processed: 51, total: 503, failed: 0, last_failure: null });
+    await new Promise<void>(resolve => { finish = resolve; });
+    return { processed: 503, total: 503, failed: 0, last_failure: null };
+  });
+  render(view());
+  goTo("cover_art");
+  fireEvent.click(await screen.findByRole("button", { name: "Generate missing covers (503)" }));
+  goTo("generation");
+  goTo("cover_art");
+  expect(await screen.findByText("51 of 503 processed")).toBeTruthy();
+  expect(mocks.generateMissingCovers).toHaveBeenCalledOnce();
+  mocks.missingCoverCount.mockResolvedValue(0);
+  act(finish);
+  await screen.findByText("All available tracks have cover art.");
+  expect(screen.queryByRole("button", { name: /Generate missing covers/ })).toBeNull();
   expect(mocks.saveSettings).not.toHaveBeenCalled();
 });
 
@@ -149,6 +172,8 @@ it("distinguishes installed versions and available updates", async () => {
   expect(screen.getByTitle(latest).textContent).toBe("v0.9.5 · 61c7838baf1f");
 });
 beforeEach(() => {
+  mocks.missingCoverCount.mockResolvedValue(0);
+  mocks.queue.mockResolvedValue({ active: false });
   vi.clearAllMocks(); setLang("en"); mocks.settings.mockResolvedValue(settings);
   mocks.phoneAccess.mockResolvedValue({ enabled: false, port: 8767, token: "", addresses: [] });
   mocks.mcpSettings.mockResolvedValue({ enabled: false, port: 0, scope: "local", urls: [], running: false, url: null, config_path: "/data/mcp.json", client_config: "{}", managed_by_environment: false, error: null });

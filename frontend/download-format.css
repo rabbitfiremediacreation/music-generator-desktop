@@ -14,45 +14,10 @@ button.download-format-trigger {
   border-width: 0 1px 1px 0;
   transform: rotate(45deg);
 }
-.download-format-menu {
-  position: fixed;
-  z-index: 25;
-  box-sizing: border-box;
-  width: max-content;
-  min-width: min(184px, calc(100vw - 16px));
-  max-width: calc(100vw - 16px);
-  padding: 4px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text, #f0eee8);
-  box-shadow: 0 6px 24px #0005;
-}
-.download-format-option {
-  display: block;
-  width: 100%;
-  min-height: 34px;
-  padding: 6px 9px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  text-align: start;
-  cursor: pointer;
-}
-.download-format-option:first-child { color: var(--accent, var(--gold)); }
+.download-format-menu [role="menuitem"]:first-child { color: var(--accent, var(--gold)); }
 .download-format-metadata {
   display: block;
   max-width: 35ch;
   color: var(--text, #f0eee8);
   font-size: 12px;
-}
-.download-format-option:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--muted) 15%, transparent); }
-.download-format-option:focus-visible { outline: 1px solid var(--accent, var(--gold)); outline-offset: -1px; }
-@media (pointer: coarse) {
-  .download-format-option { min-height: 44px; }
 }

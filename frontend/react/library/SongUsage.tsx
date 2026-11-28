@@ -1,13 +1,23 @@
 import { audioFormats, type AudioFormat } from "../../audio-formats";
-import type { songUsage } from "../../song-usage";
+import type { SongUsage } from "../../song-usage";
 import { useI18n } from "../i18n";
 import { ProfileLink } from "../models/ProfileLink";
 import { Dialog } from "../ui";
 import "./song-usage-i18n";
 
-type Usage = ReturnType<typeof songUsage>;
+export function SongUsageBadges({ usage, hasOutput }: { usage: SongUsage; hasOutput: boolean }) {
+  const { t } = useI18n();
+  if (!usage.modelLicense && !hasOutput) return null;
+  return <div className="song-licenses" role="group" aria-label={t("song_usage_terms")}>
+    {usage.modelLicense && <span className="license-badge model-license" title={t("model_weight_license")}>
+      <span>{t("song_model_license")}</span> <b>{usage.modelLicense}</b>
+    </span>}
+    {hasOutput && <span className="license-badge" data-terms={usage.badge} title={usage.text}>{t(usage.badge)}</span>}
+    {hasOutput && usage.reference && <span className="license-badge" data-terms="reference" title={t("song_usage_reference")}>{t("song_reference_badge")}</span>}
+  </div>;
+}
 
-function SongUsageText({ usage }: { usage: Usage }) {
+function SongUsageText({ usage }: { usage: SongUsage }) {
   const { t } = useI18n();
   return <div className="song-usage-text">
     <p>{usage.text}</p>
@@ -18,16 +28,16 @@ function SongUsageText({ usage }: { usage: Usage }) {
   </div>;
 }
 
-export function SongUsageDetails({ usage }: { usage: Usage }) {
+export function SongUsageDetails({ usage }: { usage: SongUsage }) {
   const { t } = useI18n();
-  return <details className="song-usage-details">
-    <summary>{t("song_usage_terms")}{usage.short && ` · ${t(usage.short)}`}</summary>
+  return <div className="song-usage-details">
+    <h4>{t("song_usage_terms")}</h4>
     <SongUsageText usage={usage} />
-  </details>;
+  </div>;
 }
 
 export function SongExportDialog({ usage, format, label, onClose, onExport }: {
-  usage: Usage; format: AudioFormat | null; label: string; onClose: () => void; onExport: (format: AudioFormat) => void;
+  usage: SongUsage; format: AudioFormat | null; label: string; onClose: () => void; onExport: (format: AudioFormat) => void;
 }) {
   const { t } = useI18n();
   return <Dialog open={format !== null} title={t("song_export_audio")} onClose={onClose} className="song-export-dialog">

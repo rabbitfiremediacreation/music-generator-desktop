@@ -179,7 +179,8 @@ it("queues a library remix with its own model selection and Create-style input f
   });
   await mount();
   const row = within(await screen.findByRole("article", { name: song.title! }));
-  fireEvent.click(row.getByRole("button", { name: "Remix" }));
+  fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Remix" }));
   const remix = within(screen.getByRole("region", { name: "Remix" }));
   const model = remix.getByRole<HTMLSelectElement>("combobox", { name: t("picker_title") });
   const turboKey = JSON.stringify([turbo.provider, turbo.synthesis, turbo.language]);
@@ -419,8 +420,9 @@ it("opens a song's latest project directly and restores separation after confirm
   });
   await mount();
   const row = within(await screen.findByRole("article", { name: song.title! }));
-  expect(row.queryByRole("button", { name: t("stem_split") })).toBeNull();
-  fireEvent.click(row.getByRole("button", { name: t("stem_mixer") }));
+  fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+  expect(screen.queryByRole("menuitem", { name: t("stem_split") })).toBeNull();
+  fireEvent.click(screen.getByRole("menuitem", { name: t("stem_mixer") }));
   const mixer = await screen.findByRole("region", { name: "Stem-Mixer" });
   expect(mocks.invoke).toHaveBeenCalledWith("stem_latest_project", { songId: song.id });
   expect(screen.queryByRole("dialog", { name: t("stem_title") })).toBeNull();
@@ -435,7 +437,8 @@ it("opens a song's latest project directly and restores separation after confirm
   await dialog.findByText(t("stem_empty_projects"));
   expect(mocks.invoke).toHaveBeenCalledWith("stem_remove_project", { id: project.id });
   fireEvent.click(dialog.getByRole("button", { name: t("desktop_close") }));
-  expect(await row.findByRole("button", { name: t("stem_split") })).toBeTruthy();
+  fireEvent.click(row.getByRole("button", { name: t("song_actions") }));
+  expect(await screen.findByRole("menuitem", { name: t("stem_split") })).toBeTruthy();
 });
 it("changes the title bar design immediately and restores it independently of the app theme", async () => {
   firstRun = false;
@@ -661,13 +664,17 @@ it("can reapply the same song twice even when the system clock has not advanced"
   const original=mocks.invoke.getMockImplementation()!;
   mocks.invoke.mockImplementation((name,args)=>name==="list_song_page"?Promise.resolve({songs:[{id:"one",title:"Old",caption:"old prompt",letter:"",group_id:"g",status:"done",params:{prompt:"old prompt",inference_steps:30},result_meta:null,created_at:"2026-01-01",path:null}],total:1}):original(name,args));
   await mount();
-  const reuse=await screen.findByRole("button",{name:"Copy settings to the form"});
+  const actions = await screen.findByRole("button", { name: t("song_actions") });
+  const reuse = () => {
+    fireEvent.click(actions);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy settings to the form" }));
+  };
   vi.spyOn(Date,"now").mockReturnValue(Date.now());
   const prompt=screen.getByRole("textbox",{name:"Prompt"});
-  fireEvent.click(reuse);
+  reuse();
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).value).toBe("old prompt"));
   fireEvent.change(prompt,{target:{value:"an edit"}});
-  fireEvent.click(reuse);
+  reuse();
   await waitFor(()=>expect((prompt as HTMLTextAreaElement).value).toBe("old prompt"));
 });
 

@@ -1,6 +1,12 @@
 import { I18N } from "./i18n.js";
 
 Object.assign(I18N.en, {
+  cover_art_fill: (count: string) => `Generate missing covers (${count})`,
+  cover_art_complete: "All available tracks have cover art.",
+  cover_art_batch_progress: (done: string, total: string) => `${done} of ${total} processed`,
+  cover_art_batch_failed: (count: string) => `Failed covers: ${count}`,
+  cover_art_engine_missing: "The bundled cover engine is missing. Reinstall the Mac app to restore it.",
+  cover_art_engine_denied: "The operating system blocked the cover engine from starting.",
   cover_art_enable: "Generate cover art",
   cover_art_hint: "Automatically create a local cover for new audio tracks using the installed cover model.",
   cover_art_unsupported: "Cover art requires macOS 26 or later, Windows x64, or Linux x64 with glibc 2.43 or later.",
@@ -11,7 +17,7 @@ Object.assign(I18N.en, {
   cover_art_installed: "Cover model installed",
   cover_art_cancel: "Cancel cover art",
   settings_page_cover_art: "Cover art",
-  settings_description_cover_art: "Install the fixed model and engine for offline cover art.",
+  settings_description_cover_art: "Manage the local cover model and fill in missing artwork in your library.",
   cover_art_download_size: "512 × 512 PNG · about 1 GB to download",
   cover_art_failed: "Cover art could not be generated",
   cover_art_image: "Generated cover art",
@@ -19,6 +25,12 @@ Object.assign(I18N.en, {
 });
 
 Object.assign(I18N.de, {
+  cover_art_fill: (count: string) => `Fehlende Cover erzeugen (${count})`,
+  cover_art_complete: "Alle verfügbaren Audio-Tracks haben ein Cover.",
+  cover_art_batch_progress: (done: string, total: string) => `${done} von ${total} bearbeitet`,
+  cover_art_batch_failed: (count: string) => `Fehlgeschlagene Cover: ${count}`,
+  cover_art_engine_missing: "Die mitgelieferte Cover-Engine fehlt. Installiere die Mac-App erneut, um sie wiederherzustellen.",
+  cover_art_engine_denied: "Das Betriebssystem hat den Start der Cover-Engine blockiert.",
   cover_art_enable: "Cover-Art erzeugen",
   cover_art_hint: "Erzeugt mit dem installierten Bildmodell automatisch lokale Cover für neue Audio-Tracks.",
   cover_art_unsupported: "Cover-Art erfordert macOS 26 oder neuer, Windows x64 oder Linux x64 mit glibc 2.43 oder neuer.",
@@ -29,7 +41,7 @@ Object.assign(I18N.de, {
   cover_art_installed: "Bildmodell installiert",
   cover_art_cancel: "Cover-Erzeugung abbrechen",
   settings_page_cover_art: "Cover-Art",
-  settings_description_cover_art: "Installiere das feste Modell und die Engine für die Offline-Cover-Erzeugung.",
+  settings_description_cover_art: "Verwalte das lokale Bildmodell und ergänze fehlende Cover in deiner Bibliothek.",
   cover_art_download_size: "512 × 512 PNG · rund 1 GB Download",
   cover_art_failed: "Cover-Art konnte nicht erzeugt werden",
   cover_art_image: "Generierte Cover-Art",

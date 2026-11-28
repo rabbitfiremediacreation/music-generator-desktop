@@ -16,10 +16,12 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 mod assets;
+pub(super) mod batch;
 pub(super) mod desktop;
 mod inference;
 #[cfg(test)]
 mod tests;
+pub(super) mod thumbnail;
 
 const SIDE: u32 = 512;
 pub(super) const EXTENSION: &str = "cover.png";
@@ -52,13 +54,19 @@ pub(crate) fn supported() -> bool {
     *SUPPORTED.get_or_init(assets::supported)
 }
 
-pub(crate) fn installed(data: &Path) -> bool {
-    supported() && assets::installed_model(&data.join("cover-art")).is_some()
+pub(crate) fn installed(data: &Path, resources: &Path) -> bool {
+    let root = data.join("cover-art");
+    supported()
+        && assets::engines()
+            .last()
+            .is_some_and(|(cpu, _)| assets::executable(&root, resources, cpu).is_file())
+        && assets::installed_model(&root).is_some()
 }
 
 /// Acquire the fixed model and a CPU runtime, plus the GPU runtime where available.
 async fn install(
     data: &Path,
+    resources: &Path,
     cancel: &CancellationToken,
     progress: impl Fn(DownloadProgress),
 ) -> Result<()> {
@@ -69,13 +77,13 @@ async fn install(
     let root = data.join("cover-art");
     let work = assets::Work::new(&root, cancel, progress).await?;
     for &(engine, _) in accelerated.iter().filter(|(engine, _)| engine != cpu) {
-        match work.engine(engine).await {
+        match work.engine(resources, engine).await {
             Ok(_) => (),
             Err(Error::Cancelled) => return Err(Error::Cancelled),
             Err(error) => tracing::warn!(%error, engine, "Optional GPU cover engine unavailable"),
         }
     }
-    work.engine(cpu).await?;
+    work.engine(resources, cpu).await?;
     work.model().await?;
     Ok(())
 }
@@ -104,6 +112,7 @@ pub(super) struct Artwork {
 /// Prefer the finished description and user-provided title when building the picture prompt.
 pub(super) async fn generate_for_song(
     data: &Path,
+    resources: &Path,
     song: &Song,
     metadata: &Value,
     cancel: &CancellationToken,
@@ -118,12 +127,13 @@ pub(super) async fn generate_for_song(
         .as_str()
         .filter(|caption| !caption.trim().is_empty())
         .unwrap_or(&song.caption);
-    generate(data, title, caption, song.seed, cancel).await
+    generate(data, resources, title, caption, song.seed, cancel).await
 }
 
 /// Render original artwork from the song's title and musical description.
 pub(super) async fn generate(
     data: &Path,
+    resources: &Path,
     title: &str,
     caption: &str,
     seed: i64,
@@ -150,9 +160,13 @@ pub(super) async fn generate(
     .join(", ")
     .replace('\0', " ");
     let pin = manifest();
-    let mut last_error = message("No compatible cover art engine");
+    let mut last_error = message(if cfg!(target_os = "macos") {
+        "cover_art_engine_missing"
+    } else {
+        "cover_art_install_required"
+    });
     for (engine, device_prefix) in assets::engines() {
-        let executable = assets::executable(&root, engine);
+        let executable = assets::executable(&root, resources, engine);
         if !executable.is_file() {
             continue;
         }

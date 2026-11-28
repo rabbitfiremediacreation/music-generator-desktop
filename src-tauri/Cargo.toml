@@ -53,6 +53,7 @@ rmcp = { version = "3.8.0", default-features = false, features = ["server", "tra
 jsonschema = { version = "0.46", default-features = false }
 lofty = "0.24.0"
 png = "0.18"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 sha2 = { version = "0.10", features = ["asm"] }
